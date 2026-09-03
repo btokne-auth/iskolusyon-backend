@@ -35,6 +35,20 @@ export async function POST(request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Save the file path and SHA-256 hash to your PostgreSQL table
+    const { error: dbError } = await supabase
+      .from('documents')
+      .insert([
+        { 
+          file_path: data.path, 
+          sha256_hash: fileHash 
+        }
+      ])
+
+    if (dbError) {
+      return NextResponse.json({ error: dbError.message }, { status: 500 })
+    }
+
     // Generate a secure signed URL valid for 1 hour (3600 seconds)
     const { data: signedUrlData, error: signError } = await supabase.storage
       .from('scholarship-documents')
@@ -47,10 +61,39 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       filePath: data.path,
-      publicUrl: signedUrlData.signedUrl, // Passed as publicUrl so your frontend works without changes
+      publicUrl: signedUrlData.signedUrl, 
       sha256Hash: fileHash
     })
 
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
+
+export async function GET() {
+  try {
+    // 1. Fetch all records from your documents table
+    const { data: docs, error: dbError } = await supabase
+      .from('documents')
+      .select('*') // grabs id, file_path, and sha256_hash
+
+    if (dbError) {
+      return NextResponse.json({ error: dbError.message }, { status: 500 })
+    }
+
+    // 2. Loop through the records and generate fresh signed URLs for each
+    const docsWithUrls = await Promise.all(docs.map(async (doc) => {
+      const { data } = await supabase.storage
+        .from('scholarship-documents')
+        .createSignedUrl(doc.file_path, 3600)
+
+      return {
+        ...doc,
+        publicUrl: data?.signedUrl
+      }
+    }))
+
+    return NextResponse.json({ success: true, documents: docsWithUrls })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
