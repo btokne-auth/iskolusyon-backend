@@ -69,6 +69,54 @@ function IconClock(props) {
   )
 }
 
+// Shows the OCR/text-detection result in a scrollable box, with a copy button.
+function ExtractedTextField({ text, method }) {
+  const [copied, setCopied] = useState(false)
+
+  const methodLabel = {
+    'pdf-embedded-text': 'Read from PDF text layer',
+    'ocr-scanned-pdf': 'Detected via OCR (scanned PDF)',
+    'ocr-image': 'Detected via OCR (image)',
+  }[method] || null
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch (e) {
+      // clipboard unavailable — silently ignore
+    }
+  }
+
+  if (!text) {
+    return (
+      <div className="rounded-lg border border-slate-800/70 bg-slate-950/40 px-3 py-3 text-xs text-slate-500 italic">
+        No text detected in this document.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        {methodLabel && <span className="text-[10px] text-slate-500">{methodLabel}</span>}
+        <button
+          type="button"
+          onClick={copy}
+          className="ml-auto flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-200 transition-colors"
+        >
+          {copied ? <IconCheck className="w-3 h-3 text-emerald-400" /> : <IconCopy className="w-3 h-3" />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+      <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
+        {text}
+      </div>
+    </div>
+  )
+}
+
 // Password-style hash field: masked by default, toggle to reveal, click to copy.
 function HashField({ hash, dim = false }) {
   const [revealed, setRevealed] = useState(false)
@@ -176,7 +224,7 @@ export default function Home() {
     if (!file) return
 
     setLoading(true)
-    setStatus('Processing secure upload and generating SHA-256 hash...')
+    setStatus('Scanning document, running OCR, and generating SHA-256 hash...')
     const formData = new FormData()
     formData.append('file', file)
 
@@ -193,6 +241,7 @@ export default function Home() {
         fetchHistory()
         setFile(null)
       } else {
+        setDetails(null)
         setStatus(`Error: ${data.error}`)
       }
     } catch (err) {
@@ -319,6 +368,11 @@ export default function Home() {
                 <HashField hash={details.sha256Hash} />
               </div>
 
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">Detected text</span>
+                <ExtractedTextField text={details.extractedText} method={details.extractionMethod} />
+              </div>
+
               <a
                 href={details.publicUrl}
                 target="_blank"
@@ -390,6 +444,7 @@ export default function Home() {
                         </a>
                       </div>
                       <HashField hash={doc.sha256_hash} dim />
+                      <ExtractedTextField text={doc.extracted_text} method={doc.extraction_method} />
                     </div>
                   ))}
                 </div>
