@@ -68,6 +68,14 @@ function IconClock(props) {
     </svg>
   )
 }
+function IconAlertTriangle(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01" />
+    </svg>
+  )
+}
 
 // Shows the OCR/text-detection result in a scrollable box, with a copy button.
 function ExtractedTextField({ text, method }) {
@@ -161,10 +169,115 @@ function HashField({ hash, dim = false }) {
   )
 }
 
+// Small status pill used on the current result panel and in the history list —
+// the visible surface of the Deficiency Alert flow. A document is either
+// confidently verified, or flagged so a human (applicant re-upload / admin
+// review) makes the call instead of the system silently trusting garbled OCR.
+function ReviewStatusBadge({ needsReview }) {
+  if (needsReview) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-amber-700/50 bg-amber-950/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-400">
+        <IconAlertTriangle className="w-3 h-3" />
+        Needs review
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-800/50 bg-emerald-950/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400">
+      <IconCheck className="w-3 h-3" />
+      Verified
+    </span>
+  )
+}
+
+// The Deficiency Alert itself: shown in place of the plain success banner
+// when the uploaded document's OCR confidence came back too low to trust.
+// Gives the applicant a concrete next step (re-upload) instead of leaving
+// a silently-degraded document in the system.
+function DeficiencyAlert({ confidence, onReupload }) {
+  return (
+    <div className="p-4 rounded-xl border border-amber-800/50 bg-amber-950/30 space-y-3">
+      <div className="flex items-start gap-3">
+        <IconAlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+        <div className="space-y-1">
+          <p className="text-sm font-bold text-amber-300">Document flagged for review</p>
+          <p className="text-xs text-amber-200/80 leading-relaxed">
+            The document uploaded successfully, but text detection confidence was low
+            {typeof confidence === 'number' ? ` (${Math.round(confidence)}%)` : ''} — the
+            detected text above may be incomplete or inaccurate. This usually happens with
+            blurry photos, glare, or an angled shot. It's been marked <strong>needs review</strong> so
+            an admin can check it before it's used for verification. You can continue, or
+            re-upload a clearer copy now to avoid delays.
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onReupload}
+        className="text-xs font-semibold text-amber-300 hover:text-amber-200 underline underline-offset-2"
+      >
+        Re-upload a clearer copy
+      </button>
+    </div>
+  )
+}
+
+// Shown when the image-quality precheck rejects a file outright, before OCR
+// or storage ever ran. Deliberately distinct from DeficiencyAlert: that one
+// means "we read it but aren't confident" (document is stored, flagged,
+// admin can still review it); this one means "we couldn't even attempt to
+// read it" (nothing was stored — there is no record to review, just a photo
+// to retake).
+function QualityRejectionAlert({ message }) {
+  return (
+    <div className="p-4 rounded-xl border border-rose-800/50 bg-rose-950/30 space-y-1">
+      <div className="flex items-start gap-3">
+        <IconAlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+        <div className="space-y-1">
+          <p className="text-sm font-bold text-rose-300">Photo couldn't be processed</p>
+          <p className="text-xs text-rose-200/80 leading-relaxed">{message}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const getCleanFileName = (path) => {
   if (!path) return 'Unknown File'
   const parts = path.split('-')
   return parts.length > 1 ? parts.slice(1).join('-') : path
+}
+
+// Matches the admin mockup's CATEGORY_DEFS keys (admin (6).html) exactly —
+// same 10 required-document types, same order, grouped the same way.
+const DOCUMENT_TYPE_OPTIONS = [
+  { group: 'Personal Information', options: [
+    { value: 'birthcert', label: 'Birth Certificate / PSA' },
+    { value: 'voterid', label: "Voter's ID" },
+  ]},
+  { group: 'Academic Profile', options: [
+    { value: 'form138', label: 'Grades (Form 138 / Report Card)' },
+    { value: 'enrollmentcert', label: 'Certificate of Enrollment' },
+    { value: 'goodmoral', label: 'Good Moral Character' },
+    { value: 'currentscholarship', label: 'Proof of Current Availed Scholarship/s' },
+  ]},
+  { group: 'Financial & Employment', options: [
+    { value: 'indigency', label: 'Proof of Income (Family / Guardian)' },
+    { value: 'employmentcert', label: 'Certificate of Employment' },
+  ]},
+  { group: 'Special Demographics & Legal', options: [
+    { value: 'supportdoc', label: 'Supporting Document (per classification)' },
+  ]},
+  { group: 'Health & Wellness', options: [
+    { value: 'medcert', label: 'Current Medical Status' },
+  ]},
+]
+
+const DOC_TYPE_LABEL_MAP = Object.fromEntries(
+  DOCUMENT_TYPE_OPTIONS.flatMap((g) => g.options).map((o) => [o.value, o.label])
+)
+function getDocTypeLabel(value) {
+  return DOC_TYPE_LABEL_MAP[value] || value
 }
 
 // ---------- Page ----------
@@ -174,7 +287,12 @@ export default function Home() {
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
   const [details, setDetails] = useState(null)
+  const [qualityRejection, setQualityRejection] = useState(null)
+  const [applicantName, setApplicantName] = useState('')
+  const [applicantEmail, setApplicantEmail] = useState('')
+  const [documentType, setDocumentType] = useState('')
   const [docHistory, setDocHistory] = useState([])
+  const flaggedCount = docHistory.filter((doc) => doc.needs_review).length
   const [isDragging, setIsDragging] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const panelRef = useRef(null)
@@ -221,12 +339,16 @@ export default function Home() {
 
   const handleUpload = async (e) => {
     e.preventDefault()
-    if (!file) return
+    if (!file || !documentType || !applicantName.trim()) return
 
     setLoading(true)
     setStatus('Scanning document, running OCR, and generating SHA-256 hash...')
+    setQualityRejection(null)
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('applicantName', applicantName.trim())
+    formData.append('applicantEmail', applicantEmail.trim())
+    formData.append('documentType', documentType)
 
     try {
       const res = await fetch('/api/upload', {
@@ -236,9 +358,22 @@ export default function Home() {
       const data = await res.json()
 
       if (res.ok) {
-        setStatus('Document uploaded and verified successfully.')
+        setStatus(
+          data.needsReview
+            ? 'Document uploaded, but flagged for review.'
+            : 'Document uploaded and verified successfully.'
+        )
         setDetails(data)
         fetchHistory()
+        setFile(null)
+        setDocumentType('')
+      } else if (data.rejected) {
+        // Image-quality precheck rejection: nothing was stored, so there's
+        // no `details` to show — just the reason, and the file stays
+        // cleared so the applicant picks a fresh (better) photo.
+        setStatus('')
+        setDetails(null)
+        setQualityRejection({ reason: data.reason, message: data.message })
         setFile(null)
       } else {
         setDetails(null)
@@ -277,6 +412,14 @@ export default function Home() {
               {docHistory.length}
             </span>
           )}
+          {flaggedCount > 0 && (
+            <span
+              className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-slate-950 text-[9px] font-bold flex items-center justify-center leading-none ring-2 ring-slate-950"
+              title={`${flaggedCount} document${flaggedCount === 1 ? '' : 's'} need review`}
+            >
+              {flaggedCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -284,6 +427,56 @@ export default function Home() {
       <div className="w-full max-w-xl mx-auto px-4 py-8">
         <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-2xl p-8 sm:p-10 space-y-7">
           <form onSubmit={handleUpload} className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label htmlFor="applicantName" className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">
+                  Applicant name
+                </label>
+                <input
+                  id="applicantName"
+                  type="text"
+                  value={applicantName}
+                  onChange={(e) => setApplicantName(e.target.value)}
+                  placeholder="Juan Dela Cruz"
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600/50"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="applicantEmail" className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">
+                  Applicant email <span className="normal-case font-normal text-slate-600">(optional)</span>
+                </label>
+                <input
+                  id="applicantEmail"
+                  type="email"
+                  value={applicantEmail}
+                  onChange={(e) => setApplicantEmail(e.target.value)}
+                  placeholder="juan.delacruz@example.com"
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600/50"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="documentType" className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">
+                Document type
+              </label>
+              <select
+                id="documentType"
+                value={documentType}
+                onChange={(e) => setDocumentType(e.target.value)}
+                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600/50"
+              >
+                <option value="" disabled>Select which document this is&hellip;</option>
+                {DOCUMENT_TYPE_OPTIONS.map((group) => (
+                  <optgroup key={group.group} label={group.group}>
+                    {group.options.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
             {!file ? (
               <div
                 onDragEnter={handleDrag}
@@ -330,7 +523,7 @@ export default function Home() {
 
             <button
               type="submit"
-              disabled={loading || !file}
+              disabled={loading || !file || !documentType || !applicantName.trim()}
               className="w-full py-4 px-4 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 font-bold rounded-xl transition-all shadow-lg shadow-blue-900/20 text-sm flex items-center justify-center space-x-2 cursor-pointer disabled:cursor-not-allowed"
             >
               {loading ? (
@@ -347,11 +540,30 @@ export default function Home() {
             </button>
           </form>
 
+          {qualityRejection && (
+            <QualityRejectionAlert message={qualityRejection.message} />
+          )}
+
           {status && (
-            <div className={`p-4 rounded-xl text-sm font-medium flex items-center space-x-3 ${details ? 'bg-emerald-950/40 border border-emerald-800/50 text-emerald-300' : 'bg-slate-800/50 border border-slate-700 text-slate-300'}`}>
-              {details && <IconCheck className="w-5 h-5 text-emerald-400 shrink-0" />}
+            <div className={`p-4 rounded-xl text-sm font-medium flex items-center space-x-3 ${
+              details
+                ? (details.needsReview
+                    ? 'bg-amber-950/40 border border-amber-800/50 text-amber-300'
+                    : 'bg-emerald-950/40 border border-emerald-800/50 text-emerald-300')
+                : 'bg-slate-800/50 border border-slate-700 text-slate-300'
+            }`}>
+              {details && (details.needsReview
+                ? <IconAlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                : <IconCheck className="w-5 h-5 text-emerald-400 shrink-0" />)}
               <span>{status}</span>
             </div>
+          )}
+
+          {details && details.needsReview && (
+            <DeficiencyAlert
+              confidence={details.extractionConfidence}
+              onReupload={() => { setDetails(null); setStatus(''); setFile(null) }}
+            />
           )}
 
           {details && (
@@ -369,7 +581,10 @@ export default function Home() {
               </div>
 
               <div className="space-y-1.5">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">Detected text</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">Detected text</span>
+                  <ReviewStatusBadge needsReview={details.needsReview} />
+                </div>
                 <ExtractedTextField text={details.extractedText} method={details.extractionMethod} />
               </div>
 
@@ -422,15 +637,28 @@ export default function Home() {
               ) : (
                 <div className="space-y-3">
                   {docHistory.map((doc, index) => (
-                    <div key={index} className="p-4 bg-slate-950/40 border border-slate-800/60 rounded-xl space-y-3">
+                    <div
+                      key={index}
+                      className={`p-4 bg-slate-950/40 border rounded-xl space-y-3 ${
+                        doc.needs_review ? 'border-l-4 border-l-amber-600/70 border-y-slate-800/60 border-r-slate-800/60' : 'border-slate-800/60'
+                      }`}
+                    >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-9 h-9 rounded-lg bg-slate-800/80 flex items-center justify-center shrink-0">
                             <IconFile className="w-4.5 h-4.5 text-slate-400" />
                           </div>
-                          <p className="text-sm text-slate-200 font-medium truncate" title={doc.file_path}>
-                            {getCleanFileName(doc.file_path)}
-                          </p>
+                          <div className="min-w-0">
+                            <p className="text-sm text-slate-200 font-medium truncate" title={doc.file_path}>
+                              {getCleanFileName(doc.file_path)}
+                            </p>
+                            {(doc.applicant_name || doc.document_type) && (
+                              <p className="text-[11px] text-slate-500 truncate">
+                                {doc.applicant_name || 'Unknown applicant'}
+                                {doc.document_type ? ` · ${getDocTypeLabel(doc.document_type)}` : ''}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <a
                           href={doc.publicUrl}
@@ -443,7 +671,10 @@ export default function Home() {
                           <IconExternal className="w-4 h-4" />
                         </a>
                       </div>
-                      <HashField hash={doc.sha256_hash} dim />
+                      <div className="flex items-center justify-between">
+                        <HashField hash={doc.sha256_hash} dim />
+                      </div>
+                      <ReviewStatusBadge needsReview={doc.needs_review} />
                       <ExtractedTextField text={doc.extracted_text} method={doc.extraction_method} />
                     </div>
                   ))}

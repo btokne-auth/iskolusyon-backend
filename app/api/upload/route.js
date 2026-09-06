@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import crypto from 'crypto'
 import { PDFParse } from 'pdf-parse'
-import { createWorker } from 'tesseract.js'
+import { createWorker, PSM } from 'tesseract.js'
 
 // ---------- Validation limits ----------
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
@@ -14,24 +14,181 @@ const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'
 // to rasterizing pages + running OCR on them instead.
 const MIN_DIGITAL_TEXT_LENGTH = 40
 
+// Below this mean OCR confidence (0-100, from Tesseract), we flag the
+// document as needing manual review / re-upload instead of trusting the
+// detected text outright. This is the threshold that feeds the
+// "Deficiency Alerts" / "Re-upload Requests" flow described in the module
+// scope — low-confidence OCR isn't hidden, it's surfaced as an actionable
+// status instead of silently returning garbled text.
+const LOW_CONFIDENCE_THRESHOLD = 60
+
+// Tesseract can report a deceptively high confidence score even when it
+// detected essentially no real text — e.g. a page rotated too far for it to
+// segment into text lines at all. That score is meaningless when it's
+// attached to almost nothing, so below this many characters we treat OCR as
+// having found nothing, flag it for review regardless of the confidence
+// number, and zero that number out rather than show a contradictory
+// "95% confident, no text detected" result.
+const MIN_OCR_TEXT_LENGTH = 3
+
+// pdf-parse's own page-joiner default ("-- 1 of 3 --") gets silently baked
+// into its params object the first time it parses a page, even though we
+// never pass a pageJoiner option ourselves. That means a fully-scanned,
+// zero-text PDF still comes back from getText() with a few of these
+// separator lines glued together — which is easily >= MIN_DIGITAL_TEXT_LENGTH
+// even though not one of those characters came from the document itself.
+// Strip them before we ever measure "how much real text is here".
+const PDF_PAGE_SEPARATOR = /--\s*\d+\s+of\s+\d+\s*--/g
+
+function stripPdfPageSeparators(text) {
+  return text.replace(PDF_PAGE_SEPARATOR, '').trim()
+}
+
+// ---------- Image-quality precheck ----------
+// Runs BEFORE OCR, on raw image uploads only (JPG/PNG straight from a phone
+// camera — the actual source of blurry/glare/blank photos in practice; PDFs
+// either have a real text layer or get rasterized by us at a controlled
+// scale, so they don't need this). The goal is prevention, not correction:
+// catch an obviously unusable photo immediately and send the applicant back
+// to retake it, before spending time on a full OCR pass and before it ever
+// becomes a "needs review" record someone has to triage later.
+//
+// This is a deliberately cheap, coarse check — a handful of pixel statistics
+// via sharp, not a real blur/quality model. It's meant to catch the extreme,
+// obvious cases (a blank page, a thumbnail-sized image, a photo washed out
+// by glare or so out-of-focus it has almost no edges) — not to replace the
+// OCR-confidence-based needsReview flag, which still catches everything more
+// subtle than this.
+
+// If either dimension is smaller than this, the image is treated as too
+// low-resolution to reliably OCR (e.g. a thumbnail, a screenshot of a
+// screenshot, or a heavily-downscaled photo).
+const MIN_IMAGE_DIMENSION = 300
+
+// Standard deviation of pixel brightness across the whole (grayscale) image.
+// A real document photo — even a bad one — has edges: text, borders, a
+// visible page against a background. A blank page, a glare-washed photo, or
+// an image blurred past readability collapses toward one flat brightness
+// value, which shows up as a very low stdev. Real scholarship-document test
+// photos in this project ran well above this; deliberately conservative so
+// this only catches the extreme cases and doesn't reject legitimate but
+// low-contrast documents. Named and isolated the same way as
+// LOW_CONFIDENCE_THRESHOLD above — a single tunable constant, not a scattered
+// magic number, meant to be revisited against a larger sample set.
+const MIN_CONTRAST_STDEV = 10
+
+async function checkImageQuality(buffer) {
+  const metadata = await sharp(buffer).metadata()
+  const { width = 0, height = 0 } = metadata
+
+  if (width < MIN_IMAGE_DIMENSION || height < MIN_IMAGE_DIMENSION) {
+    return {
+      passed: false,
+      reason: 'too_small',
+      message: `This image is only ${width}×${height}px, too low-resolution to read reliably. Please upload a higher-resolution photo or scan (at least ${MIN_IMAGE_DIMENSION}px on each side).`
+    }
+  }
+
+  const stats = await sharp(buffer).grayscale().stats()
+  const stdev = stats.channels[0]?.stdev ?? 0
+
+  if (stdev < MIN_CONTRAST_STDEV) {
+    return {
+      passed: false,
+      reason: 'low_contrast',
+      message: 'This photo appears blank, extremely blurry, or washed out by glare — no readable detail could be detected. Please retake it on a flat surface, with even lighting and no glare, holding the camera steady.'
+    }
+  }
+
+  return { passed: true }
+}
+
 // ---------- OCR / text extraction helpers ----------
+
+// Detects whether a page is sideways or upside-down (a 90/180/270-degree
+// misorientation — the kind you get from a phone photo taken in the wrong
+// orientation, or an image whose EXIF rotation got stripped somewhere along
+// the way) and rotates it upright before recognition runs.
+//
+// IMPORTANT LIMITATION: this only corrects cardinal, 90-degree-increment
+// misorientation. It does NOT fix continuous skew — a photo taken at a
+// slight or moderate tilt, like a document photographed at an angle rather
+// than dead-on. True deskewing needs the actual skew angle measured off the
+// text lines themselves (e.g. via a Hough-transform line-angle detector),
+// which is a meaningfully bigger feature than this capstone's OCR module
+// scope covers. A badly-skewed document that this step can't fix is still
+// caught downstream by the empty-text safety net below instead of silently
+// passing.
+//
+// Also unverified end-to-end in this environment (Tesseract's OSD needs
+// network access to fetch its own data, which isn't available in this
+// sandbox) — test it against a genuinely sideways photo after deploying.
+// If the correction rotates the image the wrong way, the fix is flipping
+// the sign: change `360 - degrees` below to just `degrees`.
+async function correctOrientation(worker, buffer) {
+  try {
+    const { data } = await worker.detect(buffer)
+    const degrees = data?.orientation_degrees ?? 0
+    const confidence = data?.orientation_confidence ?? 0
+
+    // Only act on a confident, cardinal reading — acting on a low-confidence
+    // guess for an already-upright document would do more harm than good.
+    if (confidence > 5 && [90, 180, 270].includes(degrees)) {
+      return await sharp(buffer).rotate(360 - degrees).toBuffer()
+    }
+  } catch (e) {
+    // Orientation detection is a best-effort improvement, not a required
+    // step — if it fails (e.g. OSD data unavailable), fall through and OCR
+    // the image as-is rather than failing the whole upload over it.
+    console.error('Orientation detection failed:', e)
+  }
+  return buffer
+}
 
 async function preprocessForOCR(buffer) {
   return sharp(buffer)
     .resize({ width: 2000, withoutEnlargement: false })  // upscale small/low-res photos
     .grayscale()
+    .median(3)          // knocks out camera-sensor speckle/JPEG noise before
+                         // contrast stretching amplifies it — cheap and only
+                         // helps on real photos, doesn't hurt clean scans
     .normalize()
     .sharpen()
     .toBuffer()
     // no .threshold() — let Tesseract binarize internally, it's better at it than a flat cutoff
 }
-// Runs Tesseract OCR on a single image buffer using an already-started worker.
 
+// A single photographed/scanned page can defeat Tesseract's automatic page
+// segmentation in ways that are specific to that page's layout — e.g. two
+// logos side by side in a header get read as one interleaved line instead of
+// two separate ones. There's no single PSM that's safe for every scholarship
+// document (forms, letters, IDs, certificates all lay out differently), so
+// instead of guessing one, we run the two segmentation strategies that cover
+// most real documents — full-page auto layout, and single uniform block —
+// and keep whichever one Tesseract itself is more confident about. This is
+// the single biggest lever we have on the "OCR falls apart on anything that
+// isn't a clean, born-digital PDF" problem, without adding new dependencies.
+async function ocrWithBestSegmentation(worker, buffer) {
+  const candidates = [PSM.AUTO, PSM.SINGLE_BLOCK]
+  let best = null
+
+  for (const psm of candidates) {
+    await worker.setParameters({ tessedit_pageseg_mode: psm })
+    const { data } = await worker.recognize(buffer)
+    if (!best || data.confidence > best.confidence) {
+      best = { text: data.text, confidence: data.confidence }
+    }
+  }
+
+  return best
+}
+
+// Runs Tesseract OCR on a single image buffer using an already-started worker.
 async function ocrImageBuffer(worker, buffer) {
-  const cleaned = await preprocessForOCR(buffer)
-  console.log('Preprocessed buffer size:', cleaned.length, 'original:', buffer.length)  // TEMP
-  const { data: { text } } = await worker.recognize(cleaned)
-  return text
+  const oriented = await correctOrientation(worker, buffer)
+  const cleaned = await preprocessForOCR(oriented)
+  const { text, confidence } = await ocrWithBestSegmentation(worker, cleaned)
+  return { text: text.trim(), confidence }
 }
 
 // Decides how to pull text out of the uploaded file:
@@ -43,8 +200,8 @@ async function extractText(buffer, mimeType) {
   if (mimeType.startsWith('image/')) {
     const worker = await createWorker('eng')
     try {
-      const text = await ocrImageBuffer(worker, buffer)
-      return { text: text.trim(), method: 'ocr-image' }
+      const { text, confidence } = await ocrImageBuffer(worker, buffer)
+      return { text, method: 'ocr-image', confidence }
     } finally {
       await worker.terminate()
     }
@@ -54,10 +211,15 @@ async function extractText(buffer, mimeType) {
     const parser = new PDFParse({ data: buffer })
     try {
       const result = await parser.getText()
-      const digitalText = (result.text || '').trim()
+      // Strip pdf-parse's own "-- N of M --" page-separator boilerplate
+      // before deciding whether this PDF actually has a text layer — see
+      // the comment on PDF_PAGE_SEPARATOR above for why this matters.
+      const digitalText = stripPdfPageSeparators((result.text || '').trim())
 
       if (digitalText.length >= MIN_DIGITAL_TEXT_LENGTH) {
-        return { text: digitalText, method: 'pdf-embedded-text' }
+        // Born-digital text layer — exact, no OCR involved, so confidence
+        // is a non-issue (treated as maximum).
+        return { text: digitalText, method: 'pdf-embedded-text', confidence: 100 }
       }
 
       // No usable text layer found — treat as a scanned PDF and OCR each page.
@@ -65,10 +227,17 @@ async function extractText(buffer, mimeType) {
       const worker = await createWorker('eng')
       try {
         let ocrText = ''
+        let confidenceSum = 0
         for (const page of screenshot.pages) {
-          ocrText += (await ocrImageBuffer(worker, page.data)) + '\n'
+          const result = await ocrImageBuffer(worker, page.data)
+          ocrText += result.text + '\n'
+          confidenceSum += result.confidence
         }
-        return { text: ocrText.trim(), method: 'ocr-scanned-pdf' }
+        return {
+          text: ocrText.trim(),
+          method: 'ocr-scanned-pdf',
+          confidence: confidenceSum / screenshot.pages.length
+        }
       } finally {
         await worker.terminate()
       }
@@ -77,13 +246,34 @@ async function extractText(buffer, mimeType) {
     }
   }
 
-  return { text: '', method: 'unsupported' }
+  return { text: '', method: 'unsupported', confidence: 0 }
 }
+
+// Matches the mockup's CATEGORY_DEFS document keys exactly (admin (6).html)
+// so the admin review view can render these without any translation layer.
+const VALID_DOCUMENT_TYPES = [
+  'birthcert', 'voterid', 'form138', 'enrollmentcert', 'goodmoral',
+  'currentscholarship', 'indigency', 'employmentcert', 'supportdoc', 'medcert'
+]
 
 export async function POST(request) {
   try {
     const formData = await request.formData()
     const file = formData.get('file')
+
+    // Placeholder applicant identity, filled in on the form itself — see
+    // add_applicant_and_doctype_columns.sql for why this isn't a real
+    // applicant_id foreign key yet (no accounts/login module exists).
+    const applicantName = formData.get('applicantName')?.toString().trim() || null
+    const applicantEmail = formData.get('applicantEmail')?.toString().trim() || null
+    const documentType = formData.get('documentType')?.toString().trim() || null
+
+    if (documentType && !VALID_DOCUMENT_TYPES.includes(documentType)) {
+      return NextResponse.json(
+        { error: `Unknown document type. Must be one of: ${VALID_DOCUMENT_TYPES.join(', ')}` },
+        { status: 400 }
+      )
+    }
 
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
@@ -108,6 +298,21 @@ export async function POST(request) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
+    // Image-quality precheck — images only (see checkImageQuality above for
+    // why PDFs are excluded). Runs before hashing/storage/OCR: an obviously
+    // unusable photo is rejected outright rather than stored as a flagged
+    // record, so the applicant fixes it at the point of capture instead of
+    // it becoming something an admin has to triage later.
+    if (file.type.startsWith('image/')) {
+      const quality = await checkImageQuality(buffer)
+      if (!quality.passed) {
+        return NextResponse.json(
+          { success: false, rejected: true, reason: quality.reason, message: quality.message },
+          { status: 422 }
+        )
+      }
+    }
+
     // Generate SHA-256 hash for document integrity verification
     const hashSum = crypto.createHash('sha256')
     hashSum.update(buffer)
@@ -118,13 +323,32 @@ export async function POST(request) {
     // the document upload succeed — it just comes back with empty text.
     let extractedText = ''
     let extractionMethod = 'none'
+    let extractionConfidence = 0
     try {
       const result = await extractText(buffer, file.type)
       extractedText = result.text
       extractionMethod = result.method
+      extractionConfidence = result.confidence
     } catch (ocrError) {
       console.error('Text extraction failed:', ocrError)
     }
+
+    // OCR reporting high confidence about almost no text is a meaningless
+    // (and misleading) combination — see MIN_OCR_TEXT_LENGTH above. Catch it
+    // before deciding needsReview, and zero the displayed confidence out so
+    // an admin never sees a contradictory "95% confident / no text detected"
+    // result.
+    const ocrFoundNothing = extractionMethod !== 'pdf-embedded-text'
+      && extractionMethod !== 'none'
+      && extractedText.trim().length < MIN_OCR_TEXT_LENGTH
+
+    if (ocrFoundNothing) {
+      extractionConfidence = 0
+    }
+
+    const needsReview = extractionMethod !== 'pdf-embedded-text'
+      && extractionMethod !== 'none'
+      && (ocrFoundNothing || extractionConfidence < LOW_CONFIDENCE_THRESHOLD)
 
     // Define unique file name for the storage bucket
     const safeName = file.name
@@ -153,7 +377,13 @@ export async function POST(request) {
         { 
           file_path: data.path, 
           sha256_hash: fileHash,
-          extracted_text: extractedText
+          extracted_text: extractedText,
+          ocr_confidence: extractionConfidence,
+          needs_review: needsReview,
+          review_status: needsReview ? 'flagged' : 'verified',
+          applicant_name: applicantName,
+          applicant_email: applicantEmail,
+          document_type: documentType
         }
       ])
 
@@ -176,7 +406,12 @@ export async function POST(request) {
       publicUrl: signedUrlData.signedUrl, 
       sha256Hash: fileHash,
       extractedText,
-      extractionMethod
+      extractionMethod,
+      extractionConfidence,
+      needsReview,
+      applicantName,
+      applicantEmail,
+      documentType
     })
 
   } catch (err) {
