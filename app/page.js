@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import SiteHeader from './components/SiteHeader'
 
 // ---------- Small building blocks ----------
 
@@ -99,7 +100,7 @@ function ExtractedTextField({ text, method }) {
 
   if (!text) {
     return (
-      <div className="rounded-lg border border-slate-800/70 bg-slate-950/40 px-3 py-3 text-xs text-slate-500 italic">
+      <div className="rounded-lg border border-ccc-border bg-ccc-off px-3 py-3 text-xs text-ccc-muted italic">
         No text detected in this document.
       </div>
     )
@@ -108,17 +109,17 @@ function ExtractedTextField({ text, method }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        {methodLabel && <span className="text-[10px] text-slate-500">{methodLabel}</span>}
+        {methodLabel && <span className="text-[10px] text-ccc-muted">{methodLabel}</span>}
         <button
           type="button"
           onClick={copy}
-          className="ml-auto flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-200 transition-colors"
+          className="ml-auto flex items-center gap-1 text-[10px] text-ccc-muted hover:text-ccc-navy transition-colors"
         >
-          {copied ? <IconCheck className="w-3 h-3 text-emerald-400" /> : <IconCopy className="w-3 h-3" />}
+          {copied ? <IconCheck className="w-3 h-3 text-ccc-green" /> : <IconCopy className="w-3 h-3" />}
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
+      <div className="max-h-40 overflow-y-auto rounded-lg border border-ccc-border bg-ccc-off p-3 text-xs text-ccc-text whitespace-pre-wrap leading-relaxed">
         {text}
       </div>
     </div>
@@ -143,14 +144,14 @@ function HashField({ hash, dim = false }) {
   }
 
   return (
-    <div className={`flex items-center gap-1.5 rounded-lg border ${dim ? 'border-slate-800/70 bg-slate-950/40' : 'border-slate-800 bg-slate-950'} pl-3 pr-1.5 py-1.5`}>
-      <span className={`flex-1 min-w-0 font-mono text-[11px] tracking-tight ${dim ? 'text-slate-500' : 'text-blue-300/90'} ${revealed ? 'truncate' : ''}`}>
+    <div className={`flex items-center gap-1.5 rounded-lg border ${dim ? 'border-ccc-border bg-ccc-off' : 'border-ccc-border bg-white'} pl-3 pr-1.5 py-1.5`}>
+      <span className={`flex-1 min-w-0 font-mono text-[11px] tracking-tight ${dim ? 'text-ccc-muted' : 'text-ccc-blue'} ${revealed ? 'truncate' : ''}`}>
         {revealed ? hash : masked}
       </span>
       <button
         type="button"
         onClick={() => setRevealed((v) => !v)}
-        className="shrink-0 p-1.5 rounded-md text-slate-500 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+        className="shrink-0 p-1.5 rounded-md text-ccc-muted hover:text-ccc-navy hover:bg-ccc-off transition-colors"
         aria-label={revealed ? 'Hide hash' : 'Reveal hash'}
         title={revealed ? 'Hide hash' : 'Reveal hash'}
       >
@@ -159,11 +160,11 @@ function HashField({ hash, dim = false }) {
       <button
         type="button"
         onClick={copy}
-        className="shrink-0 p-1.5 rounded-md text-slate-500 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+        className="shrink-0 p-1.5 rounded-md text-ccc-muted hover:text-ccc-navy hover:bg-ccc-off transition-colors"
         aria-label="Copy hash"
         title="Copy hash"
       >
-        {copied ? <IconCheck className="w-3.5 h-3.5 text-emerald-400" /> : <IconCopy className="w-3.5 h-3.5" />}
+        {copied ? <IconCheck className="w-3.5 h-3.5 text-ccc-green" /> : <IconCopy className="w-3.5 h-3.5" />}
       </button>
     </div>
   )
@@ -176,14 +177,14 @@ function HashField({ hash, dim = false }) {
 function ReviewStatusBadge({ needsReview }) {
   if (needsReview) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-amber-700/50 bg-amber-950/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-400">
+      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-orange/50 bg-orange-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-orange">
         <IconAlertTriangle className="w-3 h-3" />
         Needs review
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-800/50 bg-emerald-950/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400">
+    <span className="inline-flex items-center gap-1 rounded-full border border-ccc-green/40 bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-green">
       <IconCheck className="w-3 h-3" />
       Verified
     </span>
@@ -196,12 +197,12 @@ function ReviewStatusBadge({ needsReview }) {
 // a silently-degraded document in the system.
 function DeficiencyAlert({ confidence, onReupload }) {
   return (
-    <div className="p-4 rounded-xl border border-amber-800/50 bg-amber-950/30 space-y-3">
+    <div className="p-4 rounded-xl border border-ccc-orange/50 bg-orange-50 space-y-3">
       <div className="flex items-start gap-3">
-        <IconAlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+        <IconAlertTriangle className="w-5 h-5 text-ccc-orange shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <p className="text-sm font-bold text-amber-300">Document flagged for review</p>
-          <p className="text-xs text-amber-200/80 leading-relaxed">
+          <p className="text-sm font-bold text-ccc-orange">Document flagged for review</p>
+          <p className="text-xs text-ccc-text/80 leading-relaxed">
             The document uploaded successfully, but text detection confidence was low
             {typeof confidence === 'number' ? ` (${Math.round(confidence)}%)` : ''} — the
             detected text above may be incomplete or inaccurate. This usually happens with
@@ -214,7 +215,7 @@ function DeficiencyAlert({ confidence, onReupload }) {
       <button
         type="button"
         onClick={onReupload}
-        className="text-xs font-semibold text-amber-300 hover:text-amber-200 underline underline-offset-2"
+        className="text-xs font-semibold text-ccc-orange hover:text-ccc-navy underline underline-offset-2"
       >
         Re-upload a clearer copy
       </button>
@@ -230,12 +231,12 @@ function DeficiencyAlert({ confidence, onReupload }) {
 // to retake).
 function QualityRejectionAlert({ message }) {
   return (
-    <div className="p-4 rounded-xl border border-rose-800/50 bg-rose-950/30 space-y-1">
+    <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 space-y-1">
       <div className="flex items-start gap-3">
-        <IconAlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+        <IconAlertTriangle className="w-5 h-5 text-ccc-red shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <p className="text-sm font-bold text-rose-300">Photo couldn't be processed</p>
-          <p className="text-xs text-rose-200/80 leading-relaxed">{message}</p>
+          <p className="text-sm font-bold text-ccc-red">Photo couldn't be processed</p>
+          <p className="text-xs text-ccc-text/80 leading-relaxed">{message}</p>
         </div>
       </div>
     </div>
@@ -387,34 +388,36 @@ export default function Home() {
   }
 
   return (
-    <main className="relative min-h-screen bg-slate-950 text-slate-100 overflow-hidden">
-      {/* Ambient background */}
-      <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-blue-600/10 blur-[120px] rounded-full -z-10 pointer-events-none" />
+    <main className="min-h-screen bg-ccc-off text-ccc-text">
+      <SiteHeader topbarLabel="Iskolusyon Applicant Portal" portalBadge="Applicant Portal" />
 
       {/* Top bar */}
       <div className="w-full max-w-xl mx-auto px-4 pt-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
+          <h1
+            className="text-2xl font-extrabold tracking-tight text-ccc-navy"
+            style={{ fontFamily: 'var(--font-montserrat)' }}
+          >
             Iskolusyon
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">Secure scholarship document verification & storage</p>
+          <p className="text-xs text-ccc-muted mt-0.5">Secure scholarship document verification & storage</p>
         </div>
 
         <button
           type="button"
           onClick={() => setHistoryOpen(true)}
-          className="relative flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/70 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 transition-colors text-xs font-semibold"
+          className="relative flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-ccc-border text-ccc-text hover:text-ccc-navy hover:border-ccc-blue/40 transition-colors text-xs font-semibold shadow-sm"
         >
           <IconClock className="w-4 h-4" />
           History
           {docHistory.length > 0 && (
-            <span className="ml-0.5 bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+            <span className="ml-0.5 bg-ccc-blue text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
               {docHistory.length}
             </span>
           )}
           {flaggedCount > 0 && (
             <span
-              className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-amber-500 text-slate-950 text-[9px] font-bold flex items-center justify-center leading-none ring-2 ring-slate-950"
+              className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-ccc-gold text-ccc-navy text-[9px] font-bold flex items-center justify-center leading-none ring-2 ring-ccc-off"
               title={`${flaggedCount} document${flaggedCount === 1 ? '' : 's'} need review`}
             >
               {flaggedCount}
@@ -425,11 +428,11 @@ export default function Home() {
 
       {/* Upload card */}
       <div className="w-full max-w-xl mx-auto px-4 py-8">
-        <div className="bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-2xl p-8 sm:p-10 space-y-7">
+        <div className="bg-white border border-ccc-border rounded-3xl shadow-md p-8 sm:p-10 space-y-7">
           <form onSubmit={handleUpload} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label htmlFor="applicantName" className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">
+                <label htmlFor="applicantName" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
                   Applicant name
                 </label>
                 <input
@@ -438,12 +441,12 @@ export default function Home() {
                   value={applicantName}
                   onChange={(e) => setApplicantName(e.target.value)}
                   placeholder="Juan Dela Cruz"
-                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600/50"
+                  className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
                 />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="applicantEmail" className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">
-                  Applicant email <span className="normal-case font-normal text-slate-600">(optional)</span>
+                <label htmlFor="applicantEmail" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
+                  Applicant email <span className="normal-case font-normal text-ccc-muted">(optional)</span>
                 </label>
                 <input
                   id="applicantEmail"
@@ -451,20 +454,20 @@ export default function Home() {
                   value={applicantEmail}
                   onChange={(e) => setApplicantEmail(e.target.value)}
                   placeholder="juan.delacruz@example.com"
-                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600/50"
+                  className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="documentType" className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">
+              <label htmlFor="documentType" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
                 Document type
               </label>
               <select
                 id="documentType"
                 value={documentType}
                 onChange={(e) => setDocumentType(e.target.value)}
-                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600/50"
+                className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
               >
                 <option value="" disabled>Select which document this is&hellip;</option>
                 {DOCUMENT_TYPE_OPTIONS.map((group) => (
@@ -484,36 +487,36 @@ export default function Home() {
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
                 className={`relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center space-y-4
-                  ${isDragging ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700 bg-slate-950/50 hover:border-slate-500 hover:bg-slate-800/50'}`}
+                  ${isDragging ? 'border-ccc-blue bg-blue-50' : 'border-ccc-border bg-ccc-off hover:border-ccc-blue/50 hover:bg-blue-50/40'}`}
               >
                 <input
                   type="file"
                   onChange={(e) => setFile(e.target.files[0])}
                   className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
                 />
-                <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 shadow-inner mb-2">
+                <div className="w-16 h-16 rounded-full bg-white border border-ccc-border flex items-center justify-center text-ccc-navy shadow-sm mb-2">
                   <IconUpload className="w-8 h-8" />
                 </div>
                 <div>
-                  <p className="text-base font-semibold text-slate-200">Click to upload or drag and drop</p>
-                  <p className="text-sm text-slate-500 mt-1">Supports PDF, PNG, and JPG formats up to 10MB</p>
+                  <p className="text-base font-semibold text-ccc-navy">Click to upload or drag and drop</p>
+                  <p className="text-sm text-ccc-muted mt-1">Supports PDF, PNG, and JPG formats up to 10MB</p>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between p-5 bg-blue-950/30 border border-blue-900/50 rounded-2xl">
+              <div className="flex items-center justify-between p-5 bg-blue-50 border border-ccc-blue/30 rounded-2xl">
                 <div className="flex items-center space-x-4 overflow-hidden">
-                  <div className="w-12 h-12 rounded-xl bg-blue-600/20 flex items-center justify-center text-blue-400 shrink-0">
+                  <div className="w-12 h-12 rounded-xl bg-white border border-ccc-blue/30 flex items-center justify-center text-ccc-blue shrink-0">
                     <IconFile className="w-6 h-6" />
                   </div>
                   <div className="truncate pr-4">
-                    <p className="text-sm font-semibold text-slate-200 truncate">{file.name}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                    <p className="text-sm font-semibold text-ccc-text truncate">{file.name}</p>
+                    <p className="text-xs text-ccc-muted mt-0.5">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setFile(null)}
-                  className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors shrink-0"
+                  className="p-2 rounded-lg hover:bg-white text-ccc-muted hover:text-ccc-navy transition-colors shrink-0"
                   aria-label="Remove file"
                 >
                   <IconX className="w-5 h-5" />
@@ -524,7 +527,8 @@ export default function Home() {
             <button
               type="submit"
               disabled={loading || !file || !documentType || !applicantName.trim()}
-              className="w-full py-4 px-4 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 font-bold rounded-xl transition-all shadow-lg shadow-blue-900/20 text-sm flex items-center justify-center space-x-2 cursor-pointer disabled:cursor-not-allowed"
+              className="w-full py-4 px-4 bg-ccc-blue hover:bg-ccc-navy disabled:bg-ccc-border disabled:text-ccc-muted text-white font-bold rounded-xl transition-all shadow-md text-sm flex items-center justify-center space-x-2 cursor-pointer disabled:cursor-not-allowed"
+              style={{ fontFamily: 'var(--font-montserrat)' }}
             >
               {loading ? (
                 <>
@@ -548,13 +552,13 @@ export default function Home() {
             <div className={`p-4 rounded-xl text-sm font-medium flex items-center space-x-3 ${
               details
                 ? (details.needsReview
-                    ? 'bg-amber-950/40 border border-amber-800/50 text-amber-300'
-                    : 'bg-emerald-950/40 border border-emerald-800/50 text-emerald-300')
-                : 'bg-slate-800/50 border border-slate-700 text-slate-300'
+                    ? 'bg-orange-50 border border-ccc-orange/40 text-ccc-orange'
+                    : 'bg-green-50 border border-ccc-green/40 text-ccc-green')
+                : 'bg-ccc-off border border-ccc-border text-ccc-text'
             }`}>
               {details && (details.needsReview
-                ? <IconAlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-                : <IconCheck className="w-5 h-5 text-emerald-400 shrink-0" />)}
+                ? <IconAlertTriangle className="w-5 h-5 text-ccc-orange shrink-0" />
+                : <IconCheck className="w-5 h-5 text-ccc-green shrink-0" />)}
               <span>{status}</span>
             </div>
           )}
@@ -567,22 +571,22 @@ export default function Home() {
           )}
 
           {details && (
-            <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-inner">
+            <div className="bg-ccc-off border border-ccc-border rounded-2xl p-6 space-y-5">
               <div className="space-y-1.5">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">Storage path</span>
-                <span className="text-slate-300 font-mono text-xs bg-slate-900/80 p-3 rounded-lg block break-all border border-slate-800/50">
+                <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">Storage path</span>
+                <span className="text-ccc-text font-mono text-xs bg-white p-3 rounded-lg block break-all border border-ccc-border">
                   {details.filePath}
                 </span>
               </div>
 
               <div className="space-y-1.5">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">SHA-256 integrity hash</span>
+                <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">SHA-256 integrity hash</span>
                 <HashField hash={details.sha256Hash} />
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">Detected text</span>
+                  <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">Detected text</span>
                   <ReviewStatusBadge needsReview={details.needsReview} />
                 </div>
                 <ExtractedTextField text={details.extractedText} method={details.extractionMethod} />
@@ -592,7 +596,7 @@ export default function Home() {
                 href={details.publicUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center justify-center w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl transition-colors space-x-2 text-sm"
+                className="inline-flex items-center justify-center w-full py-3 bg-ccc-navy hover:bg-ccc-blue text-white font-semibold rounded-xl transition-colors space-x-2 text-sm"
               >
                 <span>View uploaded document</span>
                 <IconExternal className="w-4 h-4" />
@@ -606,22 +610,22 @@ export default function Home() {
       {historyOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div
-            className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             onClick={() => setHistoryOpen(false)}
           />
           <div
             ref={panelRef}
-            className="relative w-full max-w-md h-full bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col animate-[slideIn_0.2s_ease-out]"
+            className="relative w-full max-w-md h-full bg-white border-l border-ccc-border shadow-2xl flex flex-col animate-[slideIn_0.2s_ease-out]"
           >
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-800/80">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-ccc-border">
               <div>
-                <h3 className="text-base font-bold text-white">Recent uploads</h3>
-                <p className="text-xs text-slate-500 mt-0.5">{docHistory.length} document{docHistory.length === 1 ? '' : 's'} on record</p>
+                <h3 className="text-base font-bold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Recent uploads</h3>
+                <p className="text-xs text-ccc-muted mt-0.5">{docHistory.length} document{docHistory.length === 1 ? '' : 's'} on record</p>
               </div>
               <button
                 type="button"
                 onClick={() => setHistoryOpen(false)}
-                className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                className="p-2 rounded-lg hover:bg-ccc-off text-ccc-muted hover:text-ccc-navy transition-colors"
                 aria-label="Close history"
               >
                 <IconX className="w-5 h-5" />
@@ -631,29 +635,29 @@ export default function Home() {
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {docHistory.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center opacity-60 py-16">
-                  <IconFile className="w-12 h-12 text-slate-600 mb-4" />
-                  <p className="text-sm text-slate-400">No documents uploaded yet.</p>
+                  <IconFile className="w-12 h-12 text-ccc-muted mb-4" />
+                  <p className="text-sm text-ccc-muted">No documents uploaded yet.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {docHistory.map((doc, index) => (
                     <div
                       key={index}
-                      className={`p-4 bg-slate-950/40 border rounded-xl space-y-3 ${
-                        doc.needs_review ? 'border-l-4 border-l-amber-600/70 border-y-slate-800/60 border-r-slate-800/60' : 'border-slate-800/60'
+                      className={`p-4 bg-ccc-off border rounded-xl space-y-3 ${
+                        doc.needs_review ? 'border-l-4 border-l-ccc-orange border-y-ccc-border border-r-ccc-border' : 'border-ccc-border'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-lg bg-slate-800/80 flex items-center justify-center shrink-0">
-                            <IconFile className="w-4.5 h-4.5 text-slate-400" />
+                          <div className="w-9 h-9 rounded-lg bg-white border border-ccc-border flex items-center justify-center shrink-0">
+                            <IconFile className="w-4.5 h-4.5 text-ccc-muted" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm text-slate-200 font-medium truncate" title={doc.file_path}>
+                            <p className="text-sm text-ccc-text font-medium truncate" title={doc.file_path}>
                               {getCleanFileName(doc.file_path)}
                             </p>
                             {(doc.applicant_name || doc.document_type) && (
-                              <p className="text-[11px] text-slate-500 truncate">
+                              <p className="text-[11px] text-ccc-muted truncate">
                                 {doc.applicant_name || 'Unknown applicant'}
                                 {doc.document_type ? ` · ${getDocTypeLabel(doc.document_type)}` : ''}
                               </p>
@@ -664,7 +668,7 @@ export default function Home() {
                           href={doc.publicUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="p-2 bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 hover:text-blue-300 transition-colors shrink-0"
+                          className="p-2 bg-blue-50 text-ccc-blue rounded-lg hover:bg-blue-100 hover:text-ccc-navy transition-colors shrink-0"
                           title="View document"
                           aria-label="View document"
                         >

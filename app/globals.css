@@ -1,26 +1,61 @@
 @import "tailwindcss";
 
+/* ============================================================
+   CCC / Iskolusyon approved brand theme
+   Pulled from the Proposal-defense HTML mockups (admin, applicant,
+   login, signup, index) so the real app matches the approved design.
+   ============================================================ */
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* -- CCC brand colors (from mockup :root) -- */
+  --ccc-navy: #0D2F6E;
+  --ccc-blue: #003CD0;
+  --ccc-blue-mid: #1A4FA0;
+  --ccc-blue-light: #2563B0;
+  --ccc-green: #1B6B3A;
+  --ccc-green-dark: #155230;
+  --ccc-gold: #C8A84B;
+  --ccc-yellow: #FFD400;
+  --ccc-off: #F5F6F8;
+  --ccc-text: #2C3E50;
+  --ccc-muted: #6B7E9A;
+  --ccc-border: #E0E6F0;
+  --ccc-orange: #E07B39;
+  --ccc-red: #C0392B;
 }
 
+/* Tailwind v4: anything declared here becomes a real utility class,
+   e.g. bg-ccc-navy, text-ccc-gold, border-ccc-border, etc. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-ccc-navy: var(--ccc-navy);
+  --color-ccc-blue: var(--ccc-blue);
+  --color-ccc-blue-mid: var(--ccc-blue-mid);
+  --color-ccc-blue-light: var(--ccc-blue-light);
+  --color-ccc-green: var(--ccc-green);
+  --color-ccc-green-dark: var(--ccc-green-dark);
+  --color-ccc-gold: var(--ccc-gold);
+  --color-ccc-yellow: var(--ccc-yellow);
+  --color-ccc-off: var(--ccc-off);
+  --color-ccc-text: var(--ccc-text);
+  --color-ccc-muted: var(--ccc-muted);
+  --color-ccc-border: var(--ccc-border);
+  --color-ccc-orange: var(--ccc-orange);
+  --color-ccc-red: var(--ccc-red);
+
+  --font-brand: 'Montserrat', sans-serif;
+  --font-body: 'Open Sans', sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ccc-off);
+  color: var(--ccc-text);
+  font-family: 'Open Sans', Arial, Helvetica, sans-serif;
 }

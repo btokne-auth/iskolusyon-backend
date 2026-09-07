@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
+import SiteHeader from '../components/SiteHeader'
 
 // ---------- Icons (same style as the applicant page) ----------
 
@@ -95,14 +96,14 @@ function isPdfFile(path) {
 function ReviewStatusBadge({ needsReview }) {
   if (needsReview) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-amber-700/50 bg-amber-950/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-400">
+      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-orange/50 bg-orange-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-orange">
         <IconAlertTriangle className="w-3 h-3" />
         Needs review
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-800/50 bg-emerald-950/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-400">
+    <span className="inline-flex items-center gap-1 rounded-full border border-ccc-green/40 bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-green">
       <IconCheck className="w-3 h-3" />
       Verified
     </span>
@@ -113,16 +114,16 @@ function ReviewStatusBadge({ needsReview }) {
 // of requiring the admin to do math on a raw percentage.
 function ConfidenceMeter({ value }) {
   if (typeof value !== 'number') {
-    return <span className="text-xs text-slate-500 italic">No score</span>
+    return <span className="text-xs text-ccc-muted italic">No score</span>
   }
   const pct = Math.max(0, Math.min(100, Math.round(value)))
-  const color = pct >= 80 ? 'bg-emerald-500' : pct >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+  const color = pct >= 80 ? 'bg-ccc-green' : pct >= 60 ? 'bg-ccc-gold' : 'bg-ccc-red'
   return (
     <div className="flex items-center gap-2 min-w-[120px]">
-      <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+      <div className="flex-1 h-1.5 rounded-full bg-ccc-border overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs font-semibold text-slate-300 w-9 text-right">{pct}%</span>
+      <span className="text-xs font-semibold text-ccc-text w-9 text-right">{pct}%</span>
     </div>
   )
 }
@@ -142,10 +143,10 @@ function CopyHashButton({ hash }) {
     <button
       type="button"
       onClick={copy}
-      className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-200 transition-colors"
+      className="flex items-center gap-1 text-[10px] text-ccc-muted hover:text-ccc-navy transition-colors"
       title={hash}
     >
-      {copied ? <IconCheck className="w-3 h-3 text-emerald-400" /> : <IconCopy className="w-3 h-3" />}
+      {copied ? <IconCheck className="w-3 h-3 text-ccc-green" /> : <IconCopy className="w-3 h-3" />}
       {copied ? 'Copied' : 'Copy hash'}
     </button>
   )
@@ -159,13 +160,13 @@ function DocumentReviewCard({ doc }) {
 
   return (
     <div
-      className={`rounded-2xl border overflow-hidden bg-slate-950/40 ${
-        doc.needs_review ? 'border-amber-800/60' : 'border-slate-800/60'
+      className={`rounded-2xl border overflow-hidden bg-white shadow-sm ${
+        doc.needs_review ? 'border-ccc-orange/50' : 'border-ccc-border'
       }`}
     >
       <div className="grid grid-cols-1 md:grid-cols-2">
         {/* Left: the actual file */}
-        <div className="bg-slate-950 border-b md:border-b-0 md:border-r border-slate-800/70 flex items-center justify-center min-h-[220px] p-3">
+        <div className="bg-ccc-off border-b md:border-b-0 md:border-r border-ccc-border flex items-center justify-center min-h-[220px] p-3">
           {image && doc.publicUrl ? (
             <img
               src={doc.publicUrl}
@@ -179,7 +180,7 @@ function DocumentReviewCard({ doc }) {
               className="w-full h-72 rounded-lg bg-white"
             />
           ) : (
-            <div className="flex flex-col items-center gap-2 text-slate-600 py-10">
+            <div className="flex flex-col items-center gap-2 text-ccc-muted py-10">
               <IconFile className="w-10 h-10" />
               <span className="text-xs">Preview unavailable</span>
             </div>
@@ -190,38 +191,38 @@ function DocumentReviewCard({ doc }) {
         <div className="p-4 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-200 truncate" title={doc.file_path}>
+              <p className="text-sm font-semibold text-ccc-navy truncate" title={doc.file_path} style={{ fontFamily: 'var(--font-montserrat)' }}>
                 {getDocTypeLabel(doc.document_type)}
               </p>
-              <p className="text-[11px] text-slate-500 truncate">{getCleanFileName(doc.file_path)}</p>
+              <p className="text-[11px] text-ccc-muted truncate">{getCleanFileName(doc.file_path)}</p>
             </div>
             <ReviewStatusBadge needsReview={doc.needs_review} />
           </div>
 
           <div className="space-y-1">
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">
+            <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
               OCR confidence
             </span>
             <ConfidenceMeter value={doc.ocr_confidence} />
           </div>
 
           <div className="space-y-1">
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block">
+            <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
               Detected text
             </span>
-            <div className="max-h-32 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-2.5 text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">
-              {doc.extracted_text || <span className="italic text-slate-500">No text detected.</span>}
+            <div className="max-h-28 overflow-y-auto rounded-lg bg-ccc-off border border-ccc-border p-2 text-xs text-ccc-text whitespace-pre-wrap">
+              {doc.extracted_text || <span className="italic text-ccc-muted">No text extracted</span>}
             </div>
           </div>
 
           <div className="flex items-center justify-between pt-1">
-            <CopyHashButton hash={doc.sha256_hash} />
+            {doc.file_hash && <CopyHashButton hash={doc.file_hash} />}
             {doc.publicUrl && (
               <a
                 href={doc.publicUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
+                className="flex items-center gap-1 text-[10px] text-ccc-blue hover:text-ccc-navy transition-colors"
               >
                 Open full file <IconExternal className="w-3 h-3" />
               </a>
@@ -239,36 +240,38 @@ function ApplicantGroup({ name, email, docs, defaultOpen }) {
   const flaggedCount = docs.filter((d) => d.needs_review).length
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden">
+    <div className="rounded-2xl border border-ccc-border bg-white shadow-sm overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-slate-800/40 transition-colors"
+        className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-ccc-off transition-colors"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-600/30 to-violet-600/30 flex items-center justify-center text-sm font-bold text-blue-300 shrink-0">
+          <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
             {name ? name.charAt(0).toUpperCase() : '?'}
           </div>
           <div className="text-left min-w-0">
-            <p className="text-sm font-semibold text-slate-100 truncate">{name || 'Unknown applicant'}</p>
-            <p className="text-[11px] text-slate-500 truncate">
+            <p className="text-sm font-semibold text-ccc-navy truncate" style={{ fontFamily: 'var(--font-montserrat)' }}>
+              {name || 'Unknown applicant'}
+            </p>
+            <p className="text-[11px] text-ccc-muted truncate">
               {email || 'No email on file'} · {docs.length} document{docs.length === 1 ? '' : 's'}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {flaggedCount > 0 && (
-            <span className="flex items-center gap-1 rounded-full bg-amber-500 text-slate-950 text-[10px] font-bold px-2 py-0.5">
+            <span className="flex items-center gap-1 rounded-full bg-ccc-gold text-ccc-navy text-[10px] font-bold px-2 py-0.5">
               <IconAlertTriangle className="w-3 h-3" />
               {flaggedCount} flagged
             </span>
           )}
-          <IconChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <IconChevronDown className={`w-4 h-4 text-ccc-muted transition-transform ${open ? 'rotate-180' : ''}`} />
         </div>
       </button>
 
       {open && (
-        <div className="px-5 pb-5 space-y-4 border-t border-slate-800/70 pt-4">
+        <div className="px-5 pb-5 space-y-4 border-t border-ccc-border pt-4">
           {docs.map((doc) => (
             <DocumentReviewCard key={doc.id ?? `${doc.file_path}-${doc.created_at}`} doc={doc} />
           ))}
@@ -342,26 +345,29 @@ export default function AdminPage() {
   }, [docs, search, onlyFlagged])
 
   return (
-    <main className="relative min-h-screen bg-slate-950 text-slate-100 overflow-hidden">
-      <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-blue-600/10 blur-[120px] rounded-full -z-10 pointer-events-none" />
+    <main className="min-h-screen bg-ccc-off text-ccc-text">
+      <SiteHeader topbarLabel="Iskolusyon Admin Console" portalBadge="Admin Console" />
 
       <div className="w-full max-w-4xl mx-auto px-4 pt-8 pb-16">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
+            <h1
+              className="text-2xl font-extrabold tracking-tight text-ccc-navy"
+              style={{ fontFamily: 'var(--font-montserrat)' }}
+            >
               Iskolusyon — Admin Review
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-ccc-muted mt-0.5">
               {docs.length} document{docs.length === 1 ? '' : 's'} on file
               {totalFlagged > 0 && (
-                <span className="text-amber-400"> · {totalFlagged} need review</span>
+                <span className="text-ccc-orange"> · {totalFlagged} need review</span>
               )}
             </p>
           </div>
           <a
             href="/"
-            className="text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors underline underline-offset-2"
+            className="text-xs font-semibold text-ccc-blue hover:text-ccc-navy transition-colors underline underline-offset-2"
           >
             Back to applicant portal
           </a>
@@ -370,13 +376,13 @@ export default function AdminPage() {
         {/* Search + filter bar */}
         <div className="flex items-center gap-3 mb-6 flex-wrap">
           <div className="relative flex-1 min-w-[220px]">
-            <IconSearch className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <IconSearch className="w-4 h-4 text-ccc-muted absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by applicant name, email, or document type..."
-              className="w-full rounded-lg border border-slate-800 bg-slate-900/70 pl-9 pr-3 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600/50"
+              className="w-full rounded-lg border border-ccc-border bg-white pl-9 pr-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
             />
           </div>
           <button
@@ -384,8 +390,8 @@ export default function AdminPage() {
             onClick={() => setOnlyFlagged((v) => !v)}
             className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border text-xs font-semibold transition-colors ${
               onlyFlagged
-                ? 'border-amber-700/60 bg-amber-950/40 text-amber-300'
-                : 'border-slate-800 bg-slate-900/70 text-slate-400 hover:text-slate-200'
+                ? 'border-ccc-orange/60 bg-orange-50 text-ccc-orange'
+                : 'border-ccc-border bg-white text-ccc-muted hover:text-ccc-navy'
             }`}
           >
             <IconAlertTriangle className="w-3.5 h-3.5" />
@@ -395,13 +401,13 @@ export default function AdminPage() {
 
         {/* Body */}
         {loading ? (
-          <div className="text-center py-20 text-slate-500 text-sm">Loading documents...</div>
+          <div className="text-center py-20 text-ccc-muted text-sm">Loading documents...</div>
         ) : error ? (
-          <div className="p-4 rounded-xl border border-rose-800/50 bg-rose-950/30 text-sm text-rose-300">
+          <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">
             {error}
           </div>
         ) : groups.length === 0 ? (
-          <div className="text-center py-20 text-slate-500 text-sm">
+          <div className="text-center py-20 text-ccc-muted text-sm">
             {docs.length === 0 ? 'No documents uploaded yet.' : 'No documents match your search.'}
           </div>
         ) : (
