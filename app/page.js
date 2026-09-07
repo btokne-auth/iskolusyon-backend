@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import SiteHeader from './components/SiteHeader'
+import DocumentStatusTable from './components/DocumentStatusTable'
 
 // ---------- Small building blocks ----------
 
@@ -296,7 +297,36 @@ export default function Home() {
   const flaggedCount = docHistory.filter((doc) => doc.needs_review).length
   const [isDragging, setIsDragging] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [statusRequested, setStatusRequested] = useState(false)
   const panelRef = useRef(null)
+  const formCardRef = useRef(null)
+
+  // Documents already uploaded under the name currently typed in the form —
+  // drives the "Documents & Status" checklist below. Purely a client-side
+  // filter over docHistory (already fetched from GET /api/upload); no new
+  // request, no new columns.
+  const myDocs = docHistory.filter(
+    (doc) =>
+      doc.applicant_name &&
+      applicantName.trim() &&
+      doc.applicant_name.trim().toLowerCase() === applicantName.trim().toLowerCase()
+  )
+
+  // Used by the status table's "Upload" / "Re-upload" buttons: pre-selects
+  // that document type in the form below and scrolls it into view.
+  const jumpToUploadFor = (typeValue) => {
+    setDocumentType(typeValue)
+    setFile(null)
+    formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  // If the name field gets cleared, hide the status table again — next time
+  // requires a deliberate click, same as the first time.
+  useEffect(() => {
+    if (applicantName.trim().length === 0 && statusRequested) {
+      setStatusRequested(false)
+    }
+  }, [applicantName, statusRequested])
 
   const fetchHistory = async () => {
     try {
@@ -426,8 +456,12 @@ export default function Home() {
         </button>
       </div>
 
+      {/* Documents & Status now renders inside the upload form, right below
+          the "View my document status" button — see below. */}
+
+
       {/* Upload card */}
-      <div className="w-full max-w-xl mx-auto px-4 py-8">
+      <div ref={formCardRef} className="w-full max-w-xl mx-auto px-4 py-8">
         <div className="bg-white border border-ccc-border rounded-3xl shadow-md p-8 sm:p-10 space-y-7">
           <form onSubmit={handleUpload} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -458,6 +492,36 @@ export default function Home() {
                 />
               </div>
             </div>
+
+            {applicantName.trim().length > 1 && (
+              <div className="-mt-3 space-y-4">
+                {statusRequested ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setStatusRequested(false)}
+                      className="text-xs font-semibold text-ccc-muted hover:text-ccc-navy underline underline-offset-2"
+                    >
+                      Hide document status
+                    </button>
+                    <DocumentStatusTable
+                      groups={DOCUMENT_TYPE_OPTIONS}
+                      docs={myDocs}
+                      applicantName={applicantName}
+                      onReupload={jumpToUploadFor}
+                    />
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setStatusRequested(true)}
+                    className="text-xs font-semibold text-ccc-blue hover:text-ccc-navy underline underline-offset-2"
+                  >
+                    View my document status
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label htmlFor="documentType" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
