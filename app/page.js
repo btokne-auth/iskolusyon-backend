@@ -294,7 +294,6 @@ export default function Home() {
   const [applicantEmail, setApplicantEmail] = useState('')
   const [documentType, setDocumentType] = useState('')
   const [docHistory, setDocHistory] = useState([])
-  const flaggedCount = docHistory.filter((doc) => doc.needs_review).length
   const [isDragging, setIsDragging] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [statusRequested, setStatusRequested] = useState(false)
@@ -311,6 +310,15 @@ export default function Home() {
       applicantName.trim() &&
       doc.applicant_name.trim().toLowerCase() === applicantName.trim().toLowerCase()
   )
+
+  // The History drawer reuses this same filtered list — it should only ever
+  // show documents matching the name currently typed in, not every
+  // applicant's uploads. Note: this is a UX/privacy-hygiene fix, not real
+  // access control — anyone could type someone else's name. Real security
+  // needs a login system (Ivy's User Account Module), which doesn't exist
+  // yet. This just stops the careless "show everyone by default" behavior.
+  const visibleHistory = myDocs
+  const flaggedCount = visibleHistory.filter((doc) => doc.needs_review).length
 
   // Used by the status table's "Upload" / "Re-upload" buttons: pre-selects
   // that document type in the form below and scrolls it into view.
@@ -440,9 +448,9 @@ export default function Home() {
         >
           <IconClock className="w-4 h-4" />
           History
-          {docHistory.length > 0 && (
+          {applicantName.trim() && visibleHistory.length > 0 && (
             <span className="ml-0.5 bg-ccc-blue text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-              {docHistory.length}
+              {visibleHistory.length}
             </span>
           )}
           {flaggedCount > 0 && (
@@ -684,7 +692,11 @@ export default function Home() {
             <div className="flex items-center justify-between px-6 py-5 border-b border-ccc-border">
               <div>
                 <h3 className="text-base font-bold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Recent uploads</h3>
-                <p className="text-xs text-ccc-muted mt-0.5">{docHistory.length} document{docHistory.length === 1 ? '' : 's'} on record</p>
+                <p className="text-xs text-ccc-muted mt-0.5">
+                  {applicantName.trim()
+                    ? `${visibleHistory.length} document${visibleHistory.length === 1 ? '' : 's'} for "${applicantName.trim()}"`
+                    : 'Type your name above to see your documents'}
+                </p>
               </div>
               <button
                 type="button"
@@ -697,14 +709,19 @@ export default function Home() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-5">
-              {docHistory.length === 0 ? (
+              {!applicantName.trim() ? (
                 <div className="h-full flex flex-col items-center justify-center text-center opacity-60 py-16">
                   <IconFile className="w-12 h-12 text-ccc-muted mb-4" />
-                  <p className="text-sm text-ccc-muted">No documents uploaded yet.</p>
+                  <p className="text-sm text-ccc-muted">Type your name in the field above,<br />then reopen History to view your documents.</p>
+                </div>
+              ) : visibleHistory.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-60 py-16">
+                  <IconFile className="w-12 h-12 text-ccc-muted mb-4" />
+                  <p className="text-sm text-ccc-muted">No documents found for "{applicantName.trim()}".</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {docHistory.map((doc, index) => (
+                  {visibleHistory.map((doc, index) => (
                     <div
                       key={index}
                       className={`p-4 bg-ccc-off border rounded-xl space-y-3 ${
