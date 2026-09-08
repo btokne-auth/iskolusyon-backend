@@ -282,6 +282,46 @@ function getDocTypeLabel(value) {
   return DOC_TYPE_LABEL_MAP[value] || value
 }
 
+// Three-step progress indicator for the applicant wizard. Purely visual —
+// doesn't gate anything itself, `step` state in the page component decides
+// what's shown. TEMP NOTE: styling here reuses the existing ccc- design
+// tokens from the approved reskin; CCC's live site changed recently, so
+// this visual layer is expected to get a pass once the mockup files are
+// updated to match — functionality here is unaffected by that later change.
+function StepProgress({ step }) {
+  const steps = [
+    { n: 1, label: 'Your Info' },
+    { n: 2, label: 'Upload Documents' },
+    { n: 3, label: 'Review & Submit' },
+  ]
+  return (
+    <div className="flex items-center justify-between mb-2">
+      {steps.map((s, i) => (
+        <div key={s.n} className="flex items-center flex-1 last:flex-none">
+          <div className="flex flex-col items-center gap-1.5">
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors
+                ${step === s.n
+                  ? 'bg-ccc-blue border-ccc-blue text-white'
+                  : step > s.n
+                  ? 'bg-ccc-green/10 border-ccc-green text-ccc-green'
+                  : 'bg-white border-ccc-border text-ccc-muted'}`}
+            >
+              {step > s.n ? <IconCheck className="w-4 h-4" /> : s.n}
+            </div>
+            <span className={`text-[10px] font-semibold uppercase tracking-wide ${step === s.n ? 'text-ccc-navy' : 'text-ccc-muted'}`}>
+              {s.label}
+            </span>
+          </div>
+          {i < steps.length - 1 && (
+            <div className={`flex-1 h-0.5 mx-2 -mt-4 ${step > s.n ? 'bg-ccc-green' : 'bg-ccc-border'}`} />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ---------- Page ----------
 
 export default function Home() {
@@ -297,6 +337,8 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [statusRequested, setStatusRequested] = useState(false)
+  const [step, setStep] = useState(1) // 1 = Your Info, 2 = Upload Documents, 3 = Review & Submit
+  const [submitted, setSubmitted] = useState(false)
   const panelRef = useRef(null)
   const formCardRef = useRef(null)
 
@@ -464,72 +506,98 @@ export default function Home() {
         </button>
       </div>
 
-      {/* Documents & Status now renders inside the upload form, right below
-          the "View my document status" button — see below. */}
-
-
-      {/* Upload card */}
+      {/* Upload card — now a 3-step wizard: Your Info → Upload Documents →
+          Review & Submit. TEMP NOTE: the card styling below still comes
+          from the previously-approved CCC reskin; CCC's live site changed
+          recently, so this visual layer is due for an update pass later —
+          doesn't affect the wizard logic itself. */}
       <div ref={formCardRef} className="w-full max-w-xl mx-auto px-4 py-8">
         <div className="bg-white border border-ccc-border rounded-3xl shadow-md p-8 sm:p-10 space-y-7">
-          <form onSubmit={handleUpload} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label htmlFor="applicantName" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
-                  Applicant name
-                </label>
-                <input
-                  id="applicantName"
-                  type="text"
-                  value={applicantName}
-                  onChange={(e) => setApplicantName(e.target.value)}
-                  placeholder="Juan Dela Cruz"
-                  className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label htmlFor="applicantEmail" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
-                  Applicant email <span className="normal-case font-normal text-ccc-muted">(optional)</span>
-                </label>
-                <input
-                  id="applicantEmail"
-                  type="email"
-                  value={applicantEmail}
-                  onChange={(e) => setApplicantEmail(e.target.value)}
-                  placeholder="juan.delacruz@example.com"
-                  className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
-                />
-              </div>
-            </div>
+          <StepProgress step={step} />
 
-            {applicantName.trim().length > 1 && (
-              <div className="-mt-3 space-y-4">
-                {statusRequested ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => setStatusRequested(false)}
-                      className="text-xs font-semibold text-ccc-muted hover:text-ccc-navy underline underline-offset-2"
-                    >
-                      Hide document status
-                    </button>
-                    <DocumentStatusTable
-                      groups={DOCUMENT_TYPE_OPTIONS}
-                      docs={myDocs}
-                      applicantName={applicantName}
-                      onReupload={jumpToUploadFor}
-                    />
-                  </>
-                ) : (
+          {/* ---------- Step 1: Your Info ---------- */}
+          {step === 1 && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label htmlFor="applicantName" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
+                    Applicant name
+                  </label>
+                  <input
+                    id="applicantName"
+                    type="text"
+                    value={applicantName}
+                    onChange={(e) => setApplicantName(e.target.value)}
+                    placeholder="Juan Dela Cruz"
+                    className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="applicantEmail" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
+                    Applicant email <span className="normal-case font-normal text-ccc-muted">(optional)</span>
+                  </label>
+                  <input
+                    id="applicantEmail"
+                    type="email"
+                    value={applicantEmail}
+                    onChange={(e) => setApplicantEmail(e.target.value)}
+                    placeholder="juan.delacruz@example.com"
+                    className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                disabled={!applicantName.trim()}
+                className="w-full py-4 px-4 bg-ccc-blue hover:bg-ccc-navy disabled:bg-ccc-border disabled:text-ccc-muted text-white font-bold rounded-xl transition-all shadow-md text-sm cursor-pointer disabled:cursor-not-allowed"
+                style={{ fontFamily: 'var(--font-montserrat)' }}
+              >
+                Continue to document upload
+              </button>
+            </div>
+          )}
+
+          {/* ---------- Step 2: Upload Documents ---------- */}
+          {step === 2 && (
+          <div className="space-y-6">
+          <form onSubmit={handleUpload} className="space-y-6">
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className="text-xs font-semibold text-ccc-muted hover:text-ccc-navy underline underline-offset-2"
+            >
+              &larr; Back to your info
+            </button>
+
+            <div className="-mt-2 space-y-4">
+              {statusRequested ? (
+                <>
                   <button
                     type="button"
-                    onClick={() => setStatusRequested(true)}
-                    className="text-xs font-semibold text-ccc-blue hover:text-ccc-navy underline underline-offset-2"
+                    onClick={() => setStatusRequested(false)}
+                    className="text-xs font-semibold text-ccc-muted hover:text-ccc-navy underline underline-offset-2"
                   >
-                    View my document status
+                    Hide document status
                   </button>
-                )}
-              </div>
-            )}
+                  <DocumentStatusTable
+                    groups={DOCUMENT_TYPE_OPTIONS}
+                    docs={myDocs}
+                    applicantName={applicantName}
+                    onReupload={jumpToUploadFor}
+                  />
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setStatusRequested(true)}
+                  className="text-xs font-semibold text-ccc-blue hover:text-ccc-navy underline underline-offset-2"
+                >
+                  View my document status
+                </button>
+              )}
+            </div>
 
             <div className="space-y-1.5">
               <label htmlFor="documentType" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
@@ -673,6 +741,71 @@ export default function Home() {
                 <span>View uploaded document</span>
                 <IconExternal className="w-4 h-4" />
               </a>
+            </div>
+          )}
+
+            <button
+              type="button"
+              onClick={() => setStep(3)}
+              disabled={myDocs.length === 0}
+              className="w-full py-3.5 px-4 bg-ccc-navy hover:bg-ccc-blue disabled:bg-ccc-border disabled:text-ccc-muted text-white font-bold rounded-xl transition-all shadow-md text-sm cursor-pointer disabled:cursor-not-allowed"
+              style={{ fontFamily: 'var(--font-montserrat)' }}
+            >
+              {myDocs.length === 0 ? 'Upload at least one document to continue' : `Continue to review (${myDocs.length} uploaded)`}
+            </button>
+          </div>
+          )}
+
+          {/* ---------- Step 3: Review & Submit ---------- */}
+          {step === 3 && (
+            <div className="space-y-6">
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="text-xs font-semibold text-ccc-muted hover:text-ccc-navy underline underline-offset-2"
+              >
+                &larr; Back to document upload
+              </button>
+
+              {submitted ? (
+                <div className="p-5 rounded-xl border border-ccc-green/40 bg-green-50 text-center space-y-1.5">
+                  <IconCheck className="w-6 h-6 text-ccc-green mx-auto" />
+                  <p className="text-sm font-bold text-ccc-green">Application submitted for review</p>
+                  <p className="text-xs text-ccc-text/80">
+                    {applicantName.trim()}, your documents are on file. Check the History button above anytime for their status.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+                      Review before submitting
+                    </h3>
+                    <p className="text-xs text-ccc-muted">
+                      Applying as <strong>{applicantName.trim()}</strong>{applicantEmail.trim() ? ` · ${applicantEmail.trim()}` : ''}. Double-check the statuses below — anything marked "Needs review" or "Not uploaded" can still be fixed after submitting.
+                    </p>
+                  </div>
+
+                  <DocumentStatusTable
+                    groups={DOCUMENT_TYPE_OPTIONS}
+                    docs={myDocs}
+                    applicantName={applicantName}
+                    onReupload={(typeValue) => { setStep(2); jumpToUploadFor(typeValue) }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setSubmitted(true)}
+                    className="w-full py-4 px-4 bg-ccc-green hover:bg-ccc-navy text-white font-bold rounded-xl transition-all shadow-md text-sm cursor-pointer"
+                    style={{ fontFamily: 'var(--font-montserrat)' }}
+                  >
+                    Submit application
+                  </button>
+                  <p className="text-[10px] text-ccc-muted text-center">
+                    Note: this confirms your documents are ready for review. Draft saving and a locked final-submission state are coming in a follow-up update.
+                  </p>
+                </>
+              )}
             </div>
           )}
         </div>
