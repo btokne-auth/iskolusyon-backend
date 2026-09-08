@@ -391,6 +391,25 @@ export async function POST(request) {
       return NextResponse.json({ error: dbError.message }, { status: 500 })
     }
 
+    // Global Audit Log entry — best-effort, never blocks the response the
+    // applicant is waiting on. Every upload becomes a timeline entry,
+    // matching the "Recent Activity Log" from the approved admin mockup.
+    try {
+      await supabase.from('audit_log').insert([
+        {
+          actor: 'System',
+          action: needsReview
+            ? `Document flagged for review — ${applicantName} \u00b7 ${documentType} (${Math.round(extractionConfidence)}% confidence)`
+            : `Document auto-verified — ${applicantName} \u00b7 ${documentType} (${Math.round(extractionConfidence)}% confidence)`,
+          kind: needsReview ? 'warn' : 'done',
+        },
+      ])
+    } catch (auditErr) {
+      // Logging failure should never break the actual upload flow.
+      console.error('Audit log insert failed (non-blocking):', auditErr)
+    }
+ 
+
     // Generate a secure signed URL valid for 1 hour (3600 seconds)
     const { data: signedUrlData, error: signError } = await supabase.storage
       .from('scholarship-documents')
