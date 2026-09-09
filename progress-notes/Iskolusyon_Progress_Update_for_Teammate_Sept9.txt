@@ -1,7 +1,7 @@
 ISKOLUSYON - PROGRESS UPDATE (Member 2 - Pauline)
-As of: September 9, 2026
+As of: September 9, 2026 11:14 AM
 
-Hi! Quick update on my part of the capstone (Application Info & Process Module + related parts under my role). Here's where things stand:
+Hi, quick update on my part of the capstone (Application Info & Process Module + related parts under my role). Here's where things stand:
 
 ===================================
 DONE / WORKING
@@ -53,7 +53,6 @@ BLOCKED / WAITING ON OTHER MODULES
 NOTE
 ===================================
 Progress table might look outdated in a few spots (a couple of my items are
-marked half-done "/" when they're actually fully done) - will clean that up
-before we finalize it for defense.
+marked half-done "/" when they're actually fully done)
 
-Let me know if you have questions or need me to walk you through anything!
+Let me know if you have questions or need me to walk you through anything.
