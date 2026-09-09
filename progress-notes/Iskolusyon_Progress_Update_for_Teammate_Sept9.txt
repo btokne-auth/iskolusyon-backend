@@ -1,0 +1,59 @@
+ISKOLUSYON - PROGRESS UPDATE (Member 2 - Pauline)
+As of: September 9, 2026
+
+Hi! Quick update on my part of the capstone (Application Info & Process Module + related parts under my role). Here's where things stand:
+
+===================================
+DONE / WORKING
+===================================
+- OCR text extraction + SHA-256 hashing for uploaded documents
+- Document upload + verification flow (auto-checks quality, flags docs that need manual review)
+- Document Status checklist (shows which requirements are Verified / Needs Review / Not Uploaded)
+- Application History & Activity Logs page
+- Guest Module - About Us & FAQ page (content is still placeholder for now)
+- Global Audit Logs (admin-side timeline of all document activity)
+
+NEW TODAY:
+- Turned the application form into a proper 3-step process: 
+  Step 1 (Your Info) -> Step 2 (Upload Documents) -> Step 3 (Review & Submit)
+- Added Draft/Progress Saving:
+  - Progress auto-saves as applicants move through the steps
+  - There's also a manual "Save progress" button
+  - If someone leaves and comes back later and types the same name, it shows
+    a "Welcome back" message and lets them resume where they left off
+  - Submitting the application now actually saves a real "submitted" status
+    in the database (before, it was just a message with nothing saved)
+
+All of this is tested and working, and it's pushed to GitHub on a branch called:
+step-by-step-application
+
+(It's on its own branch for now so it doesn't affect revisions-on-going until
+I'm fully happy with it and merge it in.)
+
+===================================
+STILL NEEDS TO BE DONE (my side)
+===================================
+- Update the old HTML mockup/design files - CCC's actual website changed
+  recently, so our old approved design needs a visual refresh (functionality
+  stays the same, just needs a design pass). Waiting on getting the current
+  CCC site link/screenshots to start this.
+- Notifications for submitted applications (auto email) - needs an email
+  service set up first
+- Ground-truth test documents for our defense - still need a few more
+  sample documents (have some already, need more variety)
+
+===================================
+BLOCKED / WAITING ON OTHER MODULES
+===================================
+- Real login/accounts, exam schedule alerts, pass/fail notifications, and
+  the appeal system all depend on the User Accounts and Scholarship Matching
+  modules being done first.
+
+===================================
+NOTE
+===================================
+Progress table might look outdated in a few spots (a couple of my items are
+marked half-done "/" when they're actually fully done) - will clean that up
+before we finalize it for defense.
+
+Let me know if you have questions or need me to walk you through anything!
