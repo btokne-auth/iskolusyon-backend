@@ -1,5 +1,31 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
+import { Resend } from 'resend'
+
+const resend = new Resend(process.env.RESEND_API_KEY)
+
+// Sends a simple confirmation email when an application is submitted.
+// Fire-and-log only — a failed email should never block the submission
+// itself from succeeding.
+async function sendSubmissionEmail(applicantName, applicantEmail) {
+  if (!applicantEmail) return
+
+  try {
+    await resend.emails.send({
+      from: 'Iskolusyon <onboarding@resend.dev>',
+      to: applicantEmail,
+      subject: 'Your Iskolusyon application has been submitted',
+      html: `
+        <p>Hi ${applicantName},</p>
+        <p>We've received your scholarship application. Our team will review your
+        submitted documents and get back to you with any updates.</p>
+        <p>— City College of Calamba, Iskolusyon Scholarship System</p>
+      `,
+    })
+  } catch (err) {
+    console.error('Failed to send submission email:', err.message)
+  }
+}
 
 // GET /api/application?name=Juan+Dela+Cruz
 // Looks up an existing draft/submitted application row for this applicant,
@@ -88,6 +114,11 @@ export async function POST(request) {
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 })
       }
+
+      if (action === 'submit') {
+        await sendSubmissionEmail(applicantName, data.applicant_email)
+      }
+
       return NextResponse.json({ success: true, application: data })
     }
 
@@ -109,6 +140,11 @@ export async function POST(request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    if (action === 'submit') {
+      await sendSubmissionEmail(applicantName, data.applicant_email)
+    }
+
     return NextResponse.json({ success: true, application: data })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
