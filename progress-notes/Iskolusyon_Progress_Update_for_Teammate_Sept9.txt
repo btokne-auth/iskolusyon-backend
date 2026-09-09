@@ -36,18 +36,28 @@ STILL NEEDS TO BE DONE (my side)
 - Update the old HTML mockup/design files - CCC's actual website changed
   recently, so our old approved design needs a visual refresh (functionality
   stays the same, just needs a design pass). Waiting on getting the current
-  CCC site link/screenshots to start this.
+  CCC site link/screenshots to start this. ///for feeding purposes ito. temporary placeholder palang yung designs ng under ng module na ginawa ko. ginamit ko for the meantime yung previous HTML files from that googledrive since july.
 - Notifications for submitted applications (auto email) - needs an email
   service set up first
 - Ground-truth test documents for our defense - still need a few more
-  sample documents (have some already, need more variety)
+  sample documents (have some already, need more variety) //will have to perform scripting to autofill information. needs a structured document na for ocr testings, so far form 138 na shs and birth cert palang may progress as of this progress note.
 
 ===================================
-BLOCKED / WAITING ON OTHER MODULES
+BLOCKED / WAITING ON OTHER MODULES 
 ===================================
 - Real login/accounts, exam schedule alerts, pass/fail notifications, and
   the appeal system all depend on the User Accounts and Scholarship Matching
   modules being done first.
+
+Notes on why these are blocked:
+- Exam schedule alerts, pass/fail notifications, and the appeal system are
+  MY modules (Notifications Module), but I can't build the actual logic yet
+  since there's no exam/matching data to notify people about until your
+  Scholarship Matching module is in place. I can to start on the UI/design
+  side of these in the meantime if that helps.
+- Real login/accounts is fully your module (User Account Module) - not
+  something I'm blocked on building, just something the rest of the app
+  will eventually plug into.
 
 ===================================
 NOTE
