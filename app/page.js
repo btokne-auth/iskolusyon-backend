@@ -339,6 +339,9 @@ export default function Home() {
   const [statusRequested, setStatusRequested] = useState(false)
   const [step, setStep] = useState(1) // 1 = Your Info, 2 = Upload Documents, 3 = Review & Submit
   const [submitted, setSubmitted] = useState(false)
+  const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
+  const [draftFound, setDraftFound] = useState(null) // application row found for this name, or null
+  const [draftDismissed, setDraftDismissed] = useState(false)
   const panelRef = useRef(null)
   const formCardRef = useRef(null)
 
@@ -368,6 +371,79 @@ export default function Home() {
     setDocumentType(typeValue)
     setFile(null)
     formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  // Saves current progress (name/email/step) as a draft. Called both
+  // automatically when the applicant moves to the next step, and manually
+  // by the "Save progress" button — the applicant never has to think about
+  // which one is happening.
+  const saveProgress = async (targetStep) => {
+    if (!applicantName.trim()) return
+    setSaveState('saving')
+    try {
+      const res = await fetch('/api/application', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicantName: applicantName.trim(),
+          applicantEmail: applicantEmail.trim(),
+          step: targetStep,
+          action: 'save',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Save failed')
+      setSaveState('saved')
+      setTimeout(() => setSaveState('idle'), 2500)
+    } catch (err) {
+      console.error('Auto-save failed (non-blocking):', err)
+      setSaveState('error')
+      setTimeout(() => setSaveState('idle'), 3000)
+    }
+  }
+
+  // Flips the application row to 'submitted'. Called only from the Step 3
+  // Submit button.
+  const submitApplication = async () => {
+    setSaveState('saving')
+    try {
+      const res = await fetch('/api/application', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicantName: applicantName.trim(),
+          applicantEmail: applicantEmail.trim(),
+          step: 3,
+          action: 'submit',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Submit failed')
+      setSaveState('idle')
+      setSubmitted(true)
+    } catch (err) {
+      console.error('Submit failed:', err)
+      setSaveState('error')
+    }
+  }
+
+  // Looks up whether this name already has a draft sitting in the database
+  // — called when the applicant leaves the name field on Step 1. If found,
+  // a small banner offers to resume it instead of starting over.
+  const checkForDraft = async () => {
+    const name = applicantName.trim()
+    if (!name || draftDismissed) return
+    try {
+      const res = await fetch(`/api/application?name=${encodeURIComponent(name)}`)
+      const data = await res.json()
+      if (data.application && data.application.status === 'draft' && data.application.current_step > 1) {
+        setDraftFound(data.application)
+      } else {
+        setDraftFound(null)
+      }
+    } catch (err) {
+      console.error('Draft lookup failed (non-blocking):', err)
+    }
   }
 
   // If the name field gets cleared, hide the status table again — next time
@@ -527,7 +603,8 @@ export default function Home() {
                     id="applicantName"
                     type="text"
                     value={applicantName}
-                    onChange={(e) => setApplicantName(e.target.value)}
+                    onChange={(e) => { setApplicantName(e.target.value); setDraftFound(null); setDraftDismissed(false) }}
+                    onBlur={checkForDraft}
                     placeholder="Juan Dela Cruz"
                     className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
                   />
@@ -547,9 +624,34 @@ export default function Home() {
                 </div>
               </div>
 
+              {draftFound && (
+                <div className="p-4 rounded-xl border border-ccc-blue/30 bg-blue-50 flex items-start justify-between gap-3">
+                  <div className="text-xs text-ccc-text/90">
+                    <p className="font-bold text-ccc-navy mb-0.5">Welcome back, {applicantName.trim()}!</p>
+                    <p>You have an application in progress (Step {draftFound.current_step} of 3). Want to pick up where you left off?</p>
+                  </div>
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setStep(draftFound.current_step)}
+                      className="text-xs font-bold text-white bg-ccc-blue hover:bg-ccc-navy rounded-lg px-3 py-1.5 whitespace-nowrap"
+                    >
+                      Resume draft
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDraftFound(null); setDraftDismissed(true) }}
+                      className="text-[11px] font-semibold text-ccc-muted hover:text-ccc-navy underline underline-offset-2"
+                    >
+                      Start fresh
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <button
                 type="button"
-                onClick={() => setStep(2)}
+                onClick={() => { saveProgress(2); setStep(2) }}
                 disabled={!applicantName.trim()}
                 className="w-full py-4 px-4 bg-ccc-blue hover:bg-ccc-navy disabled:bg-ccc-border disabled:text-ccc-muted text-white font-bold rounded-xl transition-all shadow-md text-sm cursor-pointer disabled:cursor-not-allowed"
                 style={{ fontFamily: 'var(--font-montserrat)' }}
@@ -563,13 +665,27 @@ export default function Home() {
           {step === 2 && (
           <div className="space-y-6">
           <form onSubmit={handleUpload} className="space-y-6">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="text-xs font-semibold text-ccc-muted hover:text-ccc-navy underline underline-offset-2"
-            >
-              &larr; Back to your info
-            </button>
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-xs font-semibold text-ccc-muted hover:text-ccc-navy underline underline-offset-2"
+              >
+                &larr; Back to your info
+              </button>
+              <div className="flex items-center gap-2">
+                {saveState === 'saved' && <span className="text-[11px] font-semibold text-ccc-green">Progress saved &#x2713;</span>}
+                {saveState === 'error' && <span className="text-[11px] font-semibold text-red-600">Couldn&rsquo;t save &mdash; try again</span>}
+                <button
+                  type="button"
+                  onClick={() => saveProgress(2)}
+                  disabled={saveState === 'saving'}
+                  className="text-[11px] font-bold text-ccc-blue hover:text-ccc-navy underline underline-offset-2 disabled:opacity-50"
+                >
+                  {saveState === 'saving' ? 'Saving…' : 'Save progress'}
+                </button>
+              </div>
+            </div>
 
             <div className="-mt-2 space-y-4">
               {statusRequested ? (
@@ -746,7 +862,7 @@ export default function Home() {
 
             <button
               type="button"
-              onClick={() => setStep(3)}
+              onClick={() => { saveProgress(3); setStep(3) }}
               disabled={myDocs.length === 0}
               className="w-full py-3.5 px-4 bg-ccc-navy hover:bg-ccc-blue disabled:bg-ccc-border disabled:text-ccc-muted text-white font-bold rounded-xl transition-all shadow-md text-sm cursor-pointer disabled:cursor-not-allowed"
               style={{ fontFamily: 'var(--font-montserrat)' }}
@@ -759,13 +875,29 @@ export default function Home() {
           {/* ---------- Step 3: Review & Submit ---------- */}
           {step === 3 && (
             <div className="space-y-6">
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="text-xs font-semibold text-ccc-muted hover:text-ccc-navy underline underline-offset-2"
-              >
-                &larr; Back to document upload
-              </button>
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="text-xs font-semibold text-ccc-muted hover:text-ccc-navy underline underline-offset-2"
+                >
+                  &larr; Back to document upload
+                </button>
+                {!submitted && (
+                  <div className="flex items-center gap-2">
+                    {saveState === 'saved' && <span className="text-[11px] font-semibold text-ccc-green">Progress saved &#x2713;</span>}
+                    {saveState === 'error' && <span className="text-[11px] font-semibold text-red-600">Couldn&rsquo;t save &mdash; try again</span>}
+                    <button
+                      type="button"
+                      onClick={() => saveProgress(3)}
+                      disabled={saveState === 'saving'}
+                      className="text-[11px] font-bold text-ccc-blue hover:text-ccc-navy underline underline-offset-2 disabled:opacity-50"
+                    >
+                      {saveState === 'saving' ? 'Saving…' : 'Save progress'}
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {submitted ? (
                 <div className="p-5 rounded-xl border border-ccc-green/40 bg-green-50 text-center space-y-1.5">
@@ -795,11 +927,12 @@ export default function Home() {
 
                   <button
                     type="button"
-                    onClick={() => setSubmitted(true)}
-                    className="w-full py-4 px-4 bg-ccc-green hover:bg-ccc-navy text-white font-bold rounded-xl transition-all shadow-md text-sm cursor-pointer"
+                    onClick={submitApplication}
+                    disabled={saveState === 'saving'}
+                    className="w-full py-4 px-4 bg-ccc-green hover:bg-ccc-navy disabled:opacity-60 text-white font-bold rounded-xl transition-all shadow-md text-sm cursor-pointer"
                     style={{ fontFamily: 'var(--font-montserrat)' }}
                   >
-                    Submit application
+                    {saveState === 'saving' ? 'Submitting…' : 'Submit application'}
                   </button>
                   <p className="text-[10px] text-ccc-muted text-center">
                     Note: this confirms your documents are ready for review. Draft saving and a locked final-submission state are coming in a follow-up update.
