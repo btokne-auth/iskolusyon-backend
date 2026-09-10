@@ -1,0 +1,61 @@
+ISKOLUSYON — PROGRESS UPDATE FROM PAULINE (MEMBER 2)
+Date: September 10, 2026
+
+Hello. Here's what's finished on my side of the system so far. Nothing here should affect your modules directly, but sharing so we're both on the same page.
+
+=====================================
+✅ DONE — Guest Module
+=====================================
+- About Us + Contact Info page
+- FAQ page
+  (Note: the text/content on this page right now is just placeholder, carried over from our earlier approved HTML mockup — it still needs to be updated with CCC's actual current info once we reconcile with their updated website)
+
+=====================================
+✅ DONE — Application Information & Process Module
+=====================================
+- Step-by-Step Application: applicants now go through a 3-step flow (Your Info -> Upload Documents -> Review & Submit) instead of one long form
+- Document upload with automatic text detection (OCR) for grades/report cards
+- Draft/Progress Saving: applicants can save their progress partway and come back later to finish (auto-save + a manual "Save progress" button + a "Welcome back" resume screen)
+- Every uploaded document gets a unique digital fingerprint (hash) so we can prove later it wasn't tampered with
+
+=====================================
+✅ DONE — Notifications Module
+=====================================
+- Applicants now get an automatic confirmation email once they submit their application
+
+=====================================
+✅ DONE — Status of Application & Verification Module
+=====================================
+- Re-upload requests (if a document isn't clear enough)
+- Deficiency alerts (flags low-quality scans so applicants know to re-upload)
+- Real-time document verification status
+- Application History / Activity Logs page
+  (Note: this page filters by whatever name someone types in — it's just a UI fix to stop showing everyone's data by default. It's not real security. Anyone who knows or guesses another applicant's name could still type it in and see their documents. Actual protection against that needs a real login/session system, which is your User Account Module — this is just a stopgap until that exists.)
+
+=====================================
+✅ DONE — Admin Dashboard Module
+=====================================
+- Global Audit Logs (tracks actions taken in the admin console)
+- Student search bar with filters (by name, email, document type, flagged-only)
+
+=====================================
+🔀 MERGED TODAY
+=====================================
+All of the work above used to live on a separate branch (step-by-step-application) while I was building and testing it. Today I merged it into revisions-on-going, so it's now part of our main working line — no separate branch needed to see or build on top of it anymore.
+
+=====================================
+⏳ STILL IN PROGRESS / WAITING
+=====================================
+- UI still uses the older approved CCC design — the newer visual update (matching CCC's current live site) is still pending
+- This applies to all the modules I built above, not just the About/FAQ page — the design/look of these pages will still get updated once we finalize things with CCC's current site, but to be clear: the actual logic and functionality behind all of them (uploads, OCR, draft saving, verification, audit logs, etc.) is already built and working. It's a visual pass, not a functionality rebuild.
+- Still gathering ground-truth test documents for our defense (working toward 10-15 total)
+
+=====================================
+🔒 BLOCKED — NEEDS YOUR MODULES FIRST
+=====================================
+These features are listed under my Notifications and Admin modules, but they genuinely can't be built until your modules are ready:
+- Exam Schedule Alerts and Real-time Result Notifications — need your Scholarship Matching / Applicant Results data
+- Appeal System — same as above
+- Super Admin Control & Collaborative Shared Account — need real login/roles from your User Account Module
+
+No urgency on these from my end, just flagging so we both know why they're not started yet. Let me know if you have questions on anything above.
