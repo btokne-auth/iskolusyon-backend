@@ -1,0 +1,24 @@
+Member 2 PROGRESS - Sept 14, 2026
+
+WHAT'S NEW:
+- Admins can now log in with their own name (not just a shared account with no name).
+- When a document has low OCR confidence and needs manual checking, an admin can now click
+  "Mark Verified" or "Flag for Review" on it, and the activity log will show who did it
+  (instead of just saying "System").
+- This is tested and working. It is not on the main version of the app yet - I'm keeping it
+  separate for a bit longer before combining it in, just to be safe.
+
+IMPORTANT: this admin login is a temporary setup (shared passcode + typed-in name). It is NOT
+real individual accounts. Once your User Account Module is ready, this part will need to be
+replaced with real login using actual user accounts.
+
+THINGS WAITING ON YOUR MODULES:
+- Real access control for the History/Activity Logs page - needs your User Account Module.
+- Sending a confirmation email when someone registers - needs your Sign-up w/ Email
+  Verification feature.
+- Real-time result notifications + the rescheduling system for absences - needs your Applicant
+  Information & Results Module (exam scores, pass/fail status).
+
+STILL PENDING ON MY SIDE (not blocked by you):
+- Auto-fill of text from documents - only works for 2 document types so far (PSA, Form 138).
+- Still need more sample documents for testing (have 2 out of the 10-15 needed).
