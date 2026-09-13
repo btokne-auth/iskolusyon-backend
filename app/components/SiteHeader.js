@@ -3,7 +3,7 @@
 // Used by both the applicant page and the admin page so the whole app feels
 // like one system, not two different projects.
 
-export default function SiteHeader({ topbarLabel, portalBadge }) {
+export default function SiteHeader({ topbarLabel, portalBadge, rightSlot }) {
   return (
     <>
       {/* Topbar */}
@@ -33,11 +33,14 @@ export default function SiteHeader({ topbarLabel, portalBadge }) {
               </div>
             </div>
           </div>
-          {portalBadge && (
-            <div className="text-xs font-bold uppercase tracking-wide text-white bg-ccc-blue px-3 py-1.5 rounded-full">
-              {portalBadge}
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {portalBadge && (
+              <div className="text-xs font-bold uppercase tracking-wide text-white bg-ccc-blue px-3 py-1.5 rounded-full">
+                {portalBadge}
+              </div>
+            )}
+            {rightSlot}
+          </div>
         </div>
       </nav>
     </>

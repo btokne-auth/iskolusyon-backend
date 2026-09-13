@@ -154,9 +154,10 @@ function CopyHashButton({ hash }) {
 
 // The core review unit: one document, file preview on the left, OCR + status
 // on the right. This is what replaces the mockup's dead viewDocument() stub.
-function DocumentReviewCard({ doc }) {
+function DocumentReviewCard({ doc, onOverride, overriding }) {
   const image = isImageFile(doc.file_path)
   const pdf = isPdfFile(doc.file_path)
+  const isBusy = overriding === doc.file_path
 
   return (
     <div
@@ -216,7 +217,7 @@ function DocumentReviewCard({ doc }) {
           </div>
 
           <div className="flex items-center justify-between pt-1">
-            {doc.file_hash && <CopyHashButton hash={doc.file_hash} />}
+            {doc.sha256_hash && <CopyHashButton hash={doc.sha256_hash} />}
             {doc.publicUrl && (
               <a
                 href={doc.publicUrl}
@@ -228,6 +229,30 @@ function DocumentReviewCard({ doc }) {
               </a>
             )}
           </div>
+
+          {onOverride && (
+            <div className="flex items-center gap-2 pt-1 border-t border-ccc-border mt-1">
+              <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest mr-auto">
+                Manual override
+              </span>
+              <button
+                type="button"
+                disabled={isBusy || !doc.needs_review}
+                onClick={() => onOverride(doc, 'verify')}
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-ccc-green/50 text-ccc-green bg-green-50 hover:bg-green-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {isBusy ? 'Saving...' : 'Mark Verified'}
+              </button>
+              <button
+                type="button"
+                disabled={isBusy || doc.needs_review}
+                onClick={() => onOverride(doc, 'flag')}
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-ccc-orange/50 text-ccc-orange bg-orange-50 hover:bg-orange-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {isBusy ? 'Saving...' : 'Flag for Review'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -235,7 +260,7 @@ function DocumentReviewCard({ doc }) {
 }
 
 // One applicant, collapsed by default, with all their documents inside.
-function ApplicantGroup({ name, email, docs, defaultOpen }) {
+function ApplicantGroup({ name, email, docs, defaultOpen, onOverride, overriding }) {
   const [open, setOpen] = useState(!!defaultOpen)
   const flaggedCount = docs.filter((d) => d.needs_review).length
 
@@ -273,7 +298,12 @@ function ApplicantGroup({ name, email, docs, defaultOpen }) {
       {open && (
         <div className="px-5 pb-5 space-y-4 border-t border-ccc-border pt-4">
           {docs.map((doc) => (
-            <DocumentReviewCard key={doc.id ?? `${doc.file_path}-${doc.created_at}`} doc={doc} />
+          <DocumentReviewCard
+  key={doc.file_path}
+  doc={doc}
+  onOverride={onOverride}
+  overriding={overriding}
+/>
           ))}
         </div>
       )}
@@ -289,6 +319,9 @@ export default function AdminPage() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [onlyFlagged, setOnlyFlagged] = useState(false)
+  const [adminName, setAdminName] = useState('')
+  const [overriding, setOverriding] = useState(null)
+  const [overrideError, setOverrideError] = useState('')
 
   const fetchDocs = async () => {
     setLoading(true)
@@ -309,8 +342,45 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
+    fetch('/api/admin-session')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.loggedIn) setAdminName(data.name)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
     fetchDocs()
   }, [])
+
+  const handleLogout = async () => {
+    await fetch('/api/admin-logout', { method: 'POST' })
+    window.location.href = '/admin/login'
+  }
+
+  const handleOverride = async (doc, action) => {
+  if (!doc.file_path) return
+  setOverriding(doc.file_path)
+  setOverrideError('')
+  try {
+    const res = await fetch(`/api/documents/${encodeURIComponent(doc.file_path)}/override`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setOverrideError(data.error || 'Override failed.')
+        return
+      }
+      await fetchDocs()
+    } catch (err) {
+      setOverrideError(err.message)
+    } finally {
+      setOverriding(null)
+    }
+  }
 
   const totalFlagged = docs.filter((d) => d.needs_review).length
 
@@ -346,7 +416,24 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-ccc-off text-ccc-text">
-      <SiteHeader topbarLabel="Iskolusyon Admin Console" portalBadge="Admin Console" />
+      <SiteHeader
+  topbarLabel="Iskolusyon Admin Console"
+  portalBadge="Admin Console"
+  rightSlot={
+    adminName && (
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-semibold text-ccc-navy">{adminName}</span>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="text-xs font-semibold text-ccc-blue hover:text-ccc-navy underline underline-offset-2"
+        >
+          Log out
+        </button>
+      </div>
+    )
+  }
+/>
 
       <div className="w-full max-w-4xl mx-auto px-4 pt-8 pb-16">
         {/* Header */}
@@ -399,6 +486,12 @@ export default function AdminPage() {
           </button>
         </div>
 
+        {overrideError && (
+          <div className="mb-4 p-3 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">
+            {overrideError}
+          </div>
+        )}
+
         {/* Body */}
         {loading ? (
           <div className="text-center py-20 text-ccc-muted text-sm">Loading documents...</div>
@@ -419,6 +512,8 @@ export default function AdminPage() {
                 email={g.email}
                 docs={g.docs}
                 defaultOpen={i === 0}
+                onOverride={handleOverride}
+                overriding={overriding}
               />
             ))}
           </div>
