@@ -1,0 +1,57 @@
+Progress update.
+September 16, 2026
+
+1. COMPLETED AND MERGED (auth-admin-tests + autofill-text-extraction admin-side --> revisions-on-going)
+
+- Admin login overhaul: replaced the old shared team passcode with real
+  per-admin accounts (individual email + password). New admin_accounts
+  table in Supabase, passwords hashed (not stored in plain text), plus a
+  seed script for creating new admin accounts. Tested end-to-end (wrong
+  credentials correctly rejected, correct credentials sign in). Merged
+  into revisions-on-going.
+
+- Auto-Fill Text Extraction (admin-facing): pulls full name, date of
+  birth, and place of birth from uploaded PSA documents, and general
+  average from Form 138, into a new extracted_fields table. Tested and
+  merged into revisions-on-going. (Applicant-facing pre-fill using this
+  data is a separate, later task - not started yet.)
+
+- Document manual-override endpoint (app/api/documents/[id]/override):
+  backend for the per-document "Mark Verified / Flag for Review" action
+  on the admin document-review page, with OCR confidence shown per
+  doc. Already built, tested, and merged into revisions-on-going as
+  part of this same batch. (This is the feature referenced in the gap
+  note below - it exists and works on member 2's side already.)
+
+
+2. FRONT-END REPO STATUS - ?
+
+Bakit wala paring balita sa "front-end"? 
+Lahat ng PR or Pull Request naka open parin. 
+Ni isa walang naka merge sa main, lahat yan naka draft status.
+Pulling doesn't mean na nagrereflect kaagad ito sa main branch unless merged.
+Nakikita ko lang proposed changes based sa differences at description ng PRs, hindi pa yan final. 
+
+  PR #2 - admin.html (Patch 2)
+  PR #3 - applicant.html (Patch 2)
+  PR #4 - index.html (Patch 2)
+  PR #5 - signup.html (Patch 2)
+
+REQUEST: Paki review naman na sana at i-merge itong 4 na PR na ginawa mo. 
+Kahit idiretso mo na sana yung needed changes then gumawa ka nalang ng iisang summary since HTML palang at if gusto mong maka catch up ako. 
+Oo gagamitin natin yan as reference para sa UI, pero sana wag mo kalimutan na STATIC html palang yan.
+
+
+Di ko alam kung anong priority mo, may workload ka man outside academics or what.. Pero to be honest, kailangan na nating lumipat sa actual functions, 
+di na pwedeng visual lang may progress. It's not like Capstone 1 parin tayo, working system na ang ineexpect satin.
+
+
+---------------------------------------------------------------------------------------------------------------
+NOTE NG CLAUDE: 
+IMPORTANT GAP: PR #2's admin.html spec does NOT include a per-document
+"Mark Verified / Flag for Review" manual-override action (the kind of
+feature your original, already-defended project HTML had, and that MEMBER 2
+already built and tested on the backend side). This needs to either be
+added to the front-end spec, or confirm that it's meant to live
+underneath the single Edit toggle mentioned in the PR created by MEMBER 1.
+
