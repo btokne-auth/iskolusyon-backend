@@ -391,6 +391,34 @@ export async function POST(request) {
       return NextResponse.json({ error: dbError.message }, { status: 500 })
     }
 
+        // Auto-Fill Text Extraction — runs only for document types we've scoped
+    // OCR-based field extraction for so far (PSA, Form 138).
+    try {
+      const { extractPSAFields, extractGradesFields } = require('@/app/lib/textExtraction')
+      let extraction = null
+
+      if (documentType === 'birthcert') {
+        extraction = extractPSAFields(extractedText)
+      } else if (documentType === 'form138') {
+        extraction = extractGradesFields(extractedText)
+      }
+
+      if (extraction) {
+        for (const [fieldName, value] of Object.entries(extraction.fields)) {
+          await supabase.from('extracted_fields').upsert({
+            file_path: data.path,
+            document_type: documentType,
+            field_name: fieldName,
+            extracted_value: value,
+            needs_review: extraction.needsReview,
+          })
+        }
+      }
+    } catch (extractionErr) {
+      // Same pattern as the audit log below — never block the upload response.
+      console.error('Auto-fill extraction failed (non-blocking):', extractionErr)
+    }
+
     // Global Audit Log entry — best-effort, never blocks the response the
     // applicant is waiting on. Every upload becomes a timeline entry,
     // matching the "Recent Activity Log" from the approved admin mockup.
