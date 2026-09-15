@@ -6,8 +6,8 @@ import SiteHeader from '../../components/SiteHeader'
 function AdminLoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [name, setName] = useState('')
-  const [passcode, setPasscode] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -19,7 +19,7 @@ function AdminLoginForm() {
       const res = await fetch('/api/admin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passcode, name }),
+        body: JSON.stringify({ email, password }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -46,35 +46,36 @@ function AdminLoginForm() {
           Admin sign-in
         </h1>
         <p className="text-xs text-ccc-muted mb-5">
-          Shared team passcode. Enter your name too, so the activity log
-          knows who did what — this isn&apos;t a real account system yet,
-          just a placeholder until the User Account Module is ready.
+          Sign in with your own admin account. This still isn&apos;t backed
+          by a real account system yet — no self-signup, password reset, or
+          session timeout — just individual credentials in place of the old
+          shared passcode, until the User Account Module is ready.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className="text-[11px] font-bold uppercase tracking-widest text-ccc-muted block mb-1">
-              Your name
+              Email
             </label>
             <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Jhudiel"
-              autoComplete="name"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@ccc.edu.ph"
+              autoComplete="username"
               className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
               required
             />
           </div>
           <div>
             <label className="text-[11px] font-bold uppercase tracking-widest text-ccc-muted block mb-1">
-              Passcode
+              Password
             </label>
             <input
               type="password"
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
-              placeholder="Shared team passcode"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Your password"
               autoComplete="current-password"
               className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
               required
