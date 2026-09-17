@@ -78,7 +78,7 @@ const MIN_IMAGE_DIMENSION = 300
 // magic number, meant to be revisited against a larger sample set.
 const MIN_CONTRAST_STDEV = 10
 
-async function checkImageQuality(buffer) {
+async function checkImageQuality(buffer, documentType) {
   const metadata = await sharp(buffer).metadata()
   const { width = 0, height = 0 } = metadata
 
@@ -88,6 +88,17 @@ async function checkImageQuality(buffer) {
       reason: 'too_small',
       message: `This image is only ${width}×${height}px, too low-resolution to read reliably. Please upload a higher-resolution photo or scan (at least ${MIN_IMAGE_DIMENSION}px on each side).`
     }
+  }
+
+  // The contrast/readability check below exists to catch document photos
+  // (PSA, Form 138, IDs) that are too blank/blurry/glared-over for OCR to
+  // read. A profile picture is never OCR'd — checking "text readability"
+  // on a person's face photo is testing the wrong thing and rejects
+  // perfectly good photos (e.g. a plain, evenly-lit headshot can have low
+  // grayscale variance without being blurry at all). Skip it for that type
+  // only; the resolution check above still applies to everything.
+  if (documentType === 'profilepic') {
+    return { passed: true }
   }
 
   const stats = await sharp(buffer).grayscale().stats()
@@ -302,7 +313,7 @@ export async function POST(request) {
     // record, so the applicant fixes it at the point of capture instead of
     // it becoming something an admin has to triage later.
     if (file.type.startsWith('image/')) {
-      const quality = await checkImageQuality(buffer)
+      const quality = await checkImageQuality(buffer, documentType)
       if (!quality.passed) {
         return NextResponse.json(
           { success: false, rejected: true, reason: quality.reason, message: quality.message },

@@ -4,6 +4,39 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+// Maps the camelCase personalInfo object sent from the Step 1 Personal
+// Information cards (Profile Picture / Identity & Civil Status / Contact &
+// Residency) to the snake_case columns added on `applications` for them.
+// Run against an ad hoc migration in Supabase's SQL editor (not committed
+// as a repo file, matching how earlier column additions on this project
+// were handled) — see PATCH NOTES at the bottom of this file for the SQL.
+// Every field is optional at the DB level; required-ness is enforced in
+// the UI (app/page.js) before the applicant can leave Step 1.
+function personalInfoToColumns(personalInfo) {
+  const pi = personalInfo && typeof personalInfo === 'object' ? personalInfo : {}
+  const text = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+  return {
+    first_name: text(pi.firstName),
+    middle_name: text(pi.middleName),
+    last_name: text(pi.lastName),
+    suffix: text(pi.suffix),
+    date_of_birth: text(pi.dateOfBirth),
+    place_of_birth: text(pi.placeOfBirth),
+    sex: text(pi.sex),
+    citizenship: text(pi.citizenship),
+    religion: text(pi.religion),
+    civil_status: text(pi.civilStatus),
+    spouse_name: text(pi.spouseName),
+    spouse_occupation: text(pi.spouseOccupation),
+    spouse_contact: text(pi.spouseContact),
+    contact_number: text(pi.contactNumber),
+    address: text(pi.address),
+    voter_precinct: text(pi.voterPrecinct),
+    email_updates_opt_in: !!pi.emailUpdatesOptIn,
+    sms_updates_opt_in: !!pi.smsUpdatesOptIn,
+  }
+}
+
 // Sends a simple confirmation email when an application is submitted.
 // Fire-and-log only — a failed email should never block the submission
 // itself from succeeding.
@@ -73,6 +106,7 @@ export async function POST(request) {
     const applicantEmail = (body.applicantEmail || '').trim()
     const step = Number(body.step) || 1
     const action = body.action === 'submit' ? 'submit' : 'save'
+    const personalInfoColumns = personalInfoToColumns(body.personalInfo)
 
     if (!applicantName) {
       return NextResponse.json({ error: 'Missing applicant name' }, { status: 400 })
@@ -98,6 +132,7 @@ export async function POST(request) {
         applicant_email: applicantEmail || existing.applicant_email,
         current_step: step,
         updated_at: now,
+        ...personalInfoColumns,
       }
       if (action === 'submit') {
         updates.status = 'submitted'
@@ -129,6 +164,7 @@ export async function POST(request) {
       current_step: step,
       status: action === 'submit' ? 'submitted' : 'draft',
       submitted_at: action === 'submit' ? now : null,
+      ...personalInfoColumns,
     }
 
     const { data, error } = await supabase

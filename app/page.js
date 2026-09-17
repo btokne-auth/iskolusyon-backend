@@ -80,6 +80,32 @@ function IconAlertTriangle(props) {
   )
 }
 
+// Maps an `applications` row (snake_case DB columns) back to the camelCase
+// personalInfo shape the Step 1 cards use — needed when resuming a draft
+// that already has Personal Information saved from a previous session.
+function mapDbRowToPersonalInfo(row) {
+  return {
+    firstName: row.first_name || '',
+    middleName: row.middle_name || '',
+    lastName: row.last_name || '',
+    suffix: row.suffix || '',
+    dateOfBirth: row.date_of_birth || '',
+    placeOfBirth: row.place_of_birth || '',
+    sex: row.sex || '',
+    citizenship: row.citizenship || '',
+    religion: row.religion || '',
+    civilStatus: row.civil_status || '',
+    spouseName: row.spouse_name || '',
+    spouseOccupation: row.spouse_occupation || '',
+    spouseContact: row.spouse_contact || '',
+    contactNumber: row.contact_number || '',
+    address: row.address || '',
+    voterPrecinct: row.voter_precinct || '',
+    emailUpdatesOptIn: !!row.email_updates_opt_in,
+    smsUpdatesOptIn: !!row.sms_updates_opt_in,
+  }
+}
+
 // Shows the OCR/text-detection result in a scrollable box, with a copy button.
 function ExtractedTextField({ text, method }) {
   const [copied, setCopied] = useState(false)
@@ -296,6 +322,76 @@ function StepProgress({ step }) {
   )
 }
 
+// Small reusable form controls for the Personal Information cards (Step 1,
+// cards 2-3) — kept local to this file since they're only used here, styled
+// to match the existing Applicant Name / Email inputs above.
+function TextField({ label, required, type = 'text', value, onChange, placeholder }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
+        {label} {required && <span className="text-red-600">*</span>}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+      />
+    </div>
+  )
+}
+
+function SelectField({ label, required, value, onChange, options }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
+        {label} {required && <span className="text-red-600">*</span>}
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+      >
+        <option value="">Select</option>
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
+  )
+}
+
+// Inline document upload row used inside the Personal Information cards
+// (Profile Picture / Birth Certificate / Voter's ID) — a compact version of
+// the Step 2 dropzone, since these three uploads now happen right next to
+// the fields they relate to instead of in the separate upload step. Calls
+// straight into the shared uploadDocument() helper below.
+function InlineUploadRow({ label, sublabel, required, status, onFileSelected }) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-dashed border-ccc-border bg-ccc-off/60 px-3 py-3">
+      <IconUpload className="w-5 h-5 text-ccc-blue shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-bold text-ccc-navy">
+          {label} {required && <span className="text-red-600">*</span>}
+        </div>
+        {sublabel && <div className="text-[11px] text-ccc-muted">{sublabel}</div>}
+        {status === 'uploading' && <div className="text-[11px] text-ccc-blue mt-0.5">Uploading&hellip;</div>}
+        {status === 'done' && <div className="text-[11px] text-ccc-green mt-0.5">Uploaded &#x2713;</div>}
+        {status === 'flagged' && <div className="text-[11px] text-ccc-gold mt-0.5">Uploaded, flagged for review</div>}
+        {status === 'rejected' && <div className="text-[11px] text-red-600 mt-0.5">Photo rejected &mdash; see details below</div>}
+        {status === 'error' && <div className="text-[11px] text-red-600 mt-0.5">Upload failed &mdash; try again</div>}
+      </div>
+      <label className="shrink-0 text-[11px] font-bold text-ccc-blue border border-ccc-blue rounded-lg px-3 py-1.5 cursor-pointer hover:bg-ccc-blue hover:text-white transition-colors">
+        Upload
+        <input
+          type="file"
+          className="hidden"
+          onChange={(e) => e.target.files[0] && onFileSelected(e.target.files[0])}
+        />
+      </label>
+    </div>
+  )
+}
+
 // ---------- Page ----------
 
 export default function Home() {
@@ -316,6 +412,38 @@ export default function Home() {
   const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [draftFound, setDraftFound] = useState(null) // application row found for this name, or null
   const [draftDismissed, setDraftDismissed] = useState(false)
+  // ---- Personal Information (Step 1, cards 2-3) ----
+  // Card 1 (Profile Picture), card 2 (Identity & Civil Status), and card 3
+  // (Contact & Residency) fields, ported from Ivy's applicant.html Personal
+  // Information section. These map to new columns on `applications` (see
+  // personalInfoToColumns() in app/api/application/route.js) — everything
+  // here is nullable/optional at the DB level, required-ness is enforced in
+  // this component's own validation before "Continue" is enabled.
+  const [personalInfo, setPersonalInfo] = useState({
+    firstName: '', middleName: '', lastName: '', suffix: '',
+    dateOfBirth: '', placeOfBirth: '', sex: '', citizenship: '', religion: '', civilStatus: '',
+    spouseName: '', spouseOccupation: '', spouseContact: '',
+    contactNumber: '', address: '', voterPrecinct: '',
+    emailUpdatesOptIn: false, smsUpdatesOptIn: false,
+  })
+  const updatePI = (field, value) => setPersonalInfo((p) => ({ ...p, [field]: value }))
+
+  // Inline upload state for the three document types now uploaded directly
+  // inside the Personal Information cards, instead of via the Step 2 form.
+  // 'idle' also covers "not attempted yet this session" — hasUploaded()
+  // below (via myDocs/docHistory) is what actually confirms a prior upload
+  // exists, so a returning applicant sees "Uploaded" without re-uploading.
+  const [profilePicStatus, setProfilePicStatus] = useState('idle')
+  const [birthCertStatus, setBirthCertStatus] = useState('idle')
+  const [voterIdStatus, setVoterIdStatus] = useState('idle')
+  // Holds the specific rejection message (e.g. "too small", "too blurry")
+  // when an inline upload gets rejected by the quality precheck — status
+  // alone only says 'error', this is what actually tells the applicant
+  // what to fix. Cleared on every new upload attempt for that row.
+  const [profilePicRejection, setProfilePicRejection] = useState(null)
+  const [birthCertRejection, setBirthCertRejection] = useState(null)
+  const [voterIdRejection, setVoterIdRejection] = useState(null)
+
   const panelRef = useRef(null)
   const formCardRef = useRef(null)
 
@@ -329,6 +457,11 @@ export default function Home() {
       applicantName.trim() &&
       doc.applicant_name.trim().toLowerCase() === applicantName.trim().toLowerCase()
   )
+
+  // Has this applicant (by name) already uploaded a document of this type?
+  // Drives the "Uploaded" state on the three inline Personal Information
+  // uploads (cards 1-3) so a returning applicant doesn't see them as empty.
+  const hasUploaded = (type) => myDocs.some((doc) => doc.document_type === type)
 
   // The History drawer reuses this same filtered list — it should only ever
   // show documents matching the name currently typed in, not every
@@ -363,6 +496,7 @@ export default function Home() {
           applicantEmail: applicantEmail.trim(),
           step: targetStep,
           action: 'save',
+          personalInfo,
         }),
       })
       const data = await res.json()
@@ -389,6 +523,7 @@ export default function Home() {
           applicantEmail: applicantEmail.trim(),
           step: 3,
           action: 'submit',
+          personalInfo,
         }),
       })
       const data = await res.json()
@@ -427,6 +562,30 @@ export default function Home() {
       setStatusRequested(false)
     }
   }, [applicantName, statusRequested])
+
+  // Gates the Step 1 "Continue" button — requires the required Personal
+  // Information fields (cards 2-3) plus all three inline uploads (cards
+  // 1-3), on top of the pre-existing name requirement. Doesn't require
+  // email or the two update opt-in checkboxes, which stay optional.
+  const requiredPersonalInfoComplete =
+    personalInfo.firstName.trim() &&
+    personalInfo.lastName.trim() &&
+    personalInfo.dateOfBirth &&
+    personalInfo.placeOfBirth.trim() &&
+    personalInfo.sex &&
+    personalInfo.citizenship.trim() &&
+    personalInfo.civilStatus &&
+    personalInfo.contactNumber.trim() &&
+    personalInfo.address.trim() &&
+    personalInfo.voterPrecinct.trim()
+
+  const requiredInlineUploadsComplete =
+    (profilePicStatus === 'done' || profilePicStatus === 'flagged' || hasUploaded('profilepic')) &&
+    (birthCertStatus === 'done' || birthCertStatus === 'flagged' || hasUploaded('birthcert')) &&
+    (voterIdStatus === 'done' || voterIdStatus === 'flagged' || hasUploaded('voterid'))
+
+  const canContinueFromStep1 =
+    !!applicantName.trim() && !!requiredPersonalInfoComplete && requiredInlineUploadsComplete
 
   const fetchHistory = async () => {
     try {
@@ -468,6 +627,32 @@ export default function Home() {
     }
   }
 
+  // Shared upload call used by both the Step 2 upload form (below) and the
+  // three inline uploads in the Step 1 Personal Information cards (Profile
+  // Picture, Birth Certificate, Voter's ID) — previously duplicated inline
+  // inside handleUpload only. Throws on failure; callers decide how to
+  // surface that (full status/qualityRejection UI in Step 2, a compact
+  // per-row status in the inline cards).
+  const uploadDocument = async (docType, uploadFile) => {
+    const formData = new FormData()
+    formData.append('file', uploadFile)
+    formData.append('applicantName', applicantName.trim())
+    formData.append('applicantEmail', applicantEmail.trim())
+    formData.append('documentType', docType)
+
+    const res = await fetch('/api/upload', { method: 'POST', body: formData })
+    const data = await res.json()
+
+    if (!res.ok) {
+      const err = new Error(data.error || 'Upload failed')
+      err.rejected = data.rejected
+      err.reason = data.reason
+      err.rejectionMessage = data.message
+      throw err
+    }
+    return data
+  }
+
   const handleUpload = async (e) => {
     e.preventDefault()
     if (!file || !documentType || !applicantName.trim()) return
@@ -475,45 +660,58 @@ export default function Home() {
     setLoading(true)
     setStatus('Scanning document, running OCR, and generating SHA-256 hash...')
     setQualityRejection(null)
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('applicantName', applicantName.trim())
-    formData.append('applicantEmail', applicantEmail.trim())
-    formData.append('documentType', documentType)
 
     try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await res.json()
-
-      if (res.ok) {
-        setStatus(
-          data.needsReview
-            ? 'Document uploaded, but flagged for review.'
-            : 'Document uploaded and verified successfully.'
-        )
-        setDetails(data)
-        fetchHistory()
-        setFile(null)
-        setDocumentType('')
-      } else if (data.rejected) {
+      const data = await uploadDocument(documentType, file)
+      setStatus(
+        data.needsReview
+          ? 'Document uploaded, but flagged for review.'
+          : 'Document uploaded and verified successfully.'
+      )
+      setDetails(data)
+      fetchHistory()
+      setFile(null)
+      setDocumentType('')
+    } catch (err) {
+      if (err.rejected) {
         // Image-quality precheck rejection: nothing was stored, so there's
         // no `details` to show — just the reason, and the file stays
         // cleared so the applicant picks a fresh (better) photo.
         setStatus('')
         setDetails(null)
-        setQualityRejection({ reason: data.reason, message: data.message })
+        setQualityRejection({ reason: err.reason, message: err.rejectionMessage })
         setFile(null)
       } else {
         setDetails(null)
-        setStatus(`Error: ${data.error}`)
+        setStatus(`Error: ${err.message}`)
       }
-    } catch (err) {
-      setStatus(`Error: ${err.message}`)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Inline upload handler for the Personal Information cards — same
+  // uploadDocument() call as Step 2, but reports through a compact
+  // per-field status instead of the shared status/qualityRejection state
+  // (three of these can be in flight independently across cards 1-3).
+  const handleInlineUpload = async (docType, uploadFile, setInlineStatus, setInlineRejection) => {
+    if (!uploadFile || !applicantName.trim()) return
+    setInlineStatus('uploading')
+    setInlineRejection(null)
+    try {
+      const data = await uploadDocument(docType, uploadFile)
+      setInlineStatus(data.needsReview ? 'flagged' : 'done')
+      fetchHistory()
+    } catch (err) {
+      if (err.rejected) {
+        // A specific, actionable quality-precheck rejection (too small,
+        // too blurry, etc.) — not a real failure, nothing was stored.
+        // Surface the actual reason instead of a blind "try again."
+        setInlineStatus('rejected')
+        setInlineRejection(err.rejectionMessage)
+      } else {
+        setInlineStatus('error')
+      }
     }
   }
 
@@ -598,6 +796,87 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* ---------- Card 1: Profile Picture ---------- */}
+              <div className="rounded-2xl border border-ccc-border p-5 space-y-3">
+                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">1 &middot; Profile Picture</div>
+                <p className="text-[11px] text-ccc-muted">This photo is used across your application and account.</p>
+                <InlineUploadRow
+                  label="Profile Picture"
+                  sublabel="A clear, recent 2x2 photo of yourself (white background)"
+                  required
+                  status={profilePicStatus === 'idle' && hasUploaded('profilepic') ? 'done' : profilePicStatus}
+                  onFileSelected={(f) => handleInlineUpload('profilepic', f, setProfilePicStatus, setProfilePicRejection)}
+                />
+                {profilePicRejection && <QualityRejectionAlert message={profilePicRejection} />}
+              </div>
+
+              {/* ---------- Card 2: Identity & Civil Status ---------- */}
+              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
+                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">2 &middot; Identity &amp; Civil Status</div>
+                <p className="text-[11px] text-ccc-muted">Document text extraction isn&rsquo;t always perfect &mdash; you can correct any field manually.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <TextField label="First Name" required value={personalInfo.firstName} onChange={(v) => updatePI('firstName', v)} placeholder="e.g. Juan" />
+                  <TextField label="Middle Name (if any)" value={personalInfo.middleName} onChange={(v) => updatePI('middleName', v)} placeholder="e.g. Santos" />
+                  <TextField label="Last Name" required value={personalInfo.lastName} onChange={(v) => updatePI('lastName', v)} placeholder="e.g. Dela Cruz" />
+                  <TextField label="Suffix (if any)" value={personalInfo.suffix} onChange={(v) => updatePI('suffix', v)} placeholder="e.g. Jr., III" />
+                  <TextField label="Date of Birth" type="date" required value={personalInfo.dateOfBirth} onChange={(v) => updatePI('dateOfBirth', v)} />
+                  <TextField label="Place of Birth" required value={personalInfo.placeOfBirth} onChange={(v) => updatePI('placeOfBirth', v)} placeholder="e.g. Calamba City, Laguna" />
+                  <SelectField label="Sex" required value={personalInfo.sex} onChange={(v) => updatePI('sex', v)} options={['Male', 'Female']} />
+                  <TextField label="Citizenship" required value={personalInfo.citizenship} onChange={(v) => updatePI('citizenship', v)} placeholder="e.g. Filipino" />
+                  <TextField label="Religion" value={personalInfo.religion} onChange={(v) => updatePI('religion', v)} placeholder="e.g. Roman Catholic" />
+                  <SelectField label="Civil Status" required value={personalInfo.civilStatus} onChange={(v) => updatePI('civilStatus', v)} options={['Single', 'Married', 'Widowed', 'Separated']} />
+                </div>
+                {personalInfo.civilStatus === 'Married' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-ccc-border">
+                    <div className="sm:col-span-2 text-[10px] font-bold text-ccc-navy uppercase tracking-widest">If Married</div>
+                    <TextField label="Spouse's Name" value={personalInfo.spouseName} onChange={(v) => updatePI('spouseName', v)} placeholder="e.g. Maria Dela Cruz" />
+                    <TextField label="Spouse's Occupation" value={personalInfo.spouseOccupation} onChange={(v) => updatePI('spouseOccupation', v)} placeholder="e.g. Teacher" />
+                    <div className="sm:col-span-2">
+                      <TextField label="Spouse's Contact Number" value={personalInfo.spouseContact} onChange={(v) => updatePI('spouseContact', v)} placeholder="e.g. 0917 123 4567" />
+                    </div>
+                  </div>
+                )}
+                <InlineUploadRow
+                  label="Birth Certificate / PSA / NSO"
+                  sublabel="Issued by the Philippine Statistics Authority"
+                  required
+                  status={birthCertStatus === 'idle' && hasUploaded('birthcert') ? 'done' : birthCertStatus}
+                  onFileSelected={(f) => handleInlineUpload('birthcert', f, setBirthCertStatus, setBirthCertRejection)}
+                />
+                {birthCertRejection && <QualityRejectionAlert message={birthCertRejection} />}
+              </div>
+
+              {/* ---------- Card 3: Contact & Residency ---------- */}
+              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
+                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">3 &middot; Contact &amp; Residency</div>
+                <p className="text-[11px] text-ccc-muted">Your address and precinct number can be corrected manually after review.</p>
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <TextField label="Contact Number" required value={personalInfo.contactNumber} onChange={(v) => updatePI('contactNumber', v)} placeholder="e.g. 0917 123 4567" />
+                    <label className="flex items-center gap-2 text-[11px] text-ccc-text cursor-pointer mt-1.5">
+                      <input type="checkbox" checked={personalInfo.smsUpdatesOptIn} onChange={(e) => updatePI('smsUpdatesOptIn', e.target.checked)} className="accent-ccc-blue w-3.5 h-3.5" />
+                      I want to receive SMS updates.
+                    </label>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 text-[11px] text-ccc-text cursor-pointer">
+                      <input type="checkbox" checked={personalInfo.emailUpdatesOptIn} onChange={(e) => updatePI('emailUpdatesOptIn', e.target.checked)} className="accent-ccc-blue w-3.5 h-3.5" />
+                      I want to receive email updates{applicantEmail.trim() ? ` at ${applicantEmail.trim()}.` : '.'}
+                    </label>
+                  </div>
+                  <TextField label="Present Home Address" required value={personalInfo.address} onChange={(v) => updatePI('address', v)} placeholder="House No., Street, Barangay, City, Province" />
+                  <TextField label="Voter's Precinct No." required value={personalInfo.voterPrecinct} onChange={(v) => updatePI('voterPrecinct', v)} placeholder="e.g. 0142A" />
+                </div>
+                <InlineUploadRow
+                  label="Voter's ID / Certification of Applicant"
+                  sublabel="Issued by the Commission on Elections (COMELEC)"
+                  required
+                  status={voterIdStatus === 'idle' && hasUploaded('voterid') ? 'done' : voterIdStatus}
+                  onFileSelected={(f) => handleInlineUpload('voterid', f, setVoterIdStatus, setVoterIdRejection)}
+                />
+                {voterIdRejection && <QualityRejectionAlert message={voterIdRejection} />}
+              </div>
+
               {draftFound && (
                 <div className="p-4 rounded-xl border border-ccc-blue/30 bg-blue-50 flex items-start justify-between gap-3">
                   <div className="text-xs text-ccc-text/90">
@@ -607,7 +886,7 @@ export default function Home() {
                   <div className="flex flex-col gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={() => setStep(draftFound.current_step)}
+                      onClick={() => { setPersonalInfo(mapDbRowToPersonalInfo(draftFound)); setStep(draftFound.current_step) }}
                       className="text-xs font-bold text-white bg-ccc-blue hover:bg-ccc-navy rounded-lg px-3 py-1.5 whitespace-nowrap"
                     >
                       Resume draft
@@ -623,10 +902,15 @@ export default function Home() {
                 </div>
               )}
 
+              {!canContinueFromStep1 && applicantName.trim() && (
+                <p className="text-[11px] text-ccc-muted -mt-2">
+                  Fill in the required fields and upload your Profile Picture, Birth Certificate, and Voter&rsquo;s ID above to continue.
+                </p>
+              )}
               <button
                 type="button"
                 onClick={() => { saveProgress(2); setStep(2) }}
-                disabled={!applicantName.trim()}
+                disabled={!canContinueFromStep1}
                 className="w-full py-4 px-4 bg-ccc-blue hover:bg-ccc-navy disabled:bg-ccc-border disabled:text-ccc-muted text-white font-bold rounded-xl transition-all shadow-md text-sm cursor-pointer disabled:cursor-not-allowed"
                 style={{ fontFamily: 'var(--font-montserrat)' }}
               >
