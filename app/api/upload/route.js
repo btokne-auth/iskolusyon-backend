@@ -4,6 +4,7 @@ import { supabase } from '@/app/supabaseClient'
 import crypto from 'crypto'
 import { PDFParse } from 'pdf-parse'
 import { createWorker, PSM } from 'tesseract.js'
+import { VALID_DOCUMENT_TYPES, AUTOFILL_SCOPED_TYPES } from '@/app/lib/documentTypes'
 
 // ---------- Validation limits ----------
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
@@ -249,12 +250,9 @@ async function extractText(buffer, mimeType) {
   return { text: '', method: 'unsupported', confidence: 0 }
 }
 
-// Matches the mockup's CATEGORY_DEFS document keys exactly (admin (6).html)
-// so the admin review view can render these without any translation layer.
-const VALID_DOCUMENT_TYPES = [
-  'birthcert', 'voterid', 'form138', 'enrollmentcert', 'goodmoral',
-  'currentscholarship', 'indigency', 'employmentcert', 'supportdoc', 'medcert'
-]
+// VALID_DOCUMENT_TYPES moved to app/lib/documentTypes.js (Sept 16 Patch 2
+// port) — was its own fourth copy of this list, values-only. See that
+// file's header comment for what changed.
 
 export async function POST(request) {
   try {
@@ -397,10 +395,12 @@ export async function POST(request) {
       const { extractPSAFields, extractGradesFields } = require('@/app/lib/textExtraction')
       let extraction = null
 
-      if (documentType === 'birthcert') {
-        extraction = extractPSAFields(extractedText)
-      } else if (documentType === 'form138') {
-        extraction = extractGradesFields(extractedText)
+      if (AUTOFILL_SCOPED_TYPES.includes(documentType)) {
+        if (documentType === 'birthcert') {
+          extraction = extractPSAFields(extractedText)
+        } else if (documentType === 'form138') {
+          extraction = extractGradesFields(extractedText)
+        }
       }
 
       if (extraction) {

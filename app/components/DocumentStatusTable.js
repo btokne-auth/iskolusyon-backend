@@ -4,9 +4,10 @@
 // Purely a display feature — reads from documents already fetched by the
 // parent page (docHistory via GET /api/upload). No new OCR/upload logic,
 // no new API route, no new DB columns. Mirrors the "Documents &
-// Verification Status" panel from the approved CCC mockup
-// (applicant (2) (1).html), grouped the same way as DOCUMENT_TYPE_OPTIONS
-// in page.js so it always matches the upload form's categories.
+// Verification Status" panel from the approved CCC mockup (confirmed-
+// merged Patch 2 applicant.html), grouped the same way as
+// DOCUMENT_TYPE_OPTIONS (now in app/lib/documentTypes.js) so it always
+// matches the upload form's categories.
 
 function IconAlertTriangle(props) {
   return (

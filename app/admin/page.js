@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import SiteHeader from '../components/SiteHeader'
+import { getDocTypeLabel } from '../lib/documentTypes'
 
 // ---------- Icons (same style as the applicant page) ----------
 
@@ -57,23 +58,8 @@ function IconCopy(props) {
   )
 }
 
-// ---------- Document type labels (kept in sync with the applicant page) ----------
-
-const DOC_TYPE_LABEL_MAP = {
-  birthcert: 'Birth Certificate / PSA',
-  voterid: "Voter's ID",
-  form138: 'Grades (Form 138 / Report Card)',
-  enrollmentcert: 'Certificate of Enrollment',
-  goodmoral: 'Good Moral Character',
-  currentscholarship: 'Proof of Current Availed Scholarship/s',
-  indigency: 'Proof of Income (Family / Guardian)',
-  employmentcert: 'Certificate of Employment',
-  supportdoc: 'Supporting Document (per classification)',
-  medcert: 'Current Medical Status',
-}
-function getDocTypeLabel(value) {
-  return DOC_TYPE_LABEL_MAP[value] || value || 'Unspecified document'
-}
+// Document type labels moved to app/lib/documentTypes.js (Sept 16 Patch 2
+// port) — see that file's header comment for what changed.
 
 function getCleanFileName(path) {
   if (!path) return 'Unknown file'

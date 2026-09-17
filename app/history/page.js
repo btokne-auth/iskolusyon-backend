@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import SiteHeader from '../components/SiteHeader'
+import { getDocTypeLabel } from '../lib/documentTypes'
 
 // ---------- Application History & Activity Logs ----------
 // A dedicated page version of what the History drawer already does on the
@@ -10,25 +11,9 @@ import SiteHeader from '../components/SiteHeader'
 // stand-in for real per-user history until Ivy's User Account Module
 // (real login) exists — see the note in app/page.js's `visibleHistory`.
 //
-// NOTE: this duplicates a small label map that also lives in app/page.js
-// (DOCUMENT_TYPE_OPTIONS). Worth moving both to one shared file later so
-// they can never drift out of sync — not urgent, just a fast-follow.
-
-const DOC_TYPE_LABEL_MAP = {
-  birthcert: 'Birth Certificate / PSA',
-  voterid: "Voter's ID",
-  form138: 'Grades (Form 138 / Report Card)',
-  enrollmentcert: 'Certificate of Enrollment',
-  goodmoral: 'Good Moral Character',
-  currentscholarship: 'Proof of Current Availed Scholarship/s',
-  indigency: 'Proof of Income (Family / Guardian)',
-  employmentcert: 'Certificate of Employment',
-  supportdoc: 'Supporting Document (per classification)',
-  medcert: 'Current Medical Status',
-}
-function getDocTypeLabel(value) {
-  return DOC_TYPE_LABEL_MAP[value] || value || 'Unknown document type'
-}
+// This used to duplicate a label map that also lived in app/page.js and
+// admin/page.js — moved to app/lib/documentTypes.js (Sept 16 Patch 2 port)
+// so the fast-follow this comment used to point at is now done.
 
 function getCleanFileName(path) {
   if (!path) return 'Unknown file'

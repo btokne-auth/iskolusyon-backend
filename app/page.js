@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import SiteHeader from './components/SiteHeader'
 import DocumentStatusTable from './components/DocumentStatusTable'
+import { DOCUMENT_TYPE_OPTIONS, getDocTypeLabel } from './lib/documentTypes'
 
 // ---------- Small building blocks ----------
 
@@ -250,37 +251,10 @@ const getCleanFileName = (path) => {
   return parts.length > 1 ? parts.slice(1).join('-') : path
 }
 
-// Matches the admin mockup's CATEGORY_DEFS keys (admin (6).html) exactly —
-// same 10 required-document types, same order, grouped the same way.
-const DOCUMENT_TYPE_OPTIONS = [
-  { group: 'Personal Information', options: [
-    { value: 'birthcert', label: 'Birth Certificate / PSA' },
-    { value: 'voterid', label: "Voter's ID" },
-  ]},
-  { group: 'Academic Profile', options: [
-    { value: 'form138', label: 'Grades (Form 138 / Report Card)' },
-    { value: 'enrollmentcert', label: 'Certificate of Enrollment' },
-    { value: 'goodmoral', label: 'Good Moral Character' },
-    { value: 'currentscholarship', label: 'Proof of Current Availed Scholarship/s' },
-  ]},
-  { group: 'Financial & Employment', options: [
-    { value: 'indigency', label: 'Proof of Income (Family / Guardian)' },
-    { value: 'employmentcert', label: 'Certificate of Employment' },
-  ]},
-  { group: 'Special Demographics & Legal', options: [
-    { value: 'supportdoc', label: 'Supporting Document (per classification)' },
-  ]},
-  { group: 'Health & Wellness', options: [
-    { value: 'medcert', label: 'Current Medical Status' },
-  ]},
-]
-
-const DOC_TYPE_LABEL_MAP = Object.fromEntries(
-  DOCUMENT_TYPE_OPTIONS.flatMap((g) => g.options).map((o) => [o.value, o.label])
-)
-function getDocTypeLabel(value) {
-  return DOC_TYPE_LABEL_MAP[value] || value
-}
+// Document type list moved to app/lib/documentTypes.js (Sept 16 Patch 2
+// port) — was duplicated here, in admin/page.js, and in history/page.js;
+// now one shared source so the three can't drift out of sync again.
+// See that file's header comment for what changed in this patch.
 
 // Three-step progress indicator for the applicant wizard. Purely visual —
 // doesn't gate anything itself, `step` state in the page component decides
