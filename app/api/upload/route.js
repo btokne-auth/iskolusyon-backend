@@ -78,7 +78,7 @@ const MIN_IMAGE_DIMENSION = 300
 // magic number, meant to be revisited against a larger sample set.
 const MIN_CONTRAST_STDEV = 10
 
-async function checkImageQuality(buffer) {
+async function checkImageQuality(buffer, documentType) {
   const metadata = await sharp(buffer).metadata()
   const { width = 0, height = 0 } = metadata
 
@@ -88,6 +88,17 @@ async function checkImageQuality(buffer) {
       reason: 'too_small',
       message: `This image is only ${width}×${height}px, too low-resolution to read reliably. Please upload a higher-resolution photo or scan (at least ${MIN_IMAGE_DIMENSION}px on each side).`
     }
+  }
+
+  // The contrast/readability check below exists to catch document photos
+  // (PSA, Form 138, IDs) that are too blank/blurry/glared-over for OCR to
+  // read. A profile picture is never OCR'd — checking "text readability"
+  // on a person's face photo is testing the wrong thing and rejects
+  // perfectly good photos (e.g. a plain, evenly-lit headshot can have low
+  // grayscale variance without being blurry at all). Skip it for that type
+  // only; the resolution check above still applies to everything.
+  if (documentType === 'profilepic') {
+    return { passed: true }
   }
 
   const stats = await sharp(buffer).grayscale().stats()
@@ -146,6 +157,94 @@ async function correctOrientation(worker, buffer) {
   return buffer
 }
 
+// ---------- Deskew (continuous-angle skew correction) ----------
+// correctOrientation() above only fixes 90/180/270-degree misorientation.
+// This handles the far more common real-world case: a document
+// photographed at a moderate tilt rather than fully sideways -- the exact
+// failure mode that made a legible Voter's Certification photo OCR as
+// completely empty during Sept 18 testing. Runs inside the same
+// ocrImageBuffer() every image document type already goes through, so
+// this benefits every type (Birth Cert, Voter's ID, Employment Cert,
+// etc.), not just the one that surfaced the bug.
+//
+// Approach: projection-profile skew detection, a classic dependency-free
+// technique (no OpenCV/native bindings needed). For a spread of candidate
+// rotation angles, rotate a small binarized copy of the image and score
+// how "line-like" the result is -- well-aligned text rows create sharp
+// peaks/troughs in row-by-row dark-pixel counts (a text line has many
+// dark pixels, the gap above/below it has few), so the angle whose
+// row-darkness profile has the highest variance is the best guess at the
+// document's true skew. Not perfect on sparse or non-text-heavy images,
+// but a meaningful improvement over applying no correction at all for
+// the common "photographed at a slight-to-moderate angle" case.
+//
+// Range is deliberately capped at +/-25 degrees: accidental handheld-
+// photo tilt rarely exceeds this, and searching wider both costs more
+// compute per upload and risks a false "improvement" that rotates an
+// already-fine document further from upright.
+const DESKEW_MAX_ANGLE = 25
+const DESKEW_STEP = 2 // degrees -- coarse pass, tuned for handheld-photo
+                       // tilt rather than hunting a precise angle
+
+async function estimateSkewAngle(buffer) {
+  // Small, fast working copy -- precision doesn't matter for the score,
+  // only relative comparison between candidate angles.
+  const small = await sharp(buffer)
+    .resize({ width: 400, withoutEnlargement: false })
+    .grayscale()
+    .threshold(180) // rough binarization: text -> black (0), background -> white (255)
+    .toBuffer()
+
+  let bestAngle = 0
+  let bestScore = -1
+
+  for (let angle = -DESKEW_MAX_ANGLE; angle <= DESKEW_MAX_ANGLE; angle += DESKEW_STEP) {
+    let rotated
+    try {
+      rotated = await sharp(small)
+        .rotate(angle, { background: '#ffffff' })
+        .raw()
+        .toBuffer({ resolveWithObject: true })
+    } catch (e) {
+      continue
+    }
+    const { data, info } = rotated
+    const { width, height, channels } = info
+    const rowSums = new Array(height)
+    for (let y = 0; y < height; y++) {
+      let sum = 0
+      const rowStart = y * width * channels
+      for (let x = 0; x < width; x++) {
+        if (data[rowStart + x * channels] < 128) sum++ // count dark (text) pixels
+      }
+      rowSums[y] = sum
+    }
+    const mean = rowSums.reduce((a, b) => a + b, 0) / rowSums.length
+    const variance = rowSums.reduce((a, b) => a + (b - mean) ** 2, 0) / rowSums.length
+
+    if (variance > bestScore) {
+      bestScore = variance
+      bestAngle = angle
+    }
+  }
+
+  return bestAngle
+}
+
+async function correctSkew(buffer) {
+  try {
+    const angle = await estimateSkewAngle(buffer)
+    if (angle === 0) return buffer
+    return await sharp(buffer).rotate(angle, { background: '#ffffff' }).toBuffer()
+  } catch (e) {
+    // Best-effort improvement, not a required step -- if scoring fails for
+    // any reason, OCR the image as originally oriented rather than fail
+    // the whole upload over it.
+    console.error('Skew correction failed (non-blocking):', e)
+    return buffer
+  }
+}
+
 async function preprocessForOCR(buffer) {
   return sharp(buffer)
     .resize({ width: 2000, withoutEnlargement: false })  // upscale small/low-res photos
@@ -187,7 +286,8 @@ async function ocrWithBestSegmentation(worker, buffer) {
 // Runs Tesseract OCR on a single image buffer using an already-started worker.
 async function ocrImageBuffer(worker, buffer) {
   const oriented = await correctOrientation(worker, buffer)
-  const cleaned = await preprocessForOCR(oriented)
+  const deskewed = await correctSkew(oriented)
+  const cleaned = await preprocessForOCR(deskewed)
   const { text, confidence } = await ocrWithBestSegmentation(worker, cleaned)
   return { text: text.trim(), confidence }
 }
@@ -302,7 +402,7 @@ export async function POST(request) {
     // record, so the applicant fixes it at the point of capture instead of
     // it becoming something an admin has to triage later.
     if (file.type.startsWith('image/')) {
-      const quality = await checkImageQuality(buffer)
+      const quality = await checkImageQuality(buffer, documentType)
       if (!quality.passed) {
         return NextResponse.json(
           { success: false, rejected: true, reason: quality.reason, message: quality.message },
@@ -319,16 +419,28 @@ export async function POST(request) {
     // Run text detection/OCR before upload so extraction failures don't
     // corrupt a half-finished storage/DB write. A failure here still lets
     // the document upload succeed — it just comes back with empty text.
+    //
+    // Skipped entirely for 'profilepic': a face photo is never meant to
+    // have OCR-readable text (same reasoning as the Sept 17 exemption in
+    // checkImageQuality above, which only covered the pre-upload contrast
+    // check, not this post-upload safety net) — running OCR on it just
+    // returns near-zero confidence/text every time, which the logic below
+    // would then flag as "needs review" on every single profile picture,
+    // real or not. Leaving extractionMethod at its 'none' default here
+    // means needsReview naturally comes out false for this type, the same
+    // way it already does for a genuine extraction failure.
     let extractedText = ''
     let extractionMethod = 'none'
     let extractionConfidence = 0
-    try {
-      const result = await extractText(buffer, file.type)
-      extractedText = result.text
-      extractionMethod = result.method
-      extractionConfidence = result.confidence
-    } catch (ocrError) {
-      console.error('Text extraction failed:', ocrError)
+    if (documentType !== 'profilepic') {
+      try {
+        const result = await extractText(buffer, file.type)
+        extractedText = result.text
+        extractionMethod = result.method
+        extractionConfidence = result.confidence
+      } catch (ocrError) {
+        console.error('Text extraction failed:', ocrError)
+      }
     }
 
     // OCR reporting high confidence about almost no text is a meaningless
