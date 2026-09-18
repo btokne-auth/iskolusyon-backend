@@ -5,11 +5,13 @@ import { Resend } from 'resend'
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 // Maps the camelCase personalInfo object sent from the Step 1 Personal
-// Information cards (Profile Picture / Identity & Civil Status / Contact &
-// Residency) to the snake_case columns added on `applications` for them.
-// Run against an ad hoc migration in Supabase's SQL editor (not committed
-// as a repo file, matching how earlier column additions on this project
-// were handled) — see PATCH NOTES at the bottom of this file for the SQL.
+// Information cards — Profile Picture / Identity & Civil Status / Contact &
+// Residency (cards 1-3), Additional Information (card 4), Organizational
+// Involvement (card 5), Motivation and Aspirations Questions (card 6) — to
+// the snake_case columns added on `applications` for them. Run against an
+// ad hoc migration in Supabase's SQL editor (not committed as a repo file,
+// matching how earlier column additions on this project were handled) —
+// see PATCH NOTES at the bottom of this file for the SQL.
 // Every field is optional at the DB level; required-ness is enforced in
 // the UI (app/page.js) before the applicant can leave Step 1.
 function personalInfoToColumns(personalInfo) {
@@ -34,6 +36,27 @@ function personalInfoToColumns(personalInfo) {
     voter_precinct: text(pi.voterPrecinct),
     email_updates_opt_in: !!pi.emailUpdatesOptIn,
     sms_updates_opt_in: !!pi.smsUpdatesOptIn,
+    // ---- Card 4 (Additional Information) ----
+    lgbtqi_member: text(pi.lgbtqi),
+    disability: text(pi.disability),
+    hobbies: text(pi.hobbies),
+    // ---- Card 5 (Organizational Involvement) ---- stored as jsonb; blank
+    // rows (every field empty) are dropped before saving since the section
+    // is optional and the UI always keeps at least one blank seed row.
+    organizations: Array.isArray(pi.organizations)
+      ? pi.organizations
+          .map((o) => ({
+            name: text(o && o.name),
+            position: text(o && o.position),
+            nature: text(o && o.nature),
+            year: text(o && o.year),
+          }))
+          .filter((o) => o.name || o.position || o.nature || o.year)
+      : [],
+    // ---- Card 6 (Motivation and Aspirations Questions) ----
+    motivation: text(pi.motivation),
+    self_description: text(pi.selfDescription),
+    ten_years_plan: text(pi.tenYears),
   }
 }
 
@@ -186,3 +209,22 @@ export async function POST(request) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
+
+// ============================================================================
+// PATCH NOTES — ad hoc SQL to run in Supabase's SQL editor (not committed as
+// a migration file, matching how earlier column additions on this project
+// were handled).
+//
+// Cards 1-3 (Profile Picture / Identity & Civil Status / Contact &
+// Residency) columns are assumed already applied from the Sept 17 session.
+// This adds cards 4-6:
+//
+// ALTER TABLE applications
+//   ADD COLUMN IF NOT EXISTS lgbtqi_member text,
+//   ADD COLUMN IF NOT EXISTS disability text,
+//   ADD COLUMN IF NOT EXISTS hobbies text,
+//   ADD COLUMN IF NOT EXISTS organizations jsonb DEFAULT '[]'::jsonb,
+//   ADD COLUMN IF NOT EXISTS motivation text,
+//   ADD COLUMN IF NOT EXISTS self_description text,
+//   ADD COLUMN IF NOT EXISTS ten_years_plan text;
+// ============================================================================

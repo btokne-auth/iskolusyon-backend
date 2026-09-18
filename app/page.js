@@ -103,6 +103,16 @@ function mapDbRowToPersonalInfo(row) {
     voterPrecinct: row.voter_precinct || '',
     emailUpdatesOptIn: !!row.email_updates_opt_in,
     smsUpdatesOptIn: !!row.sms_updates_opt_in,
+    lgbtqi: row.lgbtqi_member || '',
+    disability: row.disability || '',
+    hobbies: row.hobbies || '',
+    organizations:
+      Array.isArray(row.organizations) && row.organizations.length > 0
+        ? row.organizations
+        : [{ name: '', position: '', nature: '', year: '' }],
+    motivation: row.motivation || '',
+    selfDescription: row.self_description || '',
+    tenYears: row.ten_years_plan || '',
   }
 }
 
@@ -360,6 +370,75 @@ function SelectField({ label, required, value, onChange, options }) {
   )
 }
 
+function TextAreaField({ label, required, value, onChange, placeholder }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
+        {label} {required && <span className="text-red-600">*</span>}
+      </label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={3}
+        className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40 resize-y"
+      />
+    </div>
+  )
+}
+
+// Organizational Involvement (card 5): dynamic row table. Ported behavior
+// contract from Ivy's org-table (only the last row shows "+"; clicking it
+// appends a row and turns that row into a removable "\u00d7" row) \u2014 backed by
+// the organizations array in personalInfo/updateOrgRow/addOrgRow/removeOrgRow
+// above instead of her direct DOM mutation. Optional section, so nothing
+// here is required.
+function OrganizationsTable({ rows, onChangeRow, onAddRow, onRemoveRow }) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-ccc-border">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="bg-ccc-off/80 text-[10px] text-ccc-muted font-bold uppercase tracking-wide">
+            <th className="text-left px-3 py-2">Name of Organization</th>
+            <th className="text-left px-3 py-2">Position</th>
+            <th className="text-left px-3 py-2">Nature of Organization</th>
+            <th className="text-left px-3 py-2">Year of Joining</th>
+            <th className="px-2 py-2 w-10" />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => {
+            const isLast = i === rows.length - 1
+            return (
+              <tr key={i} className="border-t border-ccc-border">
+                <td className="px-2 py-1.5">
+                  <input type="text" value={row.name} onChange={(e) => onChangeRow(i, 'name', e.target.value)} placeholder="e.g. N/A" className="w-full rounded-md border border-ccc-border bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ccc-blue/40" />
+                </td>
+                <td className="px-2 py-1.5">
+                  <input type="text" value={row.position} onChange={(e) => onChangeRow(i, 'position', e.target.value)} placeholder="e.g. N/A" className="w-full rounded-md border border-ccc-border bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ccc-blue/40" />
+                </td>
+                <td className="px-2 py-1.5">
+                  <input type="text" value={row.nature} onChange={(e) => onChangeRow(i, 'nature', e.target.value)} placeholder="e.g. N/A" className="w-full rounded-md border border-ccc-border bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ccc-blue/40" />
+                </td>
+                <td className="px-2 py-1.5">
+                  <input type="text" value={row.year} onChange={(e) => onChangeRow(i, 'year', e.target.value)} placeholder="e.g. 2025-2026" className="w-full rounded-md border border-ccc-border bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ccc-blue/40" />
+                </td>
+                <td className="px-2 py-1.5 text-center">
+                  {isLast ? (
+                    <button type="button" onClick={onAddRow} title="Add row" className="w-6 h-6 rounded-full bg-blue-50 text-ccc-blue font-bold hover:bg-ccc-blue hover:text-white transition-colors">+</button>
+                  ) : (
+                    <button type="button" onClick={() => onRemoveRow(i)} title="Remove row" className="w-6 h-6 rounded-full bg-red-50 text-red-600 font-bold hover:bg-red-600 hover:text-white transition-colors">&times;</button>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // Inline document upload row used inside the Personal Information cards
 // (Profile Picture / Birth Certificate / Voter's ID) — a compact version of
 // the Step 2 dropzone, since these three uploads now happen right next to
@@ -425,8 +504,40 @@ export default function Home() {
     spouseName: '', spouseOccupation: '', spouseContact: '',
     contactNumber: '', address: '', voterPrecinct: '',
     emailUpdatesOptIn: false, smsUpdatesOptIn: false,
+    // ---- Card 4 (Additional Information) ----
+    lgbtqi: '', disability: '', hobbies: '',
+    // ---- Card 5 (Organizational Involvement) ---- one blank row to start,
+    // matching Ivy's org-table markup (a single seed row with only a '+').
+    organizations: [{ name: '', position: '', nature: '', year: '' }],
+    // ---- Card 6 (Motivation and Aspirations Questions) ----
+    motivation: '', selfDescription: '', tenYears: '',
   })
   const updatePI = (field, value) => setPersonalInfo((p) => ({ ...p, [field]: value }))
+
+  // Card 5 (Organizational Involvement) row helpers — mirrors Ivy's
+  // addOrgRow/removeOrgRow behavior contract (only the last row offers
+  // "+", earlier rows get a remove "\u00d7" once they're no longer last),
+  // backed by real React state instead of her DOM-mutation approach.
+  // Optional section: no required-ness enforced on these fields.
+  const updateOrgRow = (index, field, value) => {
+    setPersonalInfo((p) => {
+      const organizations = [...p.organizations]
+      organizations[index] = { ...organizations[index], [field]: value }
+      return { ...p, organizations }
+    })
+  }
+  const addOrgRow = () => {
+    setPersonalInfo((p) => ({
+      ...p,
+      organizations: [...p.organizations, { name: '', position: '', nature: '', year: '' }],
+    }))
+  }
+  const removeOrgRow = (index) => {
+    setPersonalInfo((p) => ({
+      ...p,
+      organizations: p.organizations.filter((_, i) => i !== index),
+    }))
+  }
 
   // Inline upload state for the three document types now uploaded directly
   // inside the Personal Information cards, instead of via the Step 2 form.
@@ -577,7 +688,13 @@ export default function Home() {
     personalInfo.civilStatus &&
     personalInfo.contactNumber.trim() &&
     personalInfo.address.trim() &&
-    personalInfo.voterPrecinct.trim()
+    personalInfo.voterPrecinct.trim() &&
+    personalInfo.lgbtqi &&
+    personalInfo.disability.trim() &&
+    personalInfo.hobbies.trim() &&
+    personalInfo.motivation.trim() &&
+    personalInfo.selfDescription.trim() &&
+    personalInfo.tenYears.trim()
 
   const requiredInlineUploadsComplete =
     (profilePicStatus === 'done' || profilePicStatus === 'flagged' || hasUploaded('profilepic')) &&
@@ -875,6 +992,42 @@ export default function Home() {
                   onFileSelected={(f) => handleInlineUpload('voterid', f, setVoterIdStatus, setVoterIdRejection)}
                 />
                 {voterIdRejection && <QualityRejectionAlert message={voterIdRejection} />}
+              </div>
+
+              {/* ---------- Card 4: Additional Information ---------- */}
+              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
+                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">4 &middot; Additional Information</div>
+                <p className="text-[11px] text-ccc-muted">Used to help match you to special scholarship categories and accommodations. No document needed here.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <SelectField label="Are you a LGBTQI+ community member?" required value={personalInfo.lgbtqi} onChange={(v) => updatePI('lgbtqi', v)} options={['Yes', 'No']} />
+                  <TextField label="Do you have a physical or behavioral condition/disability?" required value={personalInfo.disability} onChange={(v) => updatePI('disability', v)} placeholder="e.g. None" />
+                  <div className="sm:col-span-2">
+                    <TextField label="What are your hobbies and interests?" required value={personalInfo.hobbies} onChange={(v) => updatePI('hobbies', v)} placeholder="e.g. Reading, basketball, drawing" />
+                  </div>
+                </div>
+              </div>
+
+              {/* ---------- Card 5: Organizational Involvement ---------- */}
+              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
+                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">5 &middot; Organizational Involvement <span className="text-ccc-muted font-semibold normal-case">(Optional)</span></div>
+                <p className="text-[11px] text-ccc-muted">List any organization/s you are or were part of. This section is optional &mdash; leave it blank if not applicable.</p>
+                <OrganizationsTable
+                  rows={personalInfo.organizations}
+                  onChangeRow={updateOrgRow}
+                  onAddRow={addOrgRow}
+                  onRemoveRow={removeOrgRow}
+                />
+              </div>
+
+              {/* ---------- Card 6: Motivation and Aspirations Questions ---------- */}
+              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
+                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">6 &middot; Motivation and Aspirations Questions</div>
+                <p className="text-[11px] text-ccc-muted">Help us get to know you better. All questions in this section are required.</p>
+                <div className="grid grid-cols-1 gap-3">
+                  <TextAreaField label="What motivates you to apply to this institution (City College of Calamba)?" required value={personalInfo.motivation} onChange={(v) => updatePI('motivation', v)} placeholder="Share what motivates you to apply&hellip;" />
+                  <TextAreaField label="How would you describe yourself, including both your physical and personal characteristics?" required value={personalInfo.selfDescription} onChange={(v) => updatePI('selfDescription', v)} placeholder="Describe yourself&hellip;" />
+                  <TextAreaField label="Where do you see yourself 10 years from now, both personally and professionally?" required value={personalInfo.tenYears} onChange={(v) => updatePI('tenYears', v)} placeholder="Share your aspirations&hellip;" />
+                </div>
               </div>
 
               {draftFound && (
