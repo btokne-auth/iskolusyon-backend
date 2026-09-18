@@ -1,10 +1,16 @@
 // ---------- Per-admin accounts (replaces the shared passcode) ----------
 //
-// Still a placeholder ahead of a real User Account Module (no roles, no
-// invite-by-email, no forgot-password, no session timeout — matches the
-// PR #2 mockup's *look* of individual sign-in without building the parts
-// that need a real backend). Each admin has their own row in Supabase's
-// `admin_accounts` table: name, email, password_hash.
+// Still a placeholder ahead of a real User Account Module (no invite-by-
+// email, no forgot-password, no session timeout — matches the PR #2
+// mockup's *look* of individual sign-in without building the parts that
+// need a real backend). Each admin has their own row in Supabase's
+// `admin_accounts` table: name, email, password_hash, is_super_admin.
+//
+// `is_super_admin` was added Sept 18, 2026 alongside the admin portal
+// rebuild, to back admin.html's Super-Admin-only nav items (Admin
+// Accounts, System & Activity). See docs/migrations/
+// 2026-09-18-admin-roles-and-announcements.sql — defaults to TRUE so any
+// account seeded before this change keeps full access.
 //
 // Passwords are hashed with Node's built-in `crypto.scrypt` (no new
 // dependency needed) as "<saltHex>:<hashHex>". This file uses Node's
@@ -31,20 +37,31 @@ export function verifyPassword(password, storedHash) {
   return timingSafeEqual(hashBuffer, candidateBuffer)
 }
 
-// Returns { name, email } on success, or null if the email/password don't
-// match a row in admin_accounts.
+// Returns { name, email, isSuperAdmin } on success, or null if the
+// email/password don't match a row in admin_accounts.
 export async function verifyAdminCredentials(email, password) {
   const normalizedEmail = (email || '').trim().toLowerCase()
   if (!normalizedEmail || !password) return null
 
   const { data, error } = await supabase
     .from('admin_accounts')
-    .select('name, email, password_hash')
+    .select('name, email, password_hash, is_super_admin')
     .eq('email', normalizedEmail)
     .maybeSingle()
 
   if (error || !data) return null
   if (!verifyPassword(password, data.password_hash)) return null
 
-  return { name: data.name, email: data.email }
+  return { name: data.name, email: data.email, isSuperAdmin: !!data.is_super_admin }
+}
+
+// Read-only list for the Admin Accounts panel — never returns password_hash.
+export async function listAdminAccounts() {
+  const { data, error } = await supabase
+    .from('admin_accounts')
+    .select('name, email, is_super_admin, created_at')
+    .order('created_at', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  return data || []
 }

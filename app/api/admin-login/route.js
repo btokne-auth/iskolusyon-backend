@@ -15,9 +15,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Incorrect email or password.' }, { status: 401 })
     }
 
-    const { value, maxAge } = await createAdminCookieValue(account.name)
+    const { value, maxAge } = await createAdminCookieValue(account.name, account.isSuperAdmin)
 
-    const res = NextResponse.json({ success: true, name: account.name })
+    const res = NextResponse.json({ success: true, name: account.name, isSuperAdmin: account.isSuperAdmin })
     res.cookies.set(ADMIN_COOKIE_NAME, value, {
       httpOnly: true,
       sameSite: 'lax',

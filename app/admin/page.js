@@ -1,6 +1,8 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { Suspense, useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import SiteHeader from '../components/SiteHeader'
+import AdminSidebar from '../components/AdminSidebar'
 import { getDocTypeLabel } from '../lib/documentTypes'
 
 // ---------- Icons (same style as the applicant page) ----------
@@ -57,9 +59,14 @@ function IconCopy(props) {
     </svg>
   )
 }
-
-// Document type labels moved to app/lib/documentTypes.js (Sept 16 Patch 2
-// port) — see that file's header comment for what changed.
+function IconAlert(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01" />
+      <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
 
 function getCleanFileName(path) {
   if (!path) return 'Unknown file'
@@ -77,7 +84,16 @@ function isPdfFile(path) {
   return /\.pdf$/i.test(path || '')
 }
 
-// ---------- Small building blocks ----------
+function formatWhen(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+  } catch {
+    return ''
+  }
+}
+
+// ---------- Small building blocks (Dashboard panel) ----------
 
 function ReviewStatusBadge({ needsReview }) {
   if (needsReview) {
@@ -284,12 +300,7 @@ function ApplicantGroup({ name, email, docs, defaultOpen, onOverride, overriding
       {open && (
         <div className="px-5 pb-5 space-y-4 border-t border-ccc-border pt-4">
           {docs.map((doc) => (
-          <DocumentReviewCard
-  key={doc.file_path}
-  doc={doc}
-  onOverride={onOverride}
-  overriding={overriding}
-/>
+            <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} />
           ))}
         </div>
       )}
@@ -297,80 +308,15 @@ function ApplicantGroup({ name, email, docs, defaultOpen, onOverride, overriding
   )
 }
 
-// ---------- Page ----------
+// ---------- Dashboard panel (document review — the app's existing,
+// already-working feature, unchanged in behavior) ----------
 
-export default function AdminPage() {
-  const [docs, setDocs] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+function DashboardPanel({ docs, loading, error, onOverride, overriding, overrideError }) {
   const [search, setSearch] = useState('')
   const [onlyFlagged, setOnlyFlagged] = useState(false)
-  const [adminName, setAdminName] = useState('')
-  const [overriding, setOverriding] = useState(null)
-  const [overrideError, setOverrideError] = useState('')
-
-  const fetchDocs = async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await fetch('/api/upload')
-      const data = await res.json()
-      if (data.success) {
-        setDocs(data.documents)
-      } else {
-        setError(data.error || 'Failed to load documents.')
-      }
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetch('/api/admin-session')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.loggedIn) setAdminName(data.name)
-      })
-      .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    fetchDocs()
-  }, [])
-
-  const handleLogout = async () => {
-    await fetch('/api/admin-logout', { method: 'POST' })
-    window.location.href = '/admin/login'
-  }
-
-  const handleOverride = async (doc, action) => {
-  if (!doc.file_path) return
-  setOverriding(doc.file_path)
-  setOverrideError('')
-  try {
-    const res = await fetch(`/api/documents/${encodeURIComponent(doc.file_path)}/override`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setOverrideError(data.error || 'Override failed.')
-        return
-      }
-      await fetchDocs()
-    } catch (err) {
-      setOverrideError(err.message)
-    } finally {
-      setOverriding(null)
-    }
-  }
 
   const totalFlagged = docs.filter((d) => d.needs_review).length
 
-  // Group the flat document list into { applicantKey: { name, email, docs } }
   const groups = useMemo(() => {
     const term = search.trim().toLowerCase()
 
@@ -401,110 +347,506 @@ export default function AdminPage() {
   }, [docs, search, onlyFlagged])
 
   return (
-    <main className="min-h-screen bg-ccc-off text-ccc-text">
-      <SiteHeader
-  topbarLabel="Iskolusyon Admin Console"
-  portalBadge="Admin Console"
-  rightSlot={
-    adminName && (
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-semibold text-ccc-navy">{adminName}</span>
+    <div>
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+            Dashboard
+          </h1>
+          <p className="text-xs text-ccc-muted mt-0.5">
+            {docs.length} document{docs.length === 1 ? '' : 's'} on file
+            {totalFlagged > 0 && <span className="text-ccc-orange"> · {totalFlagged} need review</span>}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        <div className="relative flex-1 min-w-[220px]">
+          <IconSearch className="w-4 h-4 text-ccc-muted absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by applicant name, email, or document type..."
+            className="w-full rounded-lg border border-ccc-border bg-white pl-9 pr-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+          />
+        </div>
         <button
           type="button"
-          onClick={handleLogout}
-          className="text-xs font-semibold text-ccc-blue hover:text-ccc-navy underline underline-offset-2"
+          onClick={() => setOnlyFlagged((v) => !v)}
+          className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border text-xs font-semibold transition-colors ${
+            onlyFlagged
+              ? 'border-ccc-orange/60 bg-orange-50 text-ccc-orange'
+              : 'border-ccc-border bg-white text-ccc-muted hover:text-ccc-navy'
+          }`}
         >
-          Log out
+          <IconAlertTriangle className="w-3.5 h-3.5" />
+          Flagged only
         </button>
       </div>
-    )
-  }
-/>
 
-      <div className="w-full max-w-4xl mx-auto px-4 pt-8 pb-16">
-        {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
-          <div>
-            <h1
-              className="text-2xl font-extrabold tracking-tight text-ccc-navy"
-              style={{ fontFamily: 'var(--font-montserrat)' }}
-            >
-              Iskolusyon — Admin Review
-            </h1>
-            <p className="text-xs text-ccc-muted mt-0.5">
-              {docs.length} document{docs.length === 1 ? '' : 's'} on file
-              {totalFlagged > 0 && (
-                <span className="text-ccc-orange"> · {totalFlagged} need review</span>
-              )}
-            </p>
+      {overrideError && (
+        <div className="mb-4 p-3 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">
+          {overrideError}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-center py-20 text-ccc-muted text-sm">Loading documents...</div>
+      ) : error ? (
+        <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
+      ) : groups.length === 0 ? (
+        <div className="text-center py-20 text-ccc-muted text-sm">
+          {docs.length === 0 ? 'No documents uploaded yet.' : 'No documents match your search.'}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {groups.map((g, i) => (
+            <ApplicantGroup
+              key={g.name ? g.name.toLowerCase() : `unknown-${i}`}
+              name={g.name}
+              email={g.email}
+              docs={g.docs}
+              defaultOpen={i === 0}
+              onOverride={onOverride}
+              overriding={overriding}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------- Communications panel (new, real — post + list) ----------
+
+function CommunicationsPanel() {
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
+  const [category, setCategory] = useState('')
+  const [posting, setPosting] = useState(false)
+  const [postError, setPostError] = useState('')
+
+  const load = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/announcements')
+      const data = await res.json()
+      if (data.success) setItems(data.announcements)
+      else setError(data.error || 'Failed to load announcements.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  const handlePost = async (e) => {
+    e.preventDefault()
+    if (!title.trim() || !body.trim()) return
+    setPosting(true)
+    setPostError('')
+    try {
+      const res = await fetch('/api/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body, category: category || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setPostError(data.error || 'Failed to post.')
+        return
+      }
+      setTitle('')
+      setBody('')
+      setCategory('')
+      await load()
+    } catch (err) {
+      setPostError(err.message)
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          Communications
+        </h1>
+        <p className="text-xs text-ccc-muted mt-0.5">
+          Post announcements visible to admins here. Applicant-facing delivery (the Messages panel on the
+          applicant portal) isn&apos;t wired up to this yet — that&apos;s the next connection once this panel is confirmed.
+        </p>
+      </div>
+
+      <form onSubmit={handlePost} className="bg-white border border-ccc-border rounded-2xl p-5 mb-6 space-y-3">
+        <div>
+          <label className="text-[11px] font-bold uppercase tracking-widest text-ccc-muted block mb-1">Title</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Document submission deadline extended"
+            className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+            required
+          />
+        </div>
+        <div>
+          <label className="text-[11px] font-bold uppercase tracking-widest text-ccc-muted block mb-1">Category (optional)</label>
+          <input
+            type="text"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder="e.g. Deadlines, Requirements, General"
+            className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] font-bold uppercase tracking-widest text-ccc-muted block mb-1">Message</label>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={3}
+            placeholder="Write the announcement..."
+            className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+            required
+          />
+        </div>
+        {postError && <p className="text-xs text-ccc-red">{postError}</p>}
+        <button
+          type="submit"
+          disabled={posting}
+          className="rounded-lg bg-ccc-navy text-white text-sm font-semibold px-4 py-2.5 disabled:opacity-60"
+        >
+          {posting ? 'Posting...' : 'Post announcement'}
+        </button>
+      </form>
+
+      <div className="bg-white border border-ccc-border rounded-2xl p-5">
+        {loading ? (
+          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        ) : error ? (
+          <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-ccc-muted text-center py-8">No announcements posted yet.</p>
+        ) : (
+          <div className="space-y-4">
+            {items.map((item) => (
+              <div key={item.id} className="pb-4 border-b border-ccc-border last:border-0 last:pb-0">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+                    {item.title}
+                  </p>
+                  {item.category && (
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue bg-blue-50 border border-ccc-blue/30 rounded-full px-2 py-0.5 shrink-0">
+                      {item.category}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-ccc-text mt-1 whitespace-pre-wrap">{item.body}</p>
+                <p className="text-[11px] text-ccc-muted mt-1.5">
+                  {item.author} · {formatWhen(item.created_at)}
+                </p>
+              </div>
+            ))}
           </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Admin Accounts panel (new, real, read-only) ----------
+
+function AdminAccountsPanel() {
+  const [accounts, setAccounts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetch('/api/admin-accounts')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) setAccounts(data.accounts)
+        else setError(data.error || 'Failed to load admin accounts.')
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          Admin Accounts
+        </h1>
+        <p className="text-xs text-ccc-muted mt-0.5">
+          Read-only roster for now — inviting or removing an admin isn&apos;t wired up yet (no real User Account Module
+          to hang it on). New accounts are still seeded via <code>scripts/seed-admin-account.mjs</code>.
+        </p>
+      </div>
+
+      <div className="bg-white border border-ccc-border rounded-2xl overflow-hidden">
+        {loading ? (
+          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        ) : error ? (
+          <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+        ) : accounts.length === 0 ? (
+          <p className="text-sm text-ccc-muted text-center py-8">No admin accounts found.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-ccc-border text-left text-[10px] font-bold uppercase tracking-widest text-ccc-muted">
+                <th className="px-5 py-3">Name</th>
+                <th className="px-5 py-3">Email</th>
+                <th className="px-5 py-3">Role</th>
+              </tr>
+            </thead>
+            <tbody>
+              {accounts.map((acc) => (
+                <tr key={acc.email} className="border-b border-ccc-border last:border-0">
+                  <td className="px-5 py-3 font-semibold text-ccc-navy">{acc.name}</td>
+                  <td className="px-5 py-3 text-ccc-text">{acc.email}</td>
+                  <td className="px-5 py-3">
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                        acc.is_super_admin
+                          ? 'text-ccc-navy bg-ccc-gold/30 border border-ccc-gold/60'
+                          : 'text-ccc-muted bg-ccc-off border border-ccc-border'
+                      }`}
+                    >
+                      {acc.is_super_admin ? 'Super Admin' : 'Admin'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------- System & Activity panel (Global Audit Log, moved in from the
+// old standalone /admin/activity route — same content, same behavior) ----------
+
+function TimelineItem({ entry }) {
+  const isWarn = entry.kind === 'warn'
+  return (
+    <div className="flex gap-3">
+      <div
+        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+          isWarn ? 'bg-orange-50 text-ccc-orange border border-ccc-orange/40' : 'bg-green-50 text-ccc-green border border-ccc-green/40'
+        }`}
+      >
+        {isWarn ? <IconAlert className="w-3.5 h-3.5" /> : <IconCheck className="w-3.5 h-3.5" />}
+      </div>
+      <div className="pb-4 border-b border-ccc-border flex-1 min-w-0">
+        <p className="text-sm text-ccc-text leading-snug">{entry.action}</p>
+        <p className="text-[11px] text-ccc-muted mt-1">
+          {entry.actor} &middot; {formatWhen(entry.created_at)}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function SystemActivityPanel() {
+  const [entries, setEntries] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/audit-log')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) setEntries(data.entries)
+        else setError(data.error || 'Failed to load audit log.')
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          System &amp; Activity
+        </h1>
+        <p className="text-xs text-ccc-muted mt-0.5">
+          A running, auto-recorded timeline of system activity — document uploads, manual overrides, and
+          announcement posts.
+        </p>
+      </div>
+
+      <div className="bg-white border border-ccc-border rounded-2xl p-6">
+        {loading ? (
+          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        ) : error ? (
+          <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+        ) : entries.length === 0 ? (
+          <p className="text-sm text-ccc-muted text-center py-8">No activity recorded yet.</p>
+        ) : (
+          <div className="space-y-0">
+            {entries.map((entry) => (
+              <TimelineItem key={entry.id} entry={entry} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ---------- Page shell ----------
+
+const VALID_PANELS = ['dashboard', 'communications', 'admins', 'system']
+
+function AdminPageInner() {
+  const searchParams = useSearchParams()
+  const initialPanel = VALID_PANELS.includes(searchParams.get('panel')) ? searchParams.get('panel') : 'dashboard'
+
+  const [docs, setDocs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [adminName, setAdminName] = useState('')
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [overriding, setOverriding] = useState(null)
+  const [overrideError, setOverrideError] = useState('')
+  const [activePanel, setActivePanel] = useState(initialPanel)
+
+  const fetchDocs = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/upload')
+      const data = await res.json()
+      if (data.success) {
+        setDocs(data.documents)
+      } else {
+        setError(data.error || 'Failed to load documents.')
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetch('/api/admin-session')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.loggedIn) {
+          setAdminName(data.name)
+          setIsSuperAdmin(!!data.isSuperAdmin)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetchDocs()
+  }, [])
+
+  // A signed-in but non-Super-Admin session shouldn't be able to land on a
+  // Super-Admin-only panel (e.g. by an old bookmark) — bounce back to
+  // Dashboard the moment the role is known.
+  useEffect(() => {
+    if (!isSuperAdmin && (activePanel === 'admins' || activePanel === 'system')) {
+      setActivePanel('dashboard')
+    }
+  }, [isSuperAdmin, activePanel])
+
+  const handleLogout = async () => {
+    await fetch('/api/admin-logout', { method: 'POST' })
+    window.location.href = '/admin/login'
+  }
+
+  const handleOverride = async (doc, action) => {
+    if (!doc.file_path) return
+    setOverriding(doc.file_path)
+    setOverrideError('')
+    try {
+      const res = await fetch(`/api/documents/${encodeURIComponent(doc.file_path)}/override`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setOverrideError(data.error || 'Override failed.')
+        return
+      }
+      await fetchDocs()
+    } catch (err) {
+      setOverrideError(err.message)
+    } finally {
+      setOverriding(null)
+    }
+  }
+
+  const totalFlagged = docs.filter((d) => d.needs_review).length
+
+  return (
+    <main className="min-h-screen bg-ccc-off text-ccc-text">
+      <SiteHeader
+        topbarLabel="Iskolusyon Admin Console"
+        portalBadge="Admin Console"
+        rightSlot={
           <a
             href="/"
             className="text-xs font-semibold text-ccc-blue hover:text-ccc-navy transition-colors underline underline-offset-2"
           >
             Back to applicant portal
           </a>
-        </div>
+        }
+      />
 
-        {/* Search + filter bar */}
-        <div className="flex items-center gap-3 mb-6 flex-wrap">
-          <div className="relative flex-1 min-w-[220px]">
-            <IconSearch className="w-4 h-4 text-ccc-muted absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by applicant name, email, or document type..."
-              className="w-full rounded-lg border border-ccc-border bg-white pl-9 pr-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+      <div className="w-full max-w-6xl mx-auto px-4 pt-8 pb-16 flex flex-col lg:flex-row gap-6">
+        <AdminSidebar
+          activePanel={activePanel}
+          onSelectPanel={setActivePanel}
+          displayName={adminName}
+          isSuperAdmin={isSuperAdmin}
+          flaggedCount={totalFlagged}
+          onLogout={handleLogout}
+        />
+
+        <div className="flex-1 min-w-0">
+          {activePanel === 'dashboard' && (
+            <DashboardPanel
+              docs={docs}
+              loading={loading}
+              error={error}
+              onOverride={handleOverride}
+              overriding={overriding}
+              overrideError={overrideError}
             />
-          </div>
-          <button
-            type="button"
-            onClick={() => setOnlyFlagged((v) => !v)}
-            className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border text-xs font-semibold transition-colors ${
-              onlyFlagged
-                ? 'border-ccc-orange/60 bg-orange-50 text-ccc-orange'
-                : 'border-ccc-border bg-white text-ccc-muted hover:text-ccc-navy'
-            }`}
-          >
-            <IconAlertTriangle className="w-3.5 h-3.5" />
-            Flagged only
-          </button>
+          )}
+          {activePanel === 'communications' && <CommunicationsPanel />}
+          {activePanel === 'admins' && isSuperAdmin && <AdminAccountsPanel />}
+          {activePanel === 'system' && isSuperAdmin && <SystemActivityPanel />}
         </div>
-
-        {overrideError && (
-          <div className="mb-4 p-3 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">
-            {overrideError}
-          </div>
-        )}
-
-        {/* Body */}
-        {loading ? (
-          <div className="text-center py-20 text-ccc-muted text-sm">Loading documents...</div>
-        ) : error ? (
-          <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">
-            {error}
-          </div>
-        ) : groups.length === 0 ? (
-          <div className="text-center py-20 text-ccc-muted text-sm">
-            {docs.length === 0 ? 'No documents uploaded yet.' : 'No documents match your search.'}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {groups.map((g, i) => (
-              <ApplicantGroup
-                key={g.name ? g.name.toLowerCase() : `unknown-${i}`}
-                name={g.name}
-                email={g.email}
-                docs={g.docs}
-                defaultOpen={i === 0}
-                onOverride={handleOverride}
-                overriding={overriding}
-              />
-            ))}
-          </div>
-        )}
       </div>
     </main>
+  )
+}
+
+export default function AdminPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminPageInner />
+    </Suspense>
   )
 }
