@@ -60,6 +60,47 @@ function personalInfoToColumns(personalInfo) {
   }
 }
 
+// Maps the camelCase academicInfo object sent from the Educational
+// Background panel (Program Application, Preferred Program, the 3-tier
+// school table, Tech-Voc) to snake_case columns on `applications`. Same
+// pattern as personalInfoToColumns() above — ad hoc SQL migration, see
+// PATCH NOTES at the bottom of this file. Everything nullable at the DB
+// level; required-ness (Applying As, Term, both program choices, and the
+// Primary/Elementary row) is enforced in the UI before "Save progress".
+function academicInfoToColumns(academicInfo) {
+  const ai = academicInfo && typeof academicInfo === 'object' ? academicInfo : {}
+  const edu = ai.edu && typeof ai.edu === 'object' ? ai.edu : {}
+  const prim = edu.prim || {}
+  const sec = edu.sec || {}
+  const tert = edu.tert || {}
+  const text = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+  return {
+    applying_as: text(ai.applyingAs),
+    term_applying: text(ai.termApplying),
+    program_choice_1: text(ai.choice1),
+    program_choice_2: text(ai.choice2),
+    edu_prim_school: text(prim.school),
+    edu_prim_address: text(prim.address),
+    edu_prim_section: text(prim.section),
+    edu_prim_year: text(prim.year),
+    edu_prim_honors: text(prim.honors),
+    edu_sec_school: text(sec.school),
+    edu_sec_address: text(sec.address),
+    edu_sec_section: text(sec.section),
+    edu_sec_year: text(sec.year),
+    edu_sec_honors: text(sec.honors),
+    edu_tert_school: text(tert.school),
+    edu_tert_address: text(tert.address),
+    edu_tert_section: text(tert.section),
+    edu_tert_year: text(tert.year),
+    edu_tert_honors: text(tert.honors),
+    tech_voc: text(ai.techVoc),
+    tech_voc_school: text(ai.techVocSchool),
+    tech_voc_course: text(ai.techVocCourse),
+    tech_voc_address: text(ai.techVocAddress),
+  }
+}
+
 // Sends a simple confirmation email when an application is submitted.
 // Fire-and-log only — a failed email should never block the submission
 // itself from succeeding.
@@ -130,6 +171,7 @@ export async function POST(request) {
     const step = Number(body.step) || 1
     const action = body.action === 'submit' ? 'submit' : 'save'
     const personalInfoColumns = personalInfoToColumns(body.personalInfo)
+    const academicInfoColumns = academicInfoToColumns(body.academicInfo)
 
     if (!applicantName) {
       return NextResponse.json({ error: 'Missing applicant name' }, { status: 400 })
@@ -156,6 +198,7 @@ export async function POST(request) {
         current_step: step,
         updated_at: now,
         ...personalInfoColumns,
+        ...academicInfoColumns,
       }
       if (action === 'submit') {
         updates.status = 'submitted'
@@ -188,6 +231,7 @@ export async function POST(request) {
       status: action === 'submit' ? 'submitted' : 'draft',
       submitted_at: action === 'submit' ? now : null,
       ...personalInfoColumns,
+      ...academicInfoColumns,
     }
 
     const { data, error } = await supabase
@@ -227,4 +271,32 @@ export async function POST(request) {
 //   ADD COLUMN IF NOT EXISTS motivation text,
 //   ADD COLUMN IF NOT EXISTS self_description text,
 //   ADD COLUMN IF NOT EXISTS ten_years_plan text;
+//
+// Educational Background panel (Program Application, Preferred Program,
+// 3-tier school table, Tech-Voc) — adds:
+//
+// ALTER TABLE applications
+//   ADD COLUMN IF NOT EXISTS applying_as text,
+//   ADD COLUMN IF NOT EXISTS term_applying text,
+//   ADD COLUMN IF NOT EXISTS program_choice_1 text,
+//   ADD COLUMN IF NOT EXISTS program_choice_2 text,
+//   ADD COLUMN IF NOT EXISTS edu_prim_school text,
+//   ADD COLUMN IF NOT EXISTS edu_prim_address text,
+//   ADD COLUMN IF NOT EXISTS edu_prim_section text,
+//   ADD COLUMN IF NOT EXISTS edu_prim_year text,
+//   ADD COLUMN IF NOT EXISTS edu_prim_honors text,
+//   ADD COLUMN IF NOT EXISTS edu_sec_school text,
+//   ADD COLUMN IF NOT EXISTS edu_sec_address text,
+//   ADD COLUMN IF NOT EXISTS edu_sec_section text,
+//   ADD COLUMN IF NOT EXISTS edu_sec_year text,
+//   ADD COLUMN IF NOT EXISTS edu_sec_honors text,
+//   ADD COLUMN IF NOT EXISTS edu_tert_school text,
+//   ADD COLUMN IF NOT EXISTS edu_tert_address text,
+//   ADD COLUMN IF NOT EXISTS edu_tert_section text,
+//   ADD COLUMN IF NOT EXISTS edu_tert_year text,
+//   ADD COLUMN IF NOT EXISTS edu_tert_honors text,
+//   ADD COLUMN IF NOT EXISTS tech_voc text,
+//   ADD COLUMN IF NOT EXISTS tech_voc_school text,
+//   ADD COLUMN IF NOT EXISTS tech_voc_course text,
+//   ADD COLUMN IF NOT EXISTS tech_voc_address text;
 // ============================================================================
