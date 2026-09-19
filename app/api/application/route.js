@@ -47,69 +47,97 @@ function isEmptyValue(v) {
   return false
 }
 
-// GET /api/application?name=Juan+Dela+Cruz
-// Looks up an existing draft/submitted application row for this applicant,
-// matched the same way documents are matched elsewhere in the app —
-// case-insensitive, trimmed name (no accounts module yet to key off of).
-//
-// Sept 19 2026 fix: the POST handler below used to check "does a row for
-// this name already exist?" and then insert a new one if not, as two
-// separate round-trips. Two saves fired close together (e.g. hitting
-// "Save" on one panel right after another) can both run that check before
-// either insert lands, so both see "no row yet" and both insert — leaving
-// two `applications` rows for the same applicant, each holding whatever
-// sections happened to be saved through it. Reading with `.limit(1)` then
-// silently showed only ONE row's sections and made the other section's
-// (already-saved-to-Supabase) data look like it had vanished on reload.
-// POST now falls back to an UPDATE if it hits a duplicate on insert (see
-// below), so this shouldn't happen going forward — but for any applicant
-// who already has duplicate rows from before that fix, GET now fetches
-// every matching row and merges them (newest row wins for any field it
-// has a value for; older rows fill in whatever the newest is still
-// missing), so nothing already saved reads back as blank.
+// Sept 19 2026, second pass: name-only matching turned out to be fragile
+// on its own — see the long comment on POST below for the chain of bugs
+// that let a logged-in applicant's name and their actual saved row drift
+// apart. Rather than keep patching that chain one link at a time, every
+// lookup in this file now checks THREE signals and merges whatever any of
+// them find: the logged-in account's id (from the verified session
+// cookie — most reliable, immune to the name ever changing), the
+// account's own email (stable, always known once logged in), and the
+// typed name (kept last for backward compatibility / any flow that isn't
+// logged in). Whichever signals are available get checked; results are
+// deduplicated by row id and merged the same "newest wins, older rows
+// fill gaps" way multiple matches have been merged since the first pass
+// of this fix.
+async function findApplicationRows({ userId, email, name }) {
+  const rowsById = new Map()
+
+  async function addMatches(builder) {
+    const { data, error } = await builder
+    if (error) throw new Error(error.message)
+    for (const row of data || []) rowsById.set(row.id, row)
+  }
+
+  if (userId) {
+    await addMatches(
+      supabase.from('applications').select('*').eq('applicant_user_id', userId).order('updated_at', { ascending: false })
+    )
+  }
+  if (email) {
+    await addMatches(
+      supabase.from('applications').select('*').ilike('applicant_email', email).order('updated_at', { ascending: false })
+    )
+  }
+  if (name) {
+    await addMatches(
+      supabase.from('applications').select('*').ilike('applicant_name', name).order('updated_at', { ascending: false })
+    )
+  }
+
+  return Array.from(rowsById.values()).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+}
+
+function mergeApplicationRows(rows) {
+  let merged = null
+  for (const row of rows) {
+    if (!merged) {
+      merged = { ...row }
+      continue
+    }
+    for (const key of Object.keys(row)) {
+      if (isEmptyValue(merged[key]) && !isEmptyValue(row[key])) {
+        merged[key] = row[key]
+      }
+    }
+  }
+  return merged
+}
+
+// GET /api/application?name=Juan+Dela+Cruz&email=juan@example.com
+// Looks up an existing draft/submitted application row for this applicant.
+// See findApplicationRows() above for how "this applicant" is matched —
+// by logged-in account id, email, and/or name, whichever are available —
+// and mergeApplicationRows() for how multiple matches (e.g. duplicate
+// rows left over from before the Sept 19 2026 race fix below) are
+// combined so nothing already saved reads back as blank.
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const name = (searchParams.get('name') || '').trim()
+    const email = (searchParams.get('email') || '').trim()
 
-    if (!name) {
-      return NextResponse.json({ error: 'Missing name' }, { status: 400 })
+    const cookieValue = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
+    const session = await verifyApplicantCookieValue(cookieValue)
+    const userId = session?.id || null
+
+    if (!name && !email && !userId) {
+      return NextResponse.json({ error: 'Missing name or email' }, { status: 400 })
     }
 
-    const { data, error } = await supabase
-      .from('applications')
-      .select('*')
-      .ilike('applicant_name', name)
-      .order('updated_at', { ascending: false })
+    const rows = await findApplicationRows({ userId, email, name })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    if (!data || data.length === 0) {
+    if (rows.length === 0) {
       return NextResponse.json({ success: true, application: null })
     }
 
-    let merged = null
-    for (const row of data) {
-      if (!merged) {
-        merged = { ...row }
-        continue
-      }
-      for (const key of Object.keys(row)) {
-        if (isEmptyValue(merged[key]) && !isEmptyValue(row[key])) {
-          merged[key] = row[key]
-        }
-      }
-    }
-
-    if (data.length > 1) {
+    if (rows.length > 1) {
       console.warn(
-        `/api/application: found ${data.length} duplicate rows for "${name}" (ids: ${data.map((r) => r.id).join(', ')}) — merged for this read. Run docs/migrations/2026-09-19-dedupe-applications.sql to clean these up for good.`
+        `/api/application: found ${rows.length} rows for this applicant (ids: ${rows.map((r) => r.id).join(', ')}) — merged for this read. Run docs/migrations/2026-09-19-dedupe-applications.sql to clean these up for good.`
       )
     }
 
-    return NextResponse.json({ success: true, application: merged })
+    return NextResponse.json({ success: true, application: mergeApplicationRows(rows) })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
@@ -167,16 +195,16 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing or invalid section' }, { status: 400 })
     }
 
-    // Find any existing row for this applicant first (draft or submitted).
-    const { data: existing, error: findError } = await supabase
-      .from('applications')
-      .select('*')
-      .ilike('applicant_name', applicantName)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (findError) {
+    // Find any existing row for this applicant first (draft or submitted)
+    // — matched by account id/email/name the same way GET does (see
+    // findApplicationRows() above), not name alone, so a save can never
+    // land on the wrong row (or a brand new duplicate row) just because
+    // the typed name and the row's saved name happen to differ.
+    let existing
+    try {
+      const rows = await findApplicationRows({ userId: applicantUserId, email: applicantEmail, name: applicantName })
+      existing = rows[0] || null
+    } catch (findError) {
       return NextResponse.json({ error: findError.message }, { status: 500 })
     }
 

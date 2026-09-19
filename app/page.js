@@ -1450,12 +1450,24 @@ function PortalApp({ accountSession, onLogout }) {
   // draftFound above, kept as-is for the fallback offline-local-draft
   // path), auto-load whatever's already saved under this account the
   // moment the session is known.
+  // Sept 19 2026, second pass: this used to bail out entirely whenever
+  // `applicantName` was blank ("nothing to look up yet") — but a blank
+  // name is exactly the state a logged-in applicant could get stuck in if
+  // the name baked into their session ever drifted from what their row is
+  // actually saved under (see the POST handler's comment for the chain of
+  // bugs that caused that). The account's own email is known the moment
+  // you're logged in, whether or not the name is right, so it's now
+  // always sent too and /api/application matches on whichever of
+  // name/email/account-id actually finds the row.
   useEffect(() => {
-    if (!accountSession || !applicantName.trim()) return
+    if (!accountSession) return
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch(`/api/application?name=${encodeURIComponent(applicantName.trim())}`)
+        const params = new URLSearchParams()
+        if (applicantName.trim()) params.set('name', applicantName.trim())
+        if (accountSession.email) params.set('email', accountSession.email)
+        const res = await fetch(`/api/application?${params.toString()}`)
         const data = await res.json()
         if (cancelled || !data.application) return
         setPersonalInfo(mapDbRowToPersonalInfo(data.application))
@@ -1466,6 +1478,13 @@ function PortalApp({ accountSession, onLogout }) {
         setAcademicSubmittedAt(data.application.academic_submitted_at || null)
         setHealthSubmittedAt(data.application.health_submitted_at || null)
         setFinancialSubmittedAt(data.application.financial_submitted_at || null)
+        // Keeps `applicantName` in sync with whatever this row is actually
+        // saved under, so every save/submit for the rest of this session
+        // targets the exact same row instead of depending on the name
+        // having been right at mount time.
+        if (data.application.applicant_name && data.application.applicant_name.trim() !== applicantName.trim()) {
+          setApplicantName(data.application.applicant_name.trim())
+        }
         // Resumed applications weren't restoring the final-submission state
         // at all before — a returning applicant who'd already submitted
         // saw the Submit button again instead of the "submitted" message.
