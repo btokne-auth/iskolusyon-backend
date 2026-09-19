@@ -27,10 +27,13 @@ export default function SiteHeader({
 }) {
   return (
     <>
-      {/* Topbar */}
-      <div className="bg-ccc-navy text-white text-xs py-1.5" style={{ fontFamily: 'var(--font-montserrat)' }}>
-        <div className="max-w-[1400px] mx-auto px-4 md:px-8 flex justify-between items-center gap-4">
-          <span>{topbarLabel}</span>
+      {/* Topbar — spec's .topbar is var(--ccc-blue) (bright blue), not navy,
+          and both the label and link sit together at the right edge
+          (justify-end, spec's own .inner{justify-content:flex-end}), not
+          spread apart. Fixed as part of design-parity pass 5, Sept 19 2026. */}
+      <div className="bg-ccc-blue text-white text-xs py-1.5" style={{ fontFamily: 'var(--font-montserrat)' }}>
+        <div className="max-w-[1400px] mx-auto px-4 md:px-8 flex justify-end items-center gap-6">
+          <span className="font-bold">{topbarLabel}</span>
           {topbarLink && (
             <a
               href={topbarLink.href}
