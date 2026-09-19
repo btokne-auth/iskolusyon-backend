@@ -1,105 +1,17 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { Resend } from 'resend'
+import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns, familyInfoToColumns } from '@/app/lib/applicationColumns'
+import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-// Maps the camelCase personalInfo object sent from the Step 1 Personal
-// Information cards — Profile Picture / Identity & Civil Status / Contact &
-// Residency (cards 1-3), Additional Information (card 4), Organizational
-// Involvement (card 5), Motivation and Aspirations Questions (card 6) — to
-// the snake_case columns added on `applications` for them. Run against an
-// ad hoc migration in Supabase's SQL editor (not committed as a repo file,
-// matching how earlier column additions on this project were handled) —
-// see PATCH NOTES at the bottom of this file for the SQL.
-// Every field is optional at the DB level; required-ness is enforced in
-// the UI (app/page.js) before the applicant can leave Step 1.
-function personalInfoToColumns(personalInfo) {
-  const pi = personalInfo && typeof personalInfo === 'object' ? personalInfo : {}
-  const text = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null)
-  return {
-    first_name: text(pi.firstName),
-    middle_name: text(pi.middleName),
-    last_name: text(pi.lastName),
-    suffix: text(pi.suffix),
-    date_of_birth: text(pi.dateOfBirth),
-    place_of_birth: text(pi.placeOfBirth),
-    sex: text(pi.sex),
-    citizenship: text(pi.citizenship),
-    religion: text(pi.religion),
-    civil_status: text(pi.civilStatus),
-    spouse_name: text(pi.spouseName),
-    spouse_occupation: text(pi.spouseOccupation),
-    spouse_contact: text(pi.spouseContact),
-    contact_number: text(pi.contactNumber),
-    address: text(pi.address),
-    voter_precinct: text(pi.voterPrecinct),
-    email_updates_opt_in: !!pi.emailUpdatesOptIn,
-    sms_updates_opt_in: !!pi.smsUpdatesOptIn,
-    // ---- Card 4 (Additional Information) ----
-    lgbtqi_member: text(pi.lgbtqi),
-    disability: text(pi.disability),
-    hobbies: text(pi.hobbies),
-    // ---- Card 5 (Organizational Involvement) ---- stored as jsonb; blank
-    // rows (every field empty) are dropped before saving since the section
-    // is optional and the UI always keeps at least one blank seed row.
-    organizations: Array.isArray(pi.organizations)
-      ? pi.organizations
-          .map((o) => ({
-            name: text(o && o.name),
-            position: text(o && o.position),
-            nature: text(o && o.nature),
-            year: text(o && o.year),
-          }))
-          .filter((o) => o.name || o.position || o.nature || o.year)
-      : [],
-    // ---- Card 6 (Motivation and Aspirations Questions) ----
-    motivation: text(pi.motivation),
-    self_description: text(pi.selfDescription),
-    ten_years_plan: text(pi.tenYears),
-  }
-}
-
-// Maps the camelCase academicInfo object sent from the Educational
-// Background panel (Program Application, Preferred Program, the 3-tier
-// school table, Tech-Voc) to snake_case columns on `applications`. Same
-// pattern as personalInfoToColumns() above — ad hoc SQL migration, see
-// PATCH NOTES at the bottom of this file. Everything nullable at the DB
-// level; required-ness (Applying As, Term, both program choices, and the
-// Primary/Elementary row) is enforced in the UI before "Save progress".
-function academicInfoToColumns(academicInfo) {
-  const ai = academicInfo && typeof academicInfo === 'object' ? academicInfo : {}
-  const edu = ai.edu && typeof ai.edu === 'object' ? ai.edu : {}
-  const prim = edu.prim || {}
-  const sec = edu.sec || {}
-  const tert = edu.tert || {}
-  const text = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null)
-  return {
-    applying_as: text(ai.applyingAs),
-    term_applying: text(ai.termApplying),
-    program_choice_1: text(ai.choice1),
-    program_choice_2: text(ai.choice2),
-    edu_prim_school: text(prim.school),
-    edu_prim_address: text(prim.address),
-    edu_prim_section: text(prim.section),
-    edu_prim_year: text(prim.year),
-    edu_prim_honors: text(prim.honors),
-    edu_sec_school: text(sec.school),
-    edu_sec_address: text(sec.address),
-    edu_sec_section: text(sec.section),
-    edu_sec_year: text(sec.year),
-    edu_sec_honors: text(sec.honors),
-    edu_tert_school: text(tert.school),
-    edu_tert_address: text(tert.address),
-    edu_tert_section: text(tert.section),
-    edu_tert_year: text(tert.year),
-    edu_tert_honors: text(tert.honors),
-    tech_voc: text(ai.techVoc),
-    tech_voc_school: text(ai.techVocSchool),
-    tech_voc_course: text(ai.techVocCourse),
-    tech_voc_address: text(ai.techVocAddress),
-  }
-}
+// personalInfoToColumns() / academicInfoToColumns() moved to
+// app/lib/applicationColumns.js on Sept 19, 2026 so the new signup flow
+// (applicantAccounts.js) can build the first `applications` row from
+// staged signup data using the exact same mapping, instead of duplicating
+// it. See that file for the column-by-column mapping and the ad hoc SQL
+// PATCH NOTES history at the bottom of this file.
 
 // Sends a simple confirmation email when an application is submitted.
 // Fire-and-log only — a failed email should never block the submission
@@ -124,69 +36,175 @@ async function sendSubmissionEmail(applicantName, applicantEmail) {
   }
 }
 
-// GET /api/application?name=Juan+Dela+Cruz
-// Looks up an existing draft/submitted application row for this applicant,
-// matched the same way documents are matched elsewhere in the app —
-// case-insensitive, trimmed name (no accounts module yet to key off of).
+// True for a value that carries no real data — null/undefined, a blank
+// string, or an empty array (the shape `fam_siblings`/`organizations`
+// default to). Used below to decide whether an older duplicate row still
+// has something worth merging in.
+function isEmptyValue(v) {
+  if (v === null || v === undefined) return true
+  if (typeof v === 'string' && v.trim() === '') return true
+  if (Array.isArray(v) && v.length === 0) return true
+  return false
+}
+
+// Sept 19 2026, second pass: name-only matching turned out to be fragile
+// on its own — see the long comment on POST below for the chain of bugs
+// that let a logged-in applicant's name and their actual saved row drift
+// apart. Rather than keep patching that chain one link at a time, every
+// lookup in this file now checks THREE signals and merges whatever any of
+// them find: the logged-in account's id (from the verified session
+// cookie — most reliable, immune to the name ever changing), the
+// account's own email (stable, always known once logged in), and the
+// typed name (kept last for backward compatibility / any flow that isn't
+// logged in). Whichever signals are available get checked; results are
+// deduplicated by row id and merged the same "newest wins, older rows
+// fill gaps" way multiple matches have been merged since the first pass
+// of this fix.
+async function findApplicationRows({ userId, email, name }) {
+  const rowsById = new Map()
+
+  async function addMatches(builder) {
+    const { data, error } = await builder
+    if (error) throw new Error(error.message)
+    for (const row of data || []) rowsById.set(row.id, row)
+  }
+
+  if (userId) {
+    await addMatches(
+      supabase.from('applications').select('*').eq('applicant_user_id', userId).order('updated_at', { ascending: false })
+    )
+  }
+  if (email) {
+    await addMatches(
+      supabase.from('applications').select('*').ilike('applicant_email', email).order('updated_at', { ascending: false })
+    )
+  }
+  if (name) {
+    await addMatches(
+      supabase.from('applications').select('*').ilike('applicant_name', name).order('updated_at', { ascending: false })
+    )
+  }
+
+  return Array.from(rowsById.values()).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+}
+
+function mergeApplicationRows(rows) {
+  let merged = null
+  for (const row of rows) {
+    if (!merged) {
+      merged = { ...row }
+      continue
+    }
+    for (const key of Object.keys(row)) {
+      if (isEmptyValue(merged[key]) && !isEmptyValue(row[key])) {
+        merged[key] = row[key]
+      }
+    }
+  }
+  return merged
+}
+
+// GET /api/application?name=Juan+Dela+Cruz&email=juan@example.com
+// Looks up an existing draft/submitted application row for this applicant.
+// See findApplicationRows() above for how "this applicant" is matched —
+// by logged-in account id, email, and/or name, whichever are available —
+// and mergeApplicationRows() for how multiple matches (e.g. duplicate
+// rows left over from before the Sept 19 2026 race fix below) are
+// combined so nothing already saved reads back as blank.
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
     const name = (searchParams.get('name') || '').trim()
+    const email = (searchParams.get('email') || '').trim()
 
-    if (!name) {
-      return NextResponse.json({ error: 'Missing name' }, { status: 400 })
+    const cookieValue = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
+    const session = await verifyApplicantCookieValue(cookieValue)
+    const userId = session?.id || null
+
+    if (!name && !email && !userId) {
+      return NextResponse.json({ error: 'Missing name or email' }, { status: 400 })
     }
 
-    const { data, error } = await supabase
-      .from('applications')
-      .select('*')
-      .ilike('applicant_name', name)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    const rows = await findApplicationRows({ userId, email, name })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (rows.length === 0) {
+      return NextResponse.json({ success: true, application: null })
     }
 
-    return NextResponse.json({ success: true, application: data || null })
+    if (rows.length > 1) {
+      console.warn(
+        `/api/application: found ${rows.length} rows for this applicant (ids: ${rows.map((r) => r.id).join(', ')}) — merged for this read. Run docs/migrations/2026-09-19-dedupe-applications.sql to clean these up for good.`
+      )
+    }
+
+    return NextResponse.json({ success: true, application: mergeApplicationRows(rows) })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
 
 // POST /api/application
-// body: { applicantName, applicantEmail, step, action }
-// action: 'save'   -> creates/updates a 'draft' row at the given step
-//         'submit' -> flips the row to 'submitted' with a timestamp
+// body: { applicantName, applicantEmail, step, action, section? }
+// action: 'save'           -> creates/updates a 'draft' row at the given step
+//         'submit'         -> flips the WHOLE application to 'submitted'
+//         'submit-section' -> marks one profile section (section: 'personal'
+//                             | 'academic') as explicitly submitted, saving
+//                             its current fields at the same time. Doesn't
+//                             touch the application's overall status — this
+//                             is the per-panel "Submit Section" button from
+//                             applicant.html, not the final submission.
 //
-// Auto-save and the manual "Save progress" button both call this with
-// action: 'save' — the only difference is whether the applicant clicked
-// a button or just moved to the next step.
+// Auto-save and the manual "Save progress"/"Save as Draft" buttons both
+// call this with action: 'save' — the only difference is whether the
+// applicant clicked a button or just moved to the next step.
 export async function POST(request) {
   try {
     const body = await request.json()
     const applicantName = (body.applicantName || '').trim()
     const applicantEmail = (body.applicantEmail || '').trim()
     const step = Number(body.step) || 1
-    const action = body.action === 'submit' ? 'submit' : 'save'
+    const action = ['submit', 'submit-section'].includes(body.action) ? body.action : 'save'
+    const section = ['academic', 'personal', 'health', 'financial'].includes(body.section) ? body.section : null
     const personalInfoColumns = personalInfoToColumns(body.personalInfo)
     const academicInfoColumns = academicInfoToColumns(body.academicInfo)
+    const healthInfoColumns = healthInfoToColumns(body.healthInfo)
+    const familyInfoColumns = familyInfoToColumns(body.familyInfo)
+
+    // Sept 19 2026 fix: every save used to go through purely on the typed
+    // applicant name, never stamping `applicant_user_id` — so a row saved
+    // this way (rather than one pre-created at signup from staged Personal
+    // Information, see applicantAccounts.js's activateApplicantAccount())
+    // stayed unlinked from the account forever. Login's own display-name
+    // lookup matches on `applicant_user_id`, so with it never set, every
+    // login rendered a blank display name, `applicantName` on the client
+    // initialized to '', and the portal's own auto-load effect (which
+    // bails out on an empty name) never fetched anything back — the
+    // applicant's saved data was sitting safely in Supabase the whole
+    // time, it just could never be found again after a refresh/re-login.
+    // Reading the session cookie here (same verified way
+    // /api/applicant-session does) and stamping it on every save closes
+    // that gap going forward.
+    const cookieValue = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
+    const session = await verifyApplicantCookieValue(cookieValue)
+    const applicantUserId = session?.id || null
 
     if (!applicantName) {
       return NextResponse.json({ error: 'Missing applicant name' }, { status: 400 })
     }
+    if (action === 'submit-section' && !section) {
+      return NextResponse.json({ error: 'Missing or invalid section' }, { status: 400 })
+    }
 
-    // Find any existing row for this applicant first (draft or submitted).
-    const { data: existing, error: findError } = await supabase
-      .from('applications')
-      .select('*')
-      .ilike('applicant_name', applicantName)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (findError) {
+    // Find any existing row for this applicant first (draft or submitted)
+    // — matched by account id/email/name the same way GET does (see
+    // findApplicationRows() above), not name alone, so a save can never
+    // land on the wrong row (or a brand new duplicate row) just because
+    // the typed name and the row's saved name happen to differ.
+    let existing
+    try {
+      const rows = await findApplicationRows({ userId: applicantUserId, email: applicantEmail, name: applicantName })
+      existing = rows[0] || null
+    } catch (findError) {
       return NextResponse.json({ error: findError.message }, { status: 500 })
     }
 
@@ -194,15 +212,35 @@ export async function POST(request) {
 
     if (existing) {
       const updates = {
+        // Sept 19 2026 fix: this never included applicant_name, so
+        // renaming yourself in Personal Information (typing a new
+        // First/Last Name) correctly updated first_name/last_name but
+        // left the row's own applicant_name column stuck on whatever it
+        // was first saved as — findApplicationRows() above still finds
+        // the right row afterward (it matches by account id/email
+        // first), so saves kept working, but the row's applicant_name
+        // silently drifted out of sync with what the applicant actually
+        // typed, and any lookup that keys off applicant_name (a direct
+        // SQL check, or a document upload matched by name) would miss it.
+        applicant_name: applicantName || existing.applicant_name,
         applicant_email: applicantEmail || existing.applicant_email,
+        applicant_user_id: applicantUserId || existing.applicant_user_id,
         current_step: step,
         updated_at: now,
         ...personalInfoColumns,
         ...academicInfoColumns,
+        ...healthInfoColumns,
+        ...familyInfoColumns,
       }
       if (action === 'submit') {
         updates.status = 'submitted'
         updates.submitted_at = now
+      }
+      if (action === 'submit-section') {
+        if (section === 'personal') updates.personal_info_submitted_at = now
+        if (section === 'academic') updates.academic_submitted_at = now
+        if (section === 'health') updates.health_submitted_at = now
+        if (section === 'financial') updates.financial_submitted_at = now
       }
 
       const { data, error } = await supabase
@@ -227,18 +265,78 @@ export async function POST(request) {
     const insertPayload = {
       applicant_name: applicantName,
       applicant_email: applicantEmail || null,
+      applicant_user_id: applicantUserId,
       current_step: step,
       status: action === 'submit' ? 'submitted' : 'draft',
       submitted_at: action === 'submit' ? now : null,
+      personal_info_submitted_at: action === 'submit-section' && section === 'personal' ? now : null,
+      academic_submitted_at: action === 'submit-section' && section === 'academic' ? now : null,
+      health_submitted_at: action === 'submit-section' && section === 'health' ? now : null,
+      financial_submitted_at: action === 'submit-section' && section === 'financial' ? now : null,
       ...personalInfoColumns,
       ...academicInfoColumns,
+      ...healthInfoColumns,
+      ...familyInfoColumns,
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('applications')
       .insert([insertPayload])
       .select()
       .single()
+
+    // Race fallback: another save for the same applicant landed its own
+    // INSERT between our "does a row exist?" check above and this one
+    // (see the GET handler's comment above for how that used to produce
+    // duplicate rows). Once docs/migrations/2026-09-19-dedupe-applications.sql
+    // has been run, `applicant_name` is unique and Postgres reports that
+    // as error code 23505 instead of silently letting a second row
+    // through — so instead of failing the save, just update the row the
+    // other request created.
+    if (error && error.code === '23505') {
+      const { data: raceExisting, error: raceFindError } = await supabase
+        .from('applications')
+        .select('*')
+        .ilike('applicant_name', applicantName)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (raceFindError || !raceExisting) {
+        return NextResponse.json({ error: raceFindError?.message || 'Save failed after a duplicate-name conflict' }, { status: 500 })
+      }
+
+      const updates = {
+        applicant_name: applicantName || raceExisting.applicant_name,
+        applicant_email: applicantEmail || raceExisting.applicant_email,
+        applicant_user_id: applicantUserId || raceExisting.applicant_user_id,
+        current_step: step,
+        updated_at: now,
+        ...personalInfoColumns,
+        ...academicInfoColumns,
+        ...healthInfoColumns,
+        ...familyInfoColumns,
+      }
+      if (action === 'submit') {
+        updates.status = 'submitted'
+        updates.submitted_at = now
+      }
+      if (action === 'submit-section') {
+        if (section === 'personal') updates.personal_info_submitted_at = now
+        if (section === 'academic') updates.academic_submitted_at = now
+        if (section === 'health') updates.health_submitted_at = now
+        if (section === 'financial') updates.financial_submitted_at = now
+      }
+
+      const retried = await supabase
+        .from('applications')
+        .update(updates)
+        .eq('id', raceExisting.id)
+        .select()
+        .single()
+      data = retried.data
+      error = retried.error
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -299,4 +397,44 @@ export async function POST(request) {
 //   ADD COLUMN IF NOT EXISTS tech_voc_school text,
 //   ADD COLUMN IF NOT EXISTS tech_voc_course text,
 //   ADD COLUMN IF NOT EXISTS tech_voc_address text;
+//
+// Health & Wellness panel (design-parity pass 6) — also committed as
+// docs/migrations/2026-09-19-health-fields.sql, unlike the ad hoc blocks
+// above:
+//
+// ALTER TABLE applications
+//   ADD COLUMN IF NOT EXISTS health_condition text,
+//   ADD COLUMN IF NOT EXISTS health_submitted_at timestamptz;
+//
+// Family & Financial Information panel (design-parity pass 7) — also
+// committed as docs/migrations/2026-09-19-family-financial-fields.sql:
+//
+// ALTER TABLE applications
+//   ADD COLUMN IF NOT EXISTS fam_mother_name text,
+//   ADD COLUMN IF NOT EXISTS fam_mother_citizenship text,
+//   ADD COLUMN IF NOT EXISTS fam_mother_dob text,
+//   ADD COLUMN IF NOT EXISTS fam_mother_contact text,
+//   ADD COLUMN IF NOT EXISTS fam_mother_education text,
+//   ADD COLUMN IF NOT EXISTS fam_mother_employment text,
+//   ADD COLUMN IF NOT EXISTS fam_father_name text,
+//   ADD COLUMN IF NOT EXISTS fam_father_citizenship text,
+//   ADD COLUMN IF NOT EXISTS fam_father_dob text,
+//   ADD COLUMN IF NOT EXISTS fam_father_contact text,
+//   ADD COLUMN IF NOT EXISTS fam_father_education text,
+//   ADD COLUMN IF NOT EXISTS fam_father_employment text,
+//   ADD COLUMN IF NOT EXISTS fam_guardian_name text,
+//   ADD COLUMN IF NOT EXISTS fam_guardian_citizenship text,
+//   ADD COLUMN IF NOT EXISTS fam_guardian_dob text,
+//   ADD COLUMN IF NOT EXISTS fam_guardian_contact text,
+//   ADD COLUMN IF NOT EXISTS fam_guardian_education text,
+//   ADD COLUMN IF NOT EXISTS fam_guardian_employment text,
+//   ADD COLUMN IF NOT EXISTS fam_only_child text,
+//   ADD COLUMN IF NOT EXISTS fam_num_siblings integer,
+//   ADD COLUMN IF NOT EXISTS fam_sibling_currentstudent text,
+//   ADD COLUMN IF NOT EXISTS fam_sibling_graduate text,
+//   ADD COLUMN IF NOT EXISTS fam_emergency_contact text,
+//   ADD COLUMN IF NOT EXISTS fam_emergency_contact_number text,
+//   ADD COLUMN IF NOT EXISTS fam_working_student text,
+//   ADD COLUMN IF NOT EXISTS fam_siblings jsonb DEFAULT '[]'::jsonb,
+//   ADD COLUMN IF NOT EXISTS financial_submitted_at timestamptz;
 // ============================================================================

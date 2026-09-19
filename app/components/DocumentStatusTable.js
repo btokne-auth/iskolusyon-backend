@@ -33,26 +33,38 @@ function IconCircle(props) {
 }
 
 // Picks the most-recently-uploaded document of a given type for this
-// applicant. Falls back gracefully whether `id` is a numeric/bigint
-// primary key (comparable with >) or something else — if comparison isn't
-// meaningful, it still returns a match, just not guaranteed to be the
-// newest of several duplicates.
+// applicant.
+//
+// Sept 19 2026 fix: this used to reduce over every match comparing
+// `.id`, falling back to just returning the current item whenever `.id`
+// wasn't a JS `number` — which it usually isn't, since a bigint primary
+// key round-trips through Supabase as a string to avoid precision loss.
+// Walking a newest-first array (docs/myDocs/docHistory come straight
+// from GET /api/upload, which orders by created_at desc) while always
+// keeping "the current item" means the reduce ends on the LAST item it
+// sees, i.e. the OLDEST match — the exact opposite of "latest". That's
+// why re-uploading a flagged document never seemed to clear its "Needs
+// review" badge: the table kept reading the status off the original
+// upload forever, no matter how many times it was replaced.
+//
+// `docs` is already sorted newest-first, so the fix is just to take the
+// first match instead of reducing over id comparisons at all.
 function findLatestForType(docs, typeValue) {
-  const matches = docs.filter((d) => d.document_type === typeValue)
-  if (matches.length === 0) return null
-  return matches.reduce((latest, d) => {
-    if (!latest) return d
-    if (typeof d.id === 'number' && typeof latest.id === 'number') {
-      return d.id > latest.id ? d : latest
-    }
-    return d
-  }, null)
+  return docs.find((d) => d.document_type === typeValue) || null
 }
 
+// .badge classes ported from applicant.html's own Document Verification
+// Status table (design-parity pass 5, Sept 19 2026): badge-verified for a
+// document that passed OCR review, badge-deficient for one flagged for
+// review (spec's harshest/needs-attention badge — the honest fit for "low
+// OCR confidence", since this app doesn't have spec's fake "image
+// unreadable" copy to draw on), and a locally-styled neutral badge for
+// "not yet uploaded", which spec's badge set has no equivalent for since
+// its mockup table only ever lists documents that already exist.
 function StatusBadge({ state }) {
   if (state === 'verified') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-green/40 bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-green shrink-0">
+      <span className="badge badge-verified">
         <IconCheck className="w-3 h-3" />
         Verified
       </span>
@@ -60,18 +72,30 @@ function StatusBadge({ state }) {
   }
   if (state === 'needs_review') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-orange/50 bg-orange-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-orange shrink-0">
+      <span className="badge badge-deficient">
         <IconAlertTriangle className="w-3 h-3" />
         Needs review
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-ccc-border bg-ccc-off px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-muted shrink-0">
+    <span className="badge" style={{ background: 'var(--off)', color: 'var(--muted)' }}>
       <IconCircle className="w-3 h-3" />
       Not uploaded
     </span>
   )
+}
+
+const CATEGORY_HEADER_STYLE = {
+  fontFamily: "'Montserrat',sans-serif",
+  fontWeight: 700,
+  fontSize: '10.8px',
+  letterSpacing: '.5px',
+  textTransform: 'uppercase',
+  color: 'var(--navy)',
+  margin: '0 0 7.5px',
+  padding: '9px 7.5px 4.5px',
+  borderBottom: '2px solid var(--border)',
 }
 
 export default function DocumentStatusTable({ groups, docs, applicantName, onReupload }) {
@@ -85,61 +109,72 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
   )
 
   return (
-    <div className="bg-white border border-ccc-border rounded-3xl shadow-md p-6 sm:p-8 space-y-5">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-base font-bold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            Documents &amp; Status
-          </h2>
-          <p className="text-xs text-ccc-muted mt-0.5">
-            Showing submissions under &ldquo;{applicantName.trim()}&rdquo;
-          </p>
-        </div>
-        <span className="text-xs font-semibold text-ccc-muted bg-ccc-off border border-ccc-border rounded-full px-3 py-1">
-          {verifiedCount} / {total} verified
-        </span>
+    <div className="card">
+      <div className="card-title">
+        Document Verification Status
+        <span className="tag">{verifiedCount} / {total} verified</span>
       </div>
+      <p className="topic-card-intro" style={{ marginTop: '-6px' }}>
+        Showing submissions under &ldquo;{applicantName.trim()}&rdquo;
+      </p>
 
-      <div className="space-y-6">
-        {groups.map((group) => (
-          <div key={group.group}>
-            <p
-              className="text-[11px] font-bold uppercase tracking-wide text-ccc-navy pb-2 mb-2 border-b-2 border-ccc-border"
-              style={{ fontFamily: 'var(--font-montserrat)' }}
-            >
-              {group.group}
-            </p>
-            <div className="divide-y divide-ccc-border">
+      {groups.map((group, i) => (
+        <div key={group.group}>
+          <p style={CATEGORY_HEADER_STYLE}>{group.group}</p>
+          <table className="doc-table" style={{ marginBottom: i === groups.length - 1 ? 0 : '18.75px' }}>
+            {/* Fixed column widths, the same across every category table in
+                this card — table-layout:fixed (portal-theme.css) means
+                each table would otherwise size its own Document column to
+                its own longest label, so "Voter's ID / Certification of
+                Parent/Guardian" in one category and "Supporting Document"
+                in another ended up with Status/Notes/action sitting at
+                different x-positions from table to table. Sept 19 2026. */}
+            <colgroup>
+              <col style={{ width: '38%' }} />
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '30%' }} />
+              <col style={{ width: '14%' }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Document</th>
+                <th>Status</th>
+                <th>Notes</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
               {group.options.map((opt) => {
                 const doc = findLatestForType(docs, opt.value)
                 const state = !doc ? 'not_uploaded' : (doc.needs_review ? 'needs_review' : 'verified')
+                const submittedNote = doc && doc.created_at
+                  ? `Submitted ${new Date(doc.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`
+                  : null
                 return (
-                  <div key={opt.value} className="flex items-center justify-between gap-3 py-2.5">
-                    <div className="min-w-0">
-                      <p className="text-sm text-ccc-text truncate">{opt.label}</p>
-                      {state === 'needs_review' && (
-                        <p className="text-[11px] text-ccc-orange mt-0.5">Low OCR confidence — please check and re-upload if needed</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <StatusBadge state={state} />
-                      {state !== 'verified' && (
-                        <button
-                          type="button"
-                          onClick={() => onReupload(opt.value)}
-                          className="text-xs font-semibold text-ccc-blue hover:text-ccc-navy underline underline-offset-2"
-                        >
+                  <tr key={opt.value}>
+                    <td>{opt.label}</td>
+                    <td><StatusBadge state={state} /></td>
+                    <td>
+                      {state === 'needs_review'
+                        ? 'Low OCR confidence — please check and re-upload if needed'
+                        : submittedNote || '—'}
+                    </td>
+                    <td>
+                      {state !== 'verified' ? (
+                        <button type="button" className="reupload-link" onClick={() => onReupload(opt.value)}>
                           {state === 'not_uploaded' ? 'Upload' : 'Re-upload'}
                         </button>
+                      ) : (
+                        '—'
                       )}
-                    </div>
-                  </div>
+                    </td>
+                  </tr>
                 )
               })}
-            </div>
-          </div>
-        ))}
-      </div>
+            </tbody>
+          </table>
+        </div>
+      ))}
     </div>
   )
 }

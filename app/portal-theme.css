@@ -1,0 +1,308 @@
+/* ============================================================
+   Applicant portal theme (design-parity pass, Sept 19 2026)
+   Scoped, near-verbatim port of applicant.html's own <style> block
+   (the approved Capstone-1-defense mockup), so the real portal is a
+   pixel match instead of an approximation built from ad hoc Tailwind
+   utilities. Everything here is wrapped in .applicant-portal so it
+   only affects the applicant-facing portal page (app/page.js) and
+   never leaks into admin/history/about/auth screens.
+
+   Source rem values were all relative to the mockup's own
+   html{font-size:15px} — since this app doesn't (and shouldn't)
+   change its global root font-size just for one page, every rem in
+   the original was converted to its exact px equivalent (rem*15) so
+   sizing matches pixel-for-pixel regardless of the app's base font
+   size. Colors reuse the existing --ccc-* tokens (already confirmed
+   identical to the mockup's :root) via local aliases below, so there
+   is only ever one source of truth for brand colors.
+   ============================================================ */
+
+.applicant-portal {
+  --navy: var(--ccc-navy);
+  --blue: var(--ccc-blue-mid);
+  --blue-light: var(--ccc-blue-light);
+  --green: var(--ccc-green);
+  --green-dark: var(--ccc-green-dark);
+  --gold: var(--ccc-gold);
+  --yellow: var(--ccc-yellow);
+  --off: var(--ccc-off);
+  --text: var(--ccc-text);
+  --muted: var(--ccc-muted);
+  --border: var(--ccc-border);
+  --orange: var(--ccc-orange);
+  --red: var(--ccc-red);
+  /* --ccc-blue needs no alias here: the app's global :root already
+     defines --ccc-blue with the exact spec value, and it inherits into
+     this scope fine on its own. The self-referencing line that used to
+     be here (--ccc-blue: var(--ccc-blue)) was a bug — a CSS custom
+     property that references its own name is invalid, which silently
+     broke every rule below using var(--ccc-blue): the sidebar's
+     gradient background, the active nav item's blue text, progress
+     bars, buttons, all of it. */
+}
+
+.applicant-portal .portal-shell{display:grid;grid-template-columns:270px 1fr;min-height:calc(100vh - 108px);align-items:stretch}
+
+/* ── SIDEBAR ── */
+.applicant-portal .sidebar{background:linear-gradient(180deg,var(--navy) 0%,var(--ccc-blue) 100%);color:#fff;padding:30px 20.25px 22.5px;display:flex;flex-direction:column;position:sticky;top:108px;height:calc(100vh - 108px);overflow-y:auto}
+.applicant-portal .sidebar-profile{text-align:center;margin-bottom:26.25px;padding-bottom:22.5px;border-bottom:1px solid rgba(255,255,255,.15)}
+.applicant-portal .avatar-wrap{width:84px;height:84px;border-radius:50%;margin:0 auto 12.75px;position:relative;border:3px solid rgba(255,255,255,.35);overflow:hidden;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;font-size:28.5px;font-family:'Montserrat',sans-serif;font-weight:800}
+.applicant-portal .avatar-wrap img{width:100%;height:100%;object-fit:cover;display:none;position:absolute;inset:0}
+.applicant-portal .avatar-wrap .avatar-initials{position:relative;z-index:1}
+.applicant-portal .profile-name-row{display:flex;align-items:center;justify-content:center;gap:6px}
+.applicant-portal .profile-name{font-family:'Montserrat',sans-serif;font-weight:800;font-size:14.7px;letter-spacing:.2px}
+.applicant-portal .profile-role{font-size:10.2px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.6px;margin-top:3px;font-family:'Montserrat',sans-serif;font-weight:600}
+.applicant-portal .profile-id{font-size:10.2px;color:rgba(255,255,255,.45);margin-top:6px}
+
+.applicant-portal .sidebar-menu{display:flex;flex-direction:column;gap:13.5px;flex:1}
+/* top-level portal divisions: Overview / Admission / Allowance — each is its own
+   list wrapped in .sidebar-group so it can carry a shared contrasting background */
+.applicant-portal .sidebar-group{list-style:none;display:flex;flex-direction:column;gap:3px;background:rgba(0,0,0,.24);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10.5px 9.75px 12px}
+.applicant-portal .sidebar-section-label{font-family:'Montserrat',sans-serif;font-weight:800;font-size:10.8px;letter-spacing:1.1px;text-transform:uppercase;color:#fff;margin:0 9px 7.5px}
+.applicant-portal .sidebar-section-label:first-child{margin-top:0}
+.applicant-portal .sidebar-section-label.divider-before{border-top:1.5px solid rgba(255,255,255,.2);padding-top:12px}
+/* sub-groupings within a top-level division (e.g. My Profile (Softcopy), Application) */
+.applicant-portal .sidebar-menu-label{font-family:'Montserrat',sans-serif;font-weight:700;font-size:9.3px;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.4);margin:13.5px 0 6px 9px}
+.applicant-portal .sidebar-menu-label:first-child{margin-top:0}
+/* thin divider directly under each top-level section label (Overview / Admission / Allowance),
+   separating the heading from its subcontents */
+.applicant-portal .sidebar-label-divider{list-style:none;height:1px;margin:0 8.25px 9.75px;background:rgba(255,255,255,.16)}
+/* distinct divider used only WITHIN Admission, between the "My Profile (Softcopy)" items and
+   the "Application" items — dashed + warm gold tint so it reads differently from the thin
+   solid divider above and doesn't feel repetitive */
+.applicant-portal .sidebar-subgroup-divider{list-style:none;height:0;margin:12px 8.25px 1.5px;border-top:1px dashed rgba(200,168,75,.45)}
+.applicant-portal .sidebar-subgroup-divider + .sidebar-menu-label{margin-top:7.5px}
+.applicant-portal .menu-btn{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:8px;font-family:'Montserrat',sans-serif;font-weight:600;font-size:11.85px;color:rgba(255,255,255,.8);transition:background .2s,color .2s;width:100%}
+.applicant-portal .menu-btn:hover{background:rgba(255,255,255,.1);color:#fff}
+.applicant-portal .menu-btn.active{background:#fff;color:var(--ccc-blue)}
+.applicant-portal .menu-icon{width:18px;text-align:center;flex-shrink:0;font-size:13.5px}
+.applicant-portal .menu-badge{margin-left:auto;background:var(--yellow);color:var(--navy);font-size:9.3px;font-weight:800;line-height:1;min-width:18px;height:18px;padding:0 5px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.applicant-portal .menu-badge.is-empty, .applicant-portal .count-badge.is-empty{display:none}
+.applicant-portal .count-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:8px;background:var(--yellow);color:var(--navy);font-family:'Montserrat',sans-serif;font-size:9.3px;font-weight:800;line-height:1;border-radius:999px;flex-shrink:0;vertical-align:middle}
+
+.applicant-portal .sidebar-logout{margin-top:18.75px;padding-top:16.5px;border-top:1px solid rgba(255,255,255,.15)}
+.applicant-portal .logout-btn{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:8px;font-family:'Montserrat',sans-serif;font-weight:700;font-size:11.85px;color:rgba(255,255,255,.85);width:100%;transition:background .2s,color .2s}
+.applicant-portal .logout-btn:hover{background:rgba(192,57,43,.35);color:#fff}
+
+/* ── MAIN CONTENT ── */
+.applicant-portal .portal-main{padding:37.5px 45px 60px;overflow-y:auto}
+.applicant-portal .portal-panel{display:none}
+.applicant-portal .portal-panel.active{display:block;animation:slideDown .3s ease}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.applicant-portal .portal-header{margin-bottom:26.25px}
+.applicant-portal .portal-eyebrow{font-family:'Montserrat',sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--gold);margin-bottom:5.25px}
+.applicant-portal .portal-eyebrow.eyebrow-yellow{color:var(--yellow)}
+.applicant-portal .portal-header h1{font-family:'Montserrat',sans-serif;font-weight:800;font-size:22.5px;color:var(--navy);letter-spacing:.2px}
+.applicant-portal .portal-header p{font-size:12.75px;color:var(--muted);margin-top:5.25px;max-width:640px}
+
+.applicant-portal .card{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 3px 18px rgba(13,47,110,.06);padding:26.25px 30px;margin-bottom:22.5px}
+.applicant-portal .card-title{font-family:'Montserrat',sans-serif;font-weight:800;font-size:13.8px;color:var(--navy);letter-spacing:.3px;margin-bottom:16.5px;padding-bottom:10.5px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:15px}
+.applicant-portal .card-title span.tag{font-family:'Montserrat',sans-serif;font-weight:700;font-size:9.3px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);background:var(--off);padding:3px 10px;border-radius:20px;border:1px solid var(--border)}
+
+/* status summary cards (dashboard) */
+.applicant-portal .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:15px;margin-bottom:26.25px}
+.applicant-portal .stat-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18.75px 21px;box-shadow:0 3px 18px rgba(13,47,110,.06)}
+.applicant-portal .stat-card .stat-label{font-family:'Montserrat',sans-serif;font-weight:700;font-size:10.2px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin-bottom:7.5px}
+.applicant-portal .stat-card .stat-value{font-family:'Montserrat',sans-serif;font-weight:800;font-size:15.3px;color:var(--navy)}
+.applicant-portal .stat-card .stat-note{font-size:10.8px;color:var(--muted);margin-top:7.5px;line-height:1.5}
+.applicant-portal .stat-progress{width:100%;height:8px;border-radius:5px;background:var(--off);overflow:hidden;margin-top:9px}
+.applicant-portal .stat-progress-bar{height:100%;background:linear-gradient(90deg,var(--ccc-blue),var(--blue-light));border-radius:5px}
+.applicant-portal .stat-locked{font-family:'Montserrat',sans-serif;font-weight:700;font-size:12.75px;color:var(--muted)}
+
+/* ── locked / unlocked stat cards ── */
+.applicant-portal .stat-card{position:relative;transition:box-shadow .2s,border-color .2s,transform .15s}
+.applicant-portal .stat-card.locked{opacity:.52;filter:saturate(.65)}
+.applicant-portal .stat-card.locked .stat-value, .applicant-portal .stat-card.locked .stat-label{color:var(--muted)}
+.applicant-portal .stat-lock-badge{position:absolute;top:13.5px;right:13.5px;width:26px;height:26px;border-radius:50%;background:var(--off);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11.25px;color:var(--muted)}
+.applicant-portal .stat-card.unlocked-clickable{cursor:pointer;border-width:1.5px}
+.applicant-portal .stat-card.unlocked-clickable:hover{box-shadow:0 6px 22px rgba(13,47,110,.12);transform:translateY(-1px)}
+.applicant-portal .stat-card.unlocked-clickable.tab-active{border-color:var(--ccc-blue);box-shadow:0 6px 22px rgba(0,60,208,.14)}
+.applicant-portal .stat-card.unlocked-clickable.tab-active .stat-label{color:var(--ccc-blue)}
+.applicant-portal .stat-card-hint{font-family:'Montserrat',sans-serif;font-weight:700;font-size:9.3px;letter-spacing:.4px;text-transform:uppercase;color:var(--ccc-blue);margin-top:9px;display:flex;align-items:center;gap:4px}
+.applicant-portal .stat-card.locked .stat-card-hint{display:none}
+
+/* ── section divider (unlockable category marker) ── */
+.applicant-portal .section-divider{display:flex;align-items:center;gap:13.5px;margin:22.5px 0 22.5px}
+.applicant-portal .section-divider::before, .applicant-portal .section-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.applicant-portal .section-divider-chip{display:flex;align-items:center;gap:8px;font-family:'Montserrat',sans-serif;font-weight:700;font-size:10.2px;letter-spacing:.5px;text-transform:uppercase;color:var(--ccc-blue);background:#EEF3FD;border:1px solid #D6E3FA;padding:6px 16px;border-radius:20px;white-space:nowrap}
+.applicant-portal .section-divider-chip .divider-icon{font-size:11.7px;width:16px;text-align:center;flex-shrink:0}
+.applicant-portal .section-divider-sub{font-size:10.2px;color:var(--muted);text-align:center;margin-top:-16.5px;margin-bottom:22.5px;font-style:italic}
+
+/* ── connected-tab pointer + content panel ── */
+.applicant-portal .tab-connector{height:16px;position:relative;margin:-3.75px auto 0}
+.applicant-portal .tab-connector-arrow{position:absolute;top:-1px;width:15px;height:15px;background:#fff;border-left:1.5px solid var(--ccc-blue);border-top:1.5px solid var(--ccc-blue);transform:rotate(45deg);transition:left .25s ease}
+.applicant-portal .tab-content-card{border-color:var(--ccc-blue);border-width:1.5px}
+.applicant-portal .tab-lock-notice{display:flex;align-items:center;gap:12px;background:var(--off);border:1px dashed var(--border);border-radius:8px;padding:15px 18.75px;font-size:12.3px;color:var(--muted)}
+.applicant-portal .tab-lock-notice .tln-icon{width:34px;height:34px;border-radius:8px;background:#fff;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+
+/* application status hero card */
+.applicant-portal .status-hero{padding:30px 33.75px;margin-bottom:18.75px}
+.applicant-portal .status-hero-eyebrow{font-family:'Montserrat',sans-serif;font-weight:800;font-size:17.25px;letter-spacing:.4px;text-transform:uppercase;color:var(--gold);margin-bottom:10.5px}
+.applicant-portal .status-hero-value{margin-bottom:13.5px}
+.applicant-portal .status-hero-value .badge{font-size:11.7px;padding:6px 15px}
+.applicant-portal .status-hero-desc{font-size:12.9px;color:var(--muted);max-width:680px;margin-bottom:21px}
+.applicant-portal .status-hero-next{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;background:var(--off);border:1px solid var(--border);border-radius:10px;padding:15px 21px}
+.applicant-portal .next-label{font-family:'Montserrat',sans-serif;font-weight:700;font-size:9.3px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);margin-bottom:4.5px}
+.applicant-portal .next-action{font-family:'Montserrat',sans-serif;font-weight:700;font-size:13.8px;color:var(--navy)}
+.applicant-portal .next-action-btn{font-family:'Montserrat',sans-serif;font-weight:700;font-size:11.7px;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:var(--ccc-blue);padding:9px 20px;border-radius:6px;text-decoration:none;white-space:nowrap;transition:background .2s}
+.applicant-portal .next-action-btn:hover{background:#002fa8}
+.applicant-portal .badge{display:inline-flex;align-items:center;gap:5px;font-family:'Montserrat',sans-serif;font-weight:700;font-size:10.2px;letter-spacing:.3px;padding:4px 11px;border-radius:20px}
+.applicant-portal .badge-pending{background:#FEF3E8;color:#7A4210}
+.applicant-portal .badge-verified{background:#E6F4EC;color:#1A5C3A}
+.applicant-portal .badge-deficient{background:#FBE7E7;color:#902020}
+.applicant-portal .badge-progress{background:#EEF3FD;color:var(--ccc-blue)}
+
+/* message list */
+.applicant-portal .message-item{display:flex;gap:14px;padding:15px 0;border-bottom:1px solid var(--border)}
+.applicant-portal .message-item:last-child{border-bottom:none;padding-bottom:0}
+.applicant-portal .message-dot{width:38px;height:38px;border-radius:50%;background:#EEF3FD;color:var(--ccc-blue);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.applicant-portal .message-body h4{font-family:'Montserrat',sans-serif;font-weight:700;font-size:12.75px;color:var(--text);margin-bottom:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.applicant-portal .message-body p{font-size:12px;color:var(--muted)}
+.applicant-portal .message-body .message-date{font-size:10.2px;color:var(--muted);margin-top:4px;display:block}
+
+/* ── comms filter: Announcements / Messages toggle ── */
+.applicant-portal .post-type-toggle{display:flex;gap:9px;margin-bottom:16.5px}
+.applicant-portal .post-type-btn{all:unset;box-sizing:border-box;cursor:pointer;flex:1;text-align:center;padding:9px 12px;border:1.5px solid var(--border);border-radius:6px;font-family:'Montserrat',sans-serif;font-weight:700;font-size:11.4px;color:var(--muted);transition:border-color .15s,background .15s,color .15s}
+.applicant-portal .post-type-btn.active{border-color:var(--ccc-blue);background:#EEF3FD;color:var(--ccc-blue)}
+.applicant-portal .comm-scope-note{display:flex;align-items:flex-start;gap:9px;background:var(--off);border:1px solid var(--border);border-radius:8px;padding:11.25px 14.25px;font-size:11.7px;color:var(--muted);line-height:1.55;margin-bottom:16.5px}
+.applicant-portal .comm-scope-note svg{flex-shrink:0;margin-top:2px;color:var(--ccc-blue)}
+.applicant-portal .comm-scope-note b{color:var(--text)}
+.applicant-portal .msg-kind-tag{font-family:'Montserrat',sans-serif;font-weight:700;font-size:8.7px;letter-spacing:.4px;text-transform:uppercase;color:var(--ccc-blue);background:#EEF3FD;padding:2px 8px;border-radius:10px}
+
+/* two-column layout: personal info textboxes beside required-document uploads */
+.applicant-portal .dual-grid{display:grid;grid-template-columns:1fr 1fr;gap:22.5px;align-items:start}
+.applicant-portal .dual-grid .card{margin-bottom:0}
+
+/* ── STACKED TOPIC CARDS (single column): each card owns one topic plus the
+   document(s) that verify it, so related content stays together top-to-bottom
+   instead of splitting fields and uploads into separate side-by-side panes ── */
+.applicant-portal .topic-card .card-title{margin-bottom:13.5px}
+.applicant-portal .topic-card-intro{font-size:12.3px;color:var(--muted);margin:-6px 0 16.5px}
+.applicant-portal .topic-doc-section{margin-top:21px;padding-top:18.75px;border-top:1.5px dashed var(--border)}
+.applicant-portal .topic-doc-label{font-family:'Montserrat',sans-serif;font-weight:700;font-size:10.2px;letter-spacing:.4px;text-transform:uppercase;color:var(--ccc-blue);margin-bottom:12.75px;display:flex;align-items:center;gap:7px}
+.applicant-portal .topic-doc-label .tdl-count{background:#EEF3FD;color:var(--ccc-blue);border-radius:20px;padding:1px 8px;font-size:9.3px}
+.applicant-portal .topic-card .upload-row:last-child{margin-bottom:0}
+.applicant-portal .topic-card-number{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#EEF3FD;color:var(--ccc-blue);font-family:'Montserrat',sans-serif;font-weight:800;font-size:11.7px;flex-shrink:0}
+
+/* forms (shared with signup styling) */
+.applicant-portal .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16.5px}
+.applicant-portal .mfield{margin-bottom:15px}
+.applicant-portal .mfield.full{grid-column:1/-1}
+.applicant-portal .mfield label{display:block;font-size:11.25px;font-weight:700;color:var(--navy);margin-bottom:5px;font-family:'Montserrat',sans-serif;letter-spacing:.3px;text-transform:uppercase}
+.applicant-portal .mfield label .req-mark{color:var(--red);margin-left:2px}
+.applicant-portal .upload-row.required .u-title .req-mark{color:var(--red);margin-left:2px}
+.applicant-portal .mfield input, .applicant-portal .mfield select, .applicant-portal .mfield textarea{width:100%;padding:9px 13px;border:1.5px solid var(--border);border-radius:6px;font-family:'Open Sans',sans-serif;font-size:13.125px;color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;background:#fff}
+.applicant-portal .mfield input:focus, .applicant-portal .mfield select:focus, .applicant-portal .mfield textarea:focus{border-color:var(--ccc-blue);box-shadow:0 0 0 3px rgba(0,60,208,.1)}
+.applicant-portal .mfield input::placeholder, .applicant-portal .mfield textarea::placeholder{color:#A9B4C7;opacity:1}
+.applicant-portal .mfield select{cursor:pointer}
+.applicant-portal .mfield textarea{resize:vertical;min-height:68px}
+.applicant-portal .field-note{font-size:10.8px;color:var(--muted);margin-top:4px}
+
+/* ── EDUCATIONAL BACKGROUND fillable table (Primary / Secondary / Tertiary) ── */
+.applicant-portal .edu-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:22.5px}
+.applicant-portal .edu-table{width:100%;border-collapse:collapse;font-size:12.3px;min-width:640px}
+.applicant-portal .edu-table th, .applicant-portal .edu-table td{border:1px solid var(--border)}
+.applicant-portal .edu-table thead th{background:var(--off);font-family:'Montserrat',sans-serif;font-weight:700;font-size:10.2px;letter-spacing:.4px;text-transform:uppercase;color:var(--navy);padding:12px;text-align:center}
+.applicant-portal .edu-table thead th:first-child{background:#fff;border-top:none;border-left:none}
+.applicant-portal .edu-table tbody th{background:var(--off);font-family:'Montserrat',sans-serif;font-weight:700;font-size:11.1px;color:var(--navy);text-align:left;padding:10px 12px;vertical-align:middle;white-space:nowrap}
+.applicant-portal .edu-table tbody td{padding:0;vertical-align:middle}
+.applicant-portal .edu-table tbody td input{width:100%;height:100%;border:none;background:transparent;padding:10px 12px;font-family:'Open Sans',sans-serif;font-size:12.3px;color:var(--text);outline:none;transition:background .2s}
+.applicant-portal .edu-table tbody td input:focus{background:#EEF3FD;box-shadow:inset 0 0 0 1.5px var(--ccc-blue)}
+.applicant-portal .edu-table tbody td input::placeholder{color:#A9B4C7}
+.applicant-portal .edu-table tbody tr:last-child th, .applicant-portal .edu-table tbody tr:last-child td{border-bottom:none}
+
+/* ── ORGANIZATIONAL INVOLVEMENT fillable table (row-based, expandable) ── */
+.applicant-portal .org-table thead th:first-child{background:var(--off);border-left:1px solid var(--border)}
+.applicant-portal .org-table .org-table-action-th{width:44px;background:#fff;border-top:none;border-right:none}
+.applicant-portal .org-table .org-row-action{padding:6px!important;text-align:center;vertical-align:middle;background:#fff}
+
+/* ── sibling income table: per-column add/remove button sits inline in the header ── */
+.applicant-portal .edu-table thead th.sib-col{white-space:nowrap}
+.applicant-portal .sib-col-btn{display:inline-flex;vertical-align:middle;margin-left:8px}
+.applicant-portal .org-row-btn{all:unset;box-sizing:border-box;cursor:pointer;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;font-weight:700;transition:background .2s,color .2s}
+.applicant-portal .org-row-add{background:#EEF3FD;color:var(--ccc-blue)}
+.applicant-portal .org-row-add:hover{background:var(--ccc-blue);color:#fff}
+.applicant-portal .org-row-remove{background:#FDECEA;color:var(--red)}
+.applicant-portal .org-row-remove:hover{background:var(--red);color:#fff}
+
+.applicant-portal .check-grid{display:flex;flex-direction:column;gap:9px;margin-bottom:7.5px}
+.applicant-portal .check-item{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;transition:border-color .2s,background .2s;font-size:12.45px;color:var(--text);user-select:none}
+.applicant-portal .check-item:hover{background:var(--off)}
+.applicant-portal .check-item input{margin-top:2px;width:16px;height:16px;accent-color:var(--ccc-blue);flex-shrink:0;cursor:pointer}
+.applicant-portal .check-item.checked{border-color:var(--ccc-blue);background:#EEF3FD}
+
+/* document upload row */
+.applicant-portal .upload-row{display:flex;align-items:center;gap:14px;padding:13px 15px;border:1.5px dashed #C0392B;border-radius:8px;margin-bottom:10.5px;background:#FEF8F8}
+.applicant-portal .upload-row.has-file{border-style:solid;border-color:#1B6B3A;background:#F3FAF6}
+.applicant-portal .upload-icon{display:none}
+.applicant-portal .upload-info{flex:1;min-width:0}
+.applicant-portal .upload-info .u-title{font-family:'Montserrat',sans-serif;font-weight:700;font-size:12px;color:var(--text)}
+.applicant-portal .upload-info .u-sub{font-size:10.8px;color:var(--muted);margin-top:2px}
+.applicant-portal .upload-info .u-filename{font-size:10.8px;color:var(--green);margin-top:2px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.applicant-portal .upload-btn-label{font-family:'Montserrat',sans-serif;font-weight:700;font-size:10.2px;letter-spacing:.3px;text-transform:uppercase;color:var(--ccc-blue);border:1.5px solid var(--ccc-blue);border-radius:6px;padding:8px 14px;cursor:pointer;flex-shrink:0;white-space:nowrap;transition:background .2s,color .2s}
+.applicant-portal .upload-btn-label:hover{background:var(--ccc-blue);color:#fff}
+.applicant-portal .upload-row input[type="file"]{display:none}
+
+/* action buttons */
+.applicant-portal .mbtn{padding:10px 22px;border:none;border-radius:6px;font-family:'Montserrat',sans-serif;font-weight:700;font-size:12px;letter-spacing:.4px;text-transform:uppercase;cursor:pointer;transition:all .2s}
+.applicant-portal .mbtn-primary{background:var(--ccc-blue);color:#fff}
+.applicant-portal .mbtn-primary:hover{background:#002fa8}
+.applicant-portal .mbtn-secondary{background:var(--green);color:#fff}
+.applicant-portal .mbtn-secondary:hover{background:var(--green-dark)}
+.applicant-portal .mbtn-ghost{background:none;border:1.5px solid var(--border);color:var(--muted)}
+.applicant-portal .mbtn-ghost:hover{background:var(--off);color:var(--text)}
+.applicant-portal .mbtn-danger{background:#C0392B;color:#fff}
+.applicant-portal .mbtn-danger:hover{background:#992d22}
+.applicant-portal .form-actions{display:flex;gap:11.25px;margin-top:22.5px;flex-wrap:wrap}
+.applicant-portal .save-note{font-size:10.8px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-top:7.5px}
+
+/* ── MILESTONE STEP CIRCLES (dashboard) ── */
+.applicant-portal .timeline-dot.step-done{background:#E6F4EC;color:#1B6B3A;border:2px solid #1B6B3A;font-weight:800}
+.applicant-portal .timeline-dot.step-ongoing{background:#FFF8DC;color:#7A5C00;border:2px solid #FFD400;font-weight:800}
+.applicant-portal .timeline-dot.step-notstarted{background:#FBE7E7;color:#902020;border:2px solid #C0392B;font-weight:800}
+
+/* activity log / timeline */
+.applicant-portal .timeline{display:flex;flex-direction:column}
+.applicant-portal .timeline-item{display:flex;gap:14px;position:relative;padding-bottom:21px}
+.applicant-portal .timeline-item:last-child{padding-bottom:0}
+.applicant-portal .timeline-item:not(:last-child)::before{content:'';position:absolute;left:14px;top:30px;bottom:0;width:2px;background:var(--border)}
+.applicant-portal .timeline-dot{width:29px;height:29px;border-radius:50%;background:#EEF3FD;color:var(--ccc-blue);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;z-index:1}
+.applicant-portal .timeline-dot.done{background:#1B6B3A;color:#fff;font-weight:800}
+.applicant-portal .timeline-dot.warn{background:#C0392B;color:#fff;font-weight:800}
+.applicant-portal .timeline-body h4{font-family:'Montserrat',sans-serif;font-weight:700;font-size:12.3px;color:var(--text)}
+.applicant-portal .timeline-body p{font-size:11.4px;color:var(--muted);margin-top:2px}
+
+/* document status table */
+.applicant-portal .doc-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12.3px}
+.applicant-portal .doc-table th{text-align:left;font-family:'Montserrat',sans-serif;font-weight:700;font-size:10.2px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:2px solid var(--border)}
+.applicant-portal .doc-table td{padding:12px 10px;border-bottom:1px solid var(--border);vertical-align:middle;overflow-wrap:break-word}
+.applicant-portal .doc-table tr:last-child td{border-bottom:none}
+.applicant-portal .reupload-link{font-family:'Montserrat',sans-serif;font-weight:700;font-size:10.8px;color:var(--ccc-blue);cursor:pointer;background:none;border:none;text-decoration:underline}
+
+/* ── LOGOUT CONFIRM MODAL ── */
+.applicant-portal .confirm-overlay{display:none;position:fixed;inset:0;background:rgba(13,20,38,.55);z-index:1000;align-items:center;justify-content:center;padding:22.5px}
+.applicant-portal .confirm-overlay.open{display:flex}
+.applicant-portal .confirm-box{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:380px;width:100%;padding:30px;text-align:center;animation:slideDown .25s ease}
+.applicant-portal .confirm-icon{width:56px;height:56px;border-radius:50%;background:#FBE7E7;color:#C0392B;display:flex;align-items:center;justify-content:center;font-size:21px;margin:0 auto 15px}
+.applicant-portal .confirm-box h3{font-family:'Montserrat',sans-serif;font-weight:800;font-size:15.75px;color:var(--navy);margin-bottom:7.5px}
+.applicant-portal .confirm-box p{font-size:12.75px;color:var(--muted);margin-bottom:22.5px}
+.applicant-portal .confirm-actions{display:flex;gap:11.25px}
+.applicant-portal .confirm-actions .mbtn{flex:1}
+
+@media(max-width:960px){
+  .applicant-portal .dual-grid{grid-template-columns:1fr}
+  .applicant-portal .portal-shell{grid-template-columns:1fr}
+  .applicant-portal .sidebar{position:relative;top:0;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding:18.75px}
+  .applicant-portal .sidebar-profile{margin-bottom:0;padding-bottom:0;border-bottom:none;flex-shrink:0}
+  .applicant-portal .sidebar-menu{flex-direction:row;flex-wrap:wrap;margin-left:15px}
+  .applicant-portal .sidebar-group{display:contents}
+  .applicant-portal .sidebar-menu-label{display:none}
+  .applicant-portal .sidebar-label-divider, .applicant-portal .sidebar-subgroup-divider{display:none}
+  .applicant-portal .sidebar-logout{margin-top:0;padding-top:0;border-top:none;margin-left:auto}
+  .applicant-portal .portal-main{padding:26.25px 18.75px 45px}
+}
+@media(max-width:640px){
+  .applicant-portal .form-grid{grid-template-columns:1fr}
+  .applicant-portal .nav-portal-badge{display:none}
+}
+
