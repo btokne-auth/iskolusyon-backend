@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import SiteHeader from './SiteHeader'
 
 // Mirrors isValidEmailFormat() in applicantAccounts.js — a real format
@@ -122,6 +122,88 @@ const CALAMBA_BARANGAYS = [
 
 const SUFFIX_OPTIONS = ['Jr.', 'Sr.', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
 
+// 6-digit OTP entry — matches index.html/signup.html's .otp-box UI exactly:
+// one box per digit, auto-advance on entry, backspace steps back into the
+// previous box when the current one is already empty, and pasting a full
+// code distributes it across all six boxes. Shared by every OTP step
+// (login MFA, signup verification, forgot-password reset).
+function OtpBoxes({ value, onChange, error, autoFocus }) {
+  const length = 6
+  const refs = useRef([])
+  const digits = Array.from({ length }, (_, i) => value[i] || '')
+
+  function setDigitAt(i, char) {
+    const chars = value.padEnd(length, ' ').split('')
+    chars[i] = char
+    onChange(chars.join('').replace(/\s/g, '').slice(0, length))
+  }
+
+  function handleInput(i, e) {
+    const v = e.target.value.replace(/\D/g, '')
+    const char = v ? v[v.length - 1] : ''
+    setDigitAt(i, char)
+    if (char && i < length - 1) refs.current[i + 1]?.focus()
+  }
+
+  function handleKeyDown(i, e) {
+    if (e.key === 'Backspace' && !digits[i] && i > 0) {
+      refs.current[i - 1]?.focus()
+    }
+  }
+
+  function handlePaste(e) {
+    e.preventDefault()
+    const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, length)
+    if (!pasted) return
+    onChange(pasted)
+    refs.current[Math.min(pasted.length, length - 1)]?.focus()
+  }
+
+  return (
+    <div className="mb-3">
+      <div className="flex gap-2 justify-center my-2">
+        {digits.map((d, i) => (
+          <input
+            key={i}
+            ref={(el) => { refs.current[i] = el }}
+            type="text"
+            inputMode="numeric"
+            maxLength={1}
+            autoFocus={autoFocus && i === 0}
+            value={d}
+            onChange={(e) => handleInput(i, e)}
+            onKeyDown={(e) => handleKeyDown(i, e)}
+            onPaste={handlePaste}
+            aria-label={`Digit ${i + 1}`}
+            className={`w-11 h-[54px] text-center text-lg font-extrabold rounded-lg border-2 outline-none focus:border-ccc-blue focus:ring-2 focus:ring-ccc-blue/20 text-ccc-navy ${
+              error ? 'border-red-500' : 'border-ccc-border'
+            }`}
+            style={{ fontFamily: 'var(--font-montserrat)' }}
+          />
+        ))}
+      </div>
+      {error && <div className="text-[11px] text-red-600 text-center mb-2">{error}</div>}
+    </div>
+  )
+}
+
+// Resend-code cooldown — spec runs this independently of the 10-minute code
+// expiry: the code itself stays valid the full 10 minutes, but "Resend
+// code" only unlocks after 60 seconds so the applicant isn't stuck waiting
+// the whole time if the email is slow. Returns [secondsLeft, restart()].
+function useResendCooldown(active) {
+  const COOLDOWN_SECONDS = 60
+  const [secondsLeft, setSecondsLeft] = useState(COOLDOWN_SECONDS)
+
+  useEffect(() => {
+    if (!active || secondsLeft <= 0) return
+    const timer = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000)
+    return () => clearInterval(timer)
+  }, [active, secondsLeft])
+
+  return [secondsLeft, () => setSecondsLeft(COOLDOWN_SECONDS)]
+}
+
 const PROGRAMS = [
   'Bachelor of Science in Accounting Information System',
   'Bachelor of Science in Accountancy',
@@ -137,22 +219,32 @@ const PROGRAMS = [
   'Bachelor of Science in Psychology',
 ]
 
-const SIDE_STEPS = ['Account Setup', 'Program Application', 'Personal Information', 'Review & Verify']
+const SIDE_STEPS = {
+  signup: ['Account Setup', 'Program Application', 'Personal Information', 'Review & Verify'],
+  login: ['Sign In', 'Verify Code (MFA)'],
+  forgot: ['Find Account', 'Verify Code', 'New Password'],
+}
 
+// mode: 'login' | 'signup' | 'forgot'. step is the 1-based current step
+// within that mode's own list above — each mode tracks its stage
+// independently (e.g. login's stage 'otp' maps to step 2 here).
 function AuthSide({ mode, step }) {
+  const steps = SIDE_STEPS[mode]
   return (
     <div className="hidden md:flex flex-col bg-gradient-to-br from-ccc-navy to-ccc-blue text-white p-8 w-[300px] shrink-0">
       <h1 className="text-xl font-extrabold mb-2" style={{ fontFamily: 'var(--font-montserrat)' }}>
-        {mode === 'login' ? 'Welcome back.' : 'Start your scholarship journey.'}
+        {mode === 'login' ? 'Welcome back.' : mode === 'forgot' ? 'Forgot your password?' : 'Start your scholarship journey.'}
       </h1>
       <p className="text-sm text-white/70 mb-8 leading-relaxed">
         {mode === 'login'
           ? 'Log in to track and manage your City College of Calamba scholarship application.'
+          : mode === 'forgot'
+          ? 'No worries — we’ll help you find your account and get back in.'
           : 'Create your account to apply, track, and manage your City College of Calamba scholarship application.'}
       </p>
-      {mode === 'signup' && (
+      {(mode === 'signup' || mode === 'login' || mode === 'forgot') && step > 0 && (
         <div className="flex flex-col gap-5">
-          {SIDE_STEPS.map((label, i) => {
+          {steps.map((label, i) => {
             const num = i + 1
             const isDone = num < step
             const isCurrent = num === step
@@ -225,6 +317,7 @@ function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
   const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [secondsLeft, setSecondsLeft] = useState(LOGIN_OTP_TTL_SECONDS)
+  const [resendCooldown, restartResendCooldown] = useResendCooldown(stage === 'otp')
 
   useEffect(() => {
     if (stage !== 'otp' || secondsLeft <= 0) return
@@ -261,6 +354,7 @@ function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
       }
       setAccountId(data.accountId)
       setSecondsLeft(LOGIN_OTP_TTL_SECONDS)
+      restartResendCooldown()
       setStage('otp')
     } catch (err) {
       setError('Could not reach the server. Check your connection and try again.')
@@ -273,6 +367,7 @@ function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
   // effect — same "resend by re-requesting" pattern ForgotPasswordPanel
   // uses below, rather than a separate resend endpoint.
   async function resendCode() {
+    if (resendCooldown > 0) return
     setError('')
     setLoading(true)
     try {
@@ -288,6 +383,7 @@ function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
       }
       setAccountId(data.accountId)
       setSecondsLeft(LOGIN_OTP_TTL_SECONDS)
+      restartResendCooldown()
     } catch {
       setError('Could not reach the server. Check your connection and try again.')
     } finally {
@@ -333,14 +429,15 @@ function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
 
   return (
     <>
-      <AuthSide mode="login" step={0} />
+      <AuthSide mode="login" step={stage === 'otp' ? 2 : 1} />
       <div className="flex-1 p-8">
         {stage === 'credentials' && (
           <>
             <h2 className="text-lg font-extrabold text-ccc-navy mb-1" style={{ fontFamily: 'var(--font-montserrat)' }}>
-              Log In to Your Account
+              Applicant Login
             </h2>
-            <p className="text-sm text-ccc-muted mb-5">Access your scholarship application dashboard.</p>
+            <p className="text-sm text-ccc-muted mb-3">Enter your credentials to access your account.</p>
+            <Alert tone="info">Enter your registered email and password. A 6-digit verification code will be sent to your email.</Alert>
             {error && <Alert tone="error">{error}</Alert>}
             <form onSubmit={submitCredentials} noValidate>
               <TextField
@@ -398,15 +495,14 @@ function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
             )}
             {error && <Alert tone="error">{error}</Alert>}
             <form onSubmit={submitCode} noValidate>
-              <TextField
-                label="Login Code"
+              <OtpBoxes
                 value={code}
                 onChange={(v) => { setCode(v); if (fieldErrors.code) setFieldErrors((f) => ({ ...f, code: undefined })) }}
-                placeholder="123456"
                 error={fieldErrors.code}
+                autoFocus
               />
               {secondsLeft > 0 && (
-                <p className="text-[12px] text-ccc-muted -mt-2 mb-3">
+                <p className="text-[12px] text-ccc-muted text-center -mt-1 mb-3">
                   Code expires in {String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:{String(secondsLeft % 60).padStart(2, '0')}
                 </p>
               )}
@@ -417,14 +513,21 @@ function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
               >
                 {loading ? 'Verifying…' : 'Verify & Log In'}
               </button>
-              <button
-                type="button"
-                onClick={resendCode}
-                disabled={loading}
-                className="w-full mt-2 text-[13px] text-ccc-blue font-bold hover:underline disabled:opacity-50"
-              >
-                Resend code
-              </button>
+              <div className="text-center mt-2">
+                <button
+                  type="button"
+                  onClick={resendCode}
+                  disabled={loading || resendCooldown > 0}
+                  className="text-[13px] text-ccc-blue font-bold hover:underline disabled:opacity-50 disabled:no-underline disabled:text-ccc-muted"
+                >
+                  Resend code
+                </button>
+                {resendCooldown > 0 && (
+                  <p className="text-[11px] text-ccc-muted mt-1">
+                    You may request another code in {resendCooldown >= 60 ? Math.ceil(resendCooldown / 60) + ' minute' + (Math.ceil(resendCooldown / 60) !== 1 ? 's' : '') : resendCooldown + ' second' + (resendCooldown !== 1 ? 's' : '')}.
+                  </p>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={backToCredentials}
@@ -512,6 +615,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
   const [codeSent, setCodeSent] = useState(false)
   const OTP_TTL_SECONDS = 10 * 60
   const [secondsLeft, setSecondsLeft] = useState(OTP_TTL_SECONDS)
+  const [resendCooldown, restartResendCooldown] = useResendCooldown(codeSent)
 
   useEffect(() => {
     if (!codeSent || secondsLeft <= 0) return
@@ -623,6 +727,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
   }
 
   async function sendCode() {
+    if (codeSent && resendCooldown > 0) return
     setError('')
     const nextFieldErrors = {}
     if (!termsCertified) nextFieldErrors.terms = 'You must certify your information to continue.'
@@ -666,6 +771,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
       }
       setCodeSent(true)
       setSecondsLeft(OTP_TTL_SECONDS) // (re)start the countdown — covers both the first send and every "Resend code" click
+      restartResendCooldown()
     } catch {
       setError('Could not reach the server. Check your connection and try again.')
     } finally {
@@ -929,23 +1035,30 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
                 ) : (
                   <Alert tone="error">This code has expired. Click &quot;Resend code&quot; below to get a new one.</Alert>
                 )}
-                <TextField label="Verification Code" value={code} onChange={clearFieldError('code', setCode)} placeholder="123456" error={fieldErrors.code} />
+                <OtpBoxes value={code} onChange={clearFieldError('code', setCode)} error={fieldErrors.code} autoFocus />
                 {secondsLeft > 0 && (
-                  <p className="text-[12px] text-ccc-muted -mt-2 mb-3">
+                  <p className="text-[12px] text-ccc-muted text-center -mt-1 mb-3">
                     Code expires in {String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:{String(secondsLeft % 60).padStart(2, '0')}
                   </p>
                 )}
                 <button type="submit" disabled={loading || secondsLeft <= 0} className="w-full py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60">
                   {loading ? 'Verifying…' : 'Verify & Create Account'}
                 </button>
-                <button
-                  type="button"
-                  onClick={sendCode}
-                  disabled={loading}
-                  className="w-full mt-2 text-[13px] text-ccc-blue font-bold hover:underline disabled:opacity-50"
-                >
-                  Resend code
-                </button>
+                <div className="text-center mt-2">
+                  <button
+                    type="button"
+                    onClick={sendCode}
+                    disabled={loading || resendCooldown > 0}
+                    className="text-[13px] text-ccc-blue font-bold hover:underline disabled:opacity-50 disabled:no-underline disabled:text-ccc-muted"
+                  >
+                    Resend code
+                  </button>
+                  {resendCooldown > 0 && (
+                    <p className="text-[11px] text-ccc-muted mt-1">
+                      You may request another code in {resendCooldown >= 60 ? Math.ceil(resendCooldown / 60) + ' minute' + (Math.ceil(resendCooldown / 60) !== 1 ? 's' : '') : resendCooldown + ' second' + (resendCooldown !== 1 ? 's' : '')}.
+                    </p>
+                  )}
+                </div>
               </form>
             )}
             <button type="button" onClick={() => setStep(3)} className="w-full mt-3 py-2 text-[13px] text-ccc-muted font-semibold hover:text-ccc-text">← Back</button>
@@ -976,6 +1089,7 @@ function ForgotPasswordPanel({ onSwitch }) {
   const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [secondsLeft, setSecondsLeft] = useState(RESET_OTP_TTL_SECONDS)
+  const [resendCooldown, restartResendCooldown] = useResendCooldown(stage === 'reset')
 
   function clearFieldError(field, setter) {
     return (v) => {
@@ -1019,6 +1133,7 @@ function ForgotPasswordPanel({ onSwitch }) {
         return
       }
       setSecondsLeft(RESET_OTP_TTL_SECONDS)
+      restartResendCooldown()
       setStage('reset')
     } catch {
       setError('Could not reach the server. Check your connection and try again.')
@@ -1028,6 +1143,7 @@ function ForgotPasswordPanel({ onSwitch }) {
   }
 
   async function resendCode() {
+    if (resendCooldown > 0) return
     setError('')
     setLoading(true)
     try {
@@ -1042,6 +1158,7 @@ function ForgotPasswordPanel({ onSwitch }) {
         return
       }
       setSecondsLeft(RESET_OTP_TTL_SECONDS)
+      restartResendCooldown()
     } catch {
       setError('Could not reach the server. Check your connection and try again.')
     } finally {
@@ -1084,8 +1201,17 @@ function ForgotPasswordPanel({ onSwitch }) {
     }
   }
 
+  // step tracker: lookup->1 (Find Account), reset->2 (Verify Code — the
+  // spec splits "Verify Code" and "New Password" into two separate screens;
+  // this app's single 'reset' screen covers both at once, so it's shown as
+  // step 2 while filling it in), done->4 (past the end of the 3-step list,
+  // so every step renders as complete).
+  const authSideStep = stage === 'lookup' ? 1 : stage === 'reset' ? 2 : 4
+
   return (
-    <div className="flex-1 p-8">
+    <>
+      <AuthSide mode="forgot" step={authSideStep} />
+      <div className="flex-1 p-8">
       <h2 className="text-lg font-extrabold text-ccc-navy mb-1" style={{ fontFamily: 'var(--font-montserrat)' }}>
         Reset Your Password
       </h2>
@@ -1126,15 +1252,9 @@ function ForgotPasswordPanel({ onSwitch }) {
           )}
           {error && <Alert tone="error">{error}</Alert>}
           <form onSubmit={submitReset} noValidate>
-            <TextField
-              label="Reset Code"
-              value={code}
-              onChange={clearFieldError('code', setCode)}
-              placeholder="123456"
-              error={fieldErrors.code}
-            />
+            <OtpBoxes value={code} onChange={clearFieldError('code', setCode)} error={fieldErrors.code} autoFocus />
             {secondsLeft > 0 && (
-              <p className="text-[12px] text-ccc-muted -mt-2 mb-3">
+              <p className="text-[12px] text-ccc-muted text-center -mt-1 mb-3">
                 Code expires in {String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:{String(secondsLeft % 60).padStart(2, '0')}
               </p>
             )}
@@ -1166,14 +1286,21 @@ function ForgotPasswordPanel({ onSwitch }) {
             >
               {loading ? 'Resetting…' : 'Reset Password'}
             </button>
-            <button
-              type="button"
-              onClick={resendCode}
-              disabled={loading}
-              className="w-full mt-2 text-[13px] text-ccc-blue font-bold hover:underline disabled:opacity-50"
-            >
-              Resend code
-            </button>
+            <div className="text-center mt-2">
+              <button
+                type="button"
+                onClick={resendCode}
+                disabled={loading || resendCooldown > 0}
+                className="text-[13px] text-ccc-blue font-bold hover:underline disabled:opacity-50 disabled:no-underline disabled:text-ccc-muted"
+              >
+                Resend code
+              </button>
+              {resendCooldown > 0 && (
+                <p className="text-[11px] text-ccc-muted mt-1">
+                  You may request another code in {resendCooldown >= 60 ? Math.ceil(resendCooldown / 60) + ' minute' + (Math.ceil(resendCooldown / 60) !== 1 ? 's' : '') : resendCooldown + ' second' + (resendCooldown !== 1 ? 's' : '')}.
+                </p>
+              )}
+            </div>
           </form>
         </>
       )}
@@ -1205,6 +1332,7 @@ function ForgotPasswordPanel({ onSwitch }) {
           </button>
         </p>
       )}
-    </div>
+      </div>
+    </>
   )
 }
