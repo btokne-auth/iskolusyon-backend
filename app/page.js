@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import './portal-theme.css'
 import SiteHeader from './components/SiteHeader'
 import DocumentStatusTable from './components/DocumentStatusTable'
 import PortalSidebar from './components/PortalSidebar'
@@ -1375,7 +1376,7 @@ function PortalApp({ accountSession, onLogout }) {
   }
 
   return (
-    <main className="min-h-screen bg-ccc-off text-ccc-text">
+    <main className="applicant-portal min-h-screen bg-ccc-off text-ccc-text">
       <SiteHeader
         topbarLabel="(049) 559-8900 to 8907 / (02) 8-539-5170 to 5171"
         topbarLink={{ href: 'https://www.ccc.edu.ph', label: 'www.ccc.edu.ph' }}
