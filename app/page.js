@@ -401,6 +401,87 @@ const getCleanFileName = (path) => {
 // now one shared source so the three can't drift out of sync again.
 // See that file's header comment for what changed in this patch.
 
+// Real "Application History & Activity Log" (Documents & Status panel,
+// design-parity pass 8, Sept 19 2026) — spec's own version
+// (applicant.html's #panel-status) is scripted fake data ("Account
+// created and verified", "Deficiency flagged on Proof of Employment"),
+// but this app actually has enough real data to build a genuine one
+// instead: every document's upload time and needs_review flag, and the
+// four section-submitted timestamps now that Family & Financial and
+// Health & Wellness are real panels. No account-creation timestamp is
+// available to this component (the applicant-session cookie doesn't
+// carry one), so unlike spec this log starts from the first real event
+// instead of an "Account created" entry — everything after that is real.
+function buildActivityLog({ myDocs, personalSubmittedAt, academicSubmittedAt, healthSubmittedAt, financialSubmittedAt, submittedAt }) {
+  const events = []
+
+  myDocs.forEach((doc) => {
+    if (!doc.created_at) return
+    const label = getDocTypeLabel(doc.document_type)
+    events.push(
+      doc.needs_review
+        ? { date: doc.created_at, dot: 'warn', title: `Deficiency flagged on ${label}`, body: 'Needs your attention — see Documents & Status above.' }
+        : { date: doc.created_at, dot: 'done', title: `${label} uploaded`, body: 'Received and on file.' }
+    )
+  })
+
+  const sectionEvents = [
+    { at: personalSubmittedAt, title: 'Personal Information submitted' },
+    { at: academicSubmittedAt, title: 'Educational Background submitted' },
+    { at: financialSubmittedAt, title: 'Family & Financial Information submitted' },
+    { at: healthSubmittedAt, title: 'Health & Wellness submitted' },
+  ]
+  sectionEvents.forEach(({ at, title }) => {
+    if (!at) return
+    events.push({ date: at, dot: 'done', title, body: 'Section checkpoint reached — you can still edit and re-submit any time.' })
+  })
+
+  if (submittedAt) {
+    events.push({ date: submittedAt, dot: 'done', title: 'Application submitted for review', body: 'Your documents are on file and being tracked here.' })
+  }
+
+  events.sort((a, b) => new Date(a.date) - new Date(b.date))
+
+  // Trailing "what's next" entry, same role as spec's own undated last
+  // timeline item — only shown while something is still outstanding.
+  if (!submittedAt) {
+    const missing = sectionEvents.filter((s) => !s.at).map((s) => s.title.replace(' submitted', ''))
+    if (missing.length) {
+      events.push({
+        date: null,
+        dot: null,
+        title: 'Awaiting remaining profile sections',
+        body: `Complete ${missing.join(', ')} to proceed.`,
+      })
+    } else if (myDocs.length === 0) {
+      events.push({ date: null, dot: null, title: 'Awaiting document uploads', body: 'Upload at least one document, then submit your application below.' })
+    } else {
+      events.push({ date: null, dot: null, title: 'Ready to submit', body: 'All profile sections are checkpointed — submit your application below when ready.' })
+    }
+  }
+
+  return events
+}
+
+function ActivityLog({ events }) {
+  if (events.length === 0) {
+    return <p className="topic-card-intro" style={{ marginTop: 0 }}>Nothing on file yet — upload a document or fill in a profile section to start your activity log.</p>
+  }
+  return (
+    <div className="timeline">
+      {events.map((ev, i) => (
+        <div key={i} className="timeline-item">
+          <div className={`timeline-dot${ev.dot ? ` ${ev.dot}` : ''}`}>{ev.dot ? '' : '…'}</div>
+          <div className="timeline-body">
+            <h4>{ev.title}</h4>
+            <p>{ev.date ? new Date(ev.date).toLocaleString() : ev.body}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // Small reusable form controls for the Personal Information cards (Step 1,
 // cards 2-3) — kept local to this file since they're only used here, styled
 // to match the existing Applicant Name / Email inputs above.
@@ -867,6 +948,7 @@ function PortalApp({ accountSession, onLogout }) {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const [activePanel, setActivePanel] = useState('personal') // sidebar panel key — replaces the old linear step wizard
   const [submitted, setSubmitted] = useState(false)
+  const [submittedAt, setSubmittedAt] = useState(null) // for the real Application History & Activity Log, below
   const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error' | 'offline'
 
   // Per-section "Submit Section" state (design-parity pass 3) — separate
@@ -1308,6 +1390,7 @@ function PortalApp({ accountSession, onLogout }) {
       if (!res.ok || data.error) throw new Error(data.error || 'Submit failed')
       setSaveState('idle')
       setSubmitted(true)
+      setSubmittedAt(data.application.submitted_at || null)
     } catch (err) {
       console.error('Submit failed:', err)
       setSaveState('error')
@@ -1369,6 +1452,13 @@ function PortalApp({ accountSession, onLogout }) {
         setAcademicSubmittedAt(data.application.academic_submitted_at || null)
         setHealthSubmittedAt(data.application.health_submitted_at || null)
         setFinancialSubmittedAt(data.application.financial_submitted_at || null)
+        // Resumed applications weren't restoring the final-submission state
+        // at all before — a returning applicant who'd already submitted
+        // saw the Submit button again instead of the "submitted" message.
+        // Needed here anyway for the Activity Log below to be accurate on
+        // reload, not just right after clicking Submit.
+        setSubmitted(data.application.status === 'submitted')
+        setSubmittedAt(data.application.submitted_at || null)
       } catch (err) {
         console.error('Auto-load of saved application failed (will retry via manual resume banner if needed):', err)
       }
@@ -2763,6 +2853,23 @@ function PortalApp({ accountSession, onLogout }) {
                 applicantName={applicantName}
                 onReupload={jumpToUploadFor}
               />
+
+              {/* Application History & Activity Log — spec has this card
+                  right here too, but scripted with fake data; this one is
+                  built from real events (see buildActivityLog() above). */}
+              <div className="card">
+                <div className="card-title">Application History &amp; Activity Log</div>
+                <ActivityLog
+                  events={buildActivityLog({
+                    myDocs,
+                    personalSubmittedAt,
+                    academicSubmittedAt,
+                    healthSubmittedAt,
+                    financialSubmittedAt,
+                    submittedAt,
+                  })}
+                />
+              </div>
 
               {/* Real upload form — no direct spec equivalent (spec's version is
                   a single static upload row); wrapped in a .card shell so it
