@@ -310,7 +310,6 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
   // Account Setup, not as one of the 4 numbered steps).
   const [step, setStep] = useState(0)
   const [consentChecked, setConsentChecked] = useState(false)
-  const [consentError, setConsentError] = useState('')
   const [accountId, setAccountId] = useState(null)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -545,25 +544,27 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
               <input
                 type="checkbox"
                 checked={consentChecked}
-                onChange={(e) => { setConsentChecked(e.target.checked); if (consentError) setConsentError('') }}
+                onChange={(e) => setConsentChecked(e.target.checked)}
                 className="mt-0.5 w-4 h-4 accent-ccc-blue shrink-0"
               />
               <span>I have read and agree to the collection and processing of my personal data as described above.</span>
             </label>
-            {consentError && <div className="text-[11px] text-red-600 mb-3">{consentError}</div>}
+            {/* Disabled-until-checked instead of clickable-then-error — matches the
+                "Continue button gated on required fields" pattern used elsewhere in
+                the app (e.g. the Step 1 Personal Information cards), and reads
+                cleaner than restating "I Agree" on the button itself when the
+                checkbox label already says it. */}
             <button
               type="button"
-              onClick={() => {
-                if (!consentChecked) {
-                  setConsentError('Please check the box to agree before continuing.')
-                  return
-                }
-                setStep(1)
-              }}
-              className="w-full mt-3 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8]"
+              onClick={() => setStep(1)}
+              disabled={!consentChecked}
+              className="w-full mt-3 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-ccc-blue"
             >
-              I Agree — Continue →
+              Continue →
             </button>
+            {!consentChecked && (
+              <p className="text-center text-[11px] text-ccc-muted mt-2">Check the box above to continue.</p>
+            )}
             <p className="text-center text-[13px] text-ccc-muted mt-4">
               Already have an account?{' '}
               <button type="button" onClick={onSwitch} className="text-ccc-blue font-bold hover:underline">Log in here</button>
