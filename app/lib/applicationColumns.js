@@ -23,6 +23,10 @@ export function personalInfoToColumns(personalInfo) {
     spouse_contact: text(pi.spouseContact),
     contact_number: text(pi.contactNumber),
     address: text(pi.address),
+    barangay: text(pi.barangay),
+    residency_years: typeof pi.residencyYears === 'number' || /^\d+$/.test(String(pi.residencyYears || '').trim())
+      ? Number(pi.residencyYears)
+      : null,
     voter_precinct: text(pi.voterPrecinct),
     email_updates_opt_in: !!pi.emailUpdatesOptIn,
     sms_updates_opt_in: !!pi.smsUpdatesOptIn,
@@ -42,6 +46,8 @@ export function personalInfoToColumns(personalInfo) {
     motivation: text(pi.motivation),
     self_description: text(pi.selfDescription),
     ten_years_plan: text(pi.tenYears),
+    terms_certified: !!pi.termsCertified,
+    privacy_agreed: !!pi.privacyAgreed,
   }
 }
 

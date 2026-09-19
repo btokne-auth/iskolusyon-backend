@@ -112,6 +112,8 @@ function mapDbRowToPersonalInfo(row) {
     spouseContact: row.spouse_contact || '',
     contactNumber: row.contact_number || '',
     address: row.address || '',
+    barangay: row.barangay || '',
+    residencyYears: row.residency_years ?? '',
     voterPrecinct: row.voter_precinct || '',
     emailUpdatesOptIn: !!row.email_updates_opt_in,
     smsUpdatesOptIn: !!row.sms_updates_opt_in,
@@ -125,6 +127,8 @@ function mapDbRowToPersonalInfo(row) {
     motivation: row.motivation || '',
     selfDescription: row.self_description || '',
     tenYears: row.ten_years_plan || '',
+    termsCertified: !!row.terms_certified,
+    privacyAgreed: !!row.privacy_agreed,
   }
 }
 
@@ -346,7 +350,7 @@ const getCleanFileName = (path) => {
 // Small reusable form controls for the Personal Information cards (Step 1,
 // cards 2-3) — kept local to this file since they're only used here, styled
 // to match the existing Applicant Name / Email inputs above.
-function TextField({ label, required, type = 'text', value, onChange, placeholder }) {
+function TextField({ label, required, type = 'text', value, onChange, placeholder, disabled }) {
   return (
     <div className="space-y-1.5">
       <label className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
@@ -357,7 +361,8 @@ function TextField({ label, required, type = 'text', value, onChange, placeholde
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+        disabled={disabled}
+        className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40 disabled:bg-ccc-off disabled:text-ccc-muted"
       />
     </div>
   )
@@ -411,7 +416,7 @@ function OrganizationsTable({ rows, onChangeRow, onAddRow, onRemoveRow }) {
         <thead>
           <tr className="bg-ccc-off/80 text-[10px] text-ccc-muted font-bold uppercase tracking-wide">
             <th className="text-left px-3 py-2">Name of Organization</th>
-            <th className="text-left px-3 py-2">Position</th>
+            <th className="text-left px-3 py-2">Position in Organization</th>
             <th className="text-left px-3 py-2">Nature of Organization</th>
             <th className="text-left px-3 py-2">Year of Joining</th>
             <th className="px-2 py-2 w-10" />
@@ -622,8 +627,8 @@ function PortalApp({ accountSession, onLogout }) {
     firstName: '', middleName: '', lastName: '', suffix: '',
     dateOfBirth: '', placeOfBirth: '', sex: '', citizenship: '', religion: '', civilStatus: '',
     spouseName: '', spouseOccupation: '', spouseContact: '',
-    contactNumber: '', address: '', voterPrecinct: '',
-    emailUpdatesOptIn: false, smsUpdatesOptIn: false,
+    contactNumber: '', address: '', barangay: '', residencyYears: '', voterPrecinct: '',
+    emailUpdatesOptIn: false, smsUpdatesOptIn: false, termsCertified: false, privacyAgreed: false,
     // ---- Card 4 (Additional Information) ----
     lgbtqi: '', disability: '', hobbies: '',
     // ---- Card 5 (Organizational Involvement) ---- one blank row to start,
@@ -1460,43 +1465,13 @@ function PortalApp({ accountSession, onLogout }) {
                 <p className="text-xs text-ccc-muted">This section establishes your legal identity and residency to qualify as CCC&rsquo;s scholar.</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label htmlFor="applicantName" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
-                    Applicant name
-                  </label>
-                  <input
-                    id="applicantName"
-                    type="text"
-                    value={applicantName}
-                    onChange={(e) => { setApplicantName(e.target.value); setDraftFound(null); setDraftDismissed(false) }}
-                    onBlur={checkForDraft}
-                    placeholder="Juan Dela Cruz"
-                    disabled={!!accountSession}
-                    className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40 disabled:bg-ccc-off disabled:text-ccc-muted"
-                  />
-                  <p className="text-[10px] text-ccc-muted">
-                    {accountSession
-                      ? 'Linked to your verified account. Edit your First/Middle/Last Name below to update it.'
-                      : 'Used to identify your application until a real account system exists.'}
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  <label htmlFor="applicantEmail" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
-                    Applicant email {!accountSession && <span className="normal-case font-normal text-ccc-muted">(optional)</span>}
-                  </label>
-                  <input
-                    id="applicantEmail"
-                    type="email"
-                    value={applicantEmail}
-                    onChange={(e) => setApplicantEmail(e.target.value)}
-                    placeholder="juan.delacruz@example.com"
-                    disabled={!!accountSession}
-                    className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40 disabled:bg-ccc-off disabled:text-ccc-muted"
-                  />
-                  {accountSession && <p className="text-[10px] text-ccc-muted">Your account&rsquo;s verified sign-in email.</p>}
-                </div>
-              </div>
+              {/* The old top-of-panel "Applicant name"/"Applicant email" block
+                  (not part of Ivy's spec — this panel only renders inside
+                  PortalApp, which is only reached once accountSession exists,
+                  so those fields were always disabled/read-only in practice)
+                  has been removed. Email now lives where the spec puts it —
+                  inside Card 3, Contact & Residency, below. Name still comes
+                  from the account + Card 2's First/Middle/Last Name fields. */}
 
               {/* ---------- Card 1: Profile Picture ---------- */}
               <div className="rounded-2xl border border-ccc-border p-5 space-y-3">
@@ -1546,7 +1521,7 @@ function PortalApp({ accountSession, onLogout }) {
               {/* ---------- Card 2: Identity & Civil Status ---------- */}
               <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
                 <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">2 &middot; Identity &amp; Civil Status</div>
-                <p className="text-[11px] text-ccc-muted">Document text extraction isn&rsquo;t always perfect &mdash; you can correct any field manually.</p>
+                <p className="text-[11px] text-ccc-muted">These fields auto-fill once you upload your Birth Certificate below. Document text extraction isn&rsquo;t always perfect, so you can still correct any field manually.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <TextField label="First Name" required value={personalInfo.firstName} onChange={(v) => updatePI('firstName', v)} placeholder="e.g. Juan" />
                   <TextField label="Middle Name (if any)" value={personalInfo.middleName} onChange={(v) => updatePI('middleName', v)} placeholder="e.g. Santos" />
@@ -1582,19 +1557,21 @@ function PortalApp({ accountSession, onLogout }) {
               {/* ---------- Card 3: Contact & Residency ---------- */}
               <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
                 <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">3 &middot; Contact &amp; Residency</div>
-                <p className="text-[11px] text-ccc-muted">Your address and precinct number can be corrected manually after review.</p>
+                <p className="text-[11px] text-ccc-muted">Your address and precinct number auto-fill once you upload your Voter&rsquo;s ID below.</p>
                 <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <TextField label="Email Address" type="email" required value={applicantEmail} onChange={() => {}} placeholder="e.g. juandelacruz@gmail.com" disabled />
+                    <p className="text-[10px] text-ccc-muted mt-1">Your account&rsquo;s verified sign-in email.</p>
+                    <label className="flex items-center gap-2 text-[11px] text-ccc-text cursor-pointer mt-1.5">
+                      <input type="checkbox" checked={personalInfo.emailUpdatesOptIn} onChange={(e) => updatePI('emailUpdatesOptIn', e.target.checked)} className="accent-ccc-blue w-3.5 h-3.5" />
+                      I want to receive email updates.
+                    </label>
+                  </div>
                   <div>
                     <TextField label="Contact Number" required value={personalInfo.contactNumber} onChange={(v) => updatePI('contactNumber', v)} placeholder="e.g. 0917 123 4567" />
                     <label className="flex items-center gap-2 text-[11px] text-ccc-text cursor-pointer mt-1.5">
                       <input type="checkbox" checked={personalInfo.smsUpdatesOptIn} onChange={(e) => updatePI('smsUpdatesOptIn', e.target.checked)} className="accent-ccc-blue w-3.5 h-3.5" />
                       I want to receive SMS updates.
-                    </label>
-                  </div>
-                  <div>
-                    <label className="flex items-center gap-2 text-[11px] text-ccc-text cursor-pointer">
-                      <input type="checkbox" checked={personalInfo.emailUpdatesOptIn} onChange={(e) => updatePI('emailUpdatesOptIn', e.target.checked)} className="accent-ccc-blue w-3.5 h-3.5" />
-                      I want to receive email updates{applicantEmail.trim() ? ` at ${applicantEmail.trim()}.` : '.'}
                     </label>
                   </div>
                   <TextField label="Present Home Address" required value={personalInfo.address} onChange={(v) => updatePI('address', v)} placeholder="House No., Street, Barangay, City, Province" />
@@ -1848,14 +1825,12 @@ function PortalApp({ accountSession, onLogout }) {
                 <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">Submit a Request</div>
                 <SelectField
                   label="Request Type"
-                  required
                   value={rescheduleType}
                   onChange={setRescheduleType}
                   options={['Reschedule Examination (Absence)', 'Other Concern']}
                 />
                 <TextAreaField
                   label="Details"
-                  required
                   value={rescheduleDetails}
                   onChange={setRescheduleDetails}
                   placeholder="e.g. I was unable to attend the scheduled exam due to a medical emergency."
@@ -1922,7 +1897,13 @@ function PortalApp({ accountSession, onLogout }) {
             <div className="bg-white border border-ccc-border rounded-2xl p-6 sm:p-8 space-y-2">
               <p className="text-[10px] font-bold uppercase tracking-widest text-ccc-muted">Scholarship Services &middot; Enrolled</p>
               <h1 className="text-xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Allowance</h1>
-              <p className="text-sm text-ccc-muted">Not built yet.</p>
+              <div className="rounded-2xl border border-ccc-border p-5">
+                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide mb-2">Distribution Status</div>
+                <p className="text-sm text-ccc-muted">
+                  You don&rsquo;t have an active allowance disbursement yet. This becomes available once your
+                  application is approved and endorsed.
+                </p>
+              </div>
             </div>
           )}
 

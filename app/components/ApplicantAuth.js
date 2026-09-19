@@ -82,7 +82,7 @@ function TextField({ label, value, onChange, type = 'text', placeholder, require
   )
 }
 
-function SelectField({ label, value, onChange, options, required, error }) {
+function SelectField({ label, value, onChange, options, required, error, placeholder = 'Select…' }) {
   return (
     <div className="mb-3">
       <label className="block text-[11px] font-bold text-ccc-navy uppercase tracking-wide mb-1">
@@ -96,7 +96,7 @@ function SelectField({ label, value, onChange, options, required, error }) {
           error ? 'border-red-500' : 'border-ccc-border'
         }`}
       >
-        <option value="">Select…</option>
+        <option value="">{placeholder}</option>
         {options.map((o) => (
           <option key={o} value={o}>
             {o}
@@ -107,6 +107,20 @@ function SelectField({ label, value, onChange, options, required, error }) {
     </div>
   )
 }
+
+// The 53 barangays of Calamba City — matches signup.html's Barangay of
+// Residence dropdown (p-barangay) exactly, option for option.
+const CALAMBA_BARANGAYS = [
+  'Bagong Kalsada', 'Bañadero', 'Banlic', 'Barandal', 'Barangay 1', 'Barangay 2', 'Barangay 3',
+  'Barangay 4', 'Barangay 5', 'Barangay 6', 'Barangay 7', 'Batino', 'Bubuyan', 'Bucal', 'Bunggo',
+  'Burol', 'Camaligan', 'Canlubang', 'Halang', 'Hornalan', 'Kay-Anlog', 'La Mesa', 'Laguerta',
+  'Lawa', 'Lecheria', 'Lingga', 'Looc', 'Mabato', 'Majada Labas', 'Makiling', 'Mapagong', 'Masili',
+  'Maunong', 'Mayapa', 'Milagrosa', 'Paciano Rizal', 'Palingon', 'Palo-Alto', 'Pansol', 'Parian',
+  'Prinza', 'Punta', 'Puting Lupa', 'Real', 'Saimsim', 'Sampiruhan', 'San Cristobal', 'San Jose',
+  'San Juan', 'Sirang Lupa', 'Sucol', 'Turbina', 'Ulango', 'Uwisan',
+]
+
+const SUFFIX_OPTIONS = ['Jr.', 'Sr.', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
 
 const PROGRAMS = [
   'Bachelor of Science in Accounting Information System',
@@ -475,11 +489,20 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
   const [firstName, setFirstName] = useState('')
   const [middleName, setMiddleName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [suffix, setSuffix] = useState('')
   const [sex, setSex] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
   const [civilStatus, setCivilStatus] = useState('')
   const [contactNumber, setContactNumber] = useState('')
   const [address, setAddress] = useState('')
+  const [barangay, setBarangay] = useState('')
+  const [residencyYears, setResidencyYears] = useState('')
+  const [residencyInfoOpen, setResidencyInfoOpen] = useState(false)
+
+  // Step 4 — the two required certification checkboxes, matching
+  // signup.html's s-terms / s-privacy checkboxes on the review screen.
+  const [termsCertified, setTermsCertified] = useState(false)
+  const [privacyAgreed, setPrivacyAgreed] = useState(false)
 
   // Step 4 — "Verification Code Countdown Timer" + the code itself matching
   // the OTP's real server-side lifetime (OTP_TTL_MINUTES = 10 in
@@ -586,18 +609,51 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
     if (!civilStatus) nextFieldErrors.civilStatus = 'Please select your civil status.'
     if (!contactNumber.trim()) nextFieldErrors.contactNumber = 'Please enter your contact number.'
     if (!address.trim()) nextFieldErrors.address = 'Please enter your present home address.'
+    if (!barangay) nextFieldErrors.barangay = 'Please enter your barangay of residence.'
+    if (!String(residencyYears).trim()) nextFieldErrors.residencyYears = 'Please enter your years of residency.'
     setFieldErrors(nextFieldErrors)
     if (Object.keys(nextFieldErrors).length > 0) return
 
     saveProgressAndAdvance(4, {
-      personalInfo: { firstName, middleName, lastName, sex, dateOfBirth, civilStatus, contactNumber, address },
+      personalInfo: {
+        firstName, middleName, lastName, suffix, sex, dateOfBirth, civilStatus,
+        contactNumber, address, barangay, residencyYears,
+      },
     })
   }
 
   async function sendCode() {
     setError('')
+    const nextFieldErrors = {}
+    if (!termsCertified) nextFieldErrors.terms = 'You must certify your information to continue.'
+    if (!privacyAgreed) nextFieldErrors.privacy = 'You must agree to the Privacy Statement terms to continue.'
+    setFieldErrors(nextFieldErrors)
+    if (Object.keys(nextFieldErrors).length > 0) return
+
     setLoading(true)
     try {
+      // Re-save personalInfo with the two certification checkboxes folded
+      // in — 'save' replaces pending_personal_info wholesale, so this has
+      // to carry every step-3 field again, not just the new booleans, or
+      // it would blow away what handleStep3 already staged.
+      const saveRes = await fetch('/api/applicant-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save',
+          accountId,
+          personalInfo: {
+            firstName, middleName, lastName, suffix, sex, dateOfBirth, civilStatus,
+            contactNumber, address, barangay, residencyYears, termsCertified, privacyAgreed,
+          },
+        }),
+      })
+      const saveData = await saveRes.json()
+      if (!saveRes.ok) {
+        setError(saveData.error || 'Could not save your certification.')
+        return
+      }
+
       const res = await fetch('/api/applicant-signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -753,12 +809,51 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
               <TextField label="Last Name" value={lastName} onChange={clearFieldError('lastName', setLastName)} placeholder="e.g. Dela Cruz" error={fieldErrors.lastName} />
               <TextField label="First Name" value={firstName} onChange={clearFieldError('firstName', setFirstName)} placeholder="e.g. Juan" error={fieldErrors.firstName} />
               <TextField label="Middle Name (if any)" value={middleName} onChange={setMiddleName} placeholder="e.g. Santos" />
+              <SelectField label="Suffix (if any)" value={suffix} onChange={setSuffix} options={SUFFIX_OPTIONS} placeholder="None" />
               <SelectField label="Sex" value={sex} onChange={clearFieldError('sex', setSex)} options={['Male', 'Female']} error={fieldErrors.sex} />
               <TextField label="Date of Birth" type="date" value={dateOfBirth} onChange={clearFieldError('dateOfBirth', setDateOfBirth)} error={fieldErrors.dateOfBirth} />
               <SelectField label="Civil Status" value={civilStatus} onChange={clearFieldError('civilStatus', setCivilStatus)} options={['Single', 'Married', 'Widowed', 'Legally Separated']} error={fieldErrors.civilStatus} />
               <TextField label="Contact Number" value={contactNumber} onChange={clearFieldError('contactNumber', setContactNumber)} placeholder="e.g. 09XX XXX XXXX" error={fieldErrors.contactNumber} />
             </div>
             <TextField label="Present Home Address" value={address} onChange={clearFieldError('address', setAddress)} placeholder="e.g. 123 Rizal St., Brgy. Real, Calamba City" error={fieldErrors.address} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
+              <SelectField label="Barangay of Residence" value={barangay} onChange={clearFieldError('barangay', setBarangay)} options={CALAMBA_BARANGAYS} error={fieldErrors.barangay} />
+              <div className="mb-3">
+                <label className="flex items-center gap-1.5 text-[11px] font-bold text-ccc-navy uppercase tracking-wide mb-1">
+                  Years of Residency in Calamba
+                  <span
+                    className="relative inline-flex"
+                    onMouseEnter={() => setResidencyInfoOpen(true)}
+                    onMouseLeave={() => setResidencyInfoOpen(false)}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setResidencyInfoOpen((v) => !v)}
+                      aria-label="Residency proof reminder"
+                      className="w-4 h-4 rounded-full bg-ccc-blue/10 text-ccc-blue text-[10px] font-bold flex items-center justify-center normal-case"
+                    >
+                      i
+                    </button>
+                    {residencyInfoOpen && (
+                      <div className="absolute left-0 top-5 z-10 w-56 rounded-md border border-ccc-border bg-white shadow-lg p-2.5 text-[11px] font-normal normal-case text-ccc-text leading-snug">
+                        The number of years of residency provided must be supported by a valid proof of residency for the applicant to qualify for a CCC scholarship.
+                      </div>
+                    )}
+                  </span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={residencyYears}
+                  onChange={clearFieldError('residencyYears', setResidencyYears)}
+                  placeholder="e.g. 12"
+                  className={`w-full px-3 py-2 border rounded-md text-sm outline-none focus:ring-2 focus:ring-ccc-blue/20 focus:border-ccc-blue bg-white ${
+                    fieldErrors.residencyYears ? 'border-red-500' : 'border-ccc-border'
+                  }`}
+                />
+                {fieldErrors.residencyYears && <div className="text-[11px] text-red-600 mt-1">{fieldErrors.residencyYears}</div>}
+              </div>
+            </div>
             <p className="text-[11px] text-ccc-muted mb-3">
               You&apos;ll be able to fill in the rest of your profile (Educational Background details, Family &amp; Financial Information, Health &amp; Wellness, and document uploads) after your account is verified.
             </p>
@@ -782,6 +877,39 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
 
             {!codeSent ? (
               <>
+                <label className="flex items-start gap-2.5 text-[13px] text-ccc-text mb-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={termsCertified}
+                    onChange={(e) => { setTermsCertified(e.target.checked); if (fieldErrors.terms) setFieldErrors((f) => ({ ...f, terms: undefined })) }}
+                    className="mt-0.5 w-4 h-4 accent-ccc-blue shrink-0"
+                  />
+                  <span>I certify that the information provided is true and correct, and I consent to its use for scholarship eligibility matching and verification purposes.</span>
+                </label>
+                {fieldErrors.terms && <div className="text-[11px] text-red-600 mb-2">{fieldErrors.terms}</div>}
+
+                <label className="flex items-start gap-2.5 text-[13px] text-ccc-text mb-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={privacyAgreed}
+                    onChange={(e) => { setPrivacyAgreed(e.target.checked); if (fieldErrors.privacy) setFieldErrors((f) => ({ ...f, privacy: undefined })) }}
+                    className="mt-0.5 w-4 h-4 accent-ccc-blue shrink-0"
+                  />
+                  <span>
+                    I have read and agree to the{' '}
+                    <a
+                      href="https://ccc.edu.ph/public/upload/files/CCC-Privacy-Statement-June-2026.pdf"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-ccc-blue font-semibold hover:underline"
+                    >
+                      Privacy Statement
+                    </a>{' '}
+                    terms governing the collection and use of my personal data.
+                  </span>
+                </label>
+                {fieldErrors.privacy && <div className="text-[11px] text-red-600 mb-3">{fieldErrors.privacy}</div>}
+
                 <Alert tone="info">
                   Click below to receive a one-time verification code at your email. Your account is created once the code is confirmed.
                 </Alert>
