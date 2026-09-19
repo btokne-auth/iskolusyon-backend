@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
+import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 
 // Reschedule request endpoint — Appeals & Rescheduling panel, Rescheduling
 // half only. "Appeal for Retake/Re-application" is deliberately NOT an
@@ -32,9 +33,11 @@ import { supabase } from '@/app/supabaseClient'
 const ALLOWED_REQUEST_TYPES = ['Reschedule Examination (Absence)', 'Other Concern']
 
 // GET /api/reschedule?name=Juan+Dela+Cruz
-// Returns this applicant's past requests, newest first — same
-// case-insensitive/trimmed name matching used everywhere else in the app
-// (no accounts module yet to key off of instead).
+// Returns this applicant's past requests, newest first. Now scoped by the
+// real applicant_user_id when the caller is logged in (re-keyed Sept 19,
+// same pattern as /api/upload) — name is kept as a required param and as
+// the fallback match for legacy rows with no applicant_user_id, since the
+// account may have uploaded requests before this column existed.
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -44,11 +47,15 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Missing name' }, { status: 400 })
     }
 
-    const { data, error } = await supabase
-      .from('reschedule_requests')
-      .select('*')
-      .ilike('applicant_name', name)
-      .order('created_at', { ascending: false })
+    const applicantCookie = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
+    const applicantSession = await verifyApplicantCookieValue(applicantCookie)
+
+    let query = supabase.from('reschedule_requests').select('*')
+    query = applicantSession
+      ? query.or(`applicant_user_id.eq.${applicantSession.id},applicant_name.ilike.${name}`)
+      : query.ilike('applicant_name', name)
+
+    const { data, error } = await query.order('created_at', { ascending: false })
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -80,11 +87,15 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing details' }, { status: 400 })
     }
 
+    const applicantCookie = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
+    const applicantSession = await verifyApplicantCookieValue(applicantCookie)
+
     const { data, error } = await supabase
       .from('reschedule_requests')
       .insert([{
         applicant_name: applicantName,
         applicant_email: applicantEmail || null,
+        applicant_user_id: applicantSession?.id || null,
         request_type: requestType,
         details,
         status: 'submitted',

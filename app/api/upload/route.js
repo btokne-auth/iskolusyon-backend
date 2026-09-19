@@ -5,6 +5,8 @@ import crypto from 'crypto'
 import { PDFParse } from 'pdf-parse'
 import { createWorker, PSM } from 'tesseract.js'
 import { VALID_DOCUMENT_TYPES, AUTOFILL_SCOPED_TYPES } from '@/app/lib/documentTypes'
+import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
+import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 
 // ---------- Validation limits ----------
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
@@ -359,12 +361,19 @@ export async function POST(request) {
     const formData = await request.formData()
     const file = formData.get('file')
 
-    // Placeholder applicant identity, filled in on the form itself — see
-    // add_applicant_and_doctype_columns.sql for why this isn't a real
-    // applicant_id foreign key yet (no accounts/login module exists).
+    // applicant_name/applicant_email stay as the display/fallback identity
+    // (still what the form actually collects, and still needed to match
+    // pre-login-module rows). applicantUserId is the real link now that
+    // the User Account Module exists — resolved from the session cookie,
+    // not trusted from the form body, so it can't be spoofed to attach an
+    // upload to someone else's account.
     const applicantName = formData.get('applicantName')?.toString().trim() || null
     const applicantEmail = formData.get('applicantEmail')?.toString().trim() || null
     const documentType = formData.get('documentType')?.toString().trim() || null
+
+    const applicantCookie = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
+    const applicantSession = await verifyApplicantCookieValue(applicantCookie)
+    const applicantUserId = applicantSession?.id || null
 
     if (documentType && !VALID_DOCUMENT_TYPES.includes(documentType)) {
       return NextResponse.json(
@@ -493,6 +502,7 @@ export async function POST(request) {
           review_status: needsReview ? 'flagged' : 'verified',
           applicant_name: applicantName,
           applicant_email: applicantEmail,
+          applicant_user_id: applicantUserId,
           document_type: documentType
         }
       ])
@@ -578,12 +588,46 @@ export async function POST(request) {
   }
 }
 
-export async function GET() {
+export async function GET(request) {
   try {
-    // 1. Fetch all records from your documents table
-    const { data: docs, error: dbError } = await supabase
-      .from('documents')
-      .select('*') // grabs id, file_path, sha256_hash, and extracted_text
+    // Three callers share this route: the admin document-review page
+    // (needs every applicant's documents), the applicant portal (should
+    // only ever see its own), and app/history/page.js (a pre-login
+    // stand-in — still unscoped, see that file's own header comment; not
+    // touched here since it's a separate open question, not part of this
+    // re-key).
+    //
+    // Only scope down to one applicant when there's a valid applicant
+    // session AND no admin session — an admin browsing with both cookies
+    // present (e.g. testing in the same browser) still gets the full list,
+    // matching how the admin page has always behaved.
+    const adminCookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value
+    const adminName = await verifyAdminCookieValue(adminCookie)
+    const applicantCookie = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
+    const applicantSession = adminName ? null : await verifyApplicantCookieValue(applicantCookie)
+
+    let query = supabase.from('documents').select('*')
+
+    if (applicantSession) {
+      // Legacy rows (uploaded before this account existed, or before this
+      // re-key) have no applicant_user_id — fall back to matching this
+      // applicant's own name from their applications row so a returning
+      // applicant doesn't lose visibility into documents they already
+      // uploaded. New uploads always carry applicant_user_id going
+      // forward (see the POST handler above).
+      const { data: ownApplication } = await supabase
+        .from('applications')
+        .select('applicant_name')
+        .eq('applicant_user_id', applicantSession.id)
+        .maybeSingle()
+
+      const ownName = ownApplication?.applicant_name?.trim()
+      query = ownName
+        ? query.or(`applicant_user_id.eq.${applicantSession.id},applicant_name.ilike.${ownName}`)
+        : query.eq('applicant_user_id', applicantSession.id)
+    }
+
+    const { data: docs, error: dbError } = await query
 
     if (dbError) {
       return NextResponse.json({ error: dbError.message }, { status: 500 })
