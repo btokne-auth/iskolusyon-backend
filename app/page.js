@@ -1466,6 +1466,8 @@ function PortalApp({ accountSession, onLogout }) {
           messagesCount={0}
           flaggedCount={flaggedCount}
           onLogout={() => setLogoutConfirmOpen(true)}
+          onOpenHistory={() => setHistoryOpen(true)}
+          historyCount={applicantName.trim() ? visibleHistory.length : 0}
         />
 
         <LogoutConfirmModal
@@ -1478,115 +1480,209 @@ function PortalApp({ accountSession, onLogout }) {
         />
 
         <div ref={formCardRef} className="portal-main space-y-6">
-          {/* History button — Claude-side addition, not in Ivy's HTML; kept
-              because it's a real, working feature (SHA-256 hash / OCR text
-              per upload) that's useful regardless of panel structure. */}
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => setHistoryOpen(true)}
-              className="relative flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-ccc-border text-ccc-text hover:text-ccc-navy hover:border-ccc-blue/40 transition-colors text-xs font-semibold shadow-sm"
-            >
-              <IconClock className="w-4 h-4" />
-              History
-              {applicantName.trim() && visibleHistory.length > 0 && (
-                <span className="ml-0.5 bg-ccc-blue text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                  {visibleHistory.length}
-                </span>
-              )}
-            </button>
-          </div>
+          {/* ══════════ DASHBOARD — rebuilt to applicant.html's exact structure
+              (design-parity pass 4, Sept 19 2026): .status-hero card,
+              .section-divider chip, .stat-grid with locked/unlocked cards,
+              .tab-connector arrow, and the "Complete Your Profile"
+              .timeline stepper. Still real/data-driven underneath, same as
+              before — no fake numbers. Profile Completion and Document
+              Verification are real and clickable; Exam Schedule / Medical
+              Status / Admission stay honestly locked — those depend on
+              Ivy's Applicant Info & Results / Scholarship Matching
+              modules, which don't exist yet. Only Profile Completion is
+              wired as the connector's "active" card (spec's own default
+              state): Document Verification links out to its own real
+              panel instead of driving the connector, since it doesn't have
+              a matching stepper to show. ══════════ */}
+          {activePanel === 'dashboard' && (() => {
+            const personalDone = requiredPersonalInfoComplete && requiredInlineUploadsComplete
+            const academicDone = requiredAcademicInfoComplete
+            const profileSectionsDone = [personalDone, academicDone].filter(Boolean).length
+            const stepNum = !personalDone || !academicDone ? 2 : !submitted ? 3 : 3
+            const stepLabel = !personalDone || !academicDone ? 'Filling Out Profile' : !submitted ? 'Uploading Documents' : 'Awaiting Document Verification'
+            const nextAction = !personalDone
+              ? { label: 'Complete your Personal Information', panel: 'personal' }
+              : !academicDone
+              ? { label: 'Complete your Educational Background', panel: 'academic' }
+              : !submitted
+              ? { label: 'Submit your documents for review', panel: 'status' }
+              : null
 
-          {/* ══════════ DASHBOARD (built — real, data-driven overview: no fake
-              "Step 2 of 6" numbers, every stat reflects actual saved state.
-              Profile Completion and Document Verification are real; Exam
-              Schedule / Medical Status / Admission stay honestly locked —
-              those depend on Ivy's Applicant Info & Results / Scholarship
-              Matching modules, which don't exist yet) ══════════ */}
-          {activePanel === 'dashboard' && (
-            <div className="space-y-6">
-              <div className="bg-white border border-ccc-border rounded-2xl p-6 sm:p-8 space-y-2">
-                <h1 className="text-xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-                  Welcome back{applicantName.trim() ? `, ${applicantName.trim().split(' ')[0]}` : ''}!
-                </h1>
-                <p className="text-sm text-ccc-text/80">
-                  {submitted
-                    ? "Your application is submitted and on file. You'll see document statuses update on the Documents & Status panel as they're reviewed."
-                    : myDocs.length > 0
-                    ? "You've started your application. Keep working through the sections below, then submit from Documents & Status when you're ready."
-                    : "Here's a quick look at your scholarship application progress with the City College of Calamba. Start with Personal Information."}
-                </p>
-                {!submitted && (
-                  <button
-                    type="button"
-                    onClick={() => setActivePanel(!requiredPersonalInfoComplete || !requiredInlineUploadsComplete ? 'personal' : !requiredAcademicInfoComplete ? 'academic' : 'status')}
-                    className="text-sm font-bold text-white bg-ccc-blue hover:bg-ccc-navy rounded-xl px-4 py-2.5 mt-1"
-                  >
-                    {!requiredPersonalInfoComplete || !requiredInlineUploadsComplete
-                      ? 'Continue Personal Information'
-                      : !requiredAcademicInfoComplete
-                      ? 'Continue Educational Background'
-                      : 'Go to Documents & Status'} &rarr;
-                  </button>
-                )}
-              </div>
-
+            return (
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-ccc-muted mb-3">Progress Milestones</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Profile Completion — real */}
-                  <div className="rounded-2xl border border-ccc-border bg-white p-4 space-y-2">
-                    <div className="text-[11px] font-bold text-ccc-muted uppercase tracking-wide">Profile Completion</div>
-                    <div className="text-sm font-bold text-ccc-navy">
-                      {[requiredPersonalInfoComplete && requiredInlineUploadsComplete, requiredAcademicInfoComplete].filter(Boolean).length} of 2 built sections done
+                <div className="portal-header">
+                  <h1>Welcome back{applicantName.trim() ? `, ${applicantName.trim().split(' ')[0]}` : ''}!</h1>
+                  <p>Here&rsquo;s a quick look at your scholarship application progress with the City College of Calamba.</p>
+                </div>
+
+                <div className="card status-hero">
+                  <p className="status-hero-eyebrow">Application Status</p>
+                  <div className="status-hero-value">
+                    <span className="badge badge-progress">Step {stepNum} of 6 &middot; {stepLabel}</span>
+                  </div>
+                  <p className="status-hero-desc">
+                    {submitted
+                      ? "Your application is submitted and on file. You'll see document statuses update on the Documents & Status panel as they're reviewed."
+                      : myDocs.length > 0
+                      ? "You've started your application. Keep working through the sections below, then submit from Documents & Status when you're ready."
+                      : "You've created and verified your account. You're now completing your applicant profile."}
+                  </p>
+                  {nextAction && (
+                    <div className="status-hero-next">
+                      <div>
+                        <div className="next-label">Next Step</div>
+                        <div className="next-action">{nextAction.label}</div>
+                      </div>
+                      <a
+                        href="#"
+                        className="next-action-btn"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setActivePanel(nextAction.panel)
+                        }}
+                      >
+                        Continue &rarr;
+                      </a>
                     </div>
-                    <div className="h-1.5 rounded-full bg-ccc-off overflow-hidden">
-                      <div
-                        className="h-full bg-ccc-blue"
-                        style={{ width: `${([requiredPersonalInfoComplete && requiredInlineUploadsComplete, requiredAcademicInfoComplete].filter(Boolean).length / 2) * 100}%` }}
-                      />
+                  )}
+                </div>
+
+                <div className="section-divider">
+                  <div className="section-divider-chip">
+                    <span className="divider-icon">&#128275;</span> Progress Milestones
+                  </div>
+                </div>
+                <p className="section-divider-sub">Each milestone below unlocks as you clear the corresponding step in the application process.</p>
+
+                <div className="stat-grid">
+                  {/* Profile Completion — real, and the connector's active card */}
+                  <div className="stat-card unlocked-clickable tab-active" onClick={() => setActivePanel('personal')} role="button" tabIndex={0}>
+                    <div className="stat-label">Profile Completion</div>
+                    <div className="stat-value">{profileSectionsDone} of 2 built sections done</div>
+                    <div className="stat-progress">
+                      <div className="stat-progress-bar" style={{ width: `${(profileSectionsDone / 2) * 100}%` }} />
                     </div>
-                    <p className="text-[10px] text-ccc-muted">Family &amp; Financial and Health &amp; Wellness aren&rsquo;t built yet, so they&rsquo;re not counted here.</p>
+                    <div className="stat-note">Family &amp; Financial and Health &amp; Wellness aren&rsquo;t built yet, so they&rsquo;re not counted here.</div>
+                    <div className="stat-card-hint">&#9660; Viewing details below</div>
                   </div>
 
                   {/* Document Verification — real */}
-                  <div className="rounded-2xl border border-ccc-border bg-white p-4 space-y-2">
-                    <div className="text-[11px] font-bold text-ccc-muted uppercase tracking-wide">Document Verification</div>
+                  <div className="stat-card unlocked-clickable" onClick={() => setActivePanel('status')} role="button" tabIndex={0}>
+                    <div className="stat-label">Document Verification</div>
                     {myDocs.length === 0 ? (
-                      <div className="text-sm font-bold text-ccc-muted">No documents uploaded yet</div>
+                      <div className="stat-value stat-locked">No documents yet</div>
                     ) : (
-                      <div className="text-sm font-bold text-ccc-navy">
+                      <div className="stat-value">
                         {myDocs.length - flaggedCount} verified{flaggedCount > 0 ? `, ${flaggedCount} needs review` : ''}
                       </div>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setActivePanel('status')}
-                      className="text-[11px] font-bold text-ccc-blue hover:text-ccc-navy underline underline-offset-2"
-                    >
-                      View Documents &amp; Status &rarr;
-                    </button>
+                    <div className="stat-note">View and manage your uploaded documents.</div>
                   </div>
 
                   {/* Locked — genuinely blocked on Ivy's modules, not built anywhere */}
-                  <div className="rounded-2xl border border-ccc-border bg-ccc-off p-4 space-y-1 opacity-70">
-                    <div className="text-[11px] font-bold text-ccc-muted uppercase tracking-wide flex items-center gap-1.5">
-                      <span>&#128274;</span> Exam Schedule
-                    </div>
-                    <div className="text-sm font-bold text-ccc-muted">Locked</div>
-                    <p className="text-[10px] text-ccc-muted">Blocked on Ivy&rsquo;s Applicant Information &amp; Results Module (exam score entry) &mdash; not built.</p>
+                  <div className="stat-card locked">
+                    <div className="stat-lock-badge">&#128274;</div>
+                    <div className="stat-label">Exam Schedule</div>
+                    <div className="stat-value stat-locked">Locked</div>
+                    <div className="stat-note">Blocked on Ivy&rsquo;s Applicant Information &amp; Results Module (exam score entry) &mdash; not built.</div>
                   </div>
-                  <div className="rounded-2xl border border-ccc-border bg-ccc-off p-4 space-y-1 opacity-70">
-                    <div className="text-[11px] font-bold text-ccc-muted uppercase tracking-wide flex items-center gap-1.5">
-                      <span>&#128274;</span> Admission Result
+
+                  <div className="stat-card locked">
+                    <div className="stat-lock-badge">&#128274;</div>
+                    <div className="stat-label">Medical Status</div>
+                    <div className="stat-value stat-locked">Locked</div>
+                    <div className="stat-note">Unlocks once you&rsquo;ve passed the applicant examination.</div>
+                  </div>
+
+                  <div className="stat-card locked">
+                    <div className="stat-lock-badge">&#128274;</div>
+                    <div className="stat-label">Admission</div>
+                    <div className="stat-value stat-locked">Locked</div>
+                    <div className="stat-note">Blocked on Ivy&rsquo;s Scholarship Matching &amp; Filtering Module &mdash; not built.</div>
+                  </div>
+                </div>
+
+                <div className="tab-connector">
+                  <div className="tab-connector-arrow" />
+                </div>
+
+                <div className="card tab-content-card">
+                  <div className="card-title">
+                    Complete Your Profile <span className="tag">Required for matching</span>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '12.45px', color: 'var(--muted)', marginBottom: '15px' }}>
+                      Fill out the sections below so Iskolusyon can automatically match you to scholarship programs you qualify for.
+                    </p>
+                    <div className="timeline">
+                      <div className="timeline-item">
+                        <div className={`timeline-dot ${personalDone ? 'step-done' : 'step-ongoing'}`}>{personalDone ? '✓' : 1}</div>
+                        <div className="timeline-body">
+                          <h4>Account Setup &amp; Personal Information</h4>
+                          <p>
+                            {personalDone ? (
+                              'Completed.'
+                            ) : (
+                              <>
+                                Currently ongoing &mdash;{' '}
+                                <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('personal') }}>
+                                  continue &rarr;
+                                </a>
+                              </>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="timeline-item">
+                        <div className={`timeline-dot ${academicDone ? 'step-done' : personalDone ? 'step-ongoing' : 'step-notstarted'}`}>
+                          {academicDone ? '✓' : 2}
+                        </div>
+                        <div className="timeline-body">
+                          <h4>Educational Background</h4>
+                          <p>
+                            {academicDone ? (
+                              'Completed.'
+                            ) : (
+                              <>
+                                {personalDone ? 'Currently ongoing' : 'Not yet started'} &mdash;{' '}
+                                <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('academic') }}>
+                                  {personalDone ? 'continue' : 'complete now'} &rarr;
+                                </a>
+                              </>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="timeline-item">
+                        <div className="timeline-dot step-notstarted">3</div>
+                        <div className="timeline-body">
+                          <h4>Family &amp; Financial Information</h4>
+                          <p>
+                            Not yet started &mdash;{' '}
+                            <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('financial') }}>
+                              complete now &rarr;
+                            </a>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="timeline-item">
+                        <div className="timeline-dot step-notstarted">4</div>
+                        <div className="timeline-body">
+                          <h4>Health &amp; Wellness</h4>
+                          <p>
+                            Not yet started &mdash;{' '}
+                            <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('health') }}>
+                              complete now &rarr;
+                            </a>
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm font-bold text-ccc-muted">Locked</div>
-                    <p className="text-[10px] text-ccc-muted">Blocked on Ivy&rsquo;s Scholarship Matching &amp; Filtering Module &mdash; not built.</p>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* ══════════ MESSAGES (built as a real, working empty-state shell —
               the All/Announcements/Messages filter genuinely works, but

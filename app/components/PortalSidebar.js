@@ -88,6 +88,8 @@ export default function PortalSidebar({
   messagesCount = 0,
   flaggedCount = 0,
   onLogout,
+  onOpenHistory,
+  historyCount = 0,
 }) {
   return (
     <aside className="sidebar">
@@ -135,6 +137,21 @@ export default function PortalSidebar({
                   flaggedCount={flaggedCount}
                 />
               ))}
+            {/* History drawer — Claude-side addition, not in Ivy's HTML (kept
+                because it's a real, working feature: SHA-256 hash / OCR text
+                per upload). Sept 19 2026 design-parity pass: moved here from
+                a floating top-right button, which sat on top of the
+                dashboard's status-hero card and broke the exact spec layout
+                once that card was rebuilt to match applicant.html. */}
+            {group.section === 'Overview' && onOpenHistory && (
+              <li>
+                <button type="button" onClick={onOpenHistory} className="menu-btn">
+                  <span className="menu-icon" aria-hidden="true" />
+                  <span style={{ flex: 1 }}>History</span>
+                  {historyCount > 0 && <span className="menu-badge">{historyCount}</span>}
+                </button>
+              </li>
+            )}
             {group.subgroups &&
               group.subgroups.map((sub, subIndex) => (
                 <Fragment key={sub.label}>
