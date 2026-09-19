@@ -513,29 +513,37 @@ function EduTable({ edu, onChangeCell, disabled }) {
 // the Step 2 dropzone, since these three uploads now happen right next to
 // the fields they relate to instead of in the separate upload step. Calls
 // straight into the shared uploadDocument() helper below.
+// Uses applicant.html's .upload-row / .upload-info / .upload-btn-label
+// classes (design-parity pass 4, Sept 19 2026) — including its red-dashed
+// (needs action) -> green-solid (has-file) traffic-light affordance,
+// which the previous neutral-gray version never had. Spec's own
+// .upload-icon is display:none (no icon actually shown), so the icon
+// that used to sit here was dropped rather than kept as an extra
+// element spec doesn't have.
 function InlineUploadRow({ label, sublabel, required, status, onFileSelected, disabled }) {
+  const hasFile = ['done', 'flagged', 'uploading', 'queued'].includes(status)
   return (
-    <div className={`flex items-center gap-3 rounded-lg border border-dashed border-ccc-border bg-ccc-off/60 px-3 py-3 ${disabled ? 'opacity-60' : ''}`}>
-      <IconUpload className="w-5 h-5 text-ccc-blue shrink-0" />
-      <div className="flex-1 min-w-0">
-        <div className="text-xs font-bold text-ccc-navy">
-          {label} {required && <span className="text-red-600">*</span>}
+    <div
+      className={`upload-row${hasFile ? ' has-file' : ''}${required ? ' required' : ''}`}
+      style={disabled ? { opacity: 0.6 } : undefined}
+    >
+      <div className="upload-info">
+        <div className="u-title">
+          {label} {required && <span className="req-mark">*</span>}
         </div>
-        {sublabel && <div className="text-[11px] text-ccc-muted">{sublabel}</div>}
-        {status === 'uploading' && <div className="text-[11px] text-ccc-blue mt-0.5">Uploading&hellip;</div>}
-        {status === 'done' && <div className="text-[11px] text-ccc-green mt-0.5">Uploaded &#x2713;</div>}
-        {status === 'flagged' && <div className="text-[11px] text-ccc-gold mt-0.5">Uploaded, flagged for review</div>}
-        {status === 'rejected' && <div className="text-[11px] text-red-600 mt-0.5">Photo rejected &mdash; see details below</div>}
-        {status === 'error' && <div className="text-[11px] text-red-600 mt-0.5">Upload failed &mdash; try again</div>}
-        {status === 'queued' && <div className="text-[11px] text-ccc-gold mt-0.5">No connection &mdash; saved on this device, will upload automatically once you&rsquo;re back online</div>}
+        {sublabel && <div className="u-sub">{sublabel}</div>}
+        {status === 'uploading' && <div className="u-sub" style={{ color: 'var(--ccc-blue)' }}>Uploading&hellip;</div>}
+        {status === 'done' && <div className="u-filename">Uploaded &#x2713;</div>}
+        {status === 'flagged' && <div className="u-sub" style={{ color: 'var(--gold)' }}>Uploaded, flagged for review</div>}
+        {status === 'rejected' && <div className="u-sub" style={{ color: 'var(--red)' }}>Photo rejected &mdash; see details below</div>}
+        {status === 'error' && <div className="u-sub" style={{ color: 'var(--red)' }}>Upload failed &mdash; try again</div>}
+        {status === 'queued' && (
+          <div className="u-sub" style={{ color: 'var(--gold)' }}>
+            No connection &mdash; saved on this device, will upload automatically once you&rsquo;re back online
+          </div>
+        )}
       </div>
-      <label
-        className={`shrink-0 text-[11px] font-bold rounded-lg px-3 py-1.5 transition-colors ${
-          disabled
-            ? 'text-ccc-muted border border-ccc-border cursor-not-allowed'
-            : 'text-ccc-blue border border-ccc-blue cursor-pointer hover:bg-ccc-blue hover:text-white'
-        }`}
-      >
+      <label className="upload-btn-label" style={disabled ? { cursor: 'not-allowed' } : undefined}>
         {/* Re-selecting a file here always worked (nothing blocked a second
             upload), but the button still said "Upload" even once one
             already existed, reading like a first-time action rather than
@@ -543,7 +551,6 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected, di
         {status === 'done' || status === 'flagged' ? 'Change' : 'Upload'}
         <input
           type="file"
-          className="hidden"
           disabled={disabled}
           onChange={(e) => e.target.files[0] && onFileSelected(e.target.files[0])}
         />
@@ -558,36 +565,30 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected, di
 // old single "Save progress" button used (renamed to match spec's label);
 // "Submit Section" is the new real per-section checkpoint (see
 // submitSection() above) with its own transient "Submitted ✓" state.
+// Both buttons are .mbtn.mbtn-primary in spec (applicant.html's
+// Save-as-Draft is NOT a secondary/ghost button — both are solid blue;
+// confirmed against every instance of .form-actions in the mockup).
 function SectionFormActions({ saveState, sectionState, error, disabled, submitDisabled, submitLabel, onSaveDraft, onSubmit }) {
   return (
-    <div className="space-y-2 pt-2">
-      {error && <p className="text-[11px] font-semibold text-red-600 whitespace-pre-line">{error}</p>}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          {saveState === 'saved' && <span className="text-[11px] font-semibold text-ccc-green">Progress saved &#x2713;</span>}
-          {saveState === 'error' && <span className="text-[11px] font-semibold text-red-600">Couldn&rsquo;t save &mdash; try again</span>}
-          {saveState === 'offline' && <span className="text-[11px] font-semibold text-ccc-gold">No connection &mdash; saved on this device, will sync automatically</span>}
-          {sectionState === 'submitted' && <span className="text-[11px] font-semibold text-ccc-green">Submitted &#x2713;</span>}
-          {sectionState === 'error' && <span className="text-[11px] font-semibold text-red-600">Couldn&rsquo;t submit &mdash; try again</span>}
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onSaveDraft}
-            disabled={disabled || saveState === 'saving'}
-            className="text-xs font-bold text-ccc-blue bg-white border border-ccc-blue hover:bg-ccc-off rounded-xl px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saveState === 'saving' ? 'Saving…' : 'Save as Draft'}
-          </button>
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={disabled || submitDisabled || sectionState === 'submitting'}
-            className="text-xs font-bold text-white bg-ccc-blue hover:bg-ccc-navy disabled:bg-ccc-border disabled:text-ccc-muted rounded-xl px-4 py-2.5 disabled:cursor-not-allowed"
-          >
-            {sectionState === 'submitting' ? 'Submitting…' : sectionState === 'submitted' ? 'Submitted ✓' : submitLabel || 'Submit Section'}
-          </button>
-        </div>
+    <div>
+      {error && <p className="save-note" style={{ color: 'var(--red)', whiteSpace: 'pre-line' }}>{error}</p>}
+      {saveState === 'saved' && <p className="save-note" style={{ color: 'var(--green)' }}>Progress saved &#x2713;</p>}
+      {saveState === 'error' && <p className="save-note" style={{ color: 'var(--red)' }}>Couldn&rsquo;t save &mdash; try again</p>}
+      {saveState === 'offline' && <p className="save-note" style={{ color: 'var(--gold)' }}>No connection &mdash; saved on this device, will sync automatically</p>}
+      {sectionState === 'submitted' && <p className="save-note" style={{ color: 'var(--green)' }}>Submitted &#x2713;</p>}
+      {sectionState === 'error' && <p className="save-note" style={{ color: 'var(--red)' }}>Couldn&rsquo;t submit &mdash; try again</p>}
+      <div className="form-actions">
+        <button type="button" onClick={onSaveDraft} disabled={disabled || saveState === 'saving'} className="mbtn mbtn-primary">
+          {saveState === 'saving' ? 'Saving…' : 'Save as Draft'}
+        </button>
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={disabled || submitDisabled || sectionState === 'submitting'}
+          className="mbtn mbtn-primary"
+        >
+          {sectionState === 'submitting' ? 'Submitting…' : sectionState === 'submitted' ? 'Submitted ✓' : submitLabel || 'Submit Section'}
+        </button>
       </div>
     </div>
   )
