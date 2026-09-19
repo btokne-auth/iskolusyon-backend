@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { Resend } from 'resend'
 import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns, familyInfoToColumns } from '@/app/lib/applicationColumns'
+import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -141,6 +142,24 @@ export async function POST(request) {
     const healthInfoColumns = healthInfoToColumns(body.healthInfo)
     const familyInfoColumns = familyInfoToColumns(body.familyInfo)
 
+    // Sept 19 2026 fix: every save used to go through purely on the typed
+    // applicant name, never stamping `applicant_user_id` — so a row saved
+    // this way (rather than one pre-created at signup from staged Personal
+    // Information, see applicantAccounts.js's activateApplicantAccount())
+    // stayed unlinked from the account forever. Login's own display-name
+    // lookup matches on `applicant_user_id`, so with it never set, every
+    // login rendered a blank display name, `applicantName` on the client
+    // initialized to '', and the portal's own auto-load effect (which
+    // bails out on an empty name) never fetched anything back — the
+    // applicant's saved data was sitting safely in Supabase the whole
+    // time, it just could never be found again after a refresh/re-login.
+    // Reading the session cookie here (same verified way
+    // /api/applicant-session does) and stamping it on every save closes
+    // that gap going forward.
+    const cookieValue = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
+    const session = await verifyApplicantCookieValue(cookieValue)
+    const applicantUserId = session?.id || null
+
     if (!applicantName) {
       return NextResponse.json({ error: 'Missing applicant name' }, { status: 400 })
     }
@@ -166,6 +185,7 @@ export async function POST(request) {
     if (existing) {
       const updates = {
         applicant_email: applicantEmail || existing.applicant_email,
+        applicant_user_id: applicantUserId || existing.applicant_user_id,
         current_step: step,
         updated_at: now,
         ...personalInfoColumns,
@@ -206,6 +226,7 @@ export async function POST(request) {
     const insertPayload = {
       applicant_name: applicantName,
       applicant_email: applicantEmail || null,
+      applicant_user_id: applicantUserId,
       current_step: step,
       status: action === 'submit' ? 'submitted' : 'draft',
       submitted_at: action === 'submit' ? now : null,
@@ -248,6 +269,7 @@ export async function POST(request) {
 
       const updates = {
         applicant_email: applicantEmail || raceExisting.applicant_email,
+        applicant_user_id: applicantUserId || raceExisting.applicant_user_id,
         current_step: step,
         updated_at: now,
         ...personalInfoColumns,

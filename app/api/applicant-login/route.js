@@ -23,7 +23,7 @@ export async function POST(request) {
       const result = await verifyLoginCode(body.accountId, body.code)
       if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
 
-      const displayName = await lookUpDisplayName(result.account.id)
+      const displayName = await lookUpDisplayName(result.account.id, result.account.email)
 
       const { value, maxAge } = await createApplicantCookieValue(result.account.id, result.account.email, displayName)
       const res = NextResponse.json({ success: true, name: displayName, email: result.account.email })
@@ -66,11 +66,21 @@ export async function POST(request) {
   }
 }
 
-// Look up their application (if any) just to get a display name for the
-// welcome message — not required for login to succeed. Same query the
-// credentials step used to run before MFA was added.
-async function lookUpDisplayName(accountId) {
-  const { data: app } = await supabase
+// Look up their application (if any) to get a display name for the
+// welcome message, and — much more importantly — to seed `applicantName`
+// on the client so the portal's own load effect can find this account's
+// saved data again after a refresh (see the Sept 19 2026 comment in
+// /api/application's POST handler; this is the other half of that fix).
+//
+// Matches by `applicant_user_id` first. Falls back to the account's own
+// email when that finds nothing — covers every row saved before that
+// column started being stamped on every save (any row created by typing
+// straight into the portal rather than via the pre-filled-at-signup path
+// in applicantAccounts.js). When the fallback is what finds it, this also
+// backfills `applicant_user_id` on that row so the fast path works next
+// time and this account never has to fall back again.
+async function lookUpDisplayName(accountId, email) {
+  const { data: byUserId } = await supabase
     .from('applications')
     .select('applicant_name')
     .eq('applicant_user_id', accountId)
@@ -78,5 +88,22 @@ async function lookUpDisplayName(accountId) {
     .limit(1)
     .maybeSingle()
 
-  return app?.applicant_name || ''
+  if (byUserId?.applicant_name) return byUserId.applicant_name
+
+  const normalizedEmail = (email || '').trim().toLowerCase()
+  if (!normalizedEmail) return ''
+
+  const { data: byEmail } = await supabase
+    .from('applications')
+    .select('id, applicant_name')
+    .ilike('applicant_email', normalizedEmail)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!byEmail?.applicant_name) return ''
+
+  await supabase.from('applications').update({ applicant_user_id: accountId }).eq('id', byEmail.id)
+
+  return byEmail.applicant_name
 }
