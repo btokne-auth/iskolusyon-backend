@@ -2,6 +2,15 @@
 import { useState, useEffect } from 'react'
 import SiteHeader from './SiteHeader'
 
+// Mirrors isValidEmailFormat() in applicantAccounts.js — a real format
+// check, not just "contains an @". Catches "name@" / "name@domain" with no
+// TLD, which the old .includes('@') check across Login/Signup/Forgot
+// Password let straight through (flagged testing Forgot Password, Sept 19:
+// "xavierestira@" was accepted and a reset code got sent for it).
+function isValidEmailFormat(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
 // Real applicant Login + Signup — the User Account Module, formally Ivy's
 // scope, built here since her side hasn't moved. Signup is a 4-step wizard
 // matching her approved signup.html spec (Account Setup -> Program
@@ -203,7 +212,7 @@ function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
     // inconsistent with the rest of the auth UI.
     const nextFieldErrors = {}
     if (!email.trim()) nextFieldErrors.email = 'Please enter your email address.'
-    else if (!email.includes('@')) nextFieldErrors.email = 'Please enter a valid email address.'
+    else if (!isValidEmailFormat(email)) nextFieldErrors.email = 'Please enter a valid email address.'
     if (!password) nextFieldErrors.password = 'Please enter your password.'
     setFieldErrors(nextFieldErrors)
     if (Object.keys(nextFieldErrors).length > 0) return
@@ -356,7 +365,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
 
     const nextFieldErrors = {}
     if (!email.trim()) nextFieldErrors.email = 'Please enter your email address.'
-    else if (!email.includes('@')) nextFieldErrors.email = 'Please enter a valid email address.'
+    else if (!isValidEmailFormat(email)) nextFieldErrors.email = 'Please enter a valid email address.'
     const passwordError = passwordStrengthError(password)
     if (passwordError) nextFieldErrors.password = passwordError
     if (!password2) nextFieldErrors.password2 = 'Please confirm your password.'
@@ -721,7 +730,7 @@ function ForgotPasswordPanel({ onSwitch }) {
       setFieldErrors({ email: 'Please enter your email address.' })
       return
     }
-    if (!email.includes('@')) {
+    if (!isValidEmailFormat(email)) {
       setFieldErrors({ email: 'Please enter a valid email address.' })
       return
     }

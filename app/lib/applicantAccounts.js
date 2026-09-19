@@ -58,6 +58,14 @@ function normalizeEmail(email) {
   return (email || '').trim().toLowerCase()
 }
 
+// A real (if simple) email format check — catches things like
+// "name@" or "name@domain" with no TLD, which the old `.includes('@')`
+// check let straight through (flagged when testing Forgot Password,
+// Sept 19: "xavierestira@" was accepted and a reset code got sent for it).
+function isValidEmailFormat(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
 // Basic server-side mirror of the password rule shown in signup.html's
 // field-note ("min 8 chars, 1 number, 1 uppercase, 1 lowercase, 1 special").
 export function validatePasswordStrength(password) {
@@ -74,7 +82,7 @@ export function validatePasswordStrength(password) {
 // { error }.
 export async function startSignup(email, password) {
   const normalizedEmail = normalizeEmail(email)
-  if (!normalizedEmail || !normalizedEmail.includes('@')) {
+  if (!normalizedEmail || !isValidEmailFormat(normalizedEmail)) {
     return { error: 'Please enter a valid email address.' }
   }
   if (!validatePasswordStrength(password)) {
@@ -300,7 +308,7 @@ export async function verifySignupCode(accountId, code) {
 // account, since "check your email" would be actively misleading there.
 export async function requestPasswordReset(email) {
   const normalizedEmail = normalizeEmail(email)
-  if (!normalizedEmail || !normalizedEmail.includes('@')) {
+  if (!normalizedEmail || !isValidEmailFormat(normalizedEmail)) {
     return { error: 'Please enter a valid email address.' }
   }
 
