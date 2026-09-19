@@ -18,8 +18,15 @@ function isValidEmailFormat(email) {
 // digit or space (plus a single leading "+" for a +63 country code) as
 // the applicant types, instead of accepting letters into a phone number.
 function sanitizePhoneInput(value) {
-  const leadingPlus = value.startsWith('+') ? '+' : ''
-  return leadingPlus + value.replace(/[^\d\s]/g, '')
+  // Sept 19 2026, second pass — matches the same fix in app/page.js: auto-
+  // group the digits into "0917 123 4567" shape (this app's placeholder
+  // format everywhere) instead of leaving spacing up to however the
+  // applicant happens to type, which usually means no spaces at all once
+  // the field is filtering every keystroke.
+  const leadingPlus = value.trim().startsWith('+') ? '+' : ''
+  const digits = value.replace(/\D/g, '')
+  if (leadingPlus) return leadingPlus + digits
+  return [digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 11)].filter(Boolean).join(' ')
 }
 
 // Real applicant Login + Signup — the User Account Module, formally Ivy's

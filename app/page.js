@@ -491,11 +491,23 @@ function ActivityLog({ events }) {
 // strip disallowed characters as the applicant types, the same way a
 // phone number field on a real form behaves.
 function sanitizePhoneInput(value) {
-  // Digits and spaces, plus a single leading "+" for a +63 country code —
-  // covers every placeholder already used for these fields ("0917 123
-  // 4567" / "09XX XXX XXXX").
-  const leadingPlus = value.startsWith('+') ? '+' : ''
-  return leadingPlus + value.replace(/[^\d\s]/g, '')
+  // Sept 19 2026, second pass: the first version only stripped
+  // non-digit characters and left spacing up to whatever the applicant
+  // typed — but typing digits straight through a numeric-feeling field
+  // rarely includes manual spaces, so numbers that used to end up spaced
+  // out on their own (typing "0917", pausing, "123", pausing, "4567")
+  // came out as one unbroken string once the field started filtering
+  // every keystroke. Auto-grouping the digits into the same 4-3-4 shape
+  // every placeholder in this app already shows ("0917 123 4567") means
+  // it's always readable regardless of how the applicant types it.
+  const leadingPlus = value.trim().startsWith('+') ? '+' : ''
+  const digits = value.replace(/\D/g, '')
+  if (leadingPlus) {
+    // Don't try to guess a grouping for an arbitrary country code —
+    // just keep the digits together after the +.
+    return leadingPlus + digits
+  }
+  return [digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 11)].filter(Boolean).join(' ')
 }
 function sanitizeDateTextInput(value) {
   // For the free-text "MM/DD/YYYY" Date of Birth fields in the Family &
