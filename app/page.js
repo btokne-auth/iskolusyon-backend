@@ -1489,22 +1489,33 @@ function PortalApp({ accountSession, onLogout }) {
               <div className="rounded-2xl border border-ccc-border p-5 space-y-3">
                 <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">1 &middot; Profile Picture</div>
                 <p className="text-[11px] text-ccc-muted">This photo is used across your application and account.</p>
-                {(profilePicPreviewUrl || (personalInfo.firstName || personalInfo.lastName)) && (
-                  <div className="flex items-center gap-3 rounded-lg bg-ccc-off/60 px-3 py-2.5">
-                    <div className="w-11 h-11 rounded-full bg-white border border-ccc-border overflow-hidden shrink-0 flex items-center justify-center">
-                      {profilePicPreviewUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={profilePicPreviewUrl} alt="Profile preview" className="w-full h-full object-cover" />
-                      ) : (
-                        <IconUpload className="w-4 h-4 text-ccc-muted" />
-                      )}
+                {(() => {
+                  // Falls back to the persisted photo's signed URL (from
+                  // myDocs, already fetched via GET /api/upload) when
+                  // there's no fresh local pick this visit — otherwise a
+                  // returning applicant who uploaded their photo in an
+                  // earlier session saw a blank placeholder icon here
+                  // instead of their actual photo (found testing Sept 19).
+                  const persistedUrl = myDocs.find((d) => d.document_type === 'profilepic')?.publicUrl
+                  const displayUrl = profilePicPreviewUrl || persistedUrl
+                  if (!displayUrl && !personalInfo.firstName && !personalInfo.lastName) return null
+                  return (
+                    <div className="flex items-center gap-3 rounded-lg bg-ccc-off/60 px-3 py-2.5">
+                      <div className="w-11 h-11 rounded-full bg-white border border-ccc-border overflow-hidden shrink-0 flex items-center justify-center">
+                        {displayUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={displayUrl} alt="Profile preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <IconUpload className="w-4 h-4 text-ccc-muted" />
+                        )}
+                      </div>
+                      <div className="text-sm font-bold text-ccc-navy truncate">
+                        {[personalInfo.firstName, personalInfo.middleName, personalInfo.lastName].filter(Boolean).join(' ') ||
+                          'Your name will appear here as you type it below'}
+                      </div>
                     </div>
-                    <div className="text-sm font-bold text-ccc-navy truncate">
-                      {[personalInfo.firstName, personalInfo.middleName, personalInfo.lastName].filter(Boolean).join(' ') ||
-                        'Your name will appear here as you type it below'}
-                    </div>
-                  </div>
-                )}
+                  )
+                })()}
                 <InlineUploadRow
                   label="Profile Picture"
                   sublabel="A clear, recent 2x2 photo of yourself (white background)"
