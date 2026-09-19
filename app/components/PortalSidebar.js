@@ -1,16 +1,19 @@
 'use client'
 
+import { Fragment } from 'react'
+
 // Sidebar navigation for the applicant portal shell. Structure (groups,
 // section labels, sub-labels, item order) is ported 1:1 from Ivy's
 // applicant.html sidebar markup (Overview / Admission / Scholarship
 // Services groups) — this is the "approved shape" per the front-end repo,
-// not our own layout choice. Panels that don't have real content built yet
-// still get a working nav entry + a clearly-labeled placeholder panel, so
-// the shell is honest about what's actually done vs. coming later.
+// not our own layout choice.
 //
-// Sept 19, 2026: real accounts now exist (see app/lib/applicantAuth.js) —
-// "Log Out" calls the onLogout prop the page passes down instead of being
-// a no-op.
+// Sept 19, 2026 (design-parity pass 4): rebuilt to use the .sidebar /
+// .sidebar-group / .menu-btn / etc. classes from app/portal-theme.css
+// instead of ad hoc Tailwind, so this is now a structural + visual match
+// for applicant.html's sidebar (navy/blue gradient rail, translucent
+// group pills, divider lines, active-item polarity), not just the same
+// information in different styling.
 
 const NAV_GROUPS = [
   {
@@ -64,19 +67,12 @@ function NavButton({ item, active, onSelect, messagesCount, flaggedCount }) {
       <button
         type="button"
         onClick={() => onSelect(item.key)}
-        className={`w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-semibold transition-colors ${
-          active ? 'bg-ccc-blue text-white' : 'text-ccc-text hover:bg-ccc-off'
-        }`}
+        className={`menu-btn${active ? ' active' : ''}`}
       >
-        <span className="flex-1">{item.label}</span>
+        <span className="menu-icon" aria-hidden="true" />
+        <span style={{ flex: 1 }}>{item.label}</span>
         {badgeCount != null && badgeCount > 0 && (
-          <span
-            className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
-              active ? 'bg-white text-ccc-blue' : 'bg-ccc-gold text-ccc-navy'
-            }`}
-          >
-            {badgeCount}
-          </span>
+          <span className={`menu-badge${badgeCount > 0 ? '' : ' is-empty'}`}>{badgeCount}</span>
         )}
       </button>
     </li>
@@ -94,79 +90,76 @@ export default function PortalSidebar({
   onLogout,
 }) {
   return (
-    <aside className="w-full lg:w-64 shrink-0 bg-white border border-ccc-border rounded-2xl p-4 lg:sticky lg:top-6 h-fit space-y-5">
+    <aside className="sidebar">
       {/* ---- Profile block ---- */}
-      <div className="flex flex-col items-center text-center gap-1 pb-4 border-b border-ccc-border">
+      <div className="sidebar-profile">
         {/* Same photo as Card 1's "used across your application and
             account" promise — shows the uploaded profile picture once
             available, falls back to initials until then. */}
-        <div className="w-14 h-14 rounded-full bg-ccc-navy text-white flex items-center justify-center text-lg font-bold overflow-hidden">
+        <div className="avatar-wrap" title="Profile picture">
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+            <img
+              src={avatarUrl}
+              alt="Profile picture"
+              style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
+            />
           ) : (
-            avatarInitials || '—'
+            <span className="avatar-initials">{avatarInitials || '—'}</span>
           )}
         </div>
-        <div className="text-sm font-bold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          {displayName || 'Applicant'}
+
+        <div className="profile-name-row">
+          <span className="profile-name">{displayName || 'Applicant'}</span>
         </div>
-        <div className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest">Applicant No.:</div>
-        <div className="text-[10px] text-ccc-muted leading-snug">
+        <div className="profile-role">Applicant No.:</div>
+        <div className="profile-id">
           (Application Number will be provided once your documents are submitted and verified)
         </div>
       </div>
 
       {/* ---- Nav groups ---- */}
-      <div className="space-y-5">
+      <div className="sidebar-menu">
         {NAV_GROUPS.map((group) => (
-          <div key={group.section}>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-ccc-muted mb-1.5 px-1">
-              {group.section}
-            </div>
-            {group.items && (
-              <ul className="space-y-0.5">
-                {group.items.map((item) => (
-                  <NavButton
-                    key={item.key}
-                    item={item}
-                    active={activePanel === item.key}
-                    onSelect={onSelectPanel}
-                    messagesCount={messagesCount}
-                    flaggedCount={flaggedCount}
-                  />
-                ))}
-              </ul>
-            )}
-            {group.subgroups &&
-              group.subgroups.map((sub) => (
-                <div key={sub.label} className="mb-2 last:mb-0">
-                  <div className="text-[11px] font-bold text-ccc-navy mt-2 mb-1 px-1">{sub.label}</div>
-                  <ul className="space-y-0.5">
-                    {sub.items.map((item) => (
-                      <NavButton
-                        key={item.key}
-                        item={item}
-                        active={activePanel === item.key}
-                        onSelect={onSelectPanel}
-                        messagesCount={messagesCount}
-                        flaggedCount={flaggedCount}
-                      />
-                    ))}
-                  </ul>
-                </div>
+          <ul key={group.section} className="sidebar-group">
+            <li className="sidebar-section-label">{group.section}</li>
+            <li className="sidebar-label-divider" aria-hidden="true" />
+            {group.items &&
+              group.items.map((item) => (
+                <NavButton
+                  key={item.key}
+                  item={item}
+                  active={activePanel === item.key}
+                  onSelect={onSelectPanel}
+                  messagesCount={messagesCount}
+                  flaggedCount={flaggedCount}
+                />
               ))}
-          </div>
+            {group.subgroups &&
+              group.subgroups.map((sub, subIndex) => (
+                <Fragment key={sub.label}>
+                  {subIndex > 0 && <li className="sidebar-subgroup-divider" aria-hidden="true" />}
+                  <li className="sidebar-menu-label">{sub.label}</li>
+                  {sub.items.map((item) => (
+                    <NavButton
+                      key={item.key}
+                      item={item}
+                      active={activePanel === item.key}
+                      onSelect={onSelectPanel}
+                      messagesCount={messagesCount}
+                      flaggedCount={flaggedCount}
+                    />
+                  ))}
+                </Fragment>
+              ))}
+          </ul>
         ))}
       </div>
 
       {/* ---- Logout ---- */}
-      <div className="pt-3 border-t border-ccc-border">
-        <button
-          type="button"
-          onClick={onLogout}
-          className="w-full text-left rounded-lg px-3 py-2 text-[13px] font-semibold text-ccc-muted hover:bg-ccc-off hover:text-ccc-text"
-        >
+      <div className="sidebar-logout">
+        <button type="button" onClick={onLogout} className="logout-btn">
+          <span className="menu-icon" aria-hidden="true" />
           Log Out
         </button>
       </div>

@@ -593,6 +593,36 @@ function SectionFormActions({ saveState, sectionState, error, disabled, submitDi
   )
 }
 
+// Log-out confirmation modal — ported 1:1 from applicant.html's
+// #logoutOverlay/.confirm-box markup (design-parity pass 4, Sept 19 2026).
+// Previously "Log Out" logged the applicant out immediately with no
+// confirmation step at all; spec always confirms first.
+function LogoutConfirmModal({ open, onCancel, onConfirm }) {
+  if (!open) return null
+  return (
+    <div
+      className="confirm-overlay open"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel()
+      }}
+    >
+      <div className="confirm-box" role="dialog" aria-modal="true" aria-labelledby="logoutTitle">
+        <div className="confirm-icon" aria-hidden="true" />
+        <h3 id="logoutTitle">Log out of Iskolusyon?</h3>
+        <p>You&rsquo;ll need to sign in again to access your applicant page.</p>
+        <div className="confirm-actions">
+          <button type="button" className="mbtn mbtn-ghost" onClick={onCancel}>
+            No, Stay
+          </button>
+          <button type="button" className="mbtn mbtn-danger" onClick={onConfirm}>
+            Yes, Log Out
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ---------- Page ----------
 
 // ---------- Real auth gate (User Account Module) ----------
@@ -657,6 +687,7 @@ function PortalApp({ accountSession, onLogout }) {
   const [isDragging, setIsDragging] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [statusRequested, setStatusRequested] = useState(false)
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const [activePanel, setActivePanel] = useState('personal') // sidebar panel key — replaces the old linear step wizard
   const [submitted, setSubmitted] = useState(false)
   const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error' | 'offline'
@@ -1421,7 +1452,7 @@ function PortalApp({ accountSession, onLogout }) {
         </div>
       )}
 
-      <div className="w-full max-w-6xl mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6 items-start">
+      <div className="portal-shell">
         <PortalSidebar
           activePanel={activePanel}
           onSelectPanel={setActivePanel}
@@ -1433,10 +1464,19 @@ function PortalApp({ accountSession, onLogout }) {
           avatarUrl={profilePicPreviewUrl || persistedProfilePicUrl}
           messagesCount={0}
           flaggedCount={flaggedCount}
-          onLogout={onLogout}
+          onLogout={() => setLogoutConfirmOpen(true)}
         />
 
-        <div ref={formCardRef} className="flex-1 min-w-0 space-y-6">
+        <LogoutConfirmModal
+          open={logoutConfirmOpen}
+          onCancel={() => setLogoutConfirmOpen(false)}
+          onConfirm={() => {
+            setLogoutConfirmOpen(false)
+            onLogout()
+          }}
+        />
+
+        <div ref={formCardRef} className="portal-main space-y-6">
           {/* History button — Claude-side addition, not in Ivy's HTML; kept
               because it's a real, working feature (SHA-256 hash / OCR text
               per upload) that's useful regardless of panel structure. */}
