@@ -195,14 +195,30 @@ export default function ApplicantAuth({ onAuthenticated }) {
   )
 }
 
+const LOGIN_OTP_TTL_SECONDS = 10 * 60
+
 function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
+  // stage: 'credentials' -> 'otp' — login-time MFA, added Sept 19. The
+  // credentials step no longer sets the session cookie itself; it sends a
+  // login code and hands off to the OTP step, same shape as
+  // ForgotPasswordPanel's lookup -> reset staging below.
+  const [stage, setStage] = useState('credentials')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [code, setCode] = useState('')
+  const [accountId, setAccountId] = useState(null)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
+  const [secondsLeft, setSecondsLeft] = useState(LOGIN_OTP_TTL_SECONDS)
 
-  async function submit(e) {
+  useEffect(() => {
+    if (stage !== 'otp' || secondsLeft <= 0) return
+    const timer = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000)
+    return () => clearInterval(timer)
+  }, [stage, secondsLeft])
+
+  async function submitCredentials(e) {
     e.preventDefault()
     setError('')
 
@@ -229,7 +245,9 @@ function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
         setError(data.error || 'Login failed.')
         return
       }
-      onAuthenticated({ id: data.id, email: data.email, name: data.name })
+      setAccountId(data.accountId)
+      setSecondsLeft(LOGIN_OTP_TTL_SECONDS)
+      setStage('otp')
     } catch (err) {
       setError('Could not reach the server. Check your connection and try again.')
     } finally {
@@ -237,53 +255,173 @@ function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
     }
   }
 
+  // Re-runs the credentials check, which re-sends a fresh code as a side
+  // effect — same "resend by re-requesting" pattern ForgotPasswordPanel
+  // uses below, rather than a separate resend endpoint.
+  async function resendCode() {
+    setError('')
+    setLoading(true)
+    try {
+      const res = await fetch('/api/applicant-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Could not resend the code.')
+        return
+      }
+      setAccountId(data.accountId)
+      setSecondsLeft(LOGIN_OTP_TTL_SECONDS)
+    } catch {
+      setError('Could not reach the server. Check your connection and try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function submitCode(e) {
+    e.preventDefault()
+    setError('')
+    if (!code.trim()) {
+      setFieldErrors({ code: 'Please enter the login code.' })
+      return
+    }
+    setFieldErrors({})
+    setLoading(true)
+    try {
+      const res = await fetch('/api/applicant-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify', accountId, code }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setFieldErrors({ code: data.error || 'Could not verify that code.' })
+        return
+      }
+      onAuthenticated({ id: accountId, email: data.email, name: data.name })
+    } catch (err) {
+      setError('Could not reach the server. Check your connection and try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function backToCredentials() {
+    setStage('credentials')
+    setCode('')
+    setAccountId(null)
+    setError('')
+    setFieldErrors({})
+  }
+
   return (
     <>
       <AuthSide mode="login" step={0} />
       <div className="flex-1 p-8">
-        <h2 className="text-lg font-extrabold text-ccc-navy mb-1" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Log In to Your Account
-        </h2>
-        <p className="text-sm text-ccc-muted mb-5">Access your scholarship application dashboard.</p>
-        {error && <Alert tone="error">{error}</Alert>}
-        <form onSubmit={submit} noValidate>
-          <TextField
-            label="Email Address"
-            type="email"
-            value={email}
-            onChange={(v) => { setEmail(v); if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined })) }}
-            placeholder="e.g. yourname@email.com"
-            autoComplete="email"
-            error={fieldErrors.email}
-          />
-          <TextField
-            label="Password"
-            type="password"
-            value={password}
-            onChange={(v) => { setPassword(v); if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: undefined })) }}
-            placeholder="Your password"
-            autoComplete="current-password"
-            error={fieldErrors.password}
-          />
-          <div className="text-right -mt-1 mb-3">
-            <button type="button" onClick={onForgot} className="text-[12px] text-ccc-blue font-semibold hover:underline">
-              Forgot password?
-            </button>
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full mt-2 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60"
-          >
-            {loading ? 'Logging in…' : 'Log In'}
-          </button>
-        </form>
-        <p className="text-center text-[13px] text-ccc-muted mt-4">
-          Don&apos;t have an account?{' '}
-          <button type="button" onClick={onSwitch} className="text-ccc-blue font-bold hover:underline">
-            Sign up here
-          </button>
-        </p>
+        {stage === 'credentials' && (
+          <>
+            <h2 className="text-lg font-extrabold text-ccc-navy mb-1" style={{ fontFamily: 'var(--font-montserrat)' }}>
+              Log In to Your Account
+            </h2>
+            <p className="text-sm text-ccc-muted mb-5">Access your scholarship application dashboard.</p>
+            {error && <Alert tone="error">{error}</Alert>}
+            <form onSubmit={submitCredentials} noValidate>
+              <TextField
+                label="Email Address"
+                type="email"
+                value={email}
+                onChange={(v) => { setEmail(v); if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined })) }}
+                placeholder="e.g. yourname@email.com"
+                autoComplete="email"
+                error={fieldErrors.email}
+              />
+              <TextField
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(v) => { setPassword(v); if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: undefined })) }}
+                placeholder="Your password"
+                autoComplete="current-password"
+                error={fieldErrors.password}
+              />
+              <div className="text-right -mt-1 mb-3">
+                <button type="button" onClick={onForgot} className="text-[12px] text-ccc-blue font-semibold hover:underline">
+                  Forgot password?
+                </button>
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full mt-2 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60"
+              >
+                {loading ? 'Logging in…' : 'Log In'}
+              </button>
+            </form>
+            <p className="text-center text-[13px] text-ccc-muted mt-4">
+              Don&apos;t have an account?{' '}
+              <button type="button" onClick={onSwitch} className="text-ccc-blue font-bold hover:underline">
+                Sign up here
+              </button>
+            </p>
+          </>
+        )}
+
+        {stage === 'otp' && (
+          <>
+            <h2 className="text-lg font-extrabold text-ccc-navy mb-1" style={{ fontFamily: 'var(--font-montserrat)' }}>
+              Verify It&apos;s You
+            </h2>
+            <p className="text-sm text-ccc-muted mb-5">
+              We sent a 6-digit login code to {email}. Enter it below to finish logging in.
+            </p>
+            {secondsLeft > 0 ? (
+              <Alert tone="success">Check your inbox (and spam folder) for the code.</Alert>
+            ) : (
+              <Alert tone="error">This code has expired. Click &quot;Resend code&quot; below to get a new one.</Alert>
+            )}
+            {error && <Alert tone="error">{error}</Alert>}
+            <form onSubmit={submitCode} noValidate>
+              <TextField
+                label="Login Code"
+                value={code}
+                onChange={(v) => { setCode(v); if (fieldErrors.code) setFieldErrors((f) => ({ ...f, code: undefined })) }}
+                placeholder="123456"
+                error={fieldErrors.code}
+              />
+              {secondsLeft > 0 && (
+                <p className="text-[12px] text-ccc-muted -mt-2 mb-3">
+                  Code expires in {String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:{String(secondsLeft % 60).padStart(2, '0')}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={loading || secondsLeft <= 0}
+                className="w-full mt-2 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60"
+              >
+                {loading ? 'Verifying…' : 'Verify & Log In'}
+              </button>
+              <button
+                type="button"
+                onClick={resendCode}
+                disabled={loading}
+                className="w-full mt-2 text-[13px] text-ccc-blue font-bold hover:underline disabled:opacity-50"
+              >
+                Resend code
+              </button>
+              <button
+                type="button"
+                onClick={backToCredentials}
+                disabled={loading}
+                className="w-full mt-1 text-[12px] text-ccc-muted hover:underline disabled:opacity-50"
+              >
+                Use a different account
+              </button>
+            </form>
+          </>
+        )}
       </div>
     </>
   )

@@ -8,12 +8,14 @@
 // handlers, never from middleware.js.
 //
 // Deliberate scope for this build (decided Sept 19, 2026):
-//  - Login is email + password only. No per-login OTP yet — that's Ivy's
-//    spec (signup.html / index.html both show a "send code, then verify"
-//    step) but Resend's free tier only delivers to the developer's own
-//    inbox until the .dev domain is claimed, so a real OTP-every-login
-//    flow can't be tested against real applicant emails today. Deferred,
-//    not forgotten.
+//  - Login is email + password, followed by a one-time login code (MFA) —
+//    matches Ivy's spec (signup.html / index.html both show a "send code,
+//    then verify" step). Same Resend-sandbox limitation as everything else
+//    OTP-related here: codes only deliver to the developer's own inbox
+//    until the .dev domain is claimed, not arbitrary applicant addresses,
+//    but that's fine for dev/testing with Pau's own inbox as a stand-in.
+//    (Login-time MFA was originally deferred earlier the same day pending
+//    her bringing it back up — she has, see "Login-time MFA / OTP" below.)
 //  - Signup DOES require a one-time email-verification code before the
 //    account activates, matching her spec ("account will be created upon
 //    successful verification") — same Resend-sandbox limitation applies,
@@ -414,6 +416,102 @@ export async function resetPasswordWithCode(email, code, newPassword) {
 
   if (updateError) return { error: updateError.message }
   return { success: true }
+}
+
+// ---------- Login-time MFA / OTP ----------
+// Deferred at signup time (Sept 19) pending Pau bringing it back up — she
+// has now (same day). Reuses the exact same otp_hash/otp_expires_at/
+// otp_attempts columns and generateOtp()/hashOtp() helpers as signup
+// verification and password reset, same reasoning as those: an account
+// moves through one OTP-gated step at a time, so sharing the columns is
+// safe in the common case. One real edge case worth knowing: if someone
+// requests a password-reset code and then, in another tab, logs in with
+// their still-known old password before finishing the reset, the login
+// code overwrites the reset code (and vice versa) — the earlier code just
+// stops working and has to be re-requested. Not a security hole, just a
+// UX rough edge; not handled specially here.
+//
+// Flow: /api/applicant-login now has two actions instead of one —
+// no action ('credentials': email+password) sends the OTP on success but
+// does NOT set the session cookie yet, and 'verify' (accountId+code) checks
+// the code and only then sets the cookie. See the two-stage LoginPanel in
+// ApplicantAuth.js.
+
+// Step 1 — after credentials check succeeds, generate + email a fresh
+// login code. Does not touch the session cookie.
+export async function sendLoginCode(accountId, email) {
+  const code = generateOtp()
+  const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000).toISOString()
+
+  const { error: dbError } = await supabase
+    .from('applicant_accounts')
+    .update({ otp_hash: hashOtp(code), otp_expires_at: expiresAt, otp_attempts: 0 })
+    .eq('id', accountId)
+
+  if (dbError) return { error: dbError.message }
+
+  try {
+    await resend.emails.send({
+      from: 'Iskolusyon <onboarding@resend.dev>',
+      to: email,
+      subject: 'Your Iskolusyon login code',
+      html: `
+        <p>Hi,</p>
+        <p>Someone (hopefully you) is logging in to your Iskolusyon account. Your login code is:</p>
+        <p style="font-size:28px;font-weight:800;letter-spacing:4px;">${code}</p>
+        <p>This code expires in ${OTP_TTL_MINUTES} minutes. If this wasn't you, your password may be compromised — reset it as soon as possible.</p>
+        <p>— City College of Calamba, Iskolusyon Scholarship System</p>
+      `,
+    })
+  } catch (err) {
+    return {
+      error:
+        'Could not send the login code right now (' +
+        err.message +
+        '). Note: while this project is on Resend\'s free tier, login codes only deliver to the developer\'s own registered inbox — not arbitrary applicant addresses.',
+    }
+  }
+
+  return { success: true }
+}
+
+// Step 2 — checks the login code. Same expiry/attempt-limit rules as the
+// other two OTP flows. Does not touch the password; the caller (the route)
+// looks up the account fresh and builds the session cookie on success.
+export async function verifyLoginCode(accountId, code) {
+  const { data: account, error: findError } = await supabase
+    .from('applicant_accounts')
+    .select('id, email, otp_hash, otp_expires_at, otp_attempts')
+    .eq('id', accountId)
+    .maybeSingle()
+
+  if (findError) return { error: findError.message }
+  if (!account) return { error: 'Account not found. Please log in again.' }
+  if (!account.otp_hash || !account.otp_expires_at) {
+    return { error: 'No login code was sent yet. Please log in again.' }
+  }
+  if (new Date(account.otp_expires_at).getTime() < Date.now()) {
+    return { error: 'This code has expired. Request a new one.' }
+  }
+  if (account.otp_attempts >= OTP_MAX_ATTEMPTS) {
+    return { error: 'Too many incorrect attempts. Please log in again to request a new code.' }
+  }
+
+  if (hashOtp(String(code || '').trim()) !== account.otp_hash) {
+    await supabase
+      .from('applicant_accounts')
+      .update({ otp_attempts: account.otp_attempts + 1 })
+      .eq('id', accountId)
+    return { error: 'Incorrect code. Please try again.' }
+  }
+
+  const { error: clearError } = await supabase
+    .from('applicant_accounts')
+    .update({ otp_hash: null, otp_expires_at: null, otp_attempts: 0 })
+    .eq('id', accountId)
+
+  if (clearError) return { error: clearError.message }
+  return { success: true, account }
 }
 
 export async function verifyApplicantCredentials(email, password) {
