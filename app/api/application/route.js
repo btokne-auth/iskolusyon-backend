@@ -35,10 +35,37 @@ async function sendSubmissionEmail(applicantName, applicantEmail) {
   }
 }
 
+// True for a value that carries no real data — null/undefined, a blank
+// string, or an empty array (the shape `fam_siblings`/`organizations`
+// default to). Used below to decide whether an older duplicate row still
+// has something worth merging in.
+function isEmptyValue(v) {
+  if (v === null || v === undefined) return true
+  if (typeof v === 'string' && v.trim() === '') return true
+  if (Array.isArray(v) && v.length === 0) return true
+  return false
+}
+
 // GET /api/application?name=Juan+Dela+Cruz
 // Looks up an existing draft/submitted application row for this applicant,
 // matched the same way documents are matched elsewhere in the app —
 // case-insensitive, trimmed name (no accounts module yet to key off of).
+//
+// Sept 19 2026 fix: the POST handler below used to check "does a row for
+// this name already exist?" and then insert a new one if not, as two
+// separate round-trips. Two saves fired close together (e.g. hitting
+// "Save" on one panel right after another) can both run that check before
+// either insert lands, so both see "no row yet" and both insert — leaving
+// two `applications` rows for the same applicant, each holding whatever
+// sections happened to be saved through it. Reading with `.limit(1)` then
+// silently showed only ONE row's sections and made the other section's
+// (already-saved-to-Supabase) data look like it had vanished on reload.
+// POST now falls back to an UPDATE if it hits a duplicate on insert (see
+// below), so this shouldn't happen going forward — but for any applicant
+// who already has duplicate rows from before that fix, GET now fetches
+// every matching row and merges them (newest row wins for any field it
+// has a value for; older rows fill in whatever the newest is still
+// missing), so nothing already saved reads back as blank.
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -53,14 +80,35 @@ export async function GET(request) {
       .select('*')
       .ilike('applicant_name', name)
       .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, application: data || null })
+    if (!data || data.length === 0) {
+      return NextResponse.json({ success: true, application: null })
+    }
+
+    let merged = null
+    for (const row of data) {
+      if (!merged) {
+        merged = { ...row }
+        continue
+      }
+      for (const key of Object.keys(row)) {
+        if (isEmptyValue(merged[key]) && !isEmptyValue(row[key])) {
+          merged[key] = row[key]
+        }
+      }
+    }
+
+    if (data.length > 1) {
+      console.warn(
+        `/api/application: found ${data.length} duplicate rows for "${name}" (ids: ${data.map((r) => r.id).join(', ')}) — merged for this read. Run docs/migrations/2026-09-19-dedupe-applications.sql to clean these up for good.`
+      )
+    }
+
+    return NextResponse.json({ success: true, application: merged })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
@@ -171,11 +219,62 @@ export async function POST(request) {
       ...familyInfoColumns,
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('applications')
       .insert([insertPayload])
       .select()
       .single()
+
+    // Race fallback: another save for the same applicant landed its own
+    // INSERT between our "does a row exist?" check above and this one
+    // (see the GET handler's comment above for how that used to produce
+    // duplicate rows). Once docs/migrations/2026-09-19-dedupe-applications.sql
+    // has been run, `applicant_name` is unique and Postgres reports that
+    // as error code 23505 instead of silently letting a second row
+    // through — so instead of failing the save, just update the row the
+    // other request created.
+    if (error && error.code === '23505') {
+      const { data: raceExisting, error: raceFindError } = await supabase
+        .from('applications')
+        .select('*')
+        .ilike('applicant_name', applicantName)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (raceFindError || !raceExisting) {
+        return NextResponse.json({ error: raceFindError?.message || 'Save failed after a duplicate-name conflict' }, { status: 500 })
+      }
+
+      const updates = {
+        applicant_email: applicantEmail || raceExisting.applicant_email,
+        current_step: step,
+        updated_at: now,
+        ...personalInfoColumns,
+        ...academicInfoColumns,
+        ...healthInfoColumns,
+        ...familyInfoColumns,
+      }
+      if (action === 'submit') {
+        updates.status = 'submitted'
+        updates.submitted_at = now
+      }
+      if (action === 'submit-section') {
+        if (section === 'personal') updates.personal_info_submitted_at = now
+        if (section === 'academic') updates.academic_submitted_at = now
+        if (section === 'health') updates.health_submitted_at = now
+        if (section === 'financial') updates.financial_submitted_at = now
+      }
+
+      const retried = await supabase
+        .from('applications')
+        .update(updates)
+        .eq('id', raceExisting.id)
+        .select()
+        .single()
+      data = retried.data
+      error = retried.error
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
