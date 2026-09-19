@@ -1690,35 +1690,46 @@ function PortalApp({ accountSession, onLogout }) {
               (not clearly listed in either module's scope in the Roles
               doc). Honest empty state instead of fake sample data.) ══════════ */}
           {activePanel === 'messages' && (
-            <div className="bg-white border border-ccc-border rounded-2xl p-6 sm:p-8 space-y-4">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-ccc-gold">Notifications</p>
-                <h1 className="text-xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Messages</h1>
-                <p className="text-xs text-ccc-muted">Updates on exam schedules, results, and requirements from the Guidance office.</p>
+            <div>
+              <div className="portal-header">
+                <p className="portal-eyebrow eyebrow-yellow">Notifications</p>
+                <h1>Messages</h1>
+                <p>Updates on exam schedules, results, and requirements from the Guidance (GCTCDO) office. And allowance from the Office of the Registrar.</p>
               </div>
 
-              <div className="flex gap-2">
-                {[['all', 'All'], ['announcement', 'Announcements'], ['message', 'Messages']].map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setMessagesFilter(key)}
-                    className={`text-xs font-bold rounded-lg px-3 py-1.5 transition-colors ${
-                      messagesFilter === key ? 'bg-ccc-blue text-white' : 'bg-ccc-off text-ccc-muted hover:text-ccc-navy'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="rounded-xl border border-dashed border-ccc-border bg-ccc-off/60 p-8 text-center space-y-1">
-                <p className="text-sm font-semibold text-ccc-muted">No {messagesFilter === 'all' ? 'messages' : messagesFilter + 's'} yet.</p>
-                <p className="text-[11px] text-ccc-muted">
-                  You&rsquo;ll get an email confirmation when you submit your application. An in-portal
-                  announcements/messages feed needs an admin-side authoring tool first, which isn&rsquo;t
-                  built yet.
-                </p>
+              <div className="card">
+                <div className="post-type-toggle">
+                  {[['all', 'All'], ['announcement', 'Announcements'], ['message', 'Messages']].map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setMessagesFilter(key)}
+                      className={`post-type-btn${messagesFilter === key ? ' active' : ''}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="comm-scope-note">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 8v4" />
+                    <path d="M12 16h.01" />
+                  </svg>
+                  <span>
+                    Showing everything received &mdash; <b>Announcements</b> sent to all applicants (and posted on the guest page), plus <b>Messages</b> sent to you individually or to your applicant category.
+                  </span>
+                </div>
+                <div style={{ textAlign: 'center', padding: '30px 15px' }}>
+                  <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>
+                    No {messagesFilter === 'all' ? 'messages' : messagesFilter + 's'} yet.
+                  </p>
+                  <p style={{ fontSize: '11.25px', color: 'var(--muted)', marginTop: '6px' }}>
+                    You&rsquo;ll get an email confirmation when you submit your application. An in-portal
+                    announcements/messages feed needs an admin-side authoring tool first, which isn&rsquo;t
+                    built yet.
+                  </p>
+                </div>
               </div>
             </div>
           )}
@@ -2131,31 +2142,35 @@ function PortalApp({ accountSession, onLogout }) {
               Appeal-for-Retake half is deliberately left out; see
               app/api/reschedule/route.js header comment for why) ══════════ */}
           {activePanel === 'appeals' && (
-            <div className="bg-white border border-ccc-border rounded-2xl p-6 sm:p-8 space-y-6">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-ccc-muted">Admission &middot; Application</p>
-                <h1 className="text-xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Appeals &amp; Rescheduling</h1>
-                <p className="text-xs text-ccc-muted">
+            <div>
+              <div className="portal-header">
+                <p className="portal-eyebrow">Admission &middot; Application</p>
+                <h1>Appeals &amp; Rescheduling</h1>
+                <p>
                   Request to reschedule your exam if you&rsquo;ll be absent. (Appeals for retakes/
                   re-applications aren&rsquo;t handled here yet &mdash; that item&rsquo;s ownership is still
                   unresolved between modules.)
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
-                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">Submit a Request</div>
-                <SelectField
-                  label="Request Type"
-                  value={rescheduleType}
-                  onChange={setRescheduleType}
-                  options={['Reschedule Examination (Absence)', 'Other Concern']}
-                />
-                <TextAreaField
-                  label="Details"
-                  value={rescheduleDetails}
-                  onChange={setRescheduleDetails}
-                  placeholder="e.g. I was unable to attend the scheduled exam due to a medical emergency."
-                />
+              <div className="card">
+                <div className="card-title">Submit a Request</div>
+                <div className="form-grid">
+                  <SelectField
+                    label="Request Type"
+                    value={rescheduleType}
+                    onChange={setRescheduleType}
+                    options={['Reschedule Examination (Absence)', 'Other Concern']}
+                    full
+                  />
+                  <TextAreaField
+                    label="Details"
+                    value={rescheduleDetails}
+                    onChange={setRescheduleDetails}
+                    placeholder="e.g. I was unable to attend the scheduled exam due to a medical emergency."
+                    full
+                  />
+                </div>
                 <InlineUploadRow
                   label="Supporting Document"
                   sublabel="e.g. Medical certificate, affidavit, or proof of conflict"
@@ -2164,16 +2179,16 @@ function PortalApp({ accountSession, onLogout }) {
                 />
                 {supportDocRejection && <QualityRejectionAlert message={supportDocRejection} />}
 
-                <div className="flex items-center justify-between pt-1">
-                  <div>
-                    {rescheduleSaveState === 'saved' && <span className="text-[11px] font-semibold text-ccc-green">Request submitted &#x2713;</span>}
-                    {rescheduleSaveState === 'error' && <span className="text-[11px] font-semibold text-red-600">Couldn&rsquo;t submit &mdash; try again</span>}
+                <div className="form-actions">
+                  <div className="save-note">
+                    {rescheduleSaveState === 'saved' && <span style={{ color: 'var(--green)' }}>Request submitted &#x2713;</span>}
+                    {rescheduleSaveState === 'error' && <span style={{ color: 'var(--red)' }}>Couldn&rsquo;t submit &mdash; try again</span>}
                   </div>
                   <button
                     type="button"
                     onClick={submitReschedule}
                     disabled={rescheduleSaveState === 'saving' || !applicantName.trim() || !rescheduleType || !rescheduleDetails.trim()}
-                    className="text-xs font-bold text-white bg-ccc-blue hover:bg-ccc-navy disabled:bg-ccc-border disabled:text-ccc-muted rounded-xl px-4 py-2.5 disabled:cursor-not-allowed"
+                    className="mbtn mbtn-primary"
                   >
                     {rescheduleSaveState === 'saving' ? 'Submitting…' : 'Submit Request'}
                   </button>
@@ -2181,17 +2196,17 @@ function PortalApp({ accountSession, onLogout }) {
               </div>
 
               {rescheduleHistory.length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-ccc-muted">Your past requests</div>
-                  <div className="space-y-2">
+                <div className="card">
+                  <div className="card-title">Your Past Requests</div>
+                  <div className="timeline">
                     {rescheduleHistory.map((r) => (
-                      <div key={r.id} className="rounded-xl border border-ccc-border bg-ccc-off p-3 space-y-0.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-ccc-navy">{r.request_type}</span>
-                          <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue">{r.status}</span>
+                      <div key={r.id} className="timeline-item">
+                        <div className="timeline-dot">&#8230;</div>
+                        <div className="timeline-body">
+                          <h4>{r.request_type} <span style={{ color: 'var(--blue)', fontWeight: 700, fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '.5px' }}>{r.status}</span></h4>
+                          <p>{r.details}</p>
+                          <p>{new Date(r.created_at).toLocaleString()}</p>
                         </div>
-                        <p className="text-[11px] text-ccc-text/80">{r.details}</p>
-                        <p className="text-[10px] text-ccc-muted">{new Date(r.created_at).toLocaleString()}</p>
                       </div>
                     ))}
                   </div>
@@ -2215,12 +2230,15 @@ function PortalApp({ accountSession, onLogout }) {
 
           {/* ══════════ ALLOWANCE (stub — not built yet) ══════════ */}
           {activePanel === 'allowance' && (
-            <div className="bg-white border border-ccc-border rounded-2xl p-6 sm:p-8 space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-ccc-muted">Scholarship Services &middot; Enrolled</p>
-              <h1 className="text-xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Allowance</h1>
-              <div className="rounded-2xl border border-ccc-border p-5">
-                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide mb-2">Distribution Status</div>
-                <p className="text-sm text-ccc-muted">
+            <div>
+              <div className="portal-header">
+                <p className="portal-eyebrow">Scholarship Services &middot; Enrolled</p>
+                <h1>Allowance</h1>
+                <p>Once your scholarship is approved, your allowance distribution schedule and history will appear here.</p>
+              </div>
+              <div className="card">
+                <div className="card-title">Distribution Status</div>
+                <p style={{ fontSize: '12.75px', color: 'var(--muted)' }}>
                   You don&rsquo;t have an active allowance disbursement yet. This becomes available once your
                   application is approved and endorsed.
                 </p>
@@ -2233,11 +2251,11 @@ function PortalApp({ accountSession, onLogout }) {
               whose real panel (Academic/Financial/Health/Appeals) isn't
               built yet, so nothing is blocked while those are being built) ══════════ */}
           {activePanel === 'status' && (
-            <div className="bg-white border border-ccc-border rounded-2xl p-6 sm:p-8 space-y-6">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-ccc-muted">Admission &middot; Application</p>
-                <h1 className="text-xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Documents &amp; Verification Status</h1>
-                <p className="text-xs text-ccc-muted">Track the review status of every document you&rsquo;ve submitted.</p>
+            <div>
+              <div className="portal-header">
+                <p className="portal-eyebrow">Admission &middot; Application</p>
+                <h1>Documents &amp; Verification Status</h1>
+                <p>Track the review status of every document you&rsquo;ve submitted.</p>
               </div>
 
               <DocumentStatusTable
@@ -2247,16 +2265,20 @@ function PortalApp({ accountSession, onLogout }) {
                 onReupload={jumpToUploadFor}
               />
 
-              <div className="pt-4 border-t border-ccc-border space-y-4">
-                <div className="space-y-1">
-                  <h2 className="text-sm font-bold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Upload a document</h2>
-                  <p className="text-[11px] text-ccc-muted">
-                    Profile Picture, Birth Certificate, and Voter&rsquo;s ID upload from the Personal
-                    Information panel; Grades from Educational Background. Everything else — Parent/
-                    Guardian ID, Proof of Employment/Income, Supporting Document, Medical Certificate —
-                    uploads here until their own panels are built.
-                  </p>
-                </div>
+              {/* Real upload form — no direct spec equivalent (spec's version is
+                  a single static upload row); wrapped in a .card shell so it
+                  sits visually consistent with the rest of the panel, but the
+                  dropzone/preview/OCR-detail internals below keep their own
+                  Tailwind styling since there's nothing in applicant.html to
+                  match them against. */}
+              <div className="card" style={{ marginTop: '18.75px' }}>
+                <div className="card-title">Upload a Document</div>
+                <p className="topic-card-intro" style={{ marginTop: '-6px' }}>
+                  Profile Picture, Birth Certificate, and Voter&rsquo;s ID upload from the Personal
+                  Information panel; Grades from Educational Background. Everything else — Parent/
+                  Guardian ID, Proof of Employment/Income, Supporting Document, Medical Certificate —
+                  uploads here until their own panels are built.
+                </p>
 
                 <form onSubmit={handleUpload} className="space-y-5">
                   <div className="space-y-1.5">
@@ -2400,7 +2422,8 @@ function PortalApp({ accountSession, onLogout }) {
                 )}
               </div>
 
-              <div className="pt-4 border-t border-ccc-border space-y-3">
+              <div className="card" style={{ marginTop: '18.75px' }}>
+                <div className="card-title">Submit Application</div>
                 {submitted ? (
                   <div className="p-5 rounded-xl border border-ccc-green/40 bg-green-50 text-center space-y-1.5">
                     <IconCheck className="w-6 h-6 text-ccc-green mx-auto" />
