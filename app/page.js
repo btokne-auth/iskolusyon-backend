@@ -482,6 +482,29 @@ function ActivityLog({ events }) {
   )
 }
 
+// Sept 19 2026: Contact Number and Date of Birth fields throughout
+// Personal Information and Family & Financial Information were plain text
+// inputs with no format enforcement — they'd accept letters, symbols,
+// anything typable, which is exactly the kind of "obviously wrong input"
+// an applicant shouldn't be able to submit. Rather than only validate on
+// submit (which still lets garbage sit in the field until then), these
+// strip disallowed characters as the applicant types, the same way a
+// phone number field on a real form behaves.
+function sanitizePhoneInput(value) {
+  // Digits and spaces, plus a single leading "+" for a +63 country code —
+  // covers every placeholder already used for these fields ("0917 123
+  // 4567" / "09XX XXX XXXX").
+  const leadingPlus = value.startsWith('+') ? '+' : ''
+  return leadingPlus + value.replace(/[^\d\s]/g, '')
+}
+function sanitizeDateTextInput(value) {
+  // For the free-text "MM/DD/YYYY" Date of Birth fields in the Family &
+  // Financial tables below (Parent/Guardian, Sibling Income) — Personal
+  // Information's own Date of Birth field uses a native <input
+  // type="date"> picker already, so it can't accept invalid text at all.
+  return value.replace(/[^\d/]/g, '')
+}
+
 // Small reusable form controls for the Personal Information cards (Step 1,
 // cards 2-3) — kept local to this file since they're only used here, styled
 // to match the existing Applicant Name / Email inputs above.
@@ -678,8 +701,14 @@ function ParentGuardianTable({ familyInfo, onChange, disabled }) {
                   <td key={person}>
                     <input
                       type="text"
+                      inputMode={row.field === 'Contact' ? 'tel' : row.field === 'Dob' ? 'numeric' : undefined}
                       value={familyInfo[key]}
-                      onChange={(e) => onChange(key, e.target.value)}
+                      onChange={(e) => {
+                        let v = e.target.value
+                        if (row.field === 'Contact') v = sanitizePhoneInput(v)
+                        if (row.field === 'Dob') v = sanitizeDateTextInput(v)
+                        onChange(key, v)
+                      }}
                       placeholder={row.placeholders[i]}
                       required={person !== 'guardian'}
                       disabled={disabled}
@@ -748,8 +777,14 @@ function SiblingIncomeTable({ siblings, onChangeCell, onAddColumn, onRemoveColum
                   <td key={i}>
                     <input
                       type="text"
+                      inputMode={row.field === 'contact' ? 'tel' : row.field === 'dob' ? 'numeric' : undefined}
                       value={sib[row.field]}
-                      onChange={(e) => onChangeCell(i, row.field, e.target.value)}
+                      onChange={(e) => {
+                        let v = e.target.value
+                        if (row.field === 'contact') v = sanitizePhoneInput(v)
+                        if (row.field === 'dob') v = sanitizeDateTextInput(v)
+                        onChangeCell(i, row.field, v)
+                      }}
                       placeholder={row.placeholder}
                       required
                       disabled={disabled}
@@ -2284,7 +2319,7 @@ function PortalApp({ accountSession, onLogout }) {
                     </div>
                     <TextField label="Spouse's Name" value={personalInfo.spouseName} onChange={(v) => updatePI('spouseName', v)} placeholder="e.g. Maria Dela Cruz" />
                     <TextField label="Spouse's Occupation" value={personalInfo.spouseOccupation} onChange={(v) => updatePI('spouseOccupation', v)} placeholder="e.g. Teacher" />
-                    <TextField full label="Spouse's Contact Number" value={personalInfo.spouseContact} onChange={(v) => updatePI('spouseContact', v)} placeholder="e.g. 0917 123 4567" />
+                    <TextField full label="Spouse's Contact Number" type="tel" value={personalInfo.spouseContact} onChange={(v) => updatePI('spouseContact', sanitizePhoneInput(v))} placeholder="e.g. 0917 123 4567" />
                   </div>
                 )}
                 <div className="topic-doc-section">
@@ -2321,7 +2356,7 @@ function PortalApp({ accountSession, onLogout }) {
                     </label>
                   </div>
                   <div className="mfield full">
-                    <TextField label="Contact Number" required value={personalInfo.contactNumber} onChange={(v) => updatePI('contactNumber', v)} placeholder="e.g. 0917 123 4567" />
+                    <TextField label="Contact Number" type="tel" required value={personalInfo.contactNumber} onChange={(v) => updatePI('contactNumber', sanitizePhoneInput(v))} placeholder="e.g. 0917 123 4567" />
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', fontSize: '12px', fontWeight: 400, textTransform: 'none', letterSpacing: 'normal', color: 'var(--text)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={personalInfo.smsUpdatesOptIn} onChange={(e) => updatePI('smsUpdatesOptIn', e.target.checked)} style={{ width: '15px', height: '15px', margin: 0, accentColor: 'var(--ccc-blue)', cursor: 'pointer' }} />
                       I want to receive SMS updates.
@@ -2681,7 +2716,7 @@ function PortalApp({ accountSession, onLogout }) {
                     label="Emergency Contact Number"
                     type="tel"
                     value={familyInfo.emergencyContactNumber}
-                    onChange={(v) => updateFI('emergencyContactNumber', v)}
+                    onChange={(v) => updateFI('emergencyContactNumber', sanitizePhoneInput(v))}
                     placeholder="e.g. 09XX XXX XXXX"
                   />
                 </div>
