@@ -3,7 +3,18 @@ import { useState, useEffect, useRef } from 'react'
 import SiteHeader from './components/SiteHeader'
 import DocumentStatusTable from './components/DocumentStatusTable'
 import PortalSidebar from './components/PortalSidebar'
+import ApplicantAuth from './components/ApplicantAuth'
 import { DOCUMENT_TYPE_OPTIONS, getDocTypeLabel } from './lib/documentTypes'
+import {
+  saveDraftLocal,
+  loadDraftLocal,
+  clearDraftLocal,
+  queueUpload,
+  getQueuedUploads,
+  removeQueuedUpload,
+  onConnectivityChange,
+  isNetworkError,
+} from './lib/offlineSync'
 
 // ---------- Small building blocks ----------
 
@@ -508,6 +519,7 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected }) 
         {status === 'flagged' && <div className="text-[11px] text-ccc-gold mt-0.5">Uploaded, flagged for review</div>}
         {status === 'rejected' && <div className="text-[11px] text-red-600 mt-0.5">Photo rejected &mdash; see details below</div>}
         {status === 'error' && <div className="text-[11px] text-red-600 mt-0.5">Upload failed &mdash; try again</div>}
+        {status === 'queued' && <div className="text-[11px] text-ccc-gold mt-0.5">No connection &mdash; saved on this device, will upload automatically once you&rsquo;re back online</div>}
       </div>
       <label className="shrink-0 text-[11px] font-bold text-ccc-blue border border-ccc-blue rounded-lg px-3 py-1.5 cursor-pointer hover:bg-ccc-blue hover:text-white transition-colors">
         Upload
@@ -523,14 +535,63 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected }) 
 
 // ---------- Page ----------
 
+// ---------- Real auth gate (User Account Module) ----------
+// Was formally Ivy's scope; built Sept 19, 2026 since she isn't. Checks
+// for a valid applicant session cookie before rendering the portal at all
+// — logged-out visitors see ApplicantAuth (Login / 4-step Signup) instead.
+// The actual portal is PortalApp below (renamed from the old default
+// export `Home`), now receiving the verified account as `accountSession`
+// instead of applicants free-typing their own name/email.
 export default function Home() {
+  const [accountSession, setAccountSession] = useState(undefined) // undefined = checking, null = logged out, object = logged in
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/applicant-session')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled) return
+        setAccountSession(data && data.loggedIn ? data : null)
+      })
+      .catch(() => {
+        if (!cancelled) setAccountSession(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (accountSession === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-ccc-off text-ccc-muted text-sm">
+        Loading…
+      </div>
+    )
+  }
+
+  if (!accountSession) {
+    return <ApplicantAuth onAuthenticated={(session) => setAccountSession(session)} />
+  }
+
+  return (
+    <PortalApp
+      accountSession={accountSession}
+      onLogout={async () => {
+        await fetch('/api/applicant-logout', { method: 'POST' }).catch(() => {})
+        setAccountSession(null)
+      }}
+    />
+  )
+}
+
+function PortalApp({ accountSession, onLogout }) {
   const [file, setFile] = useState(null)
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(false)
   const [details, setDetails] = useState(null)
   const [qualityRejection, setQualityRejection] = useState(null)
-  const [applicantName, setApplicantName] = useState('')
-  const [applicantEmail, setApplicantEmail] = useState('')
+  const [applicantName, setApplicantName] = useState(accountSession.name || '')
+  const [applicantEmail, setApplicantEmail] = useState(accountSession.email || '')
   const [documentType, setDocumentType] = useState('')
   const [docHistory, setDocHistory] = useState([])
   const [isDragging, setIsDragging] = useState(false)
@@ -538,9 +599,14 @@ export default function Home() {
   const [statusRequested, setStatusRequested] = useState(false)
   const [activePanel, setActivePanel] = useState('personal') // sidebar panel key — replaces the old linear step wizard
   const [submitted, setSubmitted] = useState(false)
-  const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
+  const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error' | 'offline'
   const [draftFound, setDraftFound] = useState(null) // application row found for this name, or null
   const [draftDismissed, setDraftDismissed] = useState(false)
+  const [localDraftFound, setLocalDraftFound] = useState(null) // draft found in IndexedDB only (offline fallback), separate from draftFound above
+  const [queuedUploadCount, setQueuedUploadCount] = useState(0) // uploads waiting in IndexedDB for a connection
+  const [isOffline, setIsOffline] = useState(false) // proactive connectivity state, not just reactive to a failed save/upload
+  const [justSynced, setJustSynced] = useState(false) // brief confirmation once queued items finish uploading after reconnecting
+  const [justReconnected, setJustReconnected] = useState(false) // brief "you're back online" confirmation, independent of whether anything was queued
   // ---- Personal Information (Step 1, cards 2-3) ----
   // Card 1 (Profile Picture), card 2 (Identity & Civil Status), and card 3
   // (Contact & Residency) fields, ported from Ivy's applicant.html Personal
@@ -563,6 +629,20 @@ export default function Home() {
     motivation: '', selfDescription: '', tenYears: '',
   })
   const updatePI = (field, value) => setPersonalInfo((p) => ({ ...p, [field]: value }))
+
+  // Once logged in, `applicantName` (the key everything else in this file
+  // matches applications/documents against) is derived from the verified
+  // Personal Information fields instead of being free-typed — keeps the
+  // "Applicant name" field above in sync as First/Middle/Last Name change.
+  useEffect(() => {
+    if (!accountSession) return
+    const derived = [personalInfo.firstName, personalInfo.lastName].filter((v) => v && v.trim()).join(' ').trim()
+    if (derived && derived !== applicantName) {
+      setApplicantName(derived)
+      setDraftFound(null)
+      setDraftDismissed(false)
+    }
+  }, [accountSession, personalInfo.firstName, personalInfo.lastName])
 
   // Card 5 (Organizational Involvement) row helpers — mirrors Ivy's
   // addOrgRow/removeOrgRow behavior contract (only the last row offers
@@ -732,11 +812,24 @@ export default function Home() {
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Save failed')
       setSaveState('saved')
+      // The server copy is now current — the local safety-net copy for
+      // this applicant is no longer needed until something changes again
+      // (the autosave effect below will recreate it on the next edit).
+      clearDraftLocal(applicantName)
       setTimeout(() => setSaveState('idle'), 2500)
     } catch (err) {
-      console.error('Auto-save failed (non-blocking):', err)
-      setSaveState('error')
-      setTimeout(() => setSaveState('idle'), 3000)
+      console.error('Auto-save failed:', err)
+      if (isNetworkError(err)) {
+        // Couldn't reach the server at all — the autosave effect already
+        // keeps a local copy up to date, so nothing is actually lost.
+        // Say so plainly instead of showing a generic "couldn't save".
+        await saveDraftLocal(applicantName, { personalInfo, academicInfo, applicantEmail, step: targetStep })
+        setSaveState('offline')
+        setTimeout(() => setSaveState('idle'), 4000)
+      } else {
+        setSaveState('error')
+        setTimeout(() => setSaveState('idle'), 3000)
+      }
     }
   }
 
@@ -778,13 +871,127 @@ export default function Home() {
       const data = await res.json()
       if (data.application && data.application.status === 'draft' && data.application.current_step > 1) {
         setDraftFound(data.application)
-      } else {
-        setDraftFound(null)
+        setLocalDraftFound(null)
+        return
       }
+      setDraftFound(null)
     } catch (err) {
-      console.error('Draft lookup failed (non-blocking):', err)
+      // Couldn't reach Supabase to check for a draft — this is exactly
+      // the "closed the browser while offline, came back" case the local
+      // copy exists for. Offer that instead, rather than silently
+      // looking like there's nothing to resume.
+      console.error('Draft lookup failed, checking local copy instead:', err)
+      setDraftFound(null)
+      const local = await loadDraftLocal(name)
+      setLocalDraftFound(local)
+      return
     }
+    // Even when the DB check succeeds cleanly with nothing to resume,
+    // still check locally — covers the case where a save attempt failed
+    // partway through and was never confirmed by Supabase.
+    const local = await loadDraftLocal(name)
+    setLocalDraftFound(local)
   }
+
+  // Once logged in, this is your own verified data, not an ambiguous "does
+  // this name belong to you?" situation — so instead of showing the
+  // "resume draft?" banner and waiting for a click (see checkForDraft /
+  // draftFound above, kept as-is for the fallback offline-local-draft
+  // path), auto-load whatever's already saved under this account the
+  // moment the session is known.
+  useEffect(() => {
+    if (!accountSession || !applicantName.trim()) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/application?name=${encodeURIComponent(applicantName.trim())}`)
+        const data = await res.json()
+        if (cancelled || !data.application) return
+        setPersonalInfo(mapDbRowToPersonalInfo(data.application))
+        setAcademicInfo(mapDbRowToAcademicInfo(data.application))
+      } catch (err) {
+        console.error('Auto-load of saved application failed (will retry via manual resume banner if needed):', err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [accountSession])
+
+  // Keeps a local (IndexedDB) copy of the current draft in sync with every
+  // edit, debounced so it's not writing on every keystroke. This is the
+  // actual safety net — by the time a "Save progress" click or connection
+  // failure happens, the local copy is already current.
+  useEffect(() => {
+    if (!applicantName.trim()) return
+    const timer = setTimeout(() => {
+      saveDraftLocal(applicantName, { personalInfo, academicInfo, applicantEmail, step: activePanel })
+    }, 1200)
+    return () => clearTimeout(timer)
+  }, [applicantName, applicantEmail, personalInfo, academicInfo, activePanel])
+
+  // Keeps the "documents waiting to upload" count current, and retries
+  // everything queued once the browser reports it's back online. Runs
+  // once on mount (in case there was already a queue from a previous,
+  // now-closed session) and again on every online event.
+  useEffect(() => {
+    let cancelled = false
+
+    const refreshQueueCount = async () => {
+      const queued = await getQueuedUploads(applicantName)
+      if (!cancelled) setQueuedUploadCount(queued.length)
+    }
+    refreshQueueCount()
+
+    const retryQueue = async () => {
+      const queued = await getQueuedUploads()
+      const hadQueued = queued.length > 0
+      for (const entry of queued) {
+        try {
+          await uploadDocument(entry.docType, entry.file)
+          await removeQueuedUpload(entry.id)
+        } catch (err) {
+          // Still can't reach the server (a brief "online" flicker that
+          // didn't actually hold) — leave it queued, it'll retry on the
+          // next online event.
+          console.error('Retrying queued upload failed, will try again later:', err)
+        }
+      }
+      if (!cancelled) {
+        fetchHistory()
+        const remaining = await getQueuedUploads(applicantName)
+        setQueuedUploadCount(remaining.length)
+        if (hadQueued && remaining.length === 0) {
+          setJustSynced(true)
+          setTimeout(() => setJustSynced(false), 5000)
+        }
+      }
+    }
+
+    const unsubscribe = onConnectivityChange((online) => {
+      setIsOffline(!online)
+      if (online) {
+        // Acknowledge the reconnect immediately, independent of whether
+        // there's anything queued to sync — without this, coming back
+        // online after a stretch with nothing queued was silent, which
+        // read as "did it even notice I'm back?"
+        setJustReconnected(true)
+        setTimeout(() => setJustReconnected(false), 4000)
+        retryQueue()
+      }
+    })
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
+  }, [applicantName])
+
+  // Set the initial offline state on mount — onConnectivityChange only
+  // fires on a *change*, so this catches "already offline when the page
+  // loaded" (e.g. opening the app with no signal at all).
+  useEffect(() => {
+    if (typeof navigator !== 'undefined') setIsOffline(!navigator.onLine)
+  }, [])
 
   // If the name field gets cleared, hide the status table again — next time
   // requires a deliberate click, same as the first time.
@@ -964,6 +1171,16 @@ export default function Home() {
         setDetails(null)
         setQualityRejection({ reason: err.reason, message: err.rejectionMessage })
         setFile(null)
+      } else if (isNetworkError(err)) {
+        // Couldn't reach the server at all — hold onto the actual file and
+        // retry automatically once back online, instead of making the
+        // applicant notice the failure and redo it later.
+        await queueUpload({ docType: documentType, file, applicantName: applicantName.trim(), applicantEmail: applicantEmail.trim() })
+        setQueuedUploadCount((c) => c + 1)
+        setDetails(null)
+        setStatus('No connection right now — this file is saved on your device and will upload automatically once you\u2019re back online.')
+        setFile(null)
+        setDocumentType('')
       } else {
         setDetails(null)
         setStatus(`Error: ${err.message}`)
@@ -992,6 +1209,12 @@ export default function Home() {
         // Surface the actual reason instead of a blind "try again."
         setInlineStatus('rejected')
         setInlineRejection(err.rejectionMessage)
+      } else if (isNetworkError(err)) {
+        // Same as the Step 2 form: hold the file locally and retry
+        // automatically once connectivity returns.
+        await queueUpload({ docType, file: uploadFile, applicantName: applicantName.trim(), applicantEmail: applicantEmail.trim() })
+        setQueuedUploadCount((c) => c + 1)
+        setInlineStatus('queued')
       } else {
         setInlineStatus('error')
       }
@@ -1001,6 +1224,39 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-ccc-off text-ccc-text">
       <SiteHeader topbarLabel="Iskolusyon Applicant Portal" portalBadge="Applicant Portal" />
+
+      {isOffline && (
+        <div className="w-full bg-red-50 border-b border-red-200 text-center py-2.5 px-4">
+          <p className="text-xs font-semibold text-red-700">
+            You&rsquo;re currently offline. Anything you type or upload is being saved on this device &mdash;
+            keep this tab open, or reopen it once you have a signal, and it will finish saving automatically.
+          </p>
+        </div>
+      )}
+
+      {!isOffline && queuedUploadCount > 0 && (
+        <div className="w-full bg-ccc-gold/15 border-b border-ccc-gold/30 text-center py-2 px-4">
+          <p className="text-xs font-semibold text-ccc-navy">
+            {queuedUploadCount} document{queuedUploadCount === 1 ? '' : 's'} saved on this device, waiting for a connection to upload automatically.
+          </p>
+        </div>
+      )}
+
+      {!isOffline && queuedUploadCount === 0 && justSynced && (
+        <div className="w-full bg-green-50 border-b border-ccc-green/30 text-center py-2 px-4">
+          <p className="text-xs font-semibold text-ccc-green">
+            You&rsquo;re back online &mdash; everything saved on this device has finished uploading.
+          </p>
+        </div>
+      )}
+
+      {!isOffline && queuedUploadCount === 0 && !justSynced && justReconnected && (
+        <div className="w-full bg-green-50 border-b border-ccc-green/30 text-center py-2 px-4">
+          <p className="text-xs font-semibold text-ccc-green">
+            You&rsquo;re back online.
+          </p>
+        </div>
+      )}
 
       <div className="w-full max-w-6xl mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6 items-start">
         <PortalSidebar
@@ -1013,6 +1269,7 @@ export default function Home() {
           }
           messagesCount={0}
           flaggedCount={flaggedCount}
+          onLogout={onLogout}
         />
 
         <div ref={formCardRef} className="flex-1 min-w-0 space-y-6">
@@ -1187,13 +1444,18 @@ export default function Home() {
                     onChange={(e) => { setApplicantName(e.target.value); setDraftFound(null); setDraftDismissed(false) }}
                     onBlur={checkForDraft}
                     placeholder="Juan Dela Cruz"
-                    className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+                    disabled={!!accountSession}
+                    className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40 disabled:bg-ccc-off disabled:text-ccc-muted"
                   />
-                  <p className="text-[10px] text-ccc-muted">Used to identify your application until a real account system exists.</p>
+                  <p className="text-[10px] text-ccc-muted">
+                    {accountSession
+                      ? 'Linked to your verified account. Edit your First/Middle/Last Name below to update it.'
+                      : 'Used to identify your application until a real account system exists.'}
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <label htmlFor="applicantEmail" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
-                    Applicant email <span className="normal-case font-normal text-ccc-muted">(optional)</span>
+                    Applicant email {!accountSession && <span className="normal-case font-normal text-ccc-muted">(optional)</span>}
                   </label>
                   <input
                     id="applicantEmail"
@@ -1201,8 +1463,10 @@ export default function Home() {
                     value={applicantEmail}
                     onChange={(e) => setApplicantEmail(e.target.value)}
                     placeholder="juan.delacruz@example.com"
-                    className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+                    disabled={!!accountSession}
+                    className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40 disabled:bg-ccc-off disabled:text-ccc-muted"
                   />
+                  {accountSession && <p className="text-[10px] text-ccc-muted">Your account&rsquo;s verified sign-in email.</p>}
                 </div>
               </div>
 
@@ -1347,6 +1611,36 @@ export default function Home() {
                 </div>
               )}
 
+              {!draftFound && localDraftFound && (
+                <div className="p-4 rounded-xl border border-ccc-gold/40 bg-yellow-50 flex items-start justify-between gap-3">
+                  <div className="text-xs text-ccc-text/90">
+                    <p className="font-bold text-ccc-navy mb-0.5">We couldn&rsquo;t reach the server, but found saved progress on this device.</p>
+                    <p>This is from earlier and hasn&rsquo;t synced yet. Want to pick up where you left off?</p>
+                  </div>
+                  <div className="flex flex-col gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPersonalInfo(localDraftFound.personalInfo)
+                        setAcademicInfo(localDraftFound.academicInfo)
+                        if (localDraftFound.applicantEmail) setApplicantEmail(localDraftFound.applicantEmail)
+                        setLocalDraftFound(null)
+                      }}
+                      className="text-xs font-bold text-white bg-ccc-gold hover:bg-ccc-navy rounded-lg px-3 py-1.5 whitespace-nowrap"
+                    >
+                      Resume saved progress
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLocalDraftFound(null)}
+                      className="text-[11px] font-semibold text-ccc-muted hover:text-ccc-navy underline underline-offset-2"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {!requiredPersonalInfoComplete && applicantName.trim() && (
                 <p className="text-[11px] text-ccc-muted -mt-2">
                   Fill in the required fields and upload your Profile Picture, Birth Certificate, and Voter&rsquo;s ID above &mdash; this section saves independently of the others.
@@ -1357,6 +1651,7 @@ export default function Home() {
                 <div>
                   {saveState === 'saved' && <span className="text-[11px] font-semibold text-ccc-green">Progress saved &#x2713;</span>}
                   {saveState === 'error' && <span className="text-[11px] font-semibold text-red-600">Couldn&rsquo;t save &mdash; try again</span>}
+                  {saveState === 'offline' && <span className="text-[11px] font-semibold text-ccc-gold">No connection &mdash; saved on this device, will sync automatically</span>}
                 </div>
                 <button
                   type="button"
@@ -1448,6 +1743,7 @@ export default function Home() {
                 <div>
                   {saveState === 'saved' && <span className="text-[11px] font-semibold text-ccc-green">Progress saved &#x2713;</span>}
                   {saveState === 'error' && <span className="text-[11px] font-semibold text-red-600">Couldn&rsquo;t save &mdash; try again</span>}
+                  {saveState === 'offline' && <span className="text-[11px] font-semibold text-ccc-gold">No connection &mdash; saved on this device, will sync automatically</span>}
                 </div>
                 <button
                   type="button"

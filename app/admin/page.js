@@ -1,9 +1,10 @@
 'use client'
-import { Suspense, useState, useEffect, useMemo } from 'react'
+import { Suspense, useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import SiteHeader from '../components/SiteHeader'
 import AdminSidebar from '../components/AdminSidebar'
 import { getDocTypeLabel } from '../lib/documentTypes'
+import { onConnectivityChange, isNetworkError } from '../lib/offlineSync'
 
 // ---------- Icons (same style as the applicant page) ----------
 
@@ -93,6 +94,122 @@ function formatWhen(iso) {
   }
 }
 
+// A document preview image that failed to load (slow/dropped connection,
+// most commonly) previously just sat there as a broken image icon with no
+// way to fix it short of refreshing the entire page. This retries just
+// that one image — by changing `src` slightly to force a fresh request —
+// instead of forcing the admin to reload everything they were looking at.
+//
+// It's also lazy: with 100+ documents on the Dashboard, the old version
+// requested every single preview the instant the page rendered, all at
+// once. Browsers cap concurrent requests to one host at ~6, so the rest
+// just queued silently behind them — on a slow connection, cards far down
+// the list could sit on "Loading preview..." for a very long time even
+// though nothing was actually broken, just waiting its turn. This version
+// only starts the real image request once the card scrolls near the
+// viewport (via IntersectionObserver), so the browser is only ever asked
+// for the handful of previews someone can actually see, not all of them.
+function RetryableImage({ src, alt, className }) {
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [inView, setInView] = useState(false)
+  const containerRef = useRef(null)
+
+  // Reset if the underlying document changes (e.g. paging to a different
+  // review card reusing this component).
+  useEffect(() => {
+    setFailed(false)
+    setLoading(true)
+    setAttempt(0)
+  }, [src])
+
+  // Starts observing this card's position as soon as it mounts. `rootMargin`
+  // is set generously (start loading ~400px before it's actually on
+  // screen) so images are already there by the time someone scrolls to
+  // them, instead of popping in late. Once it's been seen once, stop
+  // observing — no need to keep watching a card that's already loaded.
+  useEffect(() => {
+    if (inView) return
+    const el = containerRef.current
+    if (!el) return
+    // IntersectionObserver isn't available during server rendering — this
+    // effect only ever runs client-side, but guard anyway for safety.
+    if (typeof IntersectionObserver === 'undefined') {
+      setInView(true)
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setInView(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '400px 0px' }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [inView])
+
+  if (!src) {
+    return (
+      <div className="flex flex-col items-center gap-2 text-ccc-muted py-10">
+        <IconFile className="w-10 h-10" />
+        <span className="text-xs">Preview unavailable</span>
+      </div>
+    )
+  }
+
+  if (failed) {
+    return (
+      <div ref={containerRef} className="flex flex-col items-center gap-2 text-ccc-muted py-10">
+        <IconAlertTriangle className="w-8 h-8 text-ccc-orange" />
+        <span className="text-xs text-center px-4">Couldn&rsquo;t load this preview &mdash; likely a slow or dropped connection.</span>
+        <button
+          type="button"
+          onClick={() => {
+            setFailed(false)
+            setLoading(true)
+            setAttempt((a) => a + 1)
+          }}
+          className="text-[11px] font-bold text-white bg-ccc-blue hover:bg-ccc-navy rounded-lg px-3 py-1.5 mt-1"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div ref={containerRef} className="relative min-h-[80px]">
+      {(loading || !inView) && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-[11px] text-ccc-muted">
+            {inView ? 'Loading preview…' : 'Scroll to load…'}
+          </span>
+        </div>
+      )}
+      {inView && (
+        <img
+          // A cache-busting query param forces the browser to actually
+          // re-request the image on retry, instead of re-showing the same
+          // failed/cached response.
+          src={attempt === 0 ? src : `${src}${src.includes('?') ? '&' : '?'}retry=${attempt}`}
+          alt={alt}
+          className={className}
+          style={{ opacity: loading ? 0 : 1 }}
+          onLoad={() => setLoading(false)}
+          onError={() => {
+            setLoading(false)
+            setFailed(true)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
 // ---------- Small building blocks (Dashboard panel) ----------
 
 function ReviewStatusBadge({ needsReview }) {
@@ -171,7 +288,7 @@ function DocumentReviewCard({ doc, onOverride, overriding }) {
         {/* Left: the actual file */}
         <div className="bg-ccc-off border-b md:border-b-0 md:border-r border-ccc-border flex items-center justify-center min-h-[220px] p-3">
           {image && doc.publicUrl ? (
-            <img
+            <RetryableImage
               src={doc.publicUrl}
               alt={getCleanFileName(doc.file_path)}
               className="max-h-72 w-auto rounded-lg object-contain"
@@ -724,9 +841,18 @@ function AdminPageInner() {
   const [overriding, setOverriding] = useState(null)
   const [overrideError, setOverrideError] = useState('')
   const [activePanel, setActivePanel] = useState(initialPanel)
+  const [isOffline, setIsOffline] = useState(false)
+  const [justReconnected, setJustReconnected] = useState(false)
 
   const fetchDocs = async () => {
-    setLoading(true)
+    // Only show the full "Loading documents..." blank state on the very
+    // first load. Every later call (after an override, or after
+    // reconnecting) should update the list quietly in the background —
+    // wiping 123 already-visible documents back to a loading screen on
+    // every single Mark Verified/Flag click was the real cause of the
+    // "kept refreshing" feeling, especially pronounced on a slow
+    // connection where each full refetch takes several seconds.
+    if (docs.length === 0) setLoading(true)
     setError('')
     try {
       const res = await fetch('/api/upload')
@@ -757,6 +883,25 @@ function AdminPageInner() {
 
   useEffect(() => {
     fetchDocs()
+  }, [])
+
+  // Proactive connectivity banner, same module and pattern as the
+  // applicant portal — an admin reviewing documents deserves the same
+  // clear "you're offline" / "back online" signal instead of things
+  // just quietly failing to load.
+  useEffect(() => {
+    if (typeof navigator !== 'undefined') setIsOffline(!navigator.onLine)
+    const unsubscribe = onConnectivityChange((online) => {
+      setIsOffline(!online)
+      if (online) {
+        setJustReconnected(true)
+        setTimeout(() => setJustReconnected(false), 4000)
+        // Re-fetch whatever the connection drop may have interrupted —
+        // documents, so the dashboard/list doesn't sit stale or half-loaded.
+        fetchDocs()
+      }
+    })
+    return unsubscribe
   }, [])
 
   // A signed-in but non-Super-Admin session shouldn't be able to land on a
@@ -790,7 +935,11 @@ function AdminPageInner() {
       }
       await fetchDocs()
     } catch (err) {
-      setOverrideError(err.message)
+      setOverrideError(
+        isNetworkError(err)
+          ? 'No connection right now — this change did not go through. Try again once you\u2019re back online.'
+          : err.message
+      )
     } finally {
       setOverriding(null)
     }
@@ -812,6 +961,23 @@ function AdminPageInner() {
           </a>
         }
       />
+
+      {isOffline && (
+        <div className="w-full bg-red-50 border-b border-red-200 text-center py-2.5 px-4">
+          <p className="text-xs font-semibold text-red-700">
+            You&rsquo;re currently offline. Document previews, saves, and overrides won&rsquo;t go through until
+            your connection returns &mdash; this page will pick back up automatically once it does.
+          </p>
+        </div>
+      )}
+
+      {!isOffline && justReconnected && (
+        <div className="w-full bg-green-50 border-b border-ccc-green/30 text-center py-2 px-4">
+          <p className="text-xs font-semibold text-ccc-green">
+            You&rsquo;re back online &mdash; refreshing the latest data now.
+          </p>
+        </div>
+      )}
 
       <div className="w-full max-w-6xl mx-auto px-4 pt-8 pb-16 flex flex-col lg:flex-row gap-6">
         <AdminSidebar

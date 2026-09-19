@@ -8,9 +8,9 @@
 // still get a working nav entry + a clearly-labeled placeholder panel, so
 // the shell is honest about what's actually done vs. coming later.
 //
-// No login system exists yet (Ivy's User Account Module), so there's no
-// real "Log Out" action to wire up — the button is present for visual
-// parity with her design but is a no-op for now.
+// Sept 19, 2026: real accounts now exist (see app/lib/applicantAuth.js) —
+// "Log Out" calls the onLogout prop the page passes down instead of being
+// a no-op.
 
 const NAV_GROUPS = [
   {
@@ -90,6 +90,7 @@ export default function PortalSidebar({
   avatarInitials,
   messagesCount = 0,
   flaggedCount = 0,
+  onLogout,
 }) {
   return (
     <aside className="w-full lg:w-64 shrink-0 bg-white border border-ccc-border rounded-2xl p-4 lg:sticky lg:top-6 h-fit space-y-5">
@@ -150,13 +151,12 @@ export default function PortalSidebar({
         ))}
       </div>
 
-      {/* ---- Logout (no-op — no login system yet) ---- */}
+      {/* ---- Logout ---- */}
       <div className="pt-3 border-t border-ccc-border">
         <button
           type="button"
-          disabled
-          title="Log in/out isn't wired up yet — no account system exists"
-          className="w-full text-left rounded-lg px-3 py-2 text-[13px] font-semibold text-ccc-muted opacity-60 cursor-not-allowed"
+          onClick={onLogout}
+          className="w-full text-left rounded-lg px-3 py-2 text-[13px] font-semibold text-ccc-muted hover:bg-ccc-off hover:text-ccc-text"
         >
           Log Out
         </button>
