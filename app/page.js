@@ -1376,7 +1376,16 @@ function PortalApp({ accountSession, onLogout }) {
 
   return (
     <main className="min-h-screen bg-ccc-off text-ccc-text">
-      <SiteHeader topbarLabel="Iskolusyon Applicant Portal" portalBadge="Applicant Portal" />
+      <SiteHeader
+        topbarLabel="(049) 559-8900 to 8907 / (02) 8-539-5170 to 5171"
+        topbarLink={{ href: 'https://www.ccc.edu.ph', label: 'www.ccc.edu.ph' }}
+        subtitle="Scholarship Portal"
+        logos={[
+          { src: '/LOGO_CCC.png', alt: 'City College of Calamba Logo' },
+          { src: '/LOGO_CCC_Admissions.png', alt: 'CCC Admissions Logo' },
+          { src: '/LOGO_CCC_Registrar.png', alt: 'CCC Registrar Logo' },
+        ]}
+      />
 
       {isOffline && (
         <div className="w-full bg-red-50 border-b border-red-200 text-center py-2.5 px-4">
