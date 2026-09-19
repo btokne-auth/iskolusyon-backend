@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import SiteHeader from './SiteHeader'
 
 // Real applicant Login + Signup — the User Account Module, formally Ivy's
@@ -283,7 +283,16 @@ function passwordStrengthError(password) {
 }
 
 function SignupPanel({ onSwitch, onAuthenticated }) {
-  const [step, setStep] = useState(1)
+  // Step 0 = Data Privacy Consent screen. Described in index.html's own
+  // "How to Apply" guide text ("A Data Privacy Consent screen will appear.
+  // Read it carefully and click I Agree to proceed.") but never actually
+  // built into signup.html's markup — written fresh here in the same
+  // visual style. Deliberately outside the "Step X of 4" counter and the
+  // side stepper (matches how the guide describes it as happening before
+  // Account Setup, not as one of the 4 numbered steps).
+  const [step, setStep] = useState(0)
+  const [consentChecked, setConsentChecked] = useState(false)
+  const [consentError, setConsentError] = useState('')
   const [accountId, setAccountId] = useState(null)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
@@ -317,9 +326,20 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
   const [contactNumber, setContactNumber] = useState('')
   const [address, setAddress] = useState('')
 
-  // Step 4
+  // Step 4 — "Verification Code Countdown Timer" + the code itself matching
+  // the OTP's real server-side lifetime (OTP_TTL_MINUTES = 10 in
+  // applicantAccounts.js, kept in sync here so the countdown doesn't claim
+  // the code is still valid after the server has actually expired it).
   const [code, setCode] = useState('')
   const [codeSent, setCodeSent] = useState(false)
+  const OTP_TTL_SECONDS = 10 * 60
+  const [secondsLeft, setSecondsLeft] = useState(OTP_TTL_SECONDS)
+
+  useEffect(() => {
+    if (!codeSent || secondsLeft <= 0) return
+    const timer = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000)
+    return () => clearInterval(timer)
+  }, [codeSent, secondsLeft])
 
   async function handleStep1(e) {
     e.preventDefault()
@@ -434,6 +454,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
         return
       }
       setCodeSent(true)
+      setSecondsLeft(OTP_TTL_SECONDS) // (re)start the countdown — covers both the first send and every "Resend code" click
     } catch {
       setError('Could not reach the server. Check your connection and try again.')
     } finally {
@@ -473,11 +494,64 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
     <>
       <AuthSide mode="signup" step={step} />
       <div className="flex-1 p-8 max-h-[85vh] overflow-y-auto">
-        <div className="text-[11px] font-bold text-ccc-gold uppercase tracking-wide mb-1">Step {step} of 4</div>
+        {step > 0 && (
+          <div className="text-[11px] font-bold text-ccc-gold uppercase tracking-wide mb-1">Step {step} of 4</div>
+        )}
         <h2 className="text-lg font-extrabold text-ccc-navy mb-1" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Create Your Applicant Account
+          {step === 0 ? 'Data Privacy Consent' : 'Create Your Applicant Account'}
         </h2>
         {error && <Alert tone="error">{error}</Alert>}
+
+        {step === 0 && (
+          <div>
+            <p className="text-sm text-ccc-muted mb-4">
+              Before creating your account, please read and agree to how City College of Calamba collects and uses your information.
+            </p>
+            <div className="rounded-lg border border-ccc-border bg-ccc-off p-4 mb-4 text-[13px] text-ccc-text leading-relaxed max-h-56 overflow-y-auto space-y-2">
+              <p>
+                In line with the Data Privacy Act of 2012 (RA 10173), City College of Calamba collects the personal, academic,
+                financial, and health information you submit through this portal solely to process your scholarship application —
+                including verifying your identity, evaluating your eligibility, and communicating updates about your application status.
+              </p>
+              <p>
+                Your data is stored securely and is accessible only to authorized CCC scholarship administrators. It will not be
+                shared with third parties except where required by law or LGU compliance reporting. You may request to review or
+                correct your submitted information by contacting the CCC Scholarship Office.
+              </p>
+              <p>
+                By checking the box below and continuing, you consent to this collection and processing of your data for the
+                purpose of your scholarship application.
+              </p>
+            </div>
+            <label className="flex items-start gap-2.5 text-[13px] text-ccc-text mb-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={consentChecked}
+                onChange={(e) => { setConsentChecked(e.target.checked); if (consentError) setConsentError('') }}
+                className="mt-0.5 w-4 h-4 accent-ccc-blue shrink-0"
+              />
+              <span>I have read and agree to the collection and processing of my personal data as described above.</span>
+            </label>
+            {consentError && <div className="text-[11px] text-red-600 mb-3">{consentError}</div>}
+            <button
+              type="button"
+              onClick={() => {
+                if (!consentChecked) {
+                  setConsentError('Please check the box to agree before continuing.')
+                  return
+                }
+                setStep(1)
+              }}
+              className="w-full mt-3 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8]"
+            >
+              I Agree — Continue →
+            </button>
+            <p className="text-center text-[13px] text-ccc-muted mt-4">
+              Already have an account?{' '}
+              <button type="button" onClick={onSwitch} className="text-ccc-blue font-bold hover:underline">Log in here</button>
+            </p>
+          </div>
+        )}
 
         {step === 1 && (
           <form onSubmit={handleStep1} noValidate>
@@ -565,9 +639,18 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
               </>
             ) : (
               <form onSubmit={verify} noValidate>
-                <Alert tone="success">Code sent. Check your email (and spam folder) for a 6-digit code.</Alert>
+                {secondsLeft > 0 ? (
+                  <Alert tone="success">Code sent. Check your email (and spam folder) for a 6-digit code.</Alert>
+                ) : (
+                  <Alert tone="error">This code has expired. Click &quot;Resend code&quot; below to get a new one.</Alert>
+                )}
                 <TextField label="Verification Code" value={code} onChange={clearFieldError('code', setCode)} placeholder="123456" error={fieldErrors.code} />
-                <button type="submit" disabled={loading} className="w-full py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60">
+                {secondsLeft > 0 && (
+                  <p className="text-[12px] text-ccc-muted -mt-2 mb-3">
+                    Code expires in {String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:{String(secondsLeft % 60).padStart(2, '0')}
+                  </p>
+                )}
+                <button type="submit" disabled={loading || secondsLeft <= 0} className="w-full py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60">
                   {loading ? 'Verifying…' : 'Verify & Create Account'}
                 </button>
                 <button
