@@ -164,25 +164,29 @@ function Alert({ tone = 'info', children }) {
 }
 
 export default function ApplicantAuth({ onAuthenticated }) {
-  const [mode, setMode] = useState('login') // 'login' | 'signup'
+  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'forgot'
 
   return (
     <div className="min-h-screen bg-ccc-off flex flex-col">
       <SiteHeader topbarLabel="(049) 559-8900 to 8907 / (02) 8-539-5170 to 5171" />
       <div className="flex-1 flex items-center justify-center p-4 md:p-8">
         <div className="w-full max-w-[900px] bg-white rounded-2xl shadow-xl overflow-hidden flex">
-          {mode === 'login' ? (
-            <LoginPanel onSwitch={() => setMode('signup')} onAuthenticated={onAuthenticated} />
-          ) : (
-            <SignupPanel onSwitch={() => setMode('login')} onAuthenticated={onAuthenticated} />
+          {mode === 'login' && (
+            <LoginPanel
+              onSwitch={() => setMode('signup')}
+              onForgot={() => setMode('forgot')}
+              onAuthenticated={onAuthenticated}
+            />
           )}
+          {mode === 'signup' && <SignupPanel onSwitch={() => setMode('login')} onAuthenticated={onAuthenticated} />}
+          {mode === 'forgot' && <ForgotPasswordPanel onSwitch={() => setMode('login')} />}
         </div>
       </div>
     </div>
   )
 }
 
-function LoginPanel({ onSwitch, onAuthenticated }) {
+function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -252,6 +256,11 @@ function LoginPanel({ onSwitch, onAuthenticated }) {
             autoComplete="current-password"
             error={fieldErrors.password}
           />
+          <div className="text-right -mt-1 mb-3">
+            <button type="button" onClick={onForgot} className="text-[12px] text-ccc-blue font-semibold hover:underline">
+              Forgot password?
+            </button>
+          </div>
           <button
             type="submit"
             disabled={loading}
@@ -668,5 +677,258 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
         )}
       </div>
     </>
+  )
+}
+
+// Forgot Password — the remaining listed sub-feature under the User Account
+// Module's Forgot Password scope: Account Lookup via Email, Reset Code
+// Input + Countdown Timer, Password Confirmation Validation, and a Reset
+// Success screen. Password Visibility Toggle comes free from TextField.
+// Mirrors requestPasswordReset()/resetPasswordWithCode() in
+// applicantAccounts.js, including the same 10-minute OTP lifetime used by
+// signup verification.
+const RESET_OTP_TTL_SECONDS = 10 * 60
+
+function ForgotPasswordPanel({ onSwitch }) {
+  // stage: 'lookup' -> 'reset' -> 'done'
+  const [stage, setStage] = useState('lookup')
+  const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newPassword2, setNewPassword2] = useState('')
+  const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [loading, setLoading] = useState(false)
+  const [secondsLeft, setSecondsLeft] = useState(RESET_OTP_TTL_SECONDS)
+
+  function clearFieldError(field, setter) {
+    return (v) => {
+      setter(v)
+      if (fieldErrors[field]) setFieldErrors((f) => ({ ...f, [field]: undefined }))
+    }
+  }
+
+  useEffect(() => {
+    if (stage !== 'reset' || secondsLeft <= 0) return
+    const timer = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000)
+    return () => clearInterval(timer)
+  }, [stage, secondsLeft])
+
+  async function requestCode(e) {
+    e.preventDefault()
+    setError('')
+    if (!email.trim()) {
+      setFieldErrors({ email: 'Please enter your email address.' })
+      return
+    }
+    if (!email.includes('@')) {
+      setFieldErrors({ email: 'Please enter a valid email address.' })
+      return
+    }
+    setFieldErrors({})
+    setLoading(true)
+    try {
+      const res = await fetch('/api/applicant-forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'request', email }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        // The only case this surfaces an error for is the "never verified"
+        // account case — a real, honest message (see requestPasswordReset).
+        // Every other case (including "no such account") returns success
+        // to avoid revealing which emails are registered.
+        setFieldErrors({ email: data.error || 'Could not send the reset code.' })
+        return
+      }
+      setSecondsLeft(RESET_OTP_TTL_SECONDS)
+      setStage('reset')
+    } catch {
+      setError('Could not reach the server. Check your connection and try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function resendCode() {
+    setError('')
+    setLoading(true)
+    try {
+      const res = await fetch('/api/applicant-forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'request', email }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Could not resend the code.')
+        return
+      }
+      setSecondsLeft(RESET_OTP_TTL_SECONDS)
+    } catch {
+      setError('Could not reach the server. Check your connection and try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function submitReset(e) {
+    e.preventDefault()
+    setError('')
+
+    const nextFieldErrors = {}
+    if (!code.trim()) nextFieldErrors.code = 'Please enter the reset code.'
+    const passwordError = passwordStrengthError(newPassword)
+    if (passwordError) nextFieldErrors.newPassword = passwordError
+    if (!newPassword2) nextFieldErrors.newPassword2 = 'Please confirm your new password.'
+    else if (newPassword && newPassword2 && newPassword !== newPassword2) {
+      nextFieldErrors.newPassword2 = 'Passwords do not match.'
+    }
+    setFieldErrors(nextFieldErrors)
+    if (Object.keys(nextFieldErrors).length > 0) return
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/applicant-forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset', email, code, newPassword }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setFieldErrors({ code: data.error || 'Could not reset your password.' })
+        return
+      }
+      setStage('done')
+    } catch {
+      setError('Could not reach the server. Check your connection and try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex-1 p-8">
+      <h2 className="text-lg font-extrabold text-ccc-navy mb-1" style={{ fontFamily: 'var(--font-montserrat)' }}>
+        Reset Your Password
+      </h2>
+
+      {stage === 'lookup' && (
+        <>
+          <p className="text-sm text-ccc-muted mb-5">
+            Enter the email address on your account and we&apos;ll send you a code to reset your password.
+          </p>
+          {error && <Alert tone="error">{error}</Alert>}
+          <form onSubmit={requestCode} noValidate>
+            <TextField
+              label="Email Address"
+              type="email"
+              value={email}
+              onChange={clearFieldError('email', setEmail)}
+              placeholder="e.g. yourname@email.com"
+              autoComplete="email"
+              error={fieldErrors.email}
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-2 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60"
+            >
+              {loading ? 'Sending…' : 'Send Reset Code'}
+            </button>
+          </form>
+        </>
+      )}
+
+      {stage === 'reset' && (
+        <>
+          {secondsLeft > 0 ? (
+            <Alert tone="success">If that email is registered, a 6-digit code was sent to it. Check your inbox (and spam folder).</Alert>
+          ) : (
+            <Alert tone="error">This code has expired. Click &quot;Resend code&quot; below to get a new one.</Alert>
+          )}
+          {error && <Alert tone="error">{error}</Alert>}
+          <form onSubmit={submitReset} noValidate>
+            <TextField
+              label="Reset Code"
+              value={code}
+              onChange={clearFieldError('code', setCode)}
+              placeholder="123456"
+              error={fieldErrors.code}
+            />
+            {secondsLeft > 0 && (
+              <p className="text-[12px] text-ccc-muted -mt-2 mb-3">
+                Code expires in {String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:{String(secondsLeft % 60).padStart(2, '0')}
+              </p>
+            )}
+            <TextField
+              label="New Password"
+              type="password"
+              value={newPassword}
+              onChange={clearFieldError('newPassword', setNewPassword)}
+              autoComplete="new-password"
+              placeholder="Create a new password"
+              error={fieldErrors.newPassword}
+            />
+            <div className="text-[11px] text-ccc-muted -mt-2 mb-3">
+              Minimum 8 characters, with at least 1 number, 1 uppercase &amp; 1 lowercase letter, and 1 special character.
+            </div>
+            <TextField
+              label="Confirm New Password"
+              type="password"
+              value={newPassword2}
+              onChange={clearFieldError('newPassword2', setNewPassword2)}
+              autoComplete="new-password"
+              placeholder="Re-enter your new password"
+              error={fieldErrors.newPassword2}
+            />
+            <button
+              type="submit"
+              disabled={loading || secondsLeft <= 0}
+              className="w-full mt-2 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60"
+            >
+              {loading ? 'Resetting…' : 'Reset Password'}
+            </button>
+            <button
+              type="button"
+              onClick={resendCode}
+              disabled={loading}
+              className="w-full mt-2 text-[13px] text-ccc-blue font-bold hover:underline disabled:opacity-50"
+            >
+              Resend code
+            </button>
+          </form>
+        </>
+      )}
+
+      {stage === 'done' && (
+        <div className="text-center py-4">
+          <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl font-extrabold mx-auto mb-4">
+            ✓
+          </div>
+          <h3 className="text-base font-extrabold text-ccc-navy mb-1">Password Reset Successful</h3>
+          <p className="text-sm text-ccc-muted mb-5">
+            Your password has been updated. You can now log in with your new password.
+          </p>
+          <button
+            type="button"
+            onClick={onSwitch}
+            className="w-full py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8]"
+          >
+            Back to Log In
+          </button>
+        </div>
+      )}
+
+      {stage !== 'done' && (
+        <p className="text-center text-[13px] text-ccc-muted mt-4">
+          Remembered your password?{' '}
+          <button type="button" onClick={onSwitch} className="text-ccc-blue font-bold hover:underline">
+            Log in here
+          </button>
+        </p>
+      )}
+    </div>
   )
 }

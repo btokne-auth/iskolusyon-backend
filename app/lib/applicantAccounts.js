@@ -50,6 +50,10 @@ function hashOtp(code) {
   return createHash('sha256').update(code).digest('hex')
 }
 
+function generateOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
+
 function normalizeEmail(email) {
   return (email || '').trim().toLowerCase()
 }
@@ -134,7 +138,7 @@ export async function saveSignupProgress(accountId, { academicInfo, personalInfo
 // submission-confirmation email elsewhere, verification is on the critical
 // path so the applicant needs to know if it didn't send).
 export async function sendVerificationCode(accountId, email) {
-  const code = String(Math.floor(100000 + Math.random() * 900000))
+  const code = generateOtp()
   const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000).toISOString()
 
   const { error: dbError } = await supabase
@@ -268,6 +272,140 @@ export async function verifySignupCode(accountId, code) {
   }
 
   return { account: { ...account, email_verified: true }, application, displayName }
+}
+
+// ---------- Password Reset and Recovery System ----------
+// Listed under the User Account Module in the progress table: Forgot
+// Password button, Account Lookup via Email Address, Forgot Password Reset
+// Code Input Boxes, Forgot Password Code Countdown Timer, Password
+// Visibility Toggle for New Password, Password Confirmation Validation,
+// Password Reset Success pop-up/screen. The last three are already covered
+// by shared UI (TextField's built-in visibility toggle, confirm-password
+// matching, and ApplicantAuth's Alert component) — this file handles the
+// first four: looking the account up, generating/emailing/checking the
+// reset code, and applying the new password.
+//
+// Reuses the exact same otp_hash/otp_expires_at/otp_attempts columns as
+// signup verification. Safe to share because an account is only ever in
+// one state at a time: unverified accounts (mid-signup) can't reach this
+// flow (rejected below), and once verified, signup's own verify step
+// refuses to run again — so the two flows never race for the same row.
+
+// Step 1 — looks the account up by email and, if found and verified,
+// sends a reset code. Deliberately returns { success: true } even when no
+// account matches (or the account exists but was never verified), rather
+// than revealing which emails are registered — standard practice for a
+// "forgot password" lookup, and consistent with not leaking account
+// existence. The one case worth a distinct message is an unverified
+// account, since "check your email" would be actively misleading there.
+export async function requestPasswordReset(email) {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail || !normalizedEmail.includes('@')) {
+    return { error: 'Please enter a valid email address.' }
+  }
+
+  const { data: account, error: findError } = await supabase
+    .from('applicant_accounts')
+    .select('id, email, email_verified')
+    .eq('email', normalizedEmail)
+    .maybeSingle()
+
+  if (findError) return { error: findError.message }
+
+  if (!account) {
+    // No account — still report success so this endpoint can't be used to
+    // enumerate registered emails.
+    return { success: true }
+  }
+  if (!account.email_verified) {
+    return { error: 'This account never finished email verification. Please sign up again instead of resetting a password.' }
+  }
+
+  const code = generateOtp()
+  const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000).toISOString()
+
+  const { error: dbError } = await supabase
+    .from('applicant_accounts')
+    .update({ otp_hash: hashOtp(code), otp_expires_at: expiresAt, otp_attempts: 0 })
+    .eq('id', account.id)
+
+  if (dbError) return { error: dbError.message }
+
+  try {
+    await resend.emails.send({
+      from: 'Iskolusyon <onboarding@resend.dev>',
+      to: account.email,
+      subject: 'Reset your Iskolusyon password',
+      html: `
+        <p>Hi,</p>
+        <p>We received a request to reset your Iskolusyon password. Your reset code is:</p>
+        <p style="font-size:28px;font-weight:800;letter-spacing:4px;">${code}</p>
+        <p>This code expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can safely ignore this email — your password won't change.</p>
+        <p>— City College of Calamba, Iskolusyon Scholarship System</p>
+      `,
+    })
+  } catch (err) {
+    return {
+      error:
+        'Could not send the reset email right now (' +
+        err.message +
+        '). Note: while this project is on Resend\'s free tier, reset emails only deliver to the developer\'s own registered inbox — not arbitrary applicant addresses.',
+    }
+  }
+
+  return { success: true }
+}
+
+// Step 2 — checks the reset code and, if valid, sets the new password.
+// Same expiry/attempt-limit checks as signup verification.
+export async function resetPasswordWithCode(email, code, newPassword) {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail) return { error: 'Missing email.' }
+  if (!validatePasswordStrength(newPassword)) {
+    return {
+      error:
+        'Password must be at least 8 characters and include a number, an uppercase letter, a lowercase letter, and a special character.',
+    }
+  }
+
+  const { data: account, error: findError } = await supabase
+    .from('applicant_accounts')
+    .select('id, otp_hash, otp_expires_at, otp_attempts')
+    .eq('email', normalizedEmail)
+    .maybeSingle()
+
+  if (findError) return { error: findError.message }
+  if (!account) return { error: 'Could not find that account. Please request a new reset code.' }
+  if (!account.otp_hash || !account.otp_expires_at) {
+    return { error: 'No reset code was sent yet. Request one first.' }
+  }
+  if (new Date(account.otp_expires_at).getTime() < Date.now()) {
+    return { error: 'This code has expired. Request a new one.' }
+  }
+  if (account.otp_attempts >= OTP_MAX_ATTEMPTS) {
+    return { error: 'Too many incorrect attempts. Request a new code.' }
+  }
+
+  if (hashOtp(String(code || '').trim()) !== account.otp_hash) {
+    await supabase
+      .from('applicant_accounts')
+      .update({ otp_attempts: account.otp_attempts + 1 })
+      .eq('id', account.id)
+    return { error: 'Incorrect code. Please try again.' }
+  }
+
+  const { error: updateError } = await supabase
+    .from('applicant_accounts')
+    .update({
+      password_hash: hashPassword(newPassword),
+      otp_hash: null,
+      otp_expires_at: null,
+      otp_attempts: 0,
+    })
+    .eq('id', account.id)
+
+  if (updateError) return { error: updateError.message }
+  return { success: true }
 }
 
 export async function verifyApplicantCredentials(email, password) {
