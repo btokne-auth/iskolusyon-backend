@@ -118,6 +118,19 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
         <div key={group.group}>
           <p style={CATEGORY_HEADER_STYLE}>{group.group}</p>
           <table className="doc-table" style={{ marginBottom: i === groups.length - 1 ? 0 : '18.75px' }}>
+            {/* Fixed column widths, the same across every category table in
+                this card — table-layout:fixed (portal-theme.css) means
+                each table would otherwise size its own Document column to
+                its own longest label, so "Voter's ID / Certification of
+                Parent/Guardian" in one category and "Supporting Document"
+                in another ended up with Status/Notes/action sitting at
+                different x-positions from table to table. Sept 19 2026. */}
+            <colgroup>
+              <col style={{ width: '38%' }} />
+              <col style={{ width: '18%' }} />
+              <col style={{ width: '30%' }} />
+              <col style={{ width: '14%' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Document</th>
