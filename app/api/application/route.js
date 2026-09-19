@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { Resend } from 'resend'
-import { personalInfoToColumns, academicInfoToColumns } from '@/app/lib/applicationColumns'
+import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns } from '@/app/lib/applicationColumns'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -87,9 +87,10 @@ export async function POST(request) {
     const applicantEmail = (body.applicantEmail || '').trim()
     const step = Number(body.step) || 1
     const action = ['submit', 'submit-section'].includes(body.action) ? body.action : 'save'
-    const section = body.section === 'academic' ? 'academic' : body.section === 'personal' ? 'personal' : null
+    const section = ['academic', 'personal', 'health'].includes(body.section) ? body.section : null
     const personalInfoColumns = personalInfoToColumns(body.personalInfo)
     const academicInfoColumns = academicInfoToColumns(body.academicInfo)
+    const healthInfoColumns = healthInfoToColumns(body.healthInfo)
 
     if (!applicantName) {
       return NextResponse.json({ error: 'Missing applicant name' }, { status: 400 })
@@ -120,6 +121,7 @@ export async function POST(request) {
         updated_at: now,
         ...personalInfoColumns,
         ...academicInfoColumns,
+        ...healthInfoColumns,
       }
       if (action === 'submit') {
         updates.status = 'submitted'
@@ -128,6 +130,7 @@ export async function POST(request) {
       if (action === 'submit-section') {
         if (section === 'personal') updates.personal_info_submitted_at = now
         if (section === 'academic') updates.academic_submitted_at = now
+        if (section === 'health') updates.health_submitted_at = now
       }
 
       const { data, error } = await supabase
@@ -157,8 +160,10 @@ export async function POST(request) {
       submitted_at: action === 'submit' ? now : null,
       personal_info_submitted_at: action === 'submit-section' && section === 'personal' ? now : null,
       academic_submitted_at: action === 'submit-section' && section === 'academic' ? now : null,
+      health_submitted_at: action === 'submit-section' && section === 'health' ? now : null,
       ...personalInfoColumns,
       ...academicInfoColumns,
+      ...healthInfoColumns,
     }
 
     const { data, error } = await supabase
@@ -226,4 +231,12 @@ export async function POST(request) {
 //   ADD COLUMN IF NOT EXISTS tech_voc_school text,
 //   ADD COLUMN IF NOT EXISTS tech_voc_course text,
 //   ADD COLUMN IF NOT EXISTS tech_voc_address text;
+//
+// Health & Wellness panel (design-parity pass 6) — also committed as
+// docs/migrations/2026-09-19-health-fields.sql, unlike the ad hoc blocks
+// above:
+//
+// ALTER TABLE applications
+//   ADD COLUMN IF NOT EXISTS health_condition text,
+//   ADD COLUMN IF NOT EXISTS health_submitted_at timestamptz;
 // ============================================================================

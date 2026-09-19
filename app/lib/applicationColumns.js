@@ -84,3 +84,15 @@ export function academicInfoToColumns(academicInfo) {
     tech_voc_address: text(ai.techVocAddress),
   }
 }
+
+// Health & Wellness panel — just the one free-text field Ivy's spec has
+// (Medical Status). The Medical Examination Results/Certificate upload
+// itself uses the existing `medcert` document type, so it needs no column
+// here, same as every other document upload in this app.
+export function healthInfoToColumns(healthInfo) {
+  const hi = healthInfo && typeof healthInfo === 'object' ? healthInfo : {}
+  const text = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+  return {
+    health_condition: text(hi.medicalStatus),
+  }
+}

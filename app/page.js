@@ -133,6 +133,15 @@ function mapDbRowToPersonalInfo(row) {
   }
 }
 
+// Maps an `applications` row back to the camelCase healthInfo shape the
+// Health & Wellness panel uses — same pattern as mapDbRowToPersonalInfo()
+// above, needed when resuming a draft.
+function mapDbRowToHealthInfo(row) {
+  return {
+    medicalStatus: row.health_condition || '',
+  }
+}
+
 // Maps an `applications` row back to the camelCase academicInfo shape the
 // Educational Background panel uses — same pattern as
 // mapDbRowToPersonalInfo() above, needed when resuming a draft.
@@ -700,9 +709,11 @@ function PortalApp({ accountSession, onLogout }) {
   // editable indefinitely like the rest of the profile.
   const [personalSubmittedAt, setPersonalSubmittedAt] = useState(null)
   const [academicSubmittedAt, setAcademicSubmittedAt] = useState(null)
+  const [healthSubmittedAt, setHealthSubmittedAt] = useState(null)
   const [personalSectionState, setPersonalSectionState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'submitting' | 'submitted' | 'error'
   const [academicSectionState, setAcademicSectionState] = useState('idle')
-  const [sectionErrors, setSectionErrors] = useState({ personal: '', academic: '' })
+  const [healthSectionState, setHealthSectionState] = useState('idle')
+  const [sectionErrors, setSectionErrors] = useState({ personal: '', academic: '', health: '' })
   const [draftFound, setDraftFound] = useState(null) // application row found for this name, or null
   const [draftDismissed, setDraftDismissed] = useState(false)
   const [localDraftFound, setLocalDraftFound] = useState(null) // draft found in IndexedDB only (offline fallback), separate from draftFound above
@@ -789,6 +800,13 @@ function PortalApp({ accountSession, onLogout }) {
     techVoc: '', techVocSchool: '', techVocCourse: '', techVocAddress: '',
   })
   const updateAI = (field, value) => setAcademicInfo((a) => ({ ...a, [field]: value }))
+
+  // ---- Health & Wellness panel ---- Ivy's spec has exactly one field here
+  // (Medical Status, free text) plus the Medical Examination Results/
+  // Certificate upload, which reuses the existing `medcert` document type —
+  // no required-ness on either, matching spec.
+  const [healthInfo, setHealthInfo] = useState({ medicalStatus: '' })
+  const updateHI = (field, value) => setHealthInfo((h) => ({ ...h, [field]: value }))
   const updateEduCell = (level, field, value) =>
     setAcademicInfo((a) => ({ ...a, edu: { ...a.edu, [level]: { ...a.edu[level], [field]: value } } }))
 
@@ -846,6 +864,11 @@ function PortalApp({ accountSession, onLogout }) {
   // per Ivy's spec, so no rejection-message state needed beyond the shared
   // inline status the row already surfaces.
   const [form138Status, setForm138Status] = useState('idle')
+  // Medical Examination Results/Certificate upload, Health & Wellness panel.
+  // Optional per Ivy's spec (its copy just notes it's meant to be completed
+  // "only once you have passed the applicant examination" — descriptive,
+  // not an actual gate/disable in her markup either).
+  const [medcertStatus, setMedcertStatus] = useState('idle')
 
   // ---- Appeals & Rescheduling panel (Rescheduling half only — see
   // app/api/reschedule/route.js header comment for why "Appeal for
@@ -924,6 +947,7 @@ function PortalApp({ accountSession, onLogout }) {
           action: 'save',
           personalInfo,
           academicInfo,
+          healthInfo,
         }),
       })
       const data = await res.json()
@@ -940,7 +964,7 @@ function PortalApp({ accountSession, onLogout }) {
         // Couldn't reach the server at all — the autosave effect already
         // keeps a local copy up to date, so nothing is actually lost.
         // Say so plainly instead of showing a generic "couldn't save".
-        await saveDraftLocal(applicantName, { personalInfo, academicInfo, applicantEmail, step: targetStep })
+        await saveDraftLocal(applicantName, { personalInfo, academicInfo, healthInfo, applicantEmail, step: targetStep })
         setSaveState('offline')
         setTimeout(() => setSaveState('idle'), 4000)
       } else {
@@ -977,7 +1001,8 @@ function PortalApp({ accountSession, onLogout }) {
       }
     }
 
-    const setState = section === 'personal' ? setPersonalSectionState : setAcademicSectionState
+    const setState =
+      section === 'personal' ? setPersonalSectionState : section === 'academic' ? setAcademicSectionState : setHealthSectionState
     setState('submitting')
     try {
       const res = await fetch('/api/application', {
@@ -986,17 +1011,19 @@ function PortalApp({ accountSession, onLogout }) {
         body: JSON.stringify({
           applicantName: applicantName.trim(),
           applicantEmail: applicantEmail.trim(),
-          step: section === 'personal' ? 1 : 2,
+          step: section === 'personal' ? 1 : section === 'academic' ? 2 : 4,
           action: 'submit-section',
           section,
           personalInfo,
           academicInfo,
+          healthInfo,
         }),
       })
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Submit failed')
       if (section === 'personal') setPersonalSubmittedAt(data.application.personal_info_submitted_at)
       if (section === 'academic') setAcademicSubmittedAt(data.application.academic_submitted_at)
+      if (section === 'health') setHealthSubmittedAt(data.application.health_submitted_at)
       setState('submitted')
       setTimeout(() => setState('idle'), 1800)
     } catch (err) {
@@ -1022,6 +1049,7 @@ function PortalApp({ accountSession, onLogout }) {
           action: 'submit',
           personalInfo,
           academicInfo,
+          healthInfo,
         }),
       })
       const data = await res.json()
@@ -1083,8 +1111,10 @@ function PortalApp({ accountSession, onLogout }) {
         if (cancelled || !data.application) return
         setPersonalInfo(mapDbRowToPersonalInfo(data.application))
         setAcademicInfo(mapDbRowToAcademicInfo(data.application))
+        setHealthInfo(mapDbRowToHealthInfo(data.application))
         setPersonalSubmittedAt(data.application.personal_info_submitted_at || null)
         setAcademicSubmittedAt(data.application.academic_submitted_at || null)
+        setHealthSubmittedAt(data.application.health_submitted_at || null)
       } catch (err) {
         console.error('Auto-load of saved application failed (will retry via manual resume banner if needed):', err)
       }
@@ -1101,10 +1131,10 @@ function PortalApp({ accountSession, onLogout }) {
   useEffect(() => {
     if (!applicantName.trim()) return
     const timer = setTimeout(() => {
-      saveDraftLocal(applicantName, { personalInfo, academicInfo, applicantEmail, step: activePanel })
+      saveDraftLocal(applicantName, { personalInfo, academicInfo, healthInfo, applicantEmail, step: activePanel })
     }, 1200)
     return () => clearTimeout(timer)
-  }, [applicantName, applicantEmail, personalInfo, academicInfo, activePanel])
+  }, [applicantName, applicantEmail, personalInfo, academicInfo, healthInfo, activePanel])
 
   // Keeps the "documents waiting to upload" count current, and retries
   // everything queued once the browser reports it's back online. Runs
@@ -1948,7 +1978,7 @@ function PortalApp({ accountSession, onLogout }) {
                   <div className="flex flex-col gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={() => { setPersonalInfo(mapDbRowToPersonalInfo(draftFound)); setAcademicInfo(mapDbRowToAcademicInfo(draftFound)) }}
+                      onClick={() => { setPersonalInfo(mapDbRowToPersonalInfo(draftFound)); setAcademicInfo(mapDbRowToAcademicInfo(draftFound)); setHealthInfo(mapDbRowToHealthInfo(draftFound)) }}
                       className="text-xs font-bold text-white bg-ccc-blue hover:bg-ccc-navy rounded-lg px-3 py-1.5 whitespace-nowrap"
                     >
                       Resume draft
@@ -1976,6 +2006,7 @@ function PortalApp({ accountSession, onLogout }) {
                       onClick={() => {
                         setPersonalInfo(localDraftFound.personalInfo)
                         setAcademicInfo(localDraftFound.academicInfo)
+                        if (localDraftFound.healthInfo) setHealthInfo(localDraftFound.healthInfo)
                         if (localDraftFound.applicantEmail) setApplicantEmail(localDraftFound.applicantEmail)
                         setLocalDraftFound(null)
                       }}
@@ -2215,16 +2246,56 @@ function PortalApp({ accountSession, onLogout }) {
             </div>
           )}
 
-          {/* ══════════ HEALTH & WELLNESS (stub — not built yet) ══════════ */}
+          {/* ══════════ HEALTH & WELLNESS (built — Medical Status + the
+              Medical Examination Results/Certificate upload, ported from
+              Ivy's health panel) ══════════ */}
           {activePanel === 'health' && (
-            <div className="bg-white border border-ccc-border rounded-2xl p-6 sm:p-8 space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-ccc-muted">Scholarship Services &middot; During Enrollment</p>
-              <h1 className="text-xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Health &amp; Wellness</h1>
-              <p className="text-sm text-ccc-muted">
-                Not built yet — a Medical Status field and the Medical Examination Results/Certificate
-                upload (gated to appear after the applicant exam, per Ivy&rsquo;s spec) go here. The medcert
-                upload is still under Documents &amp; Status for now.
-              </p>
+            <div>
+              <div className="portal-header">
+                <p className="portal-eyebrow">Scholarship Services &middot; During Enrollment</p>
+                <h1>Health &amp; Wellness Information</h1>
+                <p>Used for emergency contact purposes and reasonable accommodations during examinations.</p>
+              </div>
+
+              <div className="card">
+                <div className="card-title">Health Details</div>
+                <div className="form-grid">
+                  <TextAreaField
+                    label="Medical Status"
+                    value={healthInfo.medicalStatus}
+                    onChange={(v) => updateHI('medicalStatus', v)}
+                    placeholder="e.g. Physically fit for any work, unfit or unsafe for any type of employment, etc."
+                    full
+                  />
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="card-title">
+                  Required Document <span className="tag">After applicant examination</span>
+                </div>
+                <InlineUploadRow
+                  label="Medical Examination Results / Certificate"
+                  sublabel="To be completed only once you have passed the applicant examination"
+                  status={medcertStatus === 'idle' && hasUploaded('medcert') ? 'done' : medcertStatus}
+                  onFileSelected={(f) => handleInlineUpload('medcert', f, setMedcertStatus, () => {})}
+                />
+              </div>
+
+              {healthSubmittedAt && (
+                <p className="text-[11px] text-ccc-muted -mt-2">
+                  Submitted {new Date(healthSubmittedAt).toLocaleString()}. You can still edit and re-submit this section any time.
+                </p>
+              )}
+
+              <SectionFormActions
+                saveState={saveState}
+                sectionState={healthSectionState}
+                error={sectionErrors.health}
+                disabled={!applicantName.trim()}
+                onSaveDraft={() => saveProgress(4)}
+                onSubmit={() => submitSection('health')}
+              />
             </div>
           )}
 

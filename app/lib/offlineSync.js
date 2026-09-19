@@ -85,7 +85,7 @@ function withStore(storeName, mode, fn) {
 // Saves the applicant's current in-progress form state locally. Call this
 // on every meaningful change (debounced), not just on submit — the whole
 // point is that it's already saved before anything goes wrong.
-export async function saveDraftLocal(name, { personalInfo, academicInfo, applicantEmail, step }) {
+export async function saveDraftLocal(name, { personalInfo, academicInfo, healthInfo, applicantEmail, step }) {
   const key = keyFor(name)
   if (!key) return
   try {
@@ -94,6 +94,7 @@ export async function saveDraftLocal(name, { personalInfo, academicInfo, applica
         name: key,
         personalInfo,
         academicInfo,
+        healthInfo,
         applicantEmail,
         step,
         savedAt: new Date().toISOString(),
