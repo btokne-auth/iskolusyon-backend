@@ -1222,6 +1222,20 @@ function PortalApp({ accountSession, onLogout }) {
   const visibleHistory = myDocs
   const flaggedCount = visibleHistory.filter((doc) => doc.needs_review).length
 
+  // Same required-field bar as submitSection('financial')'s own missing-
+  // fields check further down — kept in sync by hand since that check
+  // also needs to build a human-readable missing-items list, which this
+  // boolean doesn't. Used by the Dashboard's Profile Completion count.
+  const requiredFamilyInfoComplete =
+    familyInfo.motherName.trim() &&
+    familyInfo.fatherName.trim() &&
+    familyInfo.onlyChild &&
+    (familyInfo.onlyChild !== 'No' || (String(familyInfo.numSiblings).trim() && familyInfo.siblingCurrentStudent && familyInfo.siblingGraduate)) &&
+    familyInfo.emergencyContact.trim() &&
+    (parentIdStatus === 'done' || hasUploaded('parentid')) &&
+    familyInfo.workingStudent &&
+    (familyInfo.workingStudent !== 'Yes' || employmentCertStatus === 'done' || hasUploaded('employmentcert'))
+
   // Used by the status table's "Upload" / "Re-upload" buttons: pre-selects
   // that document type in the form below and scrolls it into view.
   const jumpToUploadFor = (typeValue) => {
@@ -1870,13 +1884,24 @@ function PortalApp({ accountSession, onLogout }) {
           {activePanel === 'dashboard' && (() => {
             const personalDone = requiredPersonalInfoComplete && requiredInlineUploadsComplete
             const academicDone = requiredAcademicInfoComplete
-            const profileSectionsDone = [personalDone, academicDone].filter(Boolean).length
-            const stepNum = !personalDone || !academicDone ? 2 : !submitted ? 3 : 3
-            const stepLabel = !personalDone || !academicDone ? 'Filling Out Profile' : !submitted ? 'Uploading Documents' : 'Awaiting Document Verification'
+            const familyDone = !!requiredFamilyInfoComplete
+            // Health & Wellness has no required fields in Ivy's spec (Medical
+            // Status and the exam-gated upload are both optional), so there's
+            // no field-completeness bar to clear like the other three —
+            // "done" here just means the applicant explicitly submitted it.
+            const healthDone = !!healthSubmittedAt
+            const allProfileDone = personalDone && academicDone && familyDone && healthDone
+            const profileSectionsDone = [personalDone, academicDone, familyDone, healthDone].filter(Boolean).length
+            const stepNum = !allProfileDone ? 2 : !submitted ? 3 : 3
+            const stepLabel = !allProfileDone ? 'Filling Out Profile' : !submitted ? 'Uploading Documents' : 'Awaiting Document Verification'
             const nextAction = !personalDone
               ? { label: 'Complete your Personal Information', panel: 'personal' }
               : !academicDone
               ? { label: 'Complete your Educational Background', panel: 'academic' }
+              : !familyDone
+              ? { label: 'Complete your Family & Financial Information', panel: 'financial' }
+              : !healthDone
+              ? { label: 'Complete your Health & Wellness section', panel: 'health' }
               : !submitted
               ? { label: 'Submit your documents for review', panel: 'status' }
               : null
@@ -1931,11 +1956,11 @@ function PortalApp({ accountSession, onLogout }) {
                   {/* Profile Completion — real, and the connector's active card */}
                   <div className="stat-card unlocked-clickable tab-active" onClick={() => setActivePanel('personal')} role="button" tabIndex={0}>
                     <div className="stat-label">Profile Completion</div>
-                    <div className="stat-value">{profileSectionsDone} of 2 built sections done</div>
+                    <div className="stat-value">{profileSectionsDone} of 4 sections done</div>
                     <div className="stat-progress">
-                      <div className="stat-progress-bar" style={{ width: `${(profileSectionsDone / 2) * 100}%` }} />
+                      <div className="stat-progress-bar" style={{ width: `${(profileSectionsDone / 4) * 100}%` }} />
                     </div>
-                    <div className="stat-note">Family &amp; Financial and Health &amp; Wellness aren&rsquo;t built yet, so they&rsquo;re not counted here.</div>
+                    <div className="stat-note">Personal Information, Educational Background, Family &amp; Financial Information, and Health &amp; Wellness.</div>
                     <div className="stat-card-hint">&#9660; Viewing details below</div>
                   </div>
 
@@ -2027,26 +2052,42 @@ function PortalApp({ accountSession, onLogout }) {
                         </div>
                       </div>
                       <div className="timeline-item">
-                        <div className="timeline-dot step-notstarted">3</div>
+                        <div className={`timeline-dot ${familyDone ? 'step-done' : academicDone ? 'step-ongoing' : 'step-notstarted'}`}>
+                          {familyDone ? '✓' : 3}
+                        </div>
                         <div className="timeline-body">
                           <h4>Family &amp; Financial Information</h4>
                           <p>
-                            Not yet started &mdash;{' '}
-                            <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('financial') }}>
-                              complete now &rarr;
-                            </a>
+                            {familyDone ? (
+                              'Completed.'
+                            ) : (
+                              <>
+                                {academicDone ? 'Currently ongoing' : 'Not yet started'} &mdash;{' '}
+                                <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('financial') }}>
+                                  {academicDone ? 'continue' : 'complete now'} &rarr;
+                                </a>
+                              </>
+                            )}
                           </p>
                         </div>
                       </div>
                       <div className="timeline-item">
-                        <div className="timeline-dot step-notstarted">4</div>
+                        <div className={`timeline-dot ${healthDone ? 'step-done' : familyDone ? 'step-ongoing' : 'step-notstarted'}`}>
+                          {healthDone ? '✓' : 4}
+                        </div>
                         <div className="timeline-body">
                           <h4>Health &amp; Wellness</h4>
                           <p>
-                            Not yet started &mdash;{' '}
-                            <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('health') }}>
-                              complete now &rarr;
-                            </a>
+                            {healthDone ? (
+                              'Completed.'
+                            ) : (
+                              <>
+                                {familyDone ? 'Currently ongoing' : 'Not yet started'} &mdash;{' '}
+                                <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('health') }}>
+                                  {familyDone ? 'continue' : 'complete now'} &rarr;
+                                </a>
+                              </>
+                            )}
                           </p>
                         </div>
                       </div>
