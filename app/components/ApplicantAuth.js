@@ -150,11 +150,24 @@ function LoginPanel({ onSwitch, onAuthenticated }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
 
   async function submit(e) {
     e.preventDefault()
     setError('')
+
+    // Inline field-level validation (matches the red field-err style used
+    // in the signup steps below) instead of relying on the browser's
+    // default "Please fill out this field" tooltip, which looked
+    // inconsistent with the rest of the auth UI.
+    const nextFieldErrors = {}
+    if (!email.trim()) nextFieldErrors.email = 'Please enter your email address.'
+    else if (!email.includes('@')) nextFieldErrors.email = 'Please enter a valid email address.'
+    if (!password) nextFieldErrors.password = 'Please enter your password.'
+    setFieldErrors(nextFieldErrors)
+    if (Object.keys(nextFieldErrors).length > 0) return
+
     setLoading(true)
     try {
       const res = await fetch('/api/applicant-login', {
@@ -184,9 +197,25 @@ function LoginPanel({ onSwitch, onAuthenticated }) {
         </h2>
         <p className="text-sm text-ccc-muted mb-5">Access your scholarship application dashboard.</p>
         {error && <Alert tone="error">{error}</Alert>}
-        <form onSubmit={submit}>
-          <TextField label="Email Address" type="email" value={email} onChange={setEmail} placeholder="e.g. yourname@email.com" required autoComplete="email" />
-          <TextField label="Password" type="password" value={password} onChange={setPassword} placeholder="Your password" required autoComplete="current-password" />
+        <form onSubmit={submit} noValidate>
+          <TextField
+            label="Email Address"
+            type="email"
+            value={email}
+            onChange={(v) => { setEmail(v); if (fieldErrors.email) setFieldErrors((f) => ({ ...f, email: undefined })) }}
+            placeholder="e.g. yourname@email.com"
+            autoComplete="email"
+            error={fieldErrors.email}
+          />
+          <TextField
+            label="Password"
+            type="password"
+            value={password}
+            onChange={(v) => { setPassword(v); if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: undefined })) }}
+            placeholder="Your password"
+            autoComplete="current-password"
+            error={fieldErrors.password}
+          />
           <button
             type="submit"
             disabled={loading}
