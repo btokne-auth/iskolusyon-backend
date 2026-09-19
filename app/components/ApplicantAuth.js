@@ -15,23 +15,59 @@ import SiteHeader from './SiteHeader'
 // inboxes). Signup still requires a one-time email code before the account
 // activates, matching her spec.
 
+// Matches "Password Visibility Toggle" — listed under both Secure Login
+// (MFA) and Forgot Password in the progress table's User Account Module
+// scope. Simple eye / eye-slash icons, same stroke style as the icons
+// already used elsewhere in the app (app/page.js's IconEye/IconEyeOff).
+function EyeIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="16" height="16" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />
+      <circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+function EyeOffIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="16" height="16" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18M10.6 10.6a3 3 0 004.24 4.24M9.36 5.11A10.6 10.6 0 0112 5c6 0 9.5 7 9.5 7a13.6 13.6 0 01-3.13 3.94M6.6 6.6C4.16 8.2 2.5 10.5 2.5 12c0 0 3.5 7 9.5 7 1.13 0 2.19-.19 3.17-.53" />
+    </svg>
+  )
+}
+
 function TextField({ label, value, onChange, type = 'text', placeholder, required, error, autoComplete }) {
+  const [visible, setVisible] = useState(false)
+  const isPassword = type === 'password'
+  const inputType = isPassword ? (visible ? 'text' : 'password') : type
+
   return (
     <div className="mb-3">
       <label className="block text-[11px] font-bold text-ccc-navy uppercase tracking-wide mb-1">
         {label}
       </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-        autoComplete={autoComplete}
-        className={`w-full px-3 py-2 border rounded-md text-sm outline-none focus:ring-2 focus:ring-ccc-blue/20 focus:border-ccc-blue ${
-          error ? 'border-red-500' : 'border-ccc-border'
-        }`}
-      />
+      <div className={isPassword ? 'relative' : undefined}>
+        <input
+          type={inputType}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          required={required}
+          autoComplete={autoComplete}
+          className={`w-full px-3 py-2 border rounded-md text-sm outline-none focus:ring-2 focus:ring-ccc-blue/20 focus:border-ccc-blue ${
+            isPassword ? 'pr-9' : ''
+          } ${error ? 'border-red-500' : 'border-ccc-border'}`}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setVisible((v) => !v)}
+            aria-label={visible ? 'Hide password' : 'Show password'}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
+          >
+            {visible ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
+        )}
+      </div>
       {error && <div className="text-[11px] text-red-600 mt-1">{error}</div>}
     </div>
   )
