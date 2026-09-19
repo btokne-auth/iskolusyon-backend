@@ -212,6 +212,17 @@ export async function POST(request) {
 
     if (existing) {
       const updates = {
+        // Sept 19 2026 fix: this never included applicant_name, so
+        // renaming yourself in Personal Information (typing a new
+        // First/Last Name) correctly updated first_name/last_name but
+        // left the row's own applicant_name column stuck on whatever it
+        // was first saved as — findApplicationRows() above still finds
+        // the right row afterward (it matches by account id/email
+        // first), so saves kept working, but the row's applicant_name
+        // silently drifted out of sync with what the applicant actually
+        // typed, and any lookup that keys off applicant_name (a direct
+        // SQL check, or a document upload matched by name) would miss it.
+        applicant_name: applicantName || existing.applicant_name,
         applicant_email: applicantEmail || existing.applicant_email,
         applicant_user_id: applicantUserId || existing.applicant_user_id,
         current_step: step,
@@ -296,6 +307,7 @@ export async function POST(request) {
       }
 
       const updates = {
+        applicant_name: applicantName || raceExisting.applicant_name,
         applicant_email: applicantEmail || raceExisting.applicant_email,
         applicant_user_id: applicantUserId || raceExisting.applicant_user_id,
         current_step: step,
