@@ -235,11 +235,30 @@ function LoginPanel({ onSwitch, onAuthenticated }) {
   )
 }
 
+// Mirrors validatePasswordStrength() in app/lib/applicantAccounts.js — same
+// rule shown in the field-note under the Password field, checked here too
+// so the applicant sees it inline instead of only after a round trip.
+function passwordStrengthError(password) {
+  if (!password) return 'Please enter a password.'
+  if (password.length < 8 || !/[0-9]/.test(password) || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+    return 'Must be at least 8 characters and include a number, an uppercase letter, a lowercase letter, and a special character.'
+  }
+  return null
+}
+
 function SignupPanel({ onSwitch, onAuthenticated }) {
   const [step, setStep] = useState(1)
   const [accountId, setAccountId] = useState(null)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [loading, setLoading] = useState(false)
+
+  function clearFieldError(field, setter) {
+    return (v) => {
+      setter(v)
+      if (fieldErrors[field]) setFieldErrors((f) => ({ ...f, [field]: undefined }))
+    }
+  }
 
   // Step 1
   const [email, setEmail] = useState('')
@@ -269,10 +288,17 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
   async function handleStep1(e) {
     e.preventDefault()
     setError('')
-    if (password !== password2) {
-      setError('Passwords do not match.')
-      return
-    }
+
+    const nextFieldErrors = {}
+    if (!email.trim()) nextFieldErrors.email = 'Please enter your email address.'
+    else if (!email.includes('@')) nextFieldErrors.email = 'Please enter a valid email address.'
+    const passwordError = passwordStrengthError(password)
+    if (passwordError) nextFieldErrors.password = passwordError
+    if (!password2) nextFieldErrors.password2 = 'Please confirm your password.'
+    else if (password && password2 && password !== password2) nextFieldErrors.password2 = 'Passwords do not match.'
+    setFieldErrors(nextFieldErrors)
+    if (Object.keys(nextFieldErrors).length > 0) return
+
     setLoading(true)
     try {
       const res = await fetch('/api/applicant-signup', {
@@ -286,6 +312,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
         return
       }
       setAccountId(data.accountId)
+      setFieldErrors({})
       setStep(2)
     } catch {
       setError('Could not reach the server. Check your connection and try again.')
@@ -308,6 +335,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
         setError(data.error || 'Could not save your progress.')
         return
       }
+      setFieldErrors({})
       setStep(nextStep)
     } catch {
       setError('Could not reach the server. Check your connection and try again.')
@@ -318,10 +346,14 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
 
   function handleStep2(e) {
     e.preventDefault()
-    if (!applyingAs || !termApplying || !choice1 || !choice2) {
-      setError('Please fill in all required fields.')
-      return
-    }
+    const nextFieldErrors = {}
+    if (!applyingAs) nextFieldErrors.applyingAs = 'Please select how you are applying.'
+    if (!termApplying) nextFieldErrors.termApplying = 'Please select the term you are applying in.'
+    if (!choice1) nextFieldErrors.choice1 = 'Please select your first choice program.'
+    if (!choice2) nextFieldErrors.choice2 = 'Please select your second choice program.'
+    setFieldErrors(nextFieldErrors)
+    if (Object.keys(nextFieldErrors).length > 0) return
+
     saveProgressAndAdvance(3, {
       academicInfo: { applyingAs, termApplying, choice1, choice2 },
     })
@@ -329,10 +361,17 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
 
   function handleStep3(e) {
     e.preventDefault()
-    if (!firstName.trim() || !lastName.trim() || !sex || !dateOfBirth || !civilStatus || !contactNumber.trim() || !address.trim()) {
-      setError('Please fill in all required fields.')
-      return
-    }
+    const nextFieldErrors = {}
+    if (!lastName.trim()) nextFieldErrors.lastName = 'Please enter your last name.'
+    if (!firstName.trim()) nextFieldErrors.firstName = 'Please enter your first name.'
+    if (!sex) nextFieldErrors.sex = 'Please select your sex.'
+    if (!dateOfBirth) nextFieldErrors.dateOfBirth = 'Please enter your date of birth.'
+    if (!civilStatus) nextFieldErrors.civilStatus = 'Please select your civil status.'
+    if (!contactNumber.trim()) nextFieldErrors.contactNumber = 'Please enter your contact number.'
+    if (!address.trim()) nextFieldErrors.address = 'Please enter your present home address.'
+    setFieldErrors(nextFieldErrors)
+    if (Object.keys(nextFieldErrors).length > 0) return
+
     saveProgressAndAdvance(4, {
       personalInfo: { firstName, middleName, lastName, sex, dateOfBirth, civilStatus, contactNumber, address },
     })
@@ -363,6 +402,11 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
   async function verify(e) {
     e.preventDefault()
     setError('')
+    if (!code.trim()) {
+      setFieldErrors({ code: 'Please enter the verification code.' })
+      return
+    }
+    setFieldErrors({})
     setLoading(true)
     try {
       const res = await fetch('/api/applicant-signup', {
@@ -394,14 +438,14 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
         {error && <Alert tone="error">{error}</Alert>}
 
         {step === 1 && (
-          <form onSubmit={handleStep1}>
+          <form onSubmit={handleStep1} noValidate>
             <Alert tone="info">A verification code will be sent to this email before your account is finalized.</Alert>
-            <TextField label="Email Address" type="email" value={email} onChange={setEmail} required autoComplete="email" placeholder="e.g. yourname@email.com" />
-            <TextField label="Password" type="password" value={password} onChange={setPassword} required autoComplete="new-password" placeholder="Create a password" />
+            <TextField label="Email Address" type="email" value={email} onChange={clearFieldError('email', setEmail)} autoComplete="email" placeholder="e.g. yourname@email.com" error={fieldErrors.email} />
+            <TextField label="Password" type="password" value={password} onChange={clearFieldError('password', setPassword)} autoComplete="new-password" placeholder="Create a password" error={fieldErrors.password} />
             <div className="text-[11px] text-ccc-muted -mt-2 mb-3">
               Minimum 8 characters, with at least 1 number, 1 uppercase & 1 lowercase letter, and 1 special character.
             </div>
-            <TextField label="Confirm Password" type="password" value={password2} onChange={setPassword2} required autoComplete="new-password" placeholder="Re-enter your password" />
+            <TextField label="Confirm Password" type="password" value={password2} onChange={clearFieldError('password2', setPassword2)} autoComplete="new-password" placeholder="Re-enter your password" error={fieldErrors.password2} />
             <button type="submit" disabled={loading} className="w-full mt-2 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60">
               {loading ? 'Please wait…' : 'Continue →'}
             </button>
@@ -413,13 +457,13 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
         )}
 
         {step === 2 && (
-          <form onSubmit={handleStep2}>
+          <form onSubmit={handleStep2} noValidate>
             <div className="text-[11px] font-bold text-ccc-gold uppercase tracking-wide mb-2">Program Application</div>
-            <SelectField label="Applying as" value={applyingAs} onChange={setApplyingAs} required options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} />
-            <SelectField label="Term Applying In" value={termApplying} onChange={setTermApplying} required options={['Term 1', 'Term 2']} />
+            <SelectField label="Applying as" value={applyingAs} onChange={clearFieldError('applyingAs', setApplyingAs)} options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} error={fieldErrors.applyingAs} />
+            <SelectField label="Term Applying In" value={termApplying} onChange={clearFieldError('termApplying', setTermApplying)} options={['Term 1', 'Term 2']} error={fieldErrors.termApplying} />
             <div className="text-[11px] font-bold text-ccc-gold uppercase tracking-wide mb-2 mt-4">Preferred Program</div>
-            <SelectField label="First Choice" value={choice1} onChange={setChoice1} required options={PROGRAMS} />
-            <SelectField label="Second Choice" value={choice2} onChange={setChoice2} required options={[...PROGRAMS, 'None of the above']} />
+            <SelectField label="First Choice" value={choice1} onChange={clearFieldError('choice1', setChoice1)} options={PROGRAMS} error={fieldErrors.choice1} />
+            <SelectField label="Second Choice" value={choice2} onChange={clearFieldError('choice2', setChoice2)} options={[...PROGRAMS, 'None of the above']} error={fieldErrors.choice2} />
             <div className="flex gap-3 mt-4">
               <button type="button" onClick={() => setStep(1)} className="flex-1 py-2.5 rounded-md border border-ccc-border text-ccc-muted font-bold text-sm uppercase tracking-wide hover:bg-ccc-off">← Back</button>
               <button type="submit" disabled={loading} className="flex-1 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60">
@@ -430,18 +474,18 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
         )}
 
         {step === 3 && (
-          <form onSubmit={handleStep3}>
+          <form onSubmit={handleStep3} noValidate>
             <div className="text-[11px] font-bold text-ccc-gold uppercase tracking-wide mb-2">Personal & Identity Information</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
-              <TextField label="Last Name" value={lastName} onChange={setLastName} required placeholder="e.g. Dela Cruz" />
-              <TextField label="First Name" value={firstName} onChange={setFirstName} required placeholder="e.g. Juan" />
+              <TextField label="Last Name" value={lastName} onChange={clearFieldError('lastName', setLastName)} placeholder="e.g. Dela Cruz" error={fieldErrors.lastName} />
+              <TextField label="First Name" value={firstName} onChange={clearFieldError('firstName', setFirstName)} placeholder="e.g. Juan" error={fieldErrors.firstName} />
               <TextField label="Middle Name (if any)" value={middleName} onChange={setMiddleName} placeholder="e.g. Santos" />
-              <SelectField label="Sex" value={sex} onChange={setSex} required options={['Male', 'Female']} />
-              <TextField label="Date of Birth" type="date" value={dateOfBirth} onChange={setDateOfBirth} required />
-              <SelectField label="Civil Status" value={civilStatus} onChange={setCivilStatus} required options={['Single', 'Married', 'Widowed', 'Legally Separated']} />
-              <TextField label="Contact Number" value={contactNumber} onChange={setContactNumber} required placeholder="e.g. 09XX XXX XXXX" />
+              <SelectField label="Sex" value={sex} onChange={clearFieldError('sex', setSex)} options={['Male', 'Female']} error={fieldErrors.sex} />
+              <TextField label="Date of Birth" type="date" value={dateOfBirth} onChange={clearFieldError('dateOfBirth', setDateOfBirth)} error={fieldErrors.dateOfBirth} />
+              <SelectField label="Civil Status" value={civilStatus} onChange={clearFieldError('civilStatus', setCivilStatus)} options={['Single', 'Married', 'Widowed', 'Legally Separated']} error={fieldErrors.civilStatus} />
+              <TextField label="Contact Number" value={contactNumber} onChange={clearFieldError('contactNumber', setContactNumber)} placeholder="e.g. 09XX XXX XXXX" error={fieldErrors.contactNumber} />
             </div>
-            <TextField label="Present Home Address" value={address} onChange={setAddress} required placeholder="e.g. 123 Rizal St., Brgy. Real, Calamba City" />
+            <TextField label="Present Home Address" value={address} onChange={clearFieldError('address', setAddress)} placeholder="e.g. 123 Rizal St., Brgy. Real, Calamba City" error={fieldErrors.address} />
             <p className="text-[11px] text-ccc-muted mb-3">
               You&apos;ll be able to fill in the rest of your profile (Educational Background details, Family &amp; Financial Information, Health &amp; Wellness, and document uploads) after your account is verified.
             </p>
@@ -478,9 +522,9 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
                 </button>
               </>
             ) : (
-              <form onSubmit={verify}>
+              <form onSubmit={verify} noValidate>
                 <Alert tone="success">Code sent. Check your email (and spam folder) for a 6-digit code.</Alert>
-                <TextField label="Verification Code" value={code} onChange={setCode} required placeholder="123456" />
+                <TextField label="Verification Code" value={code} onChange={clearFieldError('code', setCode)} placeholder="123456" error={fieldErrors.code} />
                 <button type="submit" disabled={loading} className="w-full py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60">
                   {loading ? 'Verifying…' : 'Verify & Create Account'}
                 </button>
