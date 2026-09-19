@@ -31,7 +31,14 @@
   --border: var(--ccc-border);
   --orange: var(--ccc-orange);
   --red: var(--ccc-red);
-  --ccc-blue: var(--ccc-blue);
+  /* --ccc-blue needs no alias here: the app's global :root already
+     defines --ccc-blue with the exact spec value, and it inherits into
+     this scope fine on its own. The self-referencing line that used to
+     be here (--ccc-blue: var(--ccc-blue)) was a bug — a CSS custom
+     property that references its own name is invalid, which silently
+     broke every rule below using var(--ccc-blue): the sidebar's
+     gradient background, the active nav item's blue text, progress
+     bars, buttons, all of it. */
 }
 
 .applicant-portal .portal-shell{display:grid;grid-template-columns:270px 1fr;min-height:calc(100vh - 108px);align-items:stretch}
