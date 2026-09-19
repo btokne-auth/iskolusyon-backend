@@ -627,7 +627,12 @@ export async function GET(request) {
         : query.eq('applicant_user_id', applicantSession.id)
     }
 
-    const { data: docs, error: dbError } = await query
+    // Newest first — matters now that a document type (profilepic
+    // especially) can have more than one row for the same applicant after
+    // a re-upload/replace; consumers that want "the current one" (e.g. the
+    // Live Name Sync / sidebar avatar preview) rely on this order to pick
+    // the first match instead of an arbitrary or stale one.
+    const { data: docs, error: dbError } = await query.order('created_at', { ascending: false })
 
     if (dbError) {
       return NextResponse.json({ error: dbError.message }, { status: 500 })

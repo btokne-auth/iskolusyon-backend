@@ -522,7 +522,11 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected }) 
         {status === 'queued' && <div className="text-[11px] text-ccc-gold mt-0.5">No connection &mdash; saved on this device, will upload automatically once you&rsquo;re back online</div>}
       </div>
       <label className="shrink-0 text-[11px] font-bold text-ccc-blue border border-ccc-blue rounded-lg px-3 py-1.5 cursor-pointer hover:bg-ccc-blue hover:text-white transition-colors">
-        Upload
+        {/* Re-selecting a file here always worked (nothing blocked a second
+            upload), but the button still said "Upload" even once one
+            already existed, reading like a first-time action rather than
+            a replace. Now says "Change" once there's something to change. */}
+        {status === 'done' || status === 'flagged' ? 'Change' : 'Upload'}
         <input
           type="file"
           className="hidden"
@@ -776,6 +780,14 @@ function PortalApp({ accountSession, onLogout }) {
   // Drives the "Uploaded" state on the three inline Personal Information
   // uploads (cards 1-3) so a returning applicant doesn't see them as empty.
   const hasUploaded = (type) => myDocs.some((doc) => doc.document_type === type)
+
+  // The persisted profile photo's signed URL, if one exists — GET
+  // /api/upload now orders newest-first, so .find() here always picks the
+  // current photo even after a re-upload/replace, not a stale earlier one.
+  // Shared by Card 1's Live Name Sync preview and the sidebar avatar so
+  // both actually show the same photo, matching Card 1's own "used across
+  // your application and account" copy.
+  const persistedProfilePicUrl = myDocs.find((d) => d.document_type === 'profilepic')?.publicUrl
 
   // The History drawer reuses this same filtered list — it should only ever
   // show documents matching the name currently typed in, not every
@@ -1282,6 +1294,7 @@ function PortalApp({ accountSession, onLogout }) {
             (personalInfo.firstName?.[0] || applicantName.trim()?.[0] || '').toUpperCase() +
             (personalInfo.lastName?.[0] || applicantName.trim().split(' ')[1]?.[0] || '').toUpperCase()
           }
+          avatarUrl={profilePicPreviewUrl || persistedProfilePicUrl}
           messagesCount={0}
           flaggedCount={flaggedCount}
           onLogout={onLogout}
@@ -1490,14 +1503,12 @@ function PortalApp({ accountSession, onLogout }) {
                 <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">1 &middot; Profile Picture</div>
                 <p className="text-[11px] text-ccc-muted">This photo is used across your application and account.</p>
                 {(() => {
-                  // Falls back to the persisted photo's signed URL (from
-                  // myDocs, already fetched via GET /api/upload) when
+                  // Falls back to the persisted photo's signed URL when
                   // there's no fresh local pick this visit — otherwise a
                   // returning applicant who uploaded their photo in an
                   // earlier session saw a blank placeholder icon here
                   // instead of their actual photo (found testing Sept 19).
-                  const persistedUrl = myDocs.find((d) => d.document_type === 'profilepic')?.publicUrl
-                  const displayUrl = profilePicPreviewUrl || persistedUrl
+                  const displayUrl = profilePicPreviewUrl || persistedProfilePicUrl
                   if (!displayUrl && !personalInfo.firstName && !personalInfo.lastName) return null
                   return (
                     <div className="flex items-center gap-3 rounded-lg bg-ccc-off/60 px-3 py-2.5">

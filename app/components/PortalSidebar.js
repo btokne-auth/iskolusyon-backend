@@ -88,6 +88,7 @@ export default function PortalSidebar({
   onSelectPanel,
   displayName,
   avatarInitials,
+  avatarUrl,
   messagesCount = 0,
   flaggedCount = 0,
   onLogout,
@@ -96,8 +97,16 @@ export default function PortalSidebar({
     <aside className="w-full lg:w-64 shrink-0 bg-white border border-ccc-border rounded-2xl p-4 lg:sticky lg:top-6 h-fit space-y-5">
       {/* ---- Profile block ---- */}
       <div className="flex flex-col items-center text-center gap-1 pb-4 border-b border-ccc-border">
-        <div className="w-14 h-14 rounded-full bg-ccc-navy text-white flex items-center justify-center text-lg font-bold">
-          {avatarInitials || '—'}
+        {/* Same photo as Card 1's "used across your application and
+            account" promise — shows the uploaded profile picture once
+            available, falls back to initials until then. */}
+        <div className="w-14 h-14 rounded-full bg-ccc-navy text-white flex items-center justify-center text-lg font-bold overflow-hidden">
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+          ) : (
+            avatarInitials || '—'
+          )}
         </div>
         <div className="text-sm font-bold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
           {displayName || 'Applicant'}
