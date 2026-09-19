@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { Resend } from 'resend'
-import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns } from '@/app/lib/applicationColumns'
+import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns, familyInfoToColumns } from '@/app/lib/applicationColumns'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -87,10 +87,11 @@ export async function POST(request) {
     const applicantEmail = (body.applicantEmail || '').trim()
     const step = Number(body.step) || 1
     const action = ['submit', 'submit-section'].includes(body.action) ? body.action : 'save'
-    const section = ['academic', 'personal', 'health'].includes(body.section) ? body.section : null
+    const section = ['academic', 'personal', 'health', 'financial'].includes(body.section) ? body.section : null
     const personalInfoColumns = personalInfoToColumns(body.personalInfo)
     const academicInfoColumns = academicInfoToColumns(body.academicInfo)
     const healthInfoColumns = healthInfoToColumns(body.healthInfo)
+    const familyInfoColumns = familyInfoToColumns(body.familyInfo)
 
     if (!applicantName) {
       return NextResponse.json({ error: 'Missing applicant name' }, { status: 400 })
@@ -122,6 +123,7 @@ export async function POST(request) {
         ...personalInfoColumns,
         ...academicInfoColumns,
         ...healthInfoColumns,
+        ...familyInfoColumns,
       }
       if (action === 'submit') {
         updates.status = 'submitted'
@@ -131,6 +133,7 @@ export async function POST(request) {
         if (section === 'personal') updates.personal_info_submitted_at = now
         if (section === 'academic') updates.academic_submitted_at = now
         if (section === 'health') updates.health_submitted_at = now
+        if (section === 'financial') updates.financial_submitted_at = now
       }
 
       const { data, error } = await supabase
@@ -161,9 +164,11 @@ export async function POST(request) {
       personal_info_submitted_at: action === 'submit-section' && section === 'personal' ? now : null,
       academic_submitted_at: action === 'submit-section' && section === 'academic' ? now : null,
       health_submitted_at: action === 'submit-section' && section === 'health' ? now : null,
+      financial_submitted_at: action === 'submit-section' && section === 'financial' ? now : null,
       ...personalInfoColumns,
       ...academicInfoColumns,
       ...healthInfoColumns,
+      ...familyInfoColumns,
     }
 
     const { data, error } = await supabase
@@ -239,4 +244,36 @@ export async function POST(request) {
 // ALTER TABLE applications
 //   ADD COLUMN IF NOT EXISTS health_condition text,
 //   ADD COLUMN IF NOT EXISTS health_submitted_at timestamptz;
+//
+// Family & Financial Information panel (design-parity pass 7) — also
+// committed as docs/migrations/2026-09-19-family-financial-fields.sql:
+//
+// ALTER TABLE applications
+//   ADD COLUMN IF NOT EXISTS fam_mother_name text,
+//   ADD COLUMN IF NOT EXISTS fam_mother_citizenship text,
+//   ADD COLUMN IF NOT EXISTS fam_mother_dob text,
+//   ADD COLUMN IF NOT EXISTS fam_mother_contact text,
+//   ADD COLUMN IF NOT EXISTS fam_mother_education text,
+//   ADD COLUMN IF NOT EXISTS fam_mother_employment text,
+//   ADD COLUMN IF NOT EXISTS fam_father_name text,
+//   ADD COLUMN IF NOT EXISTS fam_father_citizenship text,
+//   ADD COLUMN IF NOT EXISTS fam_father_dob text,
+//   ADD COLUMN IF NOT EXISTS fam_father_contact text,
+//   ADD COLUMN IF NOT EXISTS fam_father_education text,
+//   ADD COLUMN IF NOT EXISTS fam_father_employment text,
+//   ADD COLUMN IF NOT EXISTS fam_guardian_name text,
+//   ADD COLUMN IF NOT EXISTS fam_guardian_citizenship text,
+//   ADD COLUMN IF NOT EXISTS fam_guardian_dob text,
+//   ADD COLUMN IF NOT EXISTS fam_guardian_contact text,
+//   ADD COLUMN IF NOT EXISTS fam_guardian_education text,
+//   ADD COLUMN IF NOT EXISTS fam_guardian_employment text,
+//   ADD COLUMN IF NOT EXISTS fam_only_child text,
+//   ADD COLUMN IF NOT EXISTS fam_num_siblings integer,
+//   ADD COLUMN IF NOT EXISTS fam_sibling_currentstudent text,
+//   ADD COLUMN IF NOT EXISTS fam_sibling_graduate text,
+//   ADD COLUMN IF NOT EXISTS fam_emergency_contact text,
+//   ADD COLUMN IF NOT EXISTS fam_emergency_contact_number text,
+//   ADD COLUMN IF NOT EXISTS fam_working_student text,
+//   ADD COLUMN IF NOT EXISTS fam_siblings jsonb DEFAULT '[]'::jsonb,
+//   ADD COLUMN IF NOT EXISTS financial_submitted_at timestamptz;
 // ============================================================================

@@ -142,6 +142,50 @@ function mapDbRowToHealthInfo(row) {
   }
 }
 
+// Maps an `applications` row back to the camelCase familyInfo shape the
+// Family & Financial Information panel uses — same pattern as
+// mapDbRowToPersonalInfo() above, needed when resuming a draft. Falls back
+// to 3 blank sibling-income columns (matching the panel's own default)
+// when fam_siblings is empty, same reasoning as mapDbRowToPersonalInfo()'s
+// organizations fallback above.
+function mapDbRowToFamilyInfo(row) {
+  return {
+    motherName: row.fam_mother_name || '',
+    motherCitizenship: row.fam_mother_citizenship || '',
+    motherDob: row.fam_mother_dob || '',
+    motherContact: row.fam_mother_contact || '',
+    motherEducation: row.fam_mother_education || '',
+    motherEmployment: row.fam_mother_employment || '',
+    fatherName: row.fam_father_name || '',
+    fatherCitizenship: row.fam_father_citizenship || '',
+    fatherDob: row.fam_father_dob || '',
+    fatherContact: row.fam_father_contact || '',
+    fatherEducation: row.fam_father_education || '',
+    fatherEmployment: row.fam_father_employment || '',
+    guardianName: row.fam_guardian_name || '',
+    guardianCitizenship: row.fam_guardian_citizenship || '',
+    guardianDob: row.fam_guardian_dob || '',
+    guardianContact: row.fam_guardian_contact || '',
+    guardianEducation: row.fam_guardian_education || '',
+    guardianEmployment: row.fam_guardian_employment || '',
+    onlyChild: row.fam_only_child || '',
+    numSiblings: row.fam_num_siblings ?? '',
+    siblingCurrentStudent: row.fam_sibling_currentstudent || '',
+    siblingGraduate: row.fam_sibling_graduate || '',
+    emergencyContact: row.fam_emergency_contact || '',
+    emergencyContactNumber: row.fam_emergency_contact_number || '',
+    workingStudent: row.fam_working_student || '',
+    siblings:
+      Array.isArray(row.fam_siblings) && row.fam_siblings.length > 0
+        ? row.fam_siblings
+        : [
+            { name: '', dob: '', civilStatus: '', contact: '', education: '' },
+            { name: '', dob: '', civilStatus: '', contact: '', education: '' },
+            { name: '', dob: '', civilStatus: '', contact: '', education: '' },
+          ],
+  }
+}
+
 // Maps an `applications` row back to the camelCase academicInfo shape the
 // Educational Background panel uses — same pattern as
 // mapDbRowToPersonalInfo() above, needed when resuming a draft.
@@ -516,6 +560,130 @@ function EduTable({ edu, onChangeCell, disabled }) {
   )
 }
 
+// Parent/Guardian table (Family & Financial Information panel) — one row
+// per field, one column per person, ported from Ivy's fam-mother-*/
+// fam-father-*/fam-guardian-* markup. Mother and Father are required;
+// Guardian is not (matches spec's own required attrs — only the mother/
+// father <td>s have `required`).
+const PARENT_ROWS = [
+  { field: 'Name', placeholders: ['e.g. Juana Dela Cruz', 'e.g. Juan Dela Cruz', 'e.g. N/A'] },
+  { field: 'Citizenship', placeholders: ['e.g. Filipino', 'e.g. Filipino', 'e.g. N/A'] },
+  { field: 'Dob', label: 'Date of Birth', placeholders: ['e.g. MM/DD/YYYY', 'e.g. MM/DD/YYYY', 'e.g. N/A'] },
+  { field: 'Contact', label: 'Contact No.', placeholders: ['e.g. 0917 123 4567', 'e.g. 0917 123 4567', 'e.g. N/A'] },
+  { field: 'Education', label: 'Highest Educational Attainment', placeholders: ['e.g. College Graduate', 'e.g. College Graduate', 'e.g. N/A'] },
+  { field: 'Employment', label: 'Employment Status', placeholders: ['e.g. Employed', 'e.g. Employed', 'e.g. N/A'] },
+]
+const PARENT_PEOPLE = ['mother', 'father', 'guardian']
+
+function ParentGuardianTable({ familyInfo, onChange, disabled }) {
+  return (
+    <div className="edu-table-wrap">
+      <table className="edu-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Mother <span className="req-mark">*</span></th>
+            <th>Father <span className="req-mark">*</span></th>
+            <th>Guardian</th>
+          </tr>
+        </thead>
+        <tbody>
+          {PARENT_ROWS.map((row) => (
+            <tr key={row.field}>
+              <th>{row.label || row.field}</th>
+              {PARENT_PEOPLE.map((person, i) => {
+                const key = `${person}${row.field}`
+                return (
+                  <td key={person}>
+                    <input
+                      type="text"
+                      value={familyInfo[key]}
+                      onChange={(e) => onChange(key, e.target.value)}
+                      placeholder={row.placeholders[i]}
+                      required={person !== 'guardian'}
+                      disabled={disabled}
+                    />
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// Sibling income table (Family & Financial Information panel, inside the
+// "Family's Annual Income" card) — one row per field, one column per
+// sibling, ported from Ivy's #sibling-income-table + addSiblingColumn()/
+// removeSiblingColumn() JS. Same add/remove-the-newest-column contract as
+// OrganizationsTable's add/remove-the-newest-row above: only the last
+// column offers "+", every earlier column offers "×" once it's no
+// longer last. Starts with 3 columns, matching spec's own default.
+const SIBLING_ROWS = [
+  { field: 'name', label: 'Name', placeholder: 'e.g. N/A', type: 'text' },
+  { field: 'dob', label: 'Date of Birth', placeholder: 'e.g. MM/DD/YYYY', type: 'text' },
+  { field: 'civilStatus', label: 'Civil Status', type: 'select', options: ['Single', 'Married', 'Widowed', 'Separated'] },
+  { field: 'contact', label: 'Contact Number', placeholder: 'e.g. 0917 123 4567', type: 'text' },
+  { field: 'education', label: 'Highest Educational Attainment', placeholder: 'e.g. College Graduate', type: 'text' },
+]
+
+function SiblingIncomeTable({ siblings, onChangeCell, onAddColumn, onRemoveColumn, disabled }) {
+  return (
+    <div className="edu-table-wrap">
+      <table className="edu-table" id="sibling-income-table">
+        <thead>
+          <tr>
+            <th>Eldest to Youngest</th>
+            {siblings.map((_, i) => {
+              const isLast = i === siblings.length - 1
+              return (
+                <th key={i} className="sib-col">
+                  Sibling {i + 1} <span className="req-mark">*</span>{' '}
+                  {isLast ? (
+                    <button type="button" className="org-row-btn org-row-add sib-col-btn" onClick={onAddColumn} title="Add sibling" disabled={disabled}>+</button>
+                  ) : (
+                    <button type="button" className="org-row-btn org-row-remove sib-col-btn" onClick={() => onRemoveColumn(i)} title="Remove sibling" disabled={disabled}>&times;</button>
+                  )}
+                </th>
+              )
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {SIBLING_ROWS.map((row) => (
+            <tr key={row.field}>
+              <th>{row.label}</th>
+              {siblings.map((sib, i) =>
+                row.type === 'select' ? (
+                  <td key={i}>
+                    <select value={sib[row.field]} onChange={(e) => onChangeCell(i, row.field, e.target.value)} required disabled={disabled}>
+                      <option value="">Select&hellip;</option>
+                      {row.options.map((opt) => <option key={opt}>{opt}</option>)}
+                    </select>
+                  </td>
+                ) : (
+                  <td key={i}>
+                    <input
+                      type="text"
+                      value={sib[row.field]}
+                      onChange={(e) => onChangeCell(i, row.field, e.target.value)}
+                      placeholder={row.placeholder}
+                      required
+                      disabled={disabled}
+                    />
+                  </td>
+                )
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // Inline document upload row used inside the Personal Information cards
 // (Profile Picture / Birth Certificate / Voter's ID) — a compact version of
 // the Step 2 dropzone, since these three uploads now happen right next to
@@ -710,10 +878,12 @@ function PortalApp({ accountSession, onLogout }) {
   const [personalSubmittedAt, setPersonalSubmittedAt] = useState(null)
   const [academicSubmittedAt, setAcademicSubmittedAt] = useState(null)
   const [healthSubmittedAt, setHealthSubmittedAt] = useState(null)
+  const [financialSubmittedAt, setFinancialSubmittedAt] = useState(null)
   const [personalSectionState, setPersonalSectionState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'submitting' | 'submitted' | 'error'
   const [academicSectionState, setAcademicSectionState] = useState('idle')
   const [healthSectionState, setHealthSectionState] = useState('idle')
-  const [sectionErrors, setSectionErrors] = useState({ personal: '', academic: '', health: '' })
+  const [financialSectionState, setFinancialSectionState] = useState('idle')
+  const [sectionErrors, setSectionErrors] = useState({ personal: '', academic: '', health: '', financial: '' })
   const [draftFound, setDraftFound] = useState(null) // application row found for this name, or null
   const [draftDismissed, setDraftDismissed] = useState(false)
   const [localDraftFound, setLocalDraftFound] = useState(null) // draft found in IndexedDB only (offline fallback), separate from draftFound above
@@ -807,6 +977,48 @@ function PortalApp({ accountSession, onLogout }) {
   // no required-ness on either, matching spec.
   const [healthInfo, setHealthInfo] = useState({ medicalStatus: '' })
   const updateHI = (field, value) => setHealthInfo((h) => ({ ...h, [field]: value }))
+
+  // ---- Family & Financial Information panel ---- ported from Ivy's
+  // panel-financial: Parent/Guardian table, the only-child branch (number
+  // of siblings + the two CCC sibling questions), emergency contact, the
+  // working-student branch, and the sibling income table. `siblings`
+  // starts with 3 blank columns, matching spec's own default before the
+  // "+" button is used — see addSiblingColumn/removeSiblingColumn below,
+  // same add/remove-column contract as her addSiblingColumn() JS.
+  const [familyInfo, setFamilyInfo] = useState({
+    motherName: '', motherCitizenship: '', motherDob: '', motherContact: '', motherEducation: '', motherEmployment: '',
+    fatherName: '', fatherCitizenship: '', fatherDob: '', fatherContact: '', fatherEducation: '', fatherEmployment: '',
+    guardianName: '', guardianCitizenship: '', guardianDob: '', guardianContact: '', guardianEducation: '', guardianEmployment: '',
+    onlyChild: '', numSiblings: '',
+    siblingCurrentStudent: '', siblingGraduate: '',
+    emergencyContact: '', emergencyContactNumber: '',
+    workingStudent: '',
+    siblings: [
+      { name: '', dob: '', civilStatus: '', contact: '', education: '' },
+      { name: '', dob: '', civilStatus: '', contact: '', education: '' },
+      { name: '', dob: '', civilStatus: '', contact: '', education: '' },
+    ],
+  })
+  const updateFI = (field, value) => setFamilyInfo((f) => ({ ...f, [field]: value }))
+  const updateSiblingCell = (index, field, value) => {
+    setFamilyInfo((f) => {
+      const siblings = [...f.siblings]
+      siblings[index] = { ...siblings[index], [field]: value }
+      return { ...f, siblings }
+    })
+  }
+  const addSiblingColumn = () => {
+    setFamilyInfo((f) => ({
+      ...f,
+      siblings: [...f.siblings, { name: '', dob: '', civilStatus: '', contact: '', education: '' }],
+    }))
+  }
+  const removeSiblingColumn = (index) => {
+    setFamilyInfo((f) => ({
+      ...f,
+      siblings: f.siblings.filter((_, i) => i !== index),
+    }))
+  }
   const updateEduCell = (level, field, value) =>
     setAcademicInfo((a) => ({ ...a, edu: { ...a.edu, [level]: { ...a.edu[level], [field]: value } } }))
 
@@ -869,6 +1081,14 @@ function PortalApp({ accountSession, onLogout }) {
   // "only once you have passed the applicant examination" — descriptive,
   // not an actual gate/disable in her markup either).
   const [medcertStatus, setMedcertStatus] = useState('idle')
+  // Family & Financial panel uploads — parentid (required), employmentcert
+  // (required only when workingStudent === 'Yes'), indigency (optional).
+  // Same idle/uploading/done/flagged/rejected/error/queued contract as
+  // every other inline upload row in this file.
+  const [parentIdStatus, setParentIdStatus] = useState('idle')
+  const [parentIdRejection, setParentIdRejection] = useState(null)
+  const [employmentCertStatus, setEmploymentCertStatus] = useState('idle')
+  const [indigencyStatus, setIndigencyStatus] = useState('idle')
 
   // ---- Appeals & Rescheduling panel (Rescheduling half only — see
   // app/api/reschedule/route.js header comment for why "Appeal for
@@ -948,6 +1168,7 @@ function PortalApp({ accountSession, onLogout }) {
           personalInfo,
           academicInfo,
           healthInfo,
+          familyInfo,
         }),
       })
       const data = await res.json()
@@ -964,7 +1185,7 @@ function PortalApp({ accountSession, onLogout }) {
         // Couldn't reach the server at all — the autosave effect already
         // keeps a local copy up to date, so nothing is actually lost.
         // Say so plainly instead of showing a generic "couldn't save".
-        await saveDraftLocal(applicantName, { personalInfo, academicInfo, healthInfo, applicantEmail, step: targetStep })
+        await saveDraftLocal(applicantName, { personalInfo, academicInfo, healthInfo, familyInfo, applicantEmail, step: targetStep })
         setSaveState('offline')
         setTimeout(() => setSaveState('idle'), 4000)
       } else {
@@ -1001,8 +1222,36 @@ function PortalApp({ accountSession, onLogout }) {
       }
     }
 
+    if (section === 'financial') {
+      const missing = []
+      if (!familyInfo.motherName.trim()) missing.push("Mother's Name")
+      if (!familyInfo.fatherName.trim()) missing.push("Father's Name")
+      if (!familyInfo.onlyChild) missing.push('Are you an only child?')
+      if (familyInfo.onlyChild === 'No') {
+        if (!String(familyInfo.numSiblings).trim()) missing.push('Number of Siblings')
+        if (!familyInfo.siblingCurrentStudent) missing.push('Sibling currently a CCC student?')
+        if (!familyInfo.siblingGraduate) missing.push('Sibling graduated from CCC?')
+      }
+      if (!familyInfo.emergencyContact.trim()) missing.push('Person to be Notified in Case of Emergency')
+      if (!(parentIdStatus === 'done' || hasUploaded('parentid'))) missing.push("Voter's ID / Certification of Parent/Guardian")
+      if (!familyInfo.workingStudent) missing.push('Are you a working student?')
+      if (familyInfo.workingStudent === 'Yes' && !(employmentCertStatus === 'done' || hasUploaded('employmentcert'))) {
+        missing.push('Proof of Employment')
+      }
+      if (missing.length) {
+        setSectionErrors((e) => ({
+          ...e,
+          financial: `Please complete the following before submitting: ${missing.join(', ')}`,
+        }))
+        return
+      }
+    }
+
     const setState =
-      section === 'personal' ? setPersonalSectionState : section === 'academic' ? setAcademicSectionState : setHealthSectionState
+      section === 'personal' ? setPersonalSectionState
+      : section === 'academic' ? setAcademicSectionState
+      : section === 'health' ? setHealthSectionState
+      : setFinancialSectionState
     setState('submitting')
     try {
       const res = await fetch('/api/application', {
@@ -1011,12 +1260,13 @@ function PortalApp({ accountSession, onLogout }) {
         body: JSON.stringify({
           applicantName: applicantName.trim(),
           applicantEmail: applicantEmail.trim(),
-          step: section === 'personal' ? 1 : section === 'academic' ? 2 : 4,
+          step: section === 'personal' ? 1 : section === 'academic' ? 2 : section === 'financial' ? 5 : 4,
           action: 'submit-section',
           section,
           personalInfo,
           academicInfo,
           healthInfo,
+          familyInfo,
         }),
       })
       const data = await res.json()
@@ -1024,6 +1274,7 @@ function PortalApp({ accountSession, onLogout }) {
       if (section === 'personal') setPersonalSubmittedAt(data.application.personal_info_submitted_at)
       if (section === 'academic') setAcademicSubmittedAt(data.application.academic_submitted_at)
       if (section === 'health') setHealthSubmittedAt(data.application.health_submitted_at)
+      if (section === 'financial') setFinancialSubmittedAt(data.application.financial_submitted_at)
       setState('submitted')
       setTimeout(() => setState('idle'), 1800)
     } catch (err) {
@@ -1050,6 +1301,7 @@ function PortalApp({ accountSession, onLogout }) {
           personalInfo,
           academicInfo,
           healthInfo,
+          familyInfo,
         }),
       })
       const data = await res.json()
@@ -1112,9 +1364,11 @@ function PortalApp({ accountSession, onLogout }) {
         setPersonalInfo(mapDbRowToPersonalInfo(data.application))
         setAcademicInfo(mapDbRowToAcademicInfo(data.application))
         setHealthInfo(mapDbRowToHealthInfo(data.application))
+        setFamilyInfo(mapDbRowToFamilyInfo(data.application))
         setPersonalSubmittedAt(data.application.personal_info_submitted_at || null)
         setAcademicSubmittedAt(data.application.academic_submitted_at || null)
         setHealthSubmittedAt(data.application.health_submitted_at || null)
+        setFinancialSubmittedAt(data.application.financial_submitted_at || null)
       } catch (err) {
         console.error('Auto-load of saved application failed (will retry via manual resume banner if needed):', err)
       }
@@ -1131,10 +1385,10 @@ function PortalApp({ accountSession, onLogout }) {
   useEffect(() => {
     if (!applicantName.trim()) return
     const timer = setTimeout(() => {
-      saveDraftLocal(applicantName, { personalInfo, academicInfo, healthInfo, applicantEmail, step: activePanel })
+      saveDraftLocal(applicantName, { personalInfo, academicInfo, healthInfo, familyInfo, applicantEmail, step: activePanel })
     }, 1200)
     return () => clearTimeout(timer)
-  }, [applicantName, applicantEmail, personalInfo, academicInfo, healthInfo, activePanel])
+  }, [applicantName, applicantEmail, personalInfo, academicInfo, healthInfo, familyInfo, activePanel])
 
   // Keeps the "documents waiting to upload" count current, and retries
   // everything queued once the browser reports it's back online. Runs
@@ -1978,7 +2232,7 @@ function PortalApp({ accountSession, onLogout }) {
                   <div className="flex flex-col gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={() => { setPersonalInfo(mapDbRowToPersonalInfo(draftFound)); setAcademicInfo(mapDbRowToAcademicInfo(draftFound)); setHealthInfo(mapDbRowToHealthInfo(draftFound)) }}
+                      onClick={() => { setPersonalInfo(mapDbRowToPersonalInfo(draftFound)); setAcademicInfo(mapDbRowToAcademicInfo(draftFound)); setHealthInfo(mapDbRowToHealthInfo(draftFound)); setFamilyInfo(mapDbRowToFamilyInfo(draftFound)) }}
                       className="text-xs font-bold text-white bg-ccc-blue hover:bg-ccc-navy rounded-lg px-3 py-1.5 whitespace-nowrap"
                     >
                       Resume draft
@@ -2007,6 +2261,7 @@ function PortalApp({ accountSession, onLogout }) {
                         setPersonalInfo(localDraftFound.personalInfo)
                         setAcademicInfo(localDraftFound.academicInfo)
                         if (localDraftFound.healthInfo) setHealthInfo(localDraftFound.healthInfo)
+                        if (localDraftFound.familyInfo) setFamilyInfo(localDraftFound.familyInfo)
                         if (localDraftFound.applicantEmail) setApplicantEmail(localDraftFound.applicantEmail)
                         setLocalDraftFound(null)
                       }}
@@ -2156,16 +2411,189 @@ function PortalApp({ accountSession, onLogout }) {
             </div>
           )}
 
-          {/* ══════════ FAMILY & FINANCIAL INFORMATION (stub — not built yet) ══════════ */}
+          {/* ══════════ FAMILY & FINANCIAL INFORMATION (built — Parent/
+              Guardian table, only-child branch, emergency contact,
+              working-student branch, sibling income table, ported from
+              Ivy's panel-financial) ══════════ */}
           {activePanel === 'financial' && (
-            <div className="bg-white border border-ccc-border rounded-2xl p-6 sm:p-8 space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-ccc-muted">Admission &middot; My Profile (Softcopy)</p>
-              <h1 className="text-xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Family &amp; Financial Information</h1>
-              <p className="text-sm text-ccc-muted">
-                Not built yet — mother/father/guardian details and income info go here. The Voter&rsquo;s ID/
-                Certification of Parent-Guardian and Proof of Employment/Income uploads will move here too;
-                for now they&rsquo;re still under Documents &amp; Status.
-              </p>
+            <div>
+              <div className="portal-header">
+                <p className="portal-eyebrow">Admission &middot; My Profile (Softcopy)</p>
+                <h1>Family &amp; Financial Information</h1>
+                <p>Used to assess financial need for scholarship qualification matching.</p>
+              </div>
+
+              {/* ---------- Card 1: Family Information ---------- */}
+              <div className="card">
+                <div className="card-title">Family Information</div>
+
+                <p style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: '11.25px', letterSpacing: '.3px', textTransform: 'uppercase', color: 'var(--navy)', margin: '0 0 12.75px' }}>
+                  Parent&rsquo;s / Guardian&rsquo;s Information
+                </p>
+                <ParentGuardianTable familyInfo={familyInfo} onChange={updateFI} />
+
+                <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '21px 0 18.75px' }} />
+
+                <p style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: '11.25px', letterSpacing: '.3px', textTransform: 'uppercase', color: 'var(--navy)', margin: '0 0 12.75px' }}>
+                  Sibling&rsquo;s Information
+                </p>
+                <div className="form-grid">
+                  <SelectField
+                    label="Are you an only child?"
+                    required
+                    value={familyInfo.onlyChild}
+                    onChange={(v) => updateFI('onlyChild', v)}
+                    options={['Yes', 'No']}
+                  />
+                  {familyInfo.onlyChild === 'No' && (
+                    <TextField
+                      label="Number of Siblings"
+                      required
+                      type="number"
+                      value={familyInfo.numSiblings}
+                      onChange={(v) => updateFI('numSiblings', v)}
+                      placeholder="e.g. 2"
+                    />
+                  )}
+                </div>
+                {familyInfo.onlyChild === 'No' && (
+                  <div className="edu-table-wrap">
+                    <table className="edu-table">
+                      <tbody>
+                        <tr>
+                          <th style={{ whiteSpace: 'normal' }}>
+                            Do you have a brother or sister who is currently a student at the City College of Calamba? <span className="req-mark">*</span>
+                          </th>
+                          <td>
+                            <select
+                              value={familyInfo.siblingCurrentStudent}
+                              onChange={(e) => updateFI('siblingCurrentStudent', e.target.value)}
+                              required
+                            >
+                              <option value="">Select&hellip;</option>
+                              <option>Yes</option>
+                              <option>No</option>
+                            </select>
+                          </td>
+                        </tr>
+                        <tr>
+                          <th style={{ whiteSpace: 'normal' }}>
+                            Do you have a brother or sister who graduated from the City College of Calamba? <span className="req-mark">*</span>
+                          </th>
+                          <td>
+                            <select
+                              value={familyInfo.siblingGraduate}
+                              onChange={(e) => updateFI('siblingGraduate', e.target.value)}
+                              required
+                            >
+                              <option value="">Select&hellip;</option>
+                              <option>Yes</option>
+                              <option>No</option>
+                            </select>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '21px 0 18.75px' }} />
+
+                <div className="form-grid">
+                  <TextAreaField
+                    label="Person to be Notified in Case of Emergency"
+                    required
+                    value={familyInfo.emergencyContact}
+                    onChange={(v) => updateFI('emergencyContact', v)}
+                    placeholder="e.g. Full Name, Relationship, Address, Contact Number"
+                  />
+                  <TextField
+                    label="Emergency Contact Number"
+                    type="tel"
+                    value={familyInfo.emergencyContactNumber}
+                    onChange={(v) => updateFI('emergencyContactNumber', v)}
+                    placeholder="e.g. 09XX XXX XXXX"
+                  />
+                </div>
+
+                <div className="topic-doc-section">
+                  <div className="topic-doc-label">Verifying Document <span className="tdl-count">1 required</span></div>
+                  <InlineUploadRow
+                    label="Voter's ID / Certification of Parent/Guardian"
+                    sublabel="Issued by the Commission on Elections (COMELEC)"
+                    required
+                    status={parentIdStatus === 'idle' && hasUploaded('parentid') ? 'done' : parentIdStatus}
+                    onFileSelected={(f) => handleInlineUpload('parentid', f, setParentIdStatus, setParentIdRejection)}
+                  />
+                  {parentIdRejection && <QualityRejectionAlert message={parentIdRejection} />}
+                </div>
+              </div>
+
+              {/* ---------- Card 2: Applicant's Employment ---------- */}
+              <div className="card">
+                <div className="card-title">Applicant&rsquo;s Employment</div>
+                <div className="form-grid">
+                  <SelectField
+                    label="Are you a working student?"
+                    required
+                    value={familyInfo.workingStudent}
+                    onChange={(v) => updateFI('workingStudent', v)}
+                    options={['Yes', 'No']}
+                  />
+                </div>
+                {familyInfo.workingStudent === 'Yes' && (
+                  <div className="topic-doc-section">
+                    <div className="topic-doc-label">Verifying Document <span className="tdl-count">1 required</span></div>
+                    <InlineUploadRow
+                      label="Proof of Employment"
+                      sublabel="Accepted documents include an ID, certificate, or any document provided by your employer"
+                      required
+                      status={employmentCertStatus === 'idle' && hasUploaded('employmentcert') ? 'done' : employmentCertStatus}
+                      onFileSelected={(f) => handleInlineUpload('employmentcert', f, setEmploymentCertStatus, () => {})}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* ---------- Card 3: Family's Annual Income (only when there are siblings) ---------- */}
+              {familyInfo.onlyChild === 'No' && (
+                <div className="card">
+                  <div className="card-title">Family&rsquo;s Annual Income</div>
+                  <p className="topic-card-intro">
+                    List each sibling from eldest to youngest. Use the &plus; button to add another sibling.
+                  </p>
+                  <SiblingIncomeTable
+                    siblings={familyInfo.siblings}
+                    onChangeCell={updateSiblingCell}
+                    onAddColumn={addSiblingColumn}
+                    onRemoveColumn={removeSiblingColumn}
+                  />
+                  <div className="topic-doc-section">
+                    <div className="topic-doc-label">Verifying Document <span className="tdl-count">Optional</span></div>
+                    <InlineUploadRow
+                      label="Proof of Income (Family / Guardian)"
+                      sublabel="Certificate of Indigency / Income issued by your Barangay or the City Social Welfare Office"
+                      status={indigencyStatus === 'idle' && hasUploaded('indigency') ? 'done' : indigencyStatus}
+                      onFileSelected={(f) => handleInlineUpload('indigency', f, setIndigencyStatus, () => {})}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {financialSubmittedAt && (
+                <p className="text-[11px] text-ccc-muted -mt-2">
+                  Submitted {new Date(financialSubmittedAt).toLocaleString()}. You can still edit and re-submit this section any time.
+                </p>
+              )}
+
+              <SectionFormActions
+                saveState={saveState}
+                sectionState={financialSectionState}
+                error={sectionErrors.financial}
+                disabled={!applicantName.trim()}
+                onSaveDraft={() => saveProgress(5)}
+                onSubmit={() => submitSection('financial')}
+              />
             </div>
           )}
 
@@ -2346,9 +2774,10 @@ function PortalApp({ accountSession, onLogout }) {
                 <div className="card-title">Upload a Document</div>
                 <p className="topic-card-intro" style={{ marginTop: '-6px' }}>
                   Profile Picture, Birth Certificate, and Voter&rsquo;s ID upload from the Personal
-                  Information panel; Grades from Educational Background. Everything else — Parent/
-                  Guardian ID, Proof of Employment/Income, Supporting Document, Medical Certificate —
-                  uploads here until their own panels are built.
+                  Information panel; Grades from Educational Background; Parent/Guardian ID, Proof of
+                  Employment, and Proof of Income from Family &amp; Financial Information; Medical
+                  Certificate from Health &amp; Wellness. Supporting Document uploads here or from
+                  Appeals &amp; Rescheduling.
                 </p>
 
                 <form onSubmit={handleUpload} className="space-y-5">

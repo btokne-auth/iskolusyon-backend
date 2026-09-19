@@ -85,6 +85,53 @@ export function academicInfoToColumns(academicInfo) {
   }
 }
 
+// Family & Financial Information panel — Parent/Guardian table, the
+// only-child branch, emergency contact, the working-student branch, and
+// the sibling income table (stored as jsonb — same variable-length-list
+// pattern as `organizations` above, not a new one for this app).
+export function familyInfoToColumns(familyInfo) {
+  const fi = familyInfo && typeof familyInfo === 'object' ? familyInfo : {}
+  const text = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+  return {
+    fam_mother_name: text(fi.motherName),
+    fam_mother_citizenship: text(fi.motherCitizenship),
+    fam_mother_dob: text(fi.motherDob),
+    fam_mother_contact: text(fi.motherContact),
+    fam_mother_education: text(fi.motherEducation),
+    fam_mother_employment: text(fi.motherEmployment),
+    fam_father_name: text(fi.fatherName),
+    fam_father_citizenship: text(fi.fatherCitizenship),
+    fam_father_dob: text(fi.fatherDob),
+    fam_father_contact: text(fi.fatherContact),
+    fam_father_education: text(fi.fatherEducation),
+    fam_father_employment: text(fi.fatherEmployment),
+    fam_guardian_name: text(fi.guardianName),
+    fam_guardian_citizenship: text(fi.guardianCitizenship),
+    fam_guardian_dob: text(fi.guardianDob),
+    fam_guardian_contact: text(fi.guardianContact),
+    fam_guardian_education: text(fi.guardianEducation),
+    fam_guardian_employment: text(fi.guardianEmployment),
+    fam_only_child: text(fi.onlyChild),
+    fam_num_siblings: typeof fi.numSiblings === 'number' || /^\d+$/.test(String(fi.numSiblings || '').trim())
+      ? Number(fi.numSiblings)
+      : null,
+    fam_sibling_currentstudent: text(fi.siblingCurrentStudent),
+    fam_sibling_graduate: text(fi.siblingGraduate),
+    fam_emergency_contact: text(fi.emergencyContact),
+    fam_emergency_contact_number: text(fi.emergencyContactNumber),
+    fam_working_student: text(fi.workingStudent),
+    fam_siblings: Array.isArray(fi.siblings)
+      ? fi.siblings.map((s) => ({
+          name: text(s && s.name),
+          dob: text(s && s.dob),
+          civilStatus: text(s && s.civilStatus),
+          contact: text(s && s.contact),
+          education: text(s && s.education),
+        }))
+      : [],
+  }
+}
+
 // Health & Wellness panel — just the one free-text field Ivy's spec has
 // (Medical Status). The Medical Examination Results/Certificate upload
 // itself uses the existing `medcert` document type, so it needs no column
