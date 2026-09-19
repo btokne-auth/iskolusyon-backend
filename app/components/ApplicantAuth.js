@@ -308,7 +308,13 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Could not start signup.')
+        // Server-only checks (email already registered, or a password rule
+        // that somehow slipped past the client check above) land as a
+        // field-specific error too, not a generic top banner — keeps this
+        // consistent with steps 2/3's per-field errors instead of being a
+        // one-off exception.
+        const message = data.error || 'Could not start signup.'
+        setFieldErrors({ [/password/i.test(message) ? 'password' : 'email']: message })
         return
       }
       setAccountId(data.accountId)
