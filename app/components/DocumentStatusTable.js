@@ -33,20 +33,24 @@ function IconCircle(props) {
 }
 
 // Picks the most-recently-uploaded document of a given type for this
-// applicant. Falls back gracefully whether `id` is a numeric/bigint
-// primary key (comparable with >) or something else — if comparison isn't
-// meaningful, it still returns a match, just not guaranteed to be the
-// newest of several duplicates.
+// applicant.
+//
+// Sept 19 2026 fix: this used to reduce over every match comparing
+// `.id`, falling back to just returning the current item whenever `.id`
+// wasn't a JS `number` — which it usually isn't, since a bigint primary
+// key round-trips through Supabase as a string to avoid precision loss.
+// Walking a newest-first array (docs/myDocs/docHistory come straight
+// from GET /api/upload, which orders by created_at desc) while always
+// keeping "the current item" means the reduce ends on the LAST item it
+// sees, i.e. the OLDEST match — the exact opposite of "latest". That's
+// why re-uploading a flagged document never seemed to clear its "Needs
+// review" badge: the table kept reading the status off the original
+// upload forever, no matter how many times it was replaced.
+//
+// `docs` is already sorted newest-first, so the fix is just to take the
+// first match instead of reducing over id comparisons at all.
 function findLatestForType(docs, typeValue) {
-  const matches = docs.filter((d) => d.document_type === typeValue)
-  if (matches.length === 0) return null
-  return matches.reduce((latest, d) => {
-    if (!latest) return d
-    if (typeof d.id === 'number' && typeof latest.id === 'number') {
-      return d.id > latest.id ? d : latest
-    }
-    return d
-  }, null)
+  return docs.find((d) => d.document_type === typeValue) || null
 }
 
 // .badge classes ported from applicant.html's own Document Verification
