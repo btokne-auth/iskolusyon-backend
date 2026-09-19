@@ -351,11 +351,16 @@ const getCleanFileName = (path) => {
 // Small reusable form controls for the Personal Information cards (Step 1,
 // cards 2-3) — kept local to this file since they're only used here, styled
 // to match the existing Applicant Name / Email inputs above.
-function TextField({ label, required, type = 'text', value, onChange, placeholder, disabled }) {
+// .mfield/.req-mark/.full from portal-theme.css (design-parity pass 5,
+// Sept 19 2026) — was muted-gray Tailwind labels/inputs; spec's labels are
+// navy, not gray, and inputs use a 6px radius + inset focus glow instead of
+// an outer ring. `full` lets a caller span both columns of a parent
+// .form-grid without a separate wrapper div (spec's .mfield.full).
+function TextField({ label, required, type = 'text', value, onChange, placeholder, disabled, full }) {
   return (
-    <div className="space-y-1.5">
-      <label className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
-        {label} {required && <span className="text-red-600">*</span>}
+    <div className={`mfield${full ? ' full' : ''}`}>
+      <label>
+        {label} {required && <span className="req-mark">*</span>}
       </label>
       <input
         type={type}
@@ -363,24 +368,18 @@ function TextField({ label, required, type = 'text', value, onChange, placeholde
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40 disabled:bg-ccc-off disabled:text-ccc-muted"
       />
     </div>
   )
 }
 
-function SelectField({ label, required, value, onChange, options, disabled }) {
+function SelectField({ label, required, value, onChange, options, disabled, full }) {
   return (
-    <div className="space-y-1.5">
-      <label className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
-        {label} {required && <span className="text-red-600">*</span>}
+    <div className={`mfield${full ? ' full' : ''}`}>
+      <label>
+        {label} {required && <span className="req-mark">*</span>}
       </label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40 disabled:bg-ccc-off disabled:text-ccc-muted"
-      >
+      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
         <option value="">Select</option>
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
@@ -388,19 +387,13 @@ function SelectField({ label, required, value, onChange, options, disabled }) {
   )
 }
 
-function TextAreaField({ label, required, value, onChange, placeholder }) {
+function TextAreaField({ label, required, value, onChange, placeholder, full }) {
   return (
-    <div className="space-y-1.5">
-      <label className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
-        {label} {required && <span className="text-red-600">*</span>}
+    <div className={`mfield${full ? ' full' : ''}`}>
+      <label>
+        {label} {required && <span className="req-mark">*</span>}
       </label>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={3}
-        className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40 resize-y"
-      />
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={3} />
     </div>
   )
 }
@@ -411,41 +404,45 @@ function TextAreaField({ label, required, value, onChange, placeholder }) {
 // the organizations array in personalInfo/updateOrgRow/addOrgRow/removeOrgRow
 // above instead of her direct DOM mutation. Optional section, so nothing
 // here is required.
+// Uses applicant.html's .edu-table/.org-table/.org-row-btn classes
+// (design-parity pass 5, Sept 19 2026) — was a plain gray-header Tailwind
+// table with none of spec's full cell grid, navy header text, or inset
+// focus highlight.
 function OrganizationsTable({ rows, onChangeRow, onAddRow, onRemoveRow }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-ccc-border">
-      <table className="w-full text-xs">
+    <div className="edu-table-wrap">
+      <table className="edu-table org-table">
         <thead>
-          <tr className="bg-ccc-off/80 text-[10px] text-ccc-muted font-bold uppercase tracking-wide">
-            <th className="text-left px-3 py-2">Name of Organization</th>
-            <th className="text-left px-3 py-2">Position in Organization</th>
-            <th className="text-left px-3 py-2">Nature of Organization</th>
-            <th className="text-left px-3 py-2">Year of Joining</th>
-            <th className="px-2 py-2 w-10" />
+          <tr>
+            <th>Name of Organization</th>
+            <th>Position in Organization</th>
+            <th>Nature of Organization</th>
+            <th>Year of Joining</th>
+            <th className="org-table-action-th" />
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => {
             const isLast = i === rows.length - 1
             return (
-              <tr key={i} className="border-t border-ccc-border">
-                <td className="px-2 py-1.5">
-                  <input type="text" value={row.name} onChange={(e) => onChangeRow(i, 'name', e.target.value)} placeholder="e.g. N/A" className="w-full rounded-md border border-ccc-border bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ccc-blue/40" />
+              <tr key={i}>
+                <td>
+                  <input type="text" value={row.name} onChange={(e) => onChangeRow(i, 'name', e.target.value)} placeholder="e.g. Organization Name" />
                 </td>
-                <td className="px-2 py-1.5">
-                  <input type="text" value={row.position} onChange={(e) => onChangeRow(i, 'position', e.target.value)} placeholder="e.g. N/A" className="w-full rounded-md border border-ccc-border bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ccc-blue/40" />
+                <td>
+                  <input type="text" value={row.position} onChange={(e) => onChangeRow(i, 'position', e.target.value)} placeholder="e.g. President" />
                 </td>
-                <td className="px-2 py-1.5">
-                  <input type="text" value={row.nature} onChange={(e) => onChangeRow(i, 'nature', e.target.value)} placeholder="e.g. N/A" className="w-full rounded-md border border-ccc-border bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ccc-blue/40" />
+                <td>
+                  <input type="text" value={row.nature} onChange={(e) => onChangeRow(i, 'nature', e.target.value)} placeholder="e.g. Non-profit Organization" />
                 </td>
-                <td className="px-2 py-1.5">
-                  <input type="text" value={row.year} onChange={(e) => onChangeRow(i, 'year', e.target.value)} placeholder="e.g. 2025-2026" className="w-full rounded-md border border-ccc-border bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ccc-blue/40" />
+                <td>
+                  <input type="text" value={row.year} onChange={(e) => onChangeRow(i, 'year', e.target.value)} placeholder="e.g. 2025-2026" />
                 </td>
-                <td className="px-2 py-1.5 text-center">
+                <td className="org-row-action">
                   {isLast ? (
-                    <button type="button" onClick={onAddRow} title="Add row" className="w-6 h-6 rounded-full bg-blue-50 text-ccc-blue font-bold hover:bg-ccc-blue hover:text-white transition-colors">+</button>
+                    <button type="button" onClick={onAddRow} title="Add row" className="org-row-btn org-row-add">+</button>
                   ) : (
-                    <button type="button" onClick={() => onRemoveRow(i)} title="Remove row" className="w-6 h-6 rounded-full bg-red-50 text-red-600 font-bold hover:bg-red-600 hover:text-white transition-colors">&times;</button>
+                    <button type="button" onClick={() => onRemoveRow(i)} title="Remove row" className="org-row-btn org-row-remove">&times;</button>
                   )}
                 </td>
               </tr>
@@ -471,24 +468,27 @@ const EDU_ROWS = [
 ]
 const EDU_LEVELS = ['prim', 'sec', 'tert']
 
+// Uses applicant.html's .edu-table classes (design-parity pass 5,
+// Sept 19 2026) — was a plain gray-header Tailwind table with none of
+// spec's full cell grid, navy header text, or inset focus highlight.
 function EduTable({ edu, onChangeCell, disabled }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-ccc-border">
-      <table className="w-full text-xs">
+    <div className="edu-table-wrap">
+      <table className="edu-table">
         <thead>
-          <tr className="bg-ccc-off/80 text-[10px] text-ccc-muted font-bold uppercase tracking-wide">
-            <th className="text-left px-3 py-2 w-40"></th>
-            <th className="text-left px-3 py-2">Primary / Elementary <span className="text-red-600">*</span></th>
-            <th className="text-left px-3 py-2">Secondary / Senior High</th>
-            <th className="text-left px-3 py-2">Tertiary / College</th>
+          <tr>
+            <th></th>
+            <th>Primary / Elementary <span className="req-mark">*</span></th>
+            <th>Secondary / Senior High</th>
+            <th>Tertiary / College</th>
           </tr>
         </thead>
         <tbody>
           {EDU_ROWS.map((row) => (
-            <tr key={row.field} className="border-t border-ccc-border">
-              <th className="text-left px-3 py-2 text-[11px] font-bold text-ccc-navy align-top">{row.label}</th>
+            <tr key={row.field}>
+              <th>{row.label}</th>
               {EDU_LEVELS.map((level, i) => (
-                <td key={level} className="px-2 py-1.5">
+                <td key={level}>
                   <input
                     type="text"
                     value={edu[level][row.field]}
@@ -496,7 +496,6 @@ function EduTable({ edu, onChangeCell, disabled }) {
                     placeholder={row.placeholders[i]}
                     required={level === 'prim' && row.field !== 'honors'}
                     disabled={disabled}
-                    className="w-full rounded-md border border-ccc-border bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ccc-blue/40 disabled:bg-ccc-off disabled:text-ccc-muted"
                   />
                 </td>
               ))}
@@ -1726,11 +1725,11 @@ function PortalApp({ accountSession, onLogout }) {
 
           {/* ══════════ PERSONAL INFORMATION (built — cards 1-6 ported as-is) ══════════ */}
           {activePanel === 'personal' && (
-            <div className="bg-white border border-ccc-border rounded-2xl p-6 sm:p-8 space-y-6">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-ccc-muted">Admission &middot; My Profile (Softcopy)</p>
-                <h1 className="text-xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Personal Information</h1>
-                <p className="text-xs text-ccc-muted">This section establishes your legal identity and residency to qualify as CCC&rsquo;s scholar.</p>
+            <div>
+              <div className="portal-header">
+                <p className="portal-eyebrow">Admission &middot; My Profile (Softcopy)</p>
+                <h1>Personal Information</h1>
+                <p>This section establishes your legal identity and residency to qualify as CCC&rsquo;s scholar.</p>
               </div>
 
               {/* The old top-of-panel "Applicant name"/"Applicant email" block
@@ -1742,9 +1741,13 @@ function PortalApp({ accountSession, onLogout }) {
                   from the account + Card 2's First/Middle/Last Name fields. */}
 
               {/* ---------- Card 1: Profile Picture ---------- */}
-              <div className="rounded-2xl border border-ccc-border p-5 space-y-3">
-                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">1 &middot; Profile Picture</div>
-                <p className="text-[11px] text-ccc-muted">This photo is used across your application and account.</p>
+              <div className="card topic-card">
+                <div className="card-title">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span className="topic-card-number">1</span> Profile Picture
+                  </span>
+                </div>
+                <p className="topic-card-intro">This photo is used across your application and account.</p>
                 {(() => {
                   // Falls back to the persisted photo's signed URL when
                   // there's no fresh local pick this visit — otherwise a
@@ -1787,10 +1790,15 @@ function PortalApp({ accountSession, onLogout }) {
               </div>
 
               {/* ---------- Card 2: Identity & Civil Status ---------- */}
-              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
-                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">2 &middot; Identity &amp; Civil Status</div>
-                <p className="text-[11px] text-ccc-muted">These fields auto-fill once you upload your Birth Certificate below. Document text extraction isn&rsquo;t always perfect, so you can still correct any field manually.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="card topic-card">
+                <div className="card-title">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span className="topic-card-number">2</span> Identity &amp; Civil Status
+                  </span>{' '}
+                  <span className="tag">Editable</span>
+                </div>
+                <p className="topic-card-intro">These fields auto-fill once you upload your Birth Certificate below. Document text extraction isn&rsquo;t always perfect, so you can still correct any field manually.</p>
+                <div className="form-grid">
                   <TextField label="First Name" required value={personalInfo.firstName} onChange={(v) => updatePI('firstName', v)} placeholder="e.g. Juan" />
                   <TextField label="Middle Name (if any)" value={personalInfo.middleName} onChange={(v) => updatePI('middleName', v)} placeholder="e.g. Santos" />
                   <TextField label="Last Name" required value={personalInfo.lastName} onChange={(v) => updatePI('lastName', v)} placeholder="e.g. Dela Cruz" />
@@ -1803,75 +1811,100 @@ function PortalApp({ accountSession, onLogout }) {
                   <SelectField label="Civil Status" required value={personalInfo.civilStatus} onChange={(v) => updatePI('civilStatus', v)} options={['Single', 'Married', 'Widowed', 'Separated']} />
                 </div>
                 {personalInfo.civilStatus === 'Married' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-ccc-border">
-                    <div className="sm:col-span-2 text-[10px] font-bold text-ccc-navy uppercase tracking-widest">If Married</div>
+                  <div className="form-grid">
+                    <div className="mfield full" style={{ marginBottom: '6px' }}>
+                      <p style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: '11.25px', letterSpacing: '.3px', textTransform: 'uppercase', color: 'var(--navy)', margin: 0 }}>
+                        If Married
+                      </p>
+                    </div>
                     <TextField label="Spouse's Name" value={personalInfo.spouseName} onChange={(v) => updatePI('spouseName', v)} placeholder="e.g. Maria Dela Cruz" />
                     <TextField label="Spouse's Occupation" value={personalInfo.spouseOccupation} onChange={(v) => updatePI('spouseOccupation', v)} placeholder="e.g. Teacher" />
-                    <div className="sm:col-span-2">
-                      <TextField label="Spouse's Contact Number" value={personalInfo.spouseContact} onChange={(v) => updatePI('spouseContact', v)} placeholder="e.g. 0917 123 4567" />
-                    </div>
+                    <TextField full label="Spouse's Contact Number" value={personalInfo.spouseContact} onChange={(v) => updatePI('spouseContact', v)} placeholder="e.g. 0917 123 4567" />
                   </div>
                 )}
-                <InlineUploadRow
-                  label="Birth Certificate / PSA / NSO"
-                  sublabel="Issued by the Philippine Statistics Authority"
-                  required
-                  status={birthCertStatus === 'idle' && hasUploaded('birthcert') ? 'done' : birthCertStatus}
-                  onFileSelected={(f) => handleInlineUpload('birthcert', f, setBirthCertStatus, setBirthCertRejection)}
-                />
-                {birthCertRejection && <QualityRejectionAlert message={birthCertRejection} />}
+                <div className="topic-doc-section">
+                  <div className="topic-doc-label">
+                    Verifying Document <span className="tdl-count">1 required</span>
+                  </div>
+                  <InlineUploadRow
+                    label="Birth Certificate / PSA / NSO"
+                    sublabel="Issued by the Philippine Statistics Authority"
+                    required
+                    status={birthCertStatus === 'idle' && hasUploaded('birthcert') ? 'done' : birthCertStatus}
+                    onFileSelected={(f) => handleInlineUpload('birthcert', f, setBirthCertStatus, setBirthCertRejection)}
+                  />
+                  {birthCertRejection && <QualityRejectionAlert message={birthCertRejection} />}
+                </div>
               </div>
 
               {/* ---------- Card 3: Contact & Residency ---------- */}
-              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
-                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">3 &middot; Contact &amp; Residency</div>
-                <p className="text-[11px] text-ccc-muted">Your address and precinct number auto-fill once you upload your Voter&rsquo;s ID below.</p>
-                <div className="grid grid-cols-1 gap-3">
-                  <div>
+              <div className="card topic-card">
+                <div className="card-title">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span className="topic-card-number">3</span> Contact &amp; Residency
+                  </span>{' '}
+                  <span className="tag">Editable</span>
+                </div>
+                <p className="topic-card-intro">Your address and precinct number auto-fill once you upload your Voter&rsquo;s ID below.</p>
+                <div className="form-grid">
+                  <div className="mfield full">
                     <TextField label="Email Address" type="email" required value={applicantEmail} onChange={() => {}} placeholder="e.g. juandelacruz@gmail.com" disabled />
-                    <p className="text-[10px] text-ccc-muted mt-1">Your account&rsquo;s verified sign-in email.</p>
-                    <label className="flex items-center gap-2 text-[11px] text-ccc-text cursor-pointer mt-1.5">
-                      <input type="checkbox" checked={personalInfo.emailUpdatesOptIn} onChange={(e) => updatePI('emailUpdatesOptIn', e.target.checked)} className="accent-ccc-blue w-3.5 h-3.5" />
+                    <p className="field-note">Your account&rsquo;s verified sign-in email.</p>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', fontSize: '12px', fontWeight: 400, textTransform: 'none', letterSpacing: 'normal', color: 'var(--text)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={personalInfo.emailUpdatesOptIn} onChange={(e) => updatePI('emailUpdatesOptIn', e.target.checked)} style={{ width: '15px', height: '15px', margin: 0, accentColor: 'var(--ccc-blue)', cursor: 'pointer' }} />
                       I want to receive email updates.
                     </label>
                   </div>
-                  <div>
+                  <div className="mfield full">
                     <TextField label="Contact Number" required value={personalInfo.contactNumber} onChange={(v) => updatePI('contactNumber', v)} placeholder="e.g. 0917 123 4567" />
-                    <label className="flex items-center gap-2 text-[11px] text-ccc-text cursor-pointer mt-1.5">
-                      <input type="checkbox" checked={personalInfo.smsUpdatesOptIn} onChange={(e) => updatePI('smsUpdatesOptIn', e.target.checked)} className="accent-ccc-blue w-3.5 h-3.5" />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', fontSize: '12px', fontWeight: 400, textTransform: 'none', letterSpacing: 'normal', color: 'var(--text)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={personalInfo.smsUpdatesOptIn} onChange={(e) => updatePI('smsUpdatesOptIn', e.target.checked)} style={{ width: '15px', height: '15px', margin: 0, accentColor: 'var(--ccc-blue)', cursor: 'pointer' }} />
                       I want to receive SMS updates.
                     </label>
                   </div>
-                  <TextField label="Present Home Address" required value={personalInfo.address} onChange={(v) => updatePI('address', v)} placeholder="House No., Street, Barangay, City, Province" />
-                  <TextField label="Voter's Precinct No." required value={personalInfo.voterPrecinct} onChange={(v) => updatePI('voterPrecinct', v)} placeholder="e.g. 0142A" />
+                  <TextField full label="Present Home Address" required value={personalInfo.address} onChange={(v) => updatePI('address', v)} placeholder="House No., Street, Barangay, City, Province" />
+                  <TextField full label="Voter's Precinct No." required value={personalInfo.voterPrecinct} onChange={(v) => updatePI('voterPrecinct', v)} placeholder="e.g. 0142A" />
                 </div>
-                <InlineUploadRow
-                  label="Voter's ID / Certification of Applicant"
-                  sublabel="Issued by the Commission on Elections (COMELEC)"
-                  required
-                  status={voterIdStatus === 'idle' && hasUploaded('voterid') ? 'done' : voterIdStatus}
-                  onFileSelected={(f) => handleInlineUpload('voterid', f, setVoterIdStatus, setVoterIdRejection)}
-                />
-                {voterIdRejection && <QualityRejectionAlert message={voterIdRejection} />}
+                <div className="topic-doc-section">
+                  <div className="topic-doc-label">
+                    Verifying Document <span className="tdl-count">1 required</span>
+                  </div>
+                  <InlineUploadRow
+                    label="Voter's ID / Certification of Applicant"
+                    sublabel="Issued by the Commission on Elections (COMELEC)"
+                    required
+                    status={voterIdStatus === 'idle' && hasUploaded('voterid') ? 'done' : voterIdStatus}
+                    onFileSelected={(f) => handleInlineUpload('voterid', f, setVoterIdStatus, setVoterIdRejection)}
+                  />
+                  {voterIdRejection && <QualityRejectionAlert message={voterIdRejection} />}
+                </div>
               </div>
 
               {/* ---------- Card 4: Additional Information ---------- */}
-              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
-                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">4 &middot; Additional Information</div>
-                <p className="text-[11px] text-ccc-muted">Used to help match you to special scholarship categories and accommodations. No document needed here.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="card topic-card">
+                <div className="card-title">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span className="topic-card-number">4</span> Additional Information
+                  </span>{' '}
+                  <span className="tag">Editable</span>
+                </div>
+                <p className="topic-card-intro">Used to help match you to special scholarship categories and accommodations. No document needed here.</p>
+                <div className="form-grid">
                   <SelectField label="Are you a LGBTQI+ community member?" required value={personalInfo.lgbtqi} onChange={(v) => updatePI('lgbtqi', v)} options={['Yes', 'No']} />
                   <TextField label="Do you have a physical or behavioral condition/disability?" required value={personalInfo.disability} onChange={(v) => updatePI('disability', v)} placeholder="e.g. None" />
-                  <div className="sm:col-span-2">
-                    <TextField label="What are your hobbies and interests?" required value={personalInfo.hobbies} onChange={(v) => updatePI('hobbies', v)} placeholder="e.g. Reading, basketball, drawing" />
-                  </div>
+                  <TextField full label="What are your hobbies and interests?" required value={personalInfo.hobbies} onChange={(v) => updatePI('hobbies', v)} placeholder="e.g. Reading, basketball, drawing" />
                 </div>
               </div>
 
               {/* ---------- Card 5: Organizational Involvement ---------- */}
-              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
-                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">5 &middot; Organizational Involvement <span className="text-ccc-muted font-semibold normal-case">(Optional)</span></div>
-                <p className="text-[11px] text-ccc-muted">List any organization/s you are or were part of. This section is optional &mdash; leave it blank if not applicable.</p>
+              <div className="card topic-card">
+                <div className="card-title">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span className="topic-card-number">5</span> Organizational Involvement
+                  </span>{' '}
+                  <span className="tag">Optional</span>
+                </div>
+                <p className="topic-card-intro">List any organization/s you are or were part of. This section is optional &mdash; leave it blank if not applicable.</p>
                 <OrganizationsTable
                   rows={personalInfo.organizations}
                   onChangeRow={updateOrgRow}
@@ -1881,13 +1914,18 @@ function PortalApp({ accountSession, onLogout }) {
               </div>
 
               {/* ---------- Card 6: Motivation and Aspirations Questions ---------- */}
-              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
-                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">6 &middot; Motivation and Aspirations Questions</div>
-                <p className="text-[11px] text-ccc-muted">Help us get to know you better. All questions in this section are required.</p>
-                <div className="grid grid-cols-1 gap-3">
-                  <TextAreaField label="What motivates you to apply to this institution (City College of Calamba)?" required value={personalInfo.motivation} onChange={(v) => updatePI('motivation', v)} placeholder="Share what motivates you to apply&hellip;" />
-                  <TextAreaField label="How would you describe yourself, including both your physical and personal characteristics?" required value={personalInfo.selfDescription} onChange={(v) => updatePI('selfDescription', v)} placeholder="Describe yourself&hellip;" />
-                  <TextAreaField label="Where do you see yourself 10 years from now, both personally and professionally?" required value={personalInfo.tenYears} onChange={(v) => updatePI('tenYears', v)} placeholder="Share your aspirations&hellip;" />
+              <div className="card topic-card">
+                <div className="card-title">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span className="topic-card-number">6</span> Motivation and Aspirations Questions
+                  </span>{' '}
+                  <span className="tag">Editable</span>
+                </div>
+                <p className="topic-card-intro">Help us get to know you better. All questions in this section are required.</p>
+                <div className="form-grid">
+                  <TextAreaField full label="What motivates you to apply to this institution (City College of Calamba)?" required value={personalInfo.motivation} onChange={(v) => updatePI('motivation', v)} placeholder="Share what motivates you to apply&hellip;" />
+                  <TextAreaField full label="How would you describe yourself, including both your physical and personal characteristics?" required value={personalInfo.selfDescription} onChange={(v) => updatePI('selfDescription', v)} placeholder="Describe yourself&hellip;" />
+                  <TextAreaField full label="Where do you see yourself 10 years from now, both personally and professionally?" required value={personalInfo.tenYears} onChange={(v) => updatePI('tenYears', v)} placeholder="Share your aspirations&hellip;" />
                 </div>
               </div>
               {draftFound && (
@@ -1971,61 +2009,76 @@ function PortalApp({ accountSession, onLogout }) {
               Preferred Program, 3-tier school table, Tech-Voc, and the
               Grades/Form 138 upload, ported from Ivy's academic panel) ══════════ */}
           {activePanel === 'academic' && (
-            <div className="bg-white border border-ccc-border rounded-2xl p-6 sm:p-8 space-y-6">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-ccc-muted">Admission &middot; My Profile (Softcopy)</p>
-                <h1 className="text-xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Educational Background</h1>
-                <p className="text-xs text-ccc-muted">This information is used for qualification matching and cross-referenced against your submitted documents.</p>
+            <div>
+              <div className="portal-header">
+                <p className="portal-eyebrow">Admission &middot; My Profile (Softcopy)</p>
+                <h1>Educational Background</h1>
+                <p>This information is used for qualification matching and cross-referenced against your submitted documents.</p>
               </div>
 
               {/* ---------- Card 1: Program Application ---------- */}
-              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
-                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">1 &middot; Program Application</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="card topic-card">
+                <div className="card-title">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span className="topic-card-number">1</span> Program Application
+                  </span>{' '}
+                  <span className="tag">Editable</span>
+                </div>
+                <div className="form-grid">
                   <SelectField label="Applying As" required value={academicInfo.applyingAs} onChange={(v) => updateAI('applyingAs', v)} options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} disabled={!!academicSubmittedAt} />
                   <SelectField label="Term Applying In" required value={academicInfo.termApplying} onChange={(v) => updateAI('termApplying', v)} options={['Term 1', 'Term 2']} disabled={!!academicSubmittedAt} />
                 </div>
               </div>
 
               {/* ---------- Card 2: Preferred Program ---------- */}
-              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
-                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">2 &middot; Preferred Program</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="card topic-card">
+                <div className="card-title">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span className="topic-card-number">2</span> Preferred Program
+                  </span>{' '}
+                  <span className="tag">Editable</span>
+                </div>
+                <div className="form-grid">
                   <SelectField label="First Priority Program" required value={academicInfo.choice1} onChange={(v) => updateAI('choice1', v)} options={PROGRAM_OPTIONS} disabled={!!academicSubmittedAt} />
                   <SelectField label="Second Priority Program" required value={academicInfo.choice2} onChange={(v) => updateAI('choice2', v)} options={[...PROGRAM_OPTIONS, 'None of the above']} disabled={!!academicSubmittedAt} />
                 </div>
               </div>
 
               {/* ---------- Card 3: Educational Background (school table + Tech-Voc + Grades upload) ---------- */}
-              <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
-                <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">3 &middot; Educational Background</div>
-                <p className="text-[11px] text-ccc-muted">
+              <div className="card topic-card">
+                <div className="card-title">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span className="topic-card-number">3</span> Educational Background
+                  </span>{' '}
+                  <span className="tag">Editable</span>
+                </div>
+                <p className="topic-card-intro">
                   Fill in your school details for each level you&rsquo;ve completed. <strong>Primary / Elementary is required for all applicants.</strong> Secondary / Senior High and Tertiary / College are optional (except Honors / Awards Received, which is optional for all levels).
                 </p>
 
                 <EduTable edu={academicInfo.edu} onChangeCell={updateEduCell} disabled={!!academicSubmittedAt} />
 
-                <SelectField
-                  label="Have you taken a Technical or Vocational Course?"
-                  value={academicInfo.techVoc}
-                  onChange={(v) => updateAI('techVoc', v)}
-                  options={['Yes', 'No']}
-                  disabled={!!academicSubmittedAt}
-                />
+                <div className="form-grid" style={{ marginTop: '15px' }}>
+                  <SelectField
+                    label="Have you taken a Technical or Vocational Course?"
+                    value={academicInfo.techVoc}
+                    onChange={(v) => updateAI('techVoc', v)}
+                    options={['Yes', 'No']}
+                    disabled={!!academicSubmittedAt}
+                  />
+                </div>
 
                 {academicInfo.techVoc === 'Yes' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-ccc-border">
+                  <div className="form-grid">
                     <TextField label="Name of School in Technical/Vocational" value={academicInfo.techVocSchool} onChange={(v) => updateAI('techVocSchool', v)} placeholder="e.g. Calamba Technical Vocational School" disabled={!!academicSubmittedAt} />
                     <TextField label="Name of Course in Technical/Vocational" value={academicInfo.techVocCourse} onChange={(v) => updateAI('techVocCourse', v)} placeholder="e.g. Computer Systems Servicing NC II" disabled={!!academicSubmittedAt} />
-                    <div className="sm:col-span-2">
-                      <TextField label="Address of School in Technical/Vocational" value={academicInfo.techVocAddress} onChange={(v) => updateAI('techVocAddress', v)} placeholder="e.g. Brgy. Real, Calamba City, Laguna" disabled={!!academicSubmittedAt} />
-                    </div>
+                    <TextField full label="Address of School in Technical/Vocational" value={academicInfo.techVocAddress} onChange={(v) => updateAI('techVocAddress', v)} placeholder="e.g. Brgy. Real, Calamba City, Laguna" disabled={!!academicSubmittedAt} />
                   </div>
                 )}
 
-                <div className="pt-3 border-t border-ccc-border space-y-2">
-                  <div className="text-[10px] font-bold text-ccc-navy uppercase tracking-widest flex items-center gap-2">
-                    Verifying Documents <span className="text-ccc-muted font-semibold normal-case">(Optional)</span>
+                <div className="topic-doc-section">
+                  <div className="topic-doc-label">
+                    Verifying Documents <span className="tdl-count">Optional</span>
                   </div>
                   <InlineUploadRow
                     label="Grades (Proof of Grades / Form 138 / Report Card)"
