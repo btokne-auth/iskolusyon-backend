@@ -732,6 +732,12 @@ function PortalApp({ accountSession, onLogout }) {
   const [profilePicRejection, setProfilePicRejection] = useState(null)
   const [birthCertRejection, setBirthCertRejection] = useState(null)
   const [voterIdRejection, setVoterIdRejection] = useState(null)
+  // "Click-to-Upload Profile Picture with Live Name Sync" (User Account
+  // Module, Profile Management) — a local object-URL preview of whatever
+  // photo was just picked, shown as a small avatar next to the applicant's
+  // name as typed in Card 2, updating live with no upload/save round trip.
+  // Revoked on replacement/unmount to avoid leaking blob URLs.
+  const [profilePicPreviewUrl, setProfilePicPreviewUrl] = useState(null)
   // Grades / Form 138 upload, now living in the Educational Background
   // panel (moved out of the generic Documents & Status dropdown) — optional
   // per Ivy's spec, so no rejection-message state needed beyond the shared
@@ -1000,6 +1006,15 @@ function PortalApp({ accountSession, onLogout }) {
       setStatusRequested(false)
     }
   }, [applicantName, statusRequested])
+
+  // Release the profile-picture preview's blob URL on unmount so it isn't
+  // leaked — replacement already revokes the previous one inline (see
+  // InlineUploadRow's onFileSelected for Card 1).
+  useEffect(() => {
+    return () => {
+      if (profilePicPreviewUrl) URL.revokeObjectURL(profilePicPreviewUrl)
+    }
+  }, [profilePicPreviewUrl])
 
   // Gates the Step 1 "Continue" button — requires the required Personal
   // Information fields (cards 2-3) plus all three inline uploads (cards
@@ -1474,12 +1489,34 @@ function PortalApp({ accountSession, onLogout }) {
               <div className="rounded-2xl border border-ccc-border p-5 space-y-3">
                 <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">1 &middot; Profile Picture</div>
                 <p className="text-[11px] text-ccc-muted">This photo is used across your application and account.</p>
+                {(profilePicPreviewUrl || (personalInfo.firstName || personalInfo.lastName)) && (
+                  <div className="flex items-center gap-3 rounded-lg bg-ccc-off/60 px-3 py-2.5">
+                    <div className="w-11 h-11 rounded-full bg-white border border-ccc-border overflow-hidden shrink-0 flex items-center justify-center">
+                      {profilePicPreviewUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={profilePicPreviewUrl} alt="Profile preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <IconUpload className="w-4 h-4 text-ccc-muted" />
+                      )}
+                    </div>
+                    <div className="text-sm font-bold text-ccc-navy truncate">
+                      {[personalInfo.firstName, personalInfo.middleName, personalInfo.lastName].filter(Boolean).join(' ') ||
+                        'Your name will appear here as you type it below'}
+                    </div>
+                  </div>
+                )}
                 <InlineUploadRow
                   label="Profile Picture"
                   sublabel="A clear, recent 2x2 photo of yourself (white background)"
                   required
                   status={profilePicStatus === 'idle' && hasUploaded('profilepic') ? 'done' : profilePicStatus}
-                  onFileSelected={(f) => handleInlineUpload('profilepic', f, setProfilePicStatus, setProfilePicRejection)}
+                  onFileSelected={(f) => {
+                    setProfilePicPreviewUrl((prev) => {
+                      if (prev) URL.revokeObjectURL(prev)
+                      return URL.createObjectURL(f)
+                    })
+                    handleInlineUpload('profilepic', f, setProfilePicStatus, setProfilePicRejection)
+                  }}
                 />
                 {profilePicRejection && <QualityRejectionAlert message={profilePicRejection} />}
               </div>
