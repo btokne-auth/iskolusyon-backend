@@ -1220,7 +1220,27 @@ function PortalApp({ accountSession, onLogout }) {
   // needs a login system (Ivy's User Account Module), which doesn't exist
   // yet. This just stops the careless "show everyone by default" behavior.
   const visibleHistory = myDocs
-  const flaggedCount = visibleHistory.filter((doc) => doc.needs_review).length
+
+  // Sept 19 2026 fix: this used to count `needs_review` across every
+  // upload in history, including superseded re-upload attempts — so a
+  // document that was flagged once and then successfully re-uploaded
+  // (verified) still counted as "needs review" here forever, because the
+  // original flagged attempt was still sitting in the list. Dedupe down
+  // to the latest attempt per document type first (visibleHistory is
+  // already newest-first, same as DocumentStatusTable's own
+  // findLatestForType() fix), so this only reflects the CURRENT status of
+  // each document, matching what the Documents & Status table shows.
+  const latestDocsByType = (() => {
+    const seen = new Set()
+    const latest = []
+    for (const doc of visibleHistory) {
+      if (seen.has(doc.document_type)) continue
+      seen.add(doc.document_type)
+      latest.push(doc)
+    }
+    return latest
+  })()
+  const flaggedCount = latestDocsByType.filter((doc) => doc.needs_review).length
 
   // Same required-field bar as submitSection('financial')'s own missing-
   // fields check further down — kept in sync by hand since that check
@@ -1990,7 +2010,7 @@ function PortalApp({ accountSession, onLogout }) {
                       <div className="stat-value stat-locked">No documents yet</div>
                     ) : (
                       <div className="stat-value">
-                        {myDocs.length - flaggedCount} verified{flaggedCount > 0 ? `, ${flaggedCount} needs review` : ''}
+                        {latestDocsByType.length - flaggedCount} verified{flaggedCount > 0 ? `, ${flaggedCount} needs review` : ''}
                       </div>
                     )}
                     <div className="stat-note">View and manage your uploaded documents.</div>
