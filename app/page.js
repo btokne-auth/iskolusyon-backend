@@ -2925,29 +2925,25 @@ function PortalApp({ accountSession, onLogout }) {
               <div className="card" style={{ marginTop: '18.75px' }}>
                 <div className="card-title">Submit Application</div>
                 {submitted ? (
-                  <div className="p-5 rounded-xl border border-ccc-green/40 bg-green-50 text-center space-y-1.5">
-                    <IconCheck className="w-6 h-6 text-ccc-green mx-auto" />
-                    <p className="text-sm font-bold text-ccc-green">Application submitted for review</p>
-                    <p className="text-xs text-ccc-text/80">
-                      {applicantName.trim()}, your documents are on file. This panel will keep tracking their status.
-                    </p>
-                  </div>
+                  <p style={{ fontSize: '12.75px', color: 'var(--green)', fontWeight: 700 }}>
+                    &#x2713; Application submitted for review &mdash; {applicantName.trim()}, your documents are on file. This panel will keep tracking their status.
+                  </p>
                 ) : (
                   <>
-                    <button
-                      type="button"
-                      onClick={submitApplication}
-                      disabled={saveState === 'saving' || myDocs.length === 0}
-                      className="w-full py-4 px-4 bg-ccc-green hover:bg-ccc-navy disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-md text-sm cursor-pointer"
-                      style={{ fontFamily: 'var(--font-montserrat)' }}
-                    >
-                      {saveState === 'saving' ? 'Submitting…' : myDocs.length === 0 ? 'Upload at least one document to submit' : 'Submit application'}
-                    </button>
-                    <p className="text-[10px] text-ccc-muted text-center">
-                      Note: this confirms your documents are ready for review. A per-section Save/Submit
-                      flow like Ivy&rsquo;s (instead of one final submit) is a possible future refinement,
-                      not built yet.
+                    <p className="topic-card-intro" style={{ marginTop: 0 }}>
+                      This confirms your documents are ready for review. A per-section Save/Submit flow
+                      like Ivy&rsquo;s (instead of one final submit) is a possible future refinement, not built yet.
                     </p>
+                    <div className="form-actions">
+                      <button
+                        type="button"
+                        onClick={submitApplication}
+                        disabled={saveState === 'saving' || myDocs.length === 0}
+                        className="mbtn mbtn-secondary"
+                      >
+                        {saveState === 'saving' ? 'Submitting…' : myDocs.length === 0 ? 'Upload at least one document to submit' : 'Submit Application'}
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
