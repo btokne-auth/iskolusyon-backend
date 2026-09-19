@@ -11,6 +11,17 @@ function isValidEmailFormat(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
+// Sept 19 2026: matches the same fix applied to app/page.js's own Contact
+// Number fields — this file has its own local TextField/state, so the
+// sanitizer is duplicated here rather than shared, same as
+// isValidEmailFormat() above already is. Strips anything that isn't a
+// digit or space (plus a single leading "+" for a +63 country code) as
+// the applicant types, instead of accepting letters into a phone number.
+function sanitizePhoneInput(value) {
+  const leadingPlus = value.startsWith('+') ? '+' : ''
+  return leadingPlus + value.replace(/[^\d\s]/g, '')
+}
+
 // Real applicant Login + Signup — the User Account Module, formally Ivy's
 // scope, built here since her side hasn't moved. Signup is a 4-step wizard
 // matching her approved signup.html spec (Account Setup -> Program
@@ -919,7 +930,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
               <SelectField label="Sex" value={sex} onChange={clearFieldError('sex', setSex)} options={['Male', 'Female']} error={fieldErrors.sex} />
               <TextField label="Date of Birth" type="date" value={dateOfBirth} onChange={clearFieldError('dateOfBirth', setDateOfBirth)} error={fieldErrors.dateOfBirth} />
               <SelectField label="Civil Status" value={civilStatus} onChange={clearFieldError('civilStatus', setCivilStatus)} options={['Single', 'Married', 'Widowed', 'Legally Separated']} error={fieldErrors.civilStatus} />
-              <TextField label="Contact Number" value={contactNumber} onChange={clearFieldError('contactNumber', setContactNumber)} placeholder="e.g. 09XX XXX XXXX" error={fieldErrors.contactNumber} />
+              <TextField label="Contact Number" type="tel" value={contactNumber} onChange={(v) => clearFieldError('contactNumber', setContactNumber)(sanitizePhoneInput(v))} placeholder="e.g. 09XX XXX XXXX" error={fieldErrors.contactNumber} />
             </div>
             <TextField label="Present Home Address" value={address} onChange={clearFieldError('address', setAddress)} placeholder="e.g. 123 Rizal St., Brgy. Real, Calamba City" error={fieldErrors.address} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
@@ -947,11 +958,21 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
                     )}
                   </span>
                 </label>
+                {/* Sept 19 2026 fix: this is a raw <input>, not the local
+                    TextField component — TextField's own onChange already
+                    unwraps the DOM event to a plain string before calling
+                    what clearFieldError() returns, but here the event was
+                    being passed straight through, so every keystroke set
+                    residencyYears to the SyntheticEvent object itself
+                    instead of its value. That's also why the console was
+                    full of "[object Object] cannot be parsed" warnings —
+                    a number input can't render an object as its value, so
+                    typing looked like it did nothing at all. */}
                 <input
                   type="number"
                   min="0"
                   value={residencyYears}
-                  onChange={clearFieldError('residencyYears', setResidencyYears)}
+                  onChange={(e) => clearFieldError('residencyYears', setResidencyYears)(e.target.value)}
                   placeholder="e.g. 12"
                   className={`w-full px-3 py-2 border rounded-md text-sm outline-none focus:ring-2 focus:ring-ccc-blue/20 focus:border-ccc-blue bg-white ${
                     fieldErrors.residencyYears ? 'border-red-500' : 'border-ccc-border'
