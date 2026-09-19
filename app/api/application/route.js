@@ -67,25 +67,35 @@ export async function GET(request) {
 }
 
 // POST /api/application
-// body: { applicantName, applicantEmail, step, action }
-// action: 'save'   -> creates/updates a 'draft' row at the given step
-//         'submit' -> flips the row to 'submitted' with a timestamp
+// body: { applicantName, applicantEmail, step, action, section? }
+// action: 'save'           -> creates/updates a 'draft' row at the given step
+//         'submit'         -> flips the WHOLE application to 'submitted'
+//         'submit-section' -> marks one profile section (section: 'personal'
+//                             | 'academic') as explicitly submitted, saving
+//                             its current fields at the same time. Doesn't
+//                             touch the application's overall status — this
+//                             is the per-panel "Submit Section" button from
+//                             applicant.html, not the final submission.
 //
-// Auto-save and the manual "Save progress" button both call this with
-// action: 'save' — the only difference is whether the applicant clicked
-// a button or just moved to the next step.
+// Auto-save and the manual "Save progress"/"Save as Draft" buttons both
+// call this with action: 'save' — the only difference is whether the
+// applicant clicked a button or just moved to the next step.
 export async function POST(request) {
   try {
     const body = await request.json()
     const applicantName = (body.applicantName || '').trim()
     const applicantEmail = (body.applicantEmail || '').trim()
     const step = Number(body.step) || 1
-    const action = body.action === 'submit' ? 'submit' : 'save'
+    const action = ['submit', 'submit-section'].includes(body.action) ? body.action : 'save'
+    const section = body.section === 'academic' ? 'academic' : body.section === 'personal' ? 'personal' : null
     const personalInfoColumns = personalInfoToColumns(body.personalInfo)
     const academicInfoColumns = academicInfoToColumns(body.academicInfo)
 
     if (!applicantName) {
       return NextResponse.json({ error: 'Missing applicant name' }, { status: 400 })
+    }
+    if (action === 'submit-section' && !section) {
+      return NextResponse.json({ error: 'Missing or invalid section' }, { status: 400 })
     }
 
     // Find any existing row for this applicant first (draft or submitted).
@@ -115,6 +125,10 @@ export async function POST(request) {
         updates.status = 'submitted'
         updates.submitted_at = now
       }
+      if (action === 'submit-section') {
+        if (section === 'personal') updates.personal_info_submitted_at = now
+        if (section === 'academic') updates.academic_submitted_at = now
+      }
 
       const { data, error } = await supabase
         .from('applications')
@@ -141,6 +155,8 @@ export async function POST(request) {
       current_step: step,
       status: action === 'submit' ? 'submitted' : 'draft',
       submitted_at: action === 'submit' ? now : null,
+      personal_info_submitted_at: action === 'submit-section' && section === 'personal' ? now : null,
+      academic_submitted_at: action === 'submit-section' && section === 'academic' ? now : null,
       ...personalInfoColumns,
       ...academicInfoColumns,
     }

@@ -368,7 +368,7 @@ function TextField({ label, required, type = 'text', value, onChange, placeholde
   )
 }
 
-function SelectField({ label, required, value, onChange, options }) {
+function SelectField({ label, required, value, onChange, options, disabled }) {
   return (
     <div className="space-y-1.5">
       <label className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
@@ -377,7 +377,8 @@ function SelectField({ label, required, value, onChange, options }) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+        disabled={disabled}
+        className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40 disabled:bg-ccc-off disabled:text-ccc-muted"
       >
         <option value="">Select</option>
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
@@ -469,7 +470,7 @@ const EDU_ROWS = [
 ]
 const EDU_LEVELS = ['prim', 'sec', 'tert']
 
-function EduTable({ edu, onChangeCell }) {
+function EduTable({ edu, onChangeCell, disabled }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-ccc-border">
       <table className="w-full text-xs">
@@ -493,7 +494,8 @@ function EduTable({ edu, onChangeCell }) {
                     onChange={(e) => onChangeCell(level, row.field, e.target.value)}
                     placeholder={row.placeholders[i]}
                     required={level === 'prim' && row.field !== 'honors'}
-                    className="w-full rounded-md border border-ccc-border bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+                    disabled={disabled}
+                    className="w-full rounded-md border border-ccc-border bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-ccc-blue/40 disabled:bg-ccc-off disabled:text-ccc-muted"
                   />
                 </td>
               ))}
@@ -510,9 +512,9 @@ function EduTable({ edu, onChangeCell }) {
 // the Step 2 dropzone, since these three uploads now happen right next to
 // the fields they relate to instead of in the separate upload step. Calls
 // straight into the shared uploadDocument() helper below.
-function InlineUploadRow({ label, sublabel, required, status, onFileSelected }) {
+function InlineUploadRow({ label, sublabel, required, status, onFileSelected, disabled }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-dashed border-ccc-border bg-ccc-off/60 px-3 py-3">
+    <div className={`flex items-center gap-3 rounded-lg border border-dashed border-ccc-border bg-ccc-off/60 px-3 py-3 ${disabled ? 'opacity-60' : ''}`}>
       <IconUpload className="w-5 h-5 text-ccc-blue shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="text-xs font-bold text-ccc-navy">
@@ -526,7 +528,13 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected }) 
         {status === 'error' && <div className="text-[11px] text-red-600 mt-0.5">Upload failed &mdash; try again</div>}
         {status === 'queued' && <div className="text-[11px] text-ccc-gold mt-0.5">No connection &mdash; saved on this device, will upload automatically once you&rsquo;re back online</div>}
       </div>
-      <label className="shrink-0 text-[11px] font-bold text-ccc-blue border border-ccc-blue rounded-lg px-3 py-1.5 cursor-pointer hover:bg-ccc-blue hover:text-white transition-colors">
+      <label
+        className={`shrink-0 text-[11px] font-bold rounded-lg px-3 py-1.5 transition-colors ${
+          disabled
+            ? 'text-ccc-muted border border-ccc-border cursor-not-allowed'
+            : 'text-ccc-blue border border-ccc-blue cursor-pointer hover:bg-ccc-blue hover:text-white'
+        }`}
+      >
         {/* Re-selecting a file here always worked (nothing blocked a second
             upload), but the button still said "Upload" even once one
             already existed, reading like a first-time action rather than
@@ -535,9 +543,51 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected }) 
         <input
           type="file"
           className="hidden"
+          disabled={disabled}
           onChange={(e) => e.target.files[0] && onFileSelected(e.target.files[0])}
         />
       </label>
+    </div>
+  )
+}
+
+// Per-panel "Save as Draft" / "Submit Section" footer — matches
+// applicant.html's .form-actions pair on Personal Information and
+// Educational Background. "Save as Draft" reuses the same save call the
+// old single "Save progress" button used (renamed to match spec's label);
+// "Submit Section" is the new real per-section checkpoint (see
+// submitSection() above) with its own transient "Submitted ✓" state.
+function SectionFormActions({ saveState, sectionState, error, disabled, submitDisabled, submitLabel, onSaveDraft, onSubmit }) {
+  return (
+    <div className="space-y-2 pt-2">
+      {error && <p className="text-[11px] font-semibold text-red-600 whitespace-pre-line">{error}</p>}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          {saveState === 'saved' && <span className="text-[11px] font-semibold text-ccc-green">Progress saved &#x2713;</span>}
+          {saveState === 'error' && <span className="text-[11px] font-semibold text-red-600">Couldn&rsquo;t save &mdash; try again</span>}
+          {saveState === 'offline' && <span className="text-[11px] font-semibold text-ccc-gold">No connection &mdash; saved on this device, will sync automatically</span>}
+          {sectionState === 'submitted' && <span className="text-[11px] font-semibold text-ccc-green">Submitted &#x2713;</span>}
+          {sectionState === 'error' && <span className="text-[11px] font-semibold text-red-600">Couldn&rsquo;t submit &mdash; try again</span>}
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onSaveDraft}
+            disabled={disabled || saveState === 'saving'}
+            className="text-xs font-bold text-ccc-blue bg-white border border-ccc-blue hover:bg-ccc-off rounded-xl px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saveState === 'saving' ? 'Saving…' : 'Save as Draft'}
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={disabled || submitDisabled || sectionState === 'submitting'}
+            className="text-xs font-bold text-white bg-ccc-blue hover:bg-ccc-navy disabled:bg-ccc-border disabled:text-ccc-muted rounded-xl px-4 py-2.5 disabled:cursor-not-allowed"
+          >
+            {sectionState === 'submitting' ? 'Submitting…' : sectionState === 'submitted' ? 'Submitted ✓' : submitLabel || 'Submit Section'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -609,6 +659,18 @@ function PortalApp({ accountSession, onLogout }) {
   const [activePanel, setActivePanel] = useState('personal') // sidebar panel key — replaces the old linear step wizard
   const [submitted, setSubmitted] = useState(false)
   const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error' | 'offline'
+
+  // Per-section "Submit Section" state (design-parity pass 3) — separate
+  // from personalInfo/academicInfo so those objects stay a clean 1:1 map to
+  // their DB columns. Only Educational Background actually locks once
+  // submitted (matches applicant.html's submitSection()/lockPanelFields());
+  // Personal Information's submit is just a checkpoint marker, fields stay
+  // editable indefinitely like the rest of the profile.
+  const [personalSubmittedAt, setPersonalSubmittedAt] = useState(null)
+  const [academicSubmittedAt, setAcademicSubmittedAt] = useState(null)
+  const [personalSectionState, setPersonalSectionState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'submitting' | 'submitted' | 'error'
+  const [academicSectionState, setAcademicSectionState] = useState('idle')
+  const [sectionErrors, setSectionErrors] = useState({ personal: '', academic: '' })
   const [draftFound, setDraftFound] = useState(null) // application row found for this name, or null
   const [draftDismissed, setDraftDismissed] = useState(false)
   const [localDraftFound, setLocalDraftFound] = useState(null) // draft found in IndexedDB only (offline fallback), separate from draftFound above
@@ -856,6 +918,63 @@ function PortalApp({ accountSession, onLogout }) {
     }
   }
 
+  // "Submit Section" — the per-panel button next to "Save as Draft" on
+  // Personal Info / Educational Background, matching applicant.html's
+  // submitSection(). Marks that one section as explicitly submitted
+  // (personal_info_submitted_at / academic_submitted_at) without touching
+  // the application's overall status. Mirrors the spec's own validation:
+  // Personal Information requires its three inline uploads to be in before
+  // it'll submit; Educational Background has no such gate but is the one
+  // section that locks for good afterward (see the `disabled` props wired
+  // to academicSubmittedAt throughout its panel above).
+  const submitSection = async (section) => {
+    if (!applicantName.trim()) return
+    setSectionErrors((e) => ({ ...e, [section]: '' }))
+
+    if (section === 'personal') {
+      const missing = []
+      if (!(profilePicStatus === 'done' || hasUploaded('profilepic'))) missing.push('Profile Picture')
+      if (!(birthCertStatus === 'done' || hasUploaded('birthcert'))) missing.push('Birth Certificate / PSA / NSO')
+      if (!(voterIdStatus === 'done' || hasUploaded('voterid'))) missing.push("Voter's ID / Certification of Applicant")
+      if (missing.length) {
+        setSectionErrors((e) => ({
+          ...e,
+          personal: `Please upload the following required document(s) before submitting: ${missing.join(', ')}`,
+        }))
+        return
+      }
+    }
+
+    const setState = section === 'personal' ? setPersonalSectionState : setAcademicSectionState
+    setState('submitting')
+    try {
+      const res = await fetch('/api/application', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicantName: applicantName.trim(),
+          applicantEmail: applicantEmail.trim(),
+          step: section === 'personal' ? 1 : 2,
+          action: 'submit-section',
+          section,
+          personalInfo,
+          academicInfo,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Submit failed')
+      if (section === 'personal') setPersonalSubmittedAt(data.application.personal_info_submitted_at)
+      if (section === 'academic') setAcademicSubmittedAt(data.application.academic_submitted_at)
+      setState('submitted')
+      setTimeout(() => setState('idle'), 1800)
+    } catch (err) {
+      console.error('Submit section failed:', err)
+      setSectionErrors((e) => ({ ...e, [section]: 'Could not submit this section — try again.' }))
+      setState('error')
+      setTimeout(() => setState('idle'), 3000)
+    }
+  }
+
   // Flips the application row to 'submitted'. Called only from the Step 3
   // Submit button.
   const submitApplication = async () => {
@@ -932,6 +1051,8 @@ function PortalApp({ accountSession, onLogout }) {
         if (cancelled || !data.application) return
         setPersonalInfo(mapDbRowToPersonalInfo(data.application))
         setAcademicInfo(mapDbRowToAcademicInfo(data.application))
+        setPersonalSubmittedAt(data.application.personal_info_submitted_at || null)
+        setAcademicSubmittedAt(data.application.academic_submitted_at || null)
       } catch (err) {
         console.error('Auto-load of saved application failed (will retry via manual resume banner if needed):', err)
       }
@@ -1682,22 +1803,20 @@ function PortalApp({ accountSession, onLogout }) {
                   Fill in the required fields and upload your Profile Picture, Birth Certificate, and Voter&rsquo;s ID above &mdash; this section saves independently of the others.
                 </p>
               )}
+              {personalSubmittedAt && (
+                <p className="text-[11px] text-ccc-muted -mt-2">
+                  Submitted {new Date(personalSubmittedAt).toLocaleString()}. You can still edit and re-submit this section any time.
+                </p>
+              )}
 
-              <div className="flex items-center justify-between pt-2">
-                <div>
-                  {saveState === 'saved' && <span className="text-[11px] font-semibold text-ccc-green">Progress saved &#x2713;</span>}
-                  {saveState === 'error' && <span className="text-[11px] font-semibold text-red-600">Couldn&rsquo;t save &mdash; try again</span>}
-                  {saveState === 'offline' && <span className="text-[11px] font-semibold text-ccc-gold">No connection &mdash; saved on this device, will sync automatically</span>}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => saveProgress(1)}
-                  disabled={saveState === 'saving' || !applicantName.trim()}
-                  className="text-xs font-bold text-white bg-ccc-blue hover:bg-ccc-navy disabled:bg-ccc-border disabled:text-ccc-muted rounded-xl px-4 py-2.5 disabled:cursor-not-allowed"
-                >
-                  {saveState === 'saving' ? 'Saving…' : 'Save progress'}
-                </button>
-              </div>
+              <SectionFormActions
+                saveState={saveState}
+                sectionState={personalSectionState}
+                error={sectionErrors.personal}
+                disabled={!applicantName.trim()}
+                onSaveDraft={() => saveProgress(1)}
+                onSubmit={() => submitSection('personal')}
+              />
             </div>
           )}
 
@@ -1716,8 +1835,8 @@ function PortalApp({ accountSession, onLogout }) {
               <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
                 <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">1 &middot; Program Application</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <SelectField label="Applying As" required value={academicInfo.applyingAs} onChange={(v) => updateAI('applyingAs', v)} options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} />
-                  <SelectField label="Term Applying In" required value={academicInfo.termApplying} onChange={(v) => updateAI('termApplying', v)} options={['Term 1', 'Term 2']} />
+                  <SelectField label="Applying As" required value={academicInfo.applyingAs} onChange={(v) => updateAI('applyingAs', v)} options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} disabled={!!academicSubmittedAt} />
+                  <SelectField label="Term Applying In" required value={academicInfo.termApplying} onChange={(v) => updateAI('termApplying', v)} options={['Term 1', 'Term 2']} disabled={!!academicSubmittedAt} />
                 </div>
               </div>
 
@@ -1725,8 +1844,8 @@ function PortalApp({ accountSession, onLogout }) {
               <div className="rounded-2xl border border-ccc-border p-5 space-y-4">
                 <div className="text-xs font-bold text-ccc-navy uppercase tracking-wide">2 &middot; Preferred Program</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <SelectField label="First Priority Program" required value={academicInfo.choice1} onChange={(v) => updateAI('choice1', v)} options={PROGRAM_OPTIONS} />
-                  <SelectField label="Second Priority Program" required value={academicInfo.choice2} onChange={(v) => updateAI('choice2', v)} options={[...PROGRAM_OPTIONS, 'None of the above']} />
+                  <SelectField label="First Priority Program" required value={academicInfo.choice1} onChange={(v) => updateAI('choice1', v)} options={PROGRAM_OPTIONS} disabled={!!academicSubmittedAt} />
+                  <SelectField label="Second Priority Program" required value={academicInfo.choice2} onChange={(v) => updateAI('choice2', v)} options={[...PROGRAM_OPTIONS, 'None of the above']} disabled={!!academicSubmittedAt} />
                 </div>
               </div>
 
@@ -1737,21 +1856,22 @@ function PortalApp({ accountSession, onLogout }) {
                   Fill in your school details for each level you&rsquo;ve completed. <strong>Primary / Elementary is required for all applicants.</strong> Secondary / Senior High and Tertiary / College are optional (except Honors / Awards Received, which is optional for all levels).
                 </p>
 
-                <EduTable edu={academicInfo.edu} onChangeCell={updateEduCell} />
+                <EduTable edu={academicInfo.edu} onChangeCell={updateEduCell} disabled={!!academicSubmittedAt} />
 
                 <SelectField
                   label="Have you taken a Technical or Vocational Course?"
                   value={academicInfo.techVoc}
                   onChange={(v) => updateAI('techVoc', v)}
                   options={['Yes', 'No']}
+                  disabled={!!academicSubmittedAt}
                 />
 
                 {academicInfo.techVoc === 'Yes' && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-ccc-border">
-                    <TextField label="Name of School in Technical/Vocational" value={academicInfo.techVocSchool} onChange={(v) => updateAI('techVocSchool', v)} placeholder="e.g. Calamba Technical Vocational School" />
-                    <TextField label="Name of Course in Technical/Vocational" value={academicInfo.techVocCourse} onChange={(v) => updateAI('techVocCourse', v)} placeholder="e.g. Computer Systems Servicing NC II" />
+                    <TextField label="Name of School in Technical/Vocational" value={academicInfo.techVocSchool} onChange={(v) => updateAI('techVocSchool', v)} placeholder="e.g. Calamba Technical Vocational School" disabled={!!academicSubmittedAt} />
+                    <TextField label="Name of Course in Technical/Vocational" value={academicInfo.techVocCourse} onChange={(v) => updateAI('techVocCourse', v)} placeholder="e.g. Computer Systems Servicing NC II" disabled={!!academicSubmittedAt} />
                     <div className="sm:col-span-2">
-                      <TextField label="Address of School in Technical/Vocational" value={academicInfo.techVocAddress} onChange={(v) => updateAI('techVocAddress', v)} placeholder="e.g. Brgy. Real, Calamba City, Laguna" />
+                      <TextField label="Address of School in Technical/Vocational" value={academicInfo.techVocAddress} onChange={(v) => updateAI('techVocAddress', v)} placeholder="e.g. Brgy. Real, Calamba City, Laguna" disabled={!!academicSubmittedAt} />
                     </div>
                   </div>
                 )}
@@ -1765,31 +1885,32 @@ function PortalApp({ accountSession, onLogout }) {
                     sublabel="Latest grading period / semester, certified true copy"
                     status={form138Status === 'idle' && hasUploaded('form138') ? 'done' : form138Status}
                     onFileSelected={(f) => handleInlineUpload('form138', f, setForm138Status, () => {})}
+                    disabled={!!academicSubmittedAt}
                   />
                 </div>
               </div>
 
-              {!requiredAcademicInfoComplete && applicantName.trim() && (
+              {!requiredAcademicInfoComplete && applicantName.trim() && !academicSubmittedAt && (
                 <p className="text-[11px] text-ccc-muted -mt-2">
                   Applying As, Term Applying In, both Priority Programs, and the Primary/Elementary row are required &mdash; this section saves independently of the others.
                 </p>
               )}
+              {academicSubmittedAt && (
+                <p className="text-[11px] font-semibold text-red-600 -mt-2">
+                  This section has been submitted and can no longer be edited.
+                </p>
+              )}
 
-              <div className="flex items-center justify-between pt-2">
-                <div>
-                  {saveState === 'saved' && <span className="text-[11px] font-semibold text-ccc-green">Progress saved &#x2713;</span>}
-                  {saveState === 'error' && <span className="text-[11px] font-semibold text-red-600">Couldn&rsquo;t save &mdash; try again</span>}
-                  {saveState === 'offline' && <span className="text-[11px] font-semibold text-ccc-gold">No connection &mdash; saved on this device, will sync automatically</span>}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => saveProgress(1)}
-                  disabled={saveState === 'saving' || !applicantName.trim()}
-                  className="text-xs font-bold text-white bg-ccc-blue hover:bg-ccc-navy disabled:bg-ccc-border disabled:text-ccc-muted rounded-xl px-4 py-2.5 disabled:cursor-not-allowed"
-                >
-                  {saveState === 'saving' ? 'Saving…' : 'Save progress'}
-                </button>
-              </div>
+              <SectionFormActions
+                saveState={saveState}
+                sectionState={academicSectionState}
+                error={sectionErrors.academic}
+                disabled={!applicantName.trim() || !!academicSubmittedAt}
+                submitDisabled={!!academicSubmittedAt}
+                submitLabel={academicSubmittedAt ? 'Submitted — Locked' : 'Submit Section'}
+                onSaveDraft={() => saveProgress(2)}
+                onSubmit={() => submitSection('academic')}
+              />
             </div>
           )}
 
