@@ -1458,7 +1458,7 @@ function PortalApp({ accountSession, onLogout }) {
       if (section === 'personal') setPersonalSubmittedAt(data.application.personal_info_submitted_at)
       if (section === 'academic') setAcademicSubmittedAt(data.application.academic_submitted_at)
       if (section === 'health') setHealthSubmittedAt(data.application.health_submitted_at)
-      if (section === 'financial') setFinancialSubmittedAt(data.application.financial_submitted_at)
+      if (section === 'financial') setFinancialSubmittedAt(data.application.fam_financial_submitted_at)
       setState('submitted')
       setTimeout(() => setState('idle'), 1800)
     } catch (err) {
@@ -1565,7 +1565,7 @@ function PortalApp({ accountSession, onLogout }) {
         setPersonalSubmittedAt(data.application.personal_info_submitted_at || null)
         setAcademicSubmittedAt(data.application.academic_submitted_at || null)
         setHealthSubmittedAt(data.application.health_submitted_at || null)
-        setFinancialSubmittedAt(data.application.financial_submitted_at || null)
+        setFinancialSubmittedAt(data.application.fam_financial_submitted_at || null)
         // Keeps `applicantName` in sync with whatever this row is actually
         // saved under, so every save/submit for the rest of this session
         // targets the exact same row instead of depending on the name

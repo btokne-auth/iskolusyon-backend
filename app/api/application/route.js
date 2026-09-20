@@ -240,7 +240,7 @@ export async function POST(request) {
         if (section === 'personal') updates.personal_info_submitted_at = now
         if (section === 'academic') updates.academic_submitted_at = now
         if (section === 'health') updates.health_submitted_at = now
-        if (section === 'financial') updates.financial_submitted_at = now
+        if (section === 'financial') updates.fam_financial_submitted_at = now
       }
 
       const { data, error } = await supabase
@@ -272,7 +272,7 @@ export async function POST(request) {
       personal_info_submitted_at: action === 'submit-section' && section === 'personal' ? now : null,
       academic_submitted_at: action === 'submit-section' && section === 'academic' ? now : null,
       health_submitted_at: action === 'submit-section' && section === 'health' ? now : null,
-      financial_submitted_at: action === 'submit-section' && section === 'financial' ? now : null,
+      fam_financial_submitted_at: action === 'submit-section' && section === 'financial' ? now : null,
       ...personalInfoColumns,
       ...academicInfoColumns,
       ...healthInfoColumns,
@@ -325,7 +325,7 @@ export async function POST(request) {
         if (section === 'personal') updates.personal_info_submitted_at = now
         if (section === 'academic') updates.academic_submitted_at = now
         if (section === 'health') updates.health_submitted_at = now
-        if (section === 'financial') updates.financial_submitted_at = now
+        if (section === 'financial') updates.fam_financial_submitted_at = now
       }
 
       const retried = await supabase
@@ -436,5 +436,12 @@ export async function POST(request) {
 //   ADD COLUMN IF NOT EXISTS fam_emergency_contact_number text,
 //   ADD COLUMN IF NOT EXISTS fam_working_student text,
 //   ADD COLUMN IF NOT EXISTS fam_siblings jsonb DEFAULT '[]'::jsonb,
-//   ADD COLUMN IF NOT EXISTS financial_submitted_at timestamptz;
+//   ADD COLUMN IF NOT EXISTS fam_financial_submitted_at timestamptz;
+//
+// Renamed from financial_submitted_at (design-parity/naming-clarity pass,
+// Sept 20 2026) — also committed as
+// docs/migrations/2026-09-20-rename-financial-submitted-at.sql:
+//
+// ALTER TABLE applications
+//   RENAME COLUMN financial_submitted_at TO fam_financial_submitted_at;
 // ============================================================================
