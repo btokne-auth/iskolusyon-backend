@@ -542,6 +542,8 @@ function DashboardPanel({
   onEligibilityOverride,
   eligibilityOverriding,
   eligibilityError,
+  onRecomputeEligibility,
+  recomputing,
 }) {
   const [search, setSearch] = useState('')
   const [onlyFlagged, setOnlyFlagged] = useState(false)
@@ -647,6 +649,20 @@ function DashboardPanel({
           auto-assigns them — see that file for why), so an all-zero look
           at either of those two is expected until the entrance exam module
           exists or a real edge case comes up. */}
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+        <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          Scholarship Eligibility
+        </p>
+        <button
+          type="button"
+          onClick={onRecomputeEligibility}
+          disabled={recomputing}
+          title="Recomputes eligibility for every applicant from their current data — needed for anyone who fully submitted before this feature existed, since a locked application never triggers a new save on its own."
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-ccc-border bg-white text-ccc-navy hover:bg-ccc-off disabled:opacity-50"
+        >
+          {recomputing ? 'Recomputing…' : 'Recompute all'}
+        </button>
+      </div>
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
         {[
           ['qualified', 'Qualified'],
@@ -1010,6 +1026,7 @@ function AdminPageInner() {
   const [eligibility, setEligibility] = useState([])
   const [eligibilityOverriding, setEligibilityOverriding] = useState(null)
   const [eligibilityError, setEligibilityError] = useState('')
+  const [recomputing, setRecomputing] = useState(false)
   const [adminName, setAdminName] = useState('')
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [overriding, setOverriding] = useState(null)
@@ -1163,6 +1180,28 @@ function AdminPageInner() {
     }
   }
 
+  const handleRecomputeEligibility = async () => {
+    setRecomputing(true)
+    setEligibilityError('')
+    try {
+      const res = await fetch('/api/admin-eligibility/recompute', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setEligibilityError(data.error || 'Recompute failed.')
+        return
+      }
+      await fetchEligibility()
+    } catch (err) {
+      setEligibilityError(
+        isNetworkError(err)
+          ? 'No connection right now — this change did not go through. Try again once you’re back online.'
+          : err.message
+      )
+    } finally {
+      setRecomputing(false)
+    }
+  }
+
   const totalFlagged = docs.filter((d) => d.needs_review).length
 
   return (
@@ -1220,6 +1259,8 @@ function AdminPageInner() {
               onEligibilityOverride={handleEligibilityOverride}
               eligibilityOverriding={eligibilityOverriding}
               eligibilityError={eligibilityError}
+              onRecomputeEligibility={handleRecomputeEligibility}
+              recomputing={recomputing}
             />
           )}
           {activePanel === 'communications' && <CommunicationsPanel />}
