@@ -490,7 +490,25 @@ function ActivityLog({ events }) {
 // submit (which still lets garbage sit in the field until then), these
 // strip disallowed characters as the applicant types, the same way a
 // phone number field on a real form behaves.
-function sanitizePhoneInput(value) {
+// Sept 20 2026: the Guardian column of the Parent/Guardian table is the one
+// place in this form where "N/A" is a legitimate, expected answer — Ivy's
+// own spec only marks Mother/Father as required, Guardian is optional and
+// its own placeholders already say "e.g. N/A". But sanitizePhoneInput/
+// sanitizeDateTextInput strip anything that isn't a digit (or digit+slash),
+// so an applicant with no guardian could never actually type "N/A" into
+// Guardian's Contact No. or Date of Birth — the letters vanished as fast as
+// they were typed. Checked against every partial prefix ("n", "n/", "n/a")
+// so the real-time sanitizer doesn't eat each keystroke while it's still
+// being typed out. The moment the input stops looking like "N/A" (real
+// digits typed instead), it falls back to normal phone/date sanitizing —
+// so a guardian with a real contact number still gets the same formatting
+// help Mother/Father get. Mother and Father stay digits-only, since those
+// two are required and "N/A" was never a valid answer for them.
+function isNAInProgress(value) {
+  const v = value.trim().toLowerCase()
+  return v === '' || 'n/a'.startsWith(v)
+}
+function sanitizePhoneInput(value, allowNA) {
   // Sept 19 2026, second pass: the first version only stripped
   // non-digit characters and left spacing up to whatever the applicant
   // typed — but typing digits straight through a numeric-feeling field
@@ -500,6 +518,7 @@ function sanitizePhoneInput(value) {
   // every keystroke. Auto-grouping the digits into the same 4-3-4 shape
   // every placeholder in this app already shows ("0917 123 4567") means
   // it's always readable regardless of how the applicant types it.
+  if (allowNA && isNAInProgress(value)) return value
   const leadingPlus = value.trim().startsWith('+') ? '+' : ''
   const digits = value.replace(/\D/g, '')
   if (leadingPlus) {
@@ -509,11 +528,12 @@ function sanitizePhoneInput(value) {
   }
   return [digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 11)].filter(Boolean).join(' ')
 }
-function sanitizeDateTextInput(value) {
+function sanitizeDateTextInput(value, allowNA) {
   // For the free-text "MM/DD/YYYY" Date of Birth fields in the Family &
   // Financial tables below (Parent/Guardian, Sibling Income) — Personal
   // Information's own Date of Birth field uses a native <input
   // type="date"> picker already, so it can't accept invalid text at all.
+  if (allowNA && isNAInProgress(value)) return value
   return value.replace(/[^\d/]/g, '')
 }
 
@@ -717,8 +737,9 @@ function ParentGuardianTable({ familyInfo, onChange, disabled }) {
                       value={familyInfo[key]}
                       onChange={(e) => {
                         let v = e.target.value
-                        if (row.field === 'Contact') v = sanitizePhoneInput(v)
-                        if (row.field === 'Dob') v = sanitizeDateTextInput(v)
+                        const allowNA = person === 'guardian'
+                        if (row.field === 'Contact') v = sanitizePhoneInput(v, allowNA)
+                        if (row.field === 'Dob') v = sanitizeDateTextInput(v, allowNA)
                         onChange(key, v)
                       }}
                       placeholder={row.placeholders[i]}
