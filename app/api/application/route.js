@@ -104,6 +104,61 @@ function mergeApplicationRows(rows) {
   return merged
 }
 
+// Sept 20 2026: the sidebar has always shown "Application Number will be
+// provided once your documents are submitted and verified" (matches the
+// "2026A-____" numbering on CCC's actual sample application form,
+// Appendix I of the manuscript), but no application_number column or
+// completeness check existed anywhere — that copy was decorative, not
+// backed by real logic. This closes that gap: once every REQUIRED
+// document type is on file for this applicant, they get a number, once,
+// and keep it from then on.
+//
+// The required set here is the real one, matched against actual uploaded
+// document_type rows — not the UI's own "requiredXComplete" booleans
+// further up in page.js, which also gate on unrelated filled-in text
+// fields. profilepic, birthcert, voterid, parentid, and form138 are always
+// required; employmentcert only when fam_working_student === 'Yes'
+// (matches the already-built conditional logic in page.js). form138 was
+// previously left optional in the UI, which didn't match Appendix J
+// (a Grade 11/12 report card is required for freshmen) — Sept 20 2026:
+// made required in both the UI (page.js) and here, closing that gap.
+// indigency, supportdoc, and medcert remain genuinely optional by design
+// (proof of income is optional per Appendix J; supportdoc is evidence for
+// a rescheduling request, not an admission document; medcert is gated by
+// the exam/medical-exam step, not collected up front).
+//
+// Deliberately one-way: once application_number is set, a later edit that
+// makes the application incomplete again (e.g. clearing Working Student)
+// never revokes or reassigns it — matches how a real registrar wouldn't
+// pull back a number already issued. Only runs against a row that already
+// has a real id (the two update paths below), not the brand-new-insert
+// path — a document being uploaded before that applicant's very first
+// application row exists is an edge case not worth handling here; it's
+// picked up on their very next save regardless.
+async function maybeAssignApplicationNumber(existingRow, updates, { userId, email, name }) {
+  if (existingRow.application_number) return {}
+
+  const requiredTypes = ['profilepic', 'birthcert', 'voterid', 'parentid', 'form138']
+  const workingStudent = updates.fam_working_student ?? existingRow.fam_working_student
+  if (workingStudent === 'Yes') requiredTypes.push('employmentcert')
+
+  const uploadedTypes = new Set()
+  async function addTypes(builder) {
+    const { data, error } = await builder
+    if (error) throw new Error(error.message)
+    for (const d of data || []) uploadedTypes.add(d.document_type)
+  }
+  if (userId) await addTypes(supabase.from('documents').select('document_type').eq('applicant_user_id', userId))
+  if (email) await addTypes(supabase.from('documents').select('document_type').ilike('applicant_email', email))
+  if (name) await addTypes(supabase.from('documents').select('document_type').ilike('applicant_name', name))
+
+  const isComplete = requiredTypes.every((t) => uploadedTypes.has(t))
+  if (!isComplete) return {}
+
+  const year = new Date().getFullYear()
+  return { application_number: `${year}A-${String(existingRow.id).padStart(4, '0')}` }
+}
+
 // GET /api/application?name=Juan+Dela+Cruz&email=juan@example.com
 // Looks up an existing draft/submitted application row for this applicant.
 // See findApplicationRows() above for how "this applicant" is matched —
@@ -243,6 +298,15 @@ export async function POST(request) {
         if (section === 'financial') updates.fam_financial_submitted_at = now
       }
 
+      Object.assign(
+        updates,
+        await maybeAssignApplicationNumber(existing, updates, {
+          userId: applicantUserId || existing.applicant_user_id,
+          email: applicantEmail || existing.applicant_email,
+          name: applicantName || existing.applicant_name,
+        })
+      )
+
       const { data, error } = await supabase
         .from('applications')
         .update(updates)
@@ -327,6 +391,15 @@ export async function POST(request) {
         if (section === 'health') updates.health_submitted_at = now
         if (section === 'financial') updates.fam_financial_submitted_at = now
       }
+
+      Object.assign(
+        updates,
+        await maybeAssignApplicationNumber(raceExisting, updates, {
+          userId: applicantUserId || raceExisting.applicant_user_id,
+          email: applicantEmail || raceExisting.applicant_email,
+          name: applicantName || raceExisting.applicant_name,
+        })
+      )
 
       const retried = await supabase
         .from('applications')

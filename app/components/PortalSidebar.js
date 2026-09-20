@@ -90,6 +90,7 @@ export default function PortalSidebar({
   onLogout,
   onOpenHistory,
   historyCount = 0,
+  applicationNumber = null,
 }) {
   return (
     <aside className="sidebar">
@@ -116,7 +117,12 @@ export default function PortalSidebar({
         </div>
         <div className="profile-role">Applicant No.:</div>
         <div className="profile-id">
-          (Application Number will be provided once your documents are submitted and verified)
+          {/* Sept 20 2026: was always this placeholder text with nothing
+              behind it — no application_number column existed anywhere.
+              Now shows the real number once /api/application reports one
+              assigned (see maybeAssignApplicationNumber() server-side),
+              same placeholder copy until then. */}
+          {applicationNumber || '(Application Number will be provided once your documents are submitted and verified)'}
         </div>
       </div>
 

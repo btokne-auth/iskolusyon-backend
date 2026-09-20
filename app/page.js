@@ -1029,6 +1029,13 @@ function PortalApp({ accountSession, onLogout }) {
   const [academicSubmittedAt, setAcademicSubmittedAt] = useState(null)
   const [healthSubmittedAt, setHealthSubmittedAt] = useState(null)
   const [financialSubmittedAt, setFinancialSubmittedAt] = useState(null)
+  // Sept 20 2026: the sidebar's "Applicant No." — null until
+  // /api/application reports every required document type is on file
+  // (see maybeAssignApplicationNumber() in app/api/application/route.js
+  // for the real required set and why it's a one-way assignment). Set
+  // from both the initial GET on load and whatever save/submit response
+  // comes back, same as every other *SubmittedAt state above.
+  const [applicationNumber, setApplicationNumber] = useState(null)
   const [personalSectionState, setPersonalSectionState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'submitting' | 'submitted' | 'error'
   const [academicSectionState, setAcademicSectionState] = useState('idle')
   const [healthSectionState, setHealthSectionState] = useState('idle')
@@ -1357,6 +1364,7 @@ function PortalApp({ accountSession, onLogout }) {
       })
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Save failed')
+      if (data.application?.application_number) setApplicationNumber(data.application.application_number)
       setSaveState('saved')
       // The server copy is now current — the local safety-net copy for
       // this applicant is no longer needed until something changes again
@@ -1459,6 +1467,11 @@ function PortalApp({ accountSession, onLogout }) {
       if (section === 'academic') setAcademicSubmittedAt(data.application.academic_submitted_at)
       if (section === 'health') setHealthSubmittedAt(data.application.health_submitted_at)
       if (section === 'financial') setFinancialSubmittedAt(data.application.fam_financial_submitted_at)
+      // Not scoped to a particular section — the required-documents check
+      // runs on every save regardless of which section was just submitted,
+      // so this section's submit could be the one that pushes an
+      // already-complete document set over the line.
+      if (data.application.application_number) setApplicationNumber(data.application.application_number)
       setState('submitted')
       setTimeout(() => setState('idle'), 1800)
     } catch (err) {
@@ -1493,6 +1506,7 @@ function PortalApp({ accountSession, onLogout }) {
       setSaveState('idle')
       setSubmitted(true)
       setSubmittedAt(data.application.submitted_at || null)
+      if (data.application.application_number) setApplicationNumber(data.application.application_number)
     } catch (err) {
       console.error('Submit failed:', err)
       setSaveState('error')
@@ -1566,6 +1580,7 @@ function PortalApp({ accountSession, onLogout }) {
         setAcademicSubmittedAt(data.application.academic_submitted_at || null)
         setHealthSubmittedAt(data.application.health_submitted_at || null)
         setFinancialSubmittedAt(data.application.fam_financial_submitted_at || null)
+        setApplicationNumber(data.application.application_number || null)
         // Keeps `applicantName` in sync with whatever this row is actually
         // saved under, so every save/submit for the rest of this session
         // targets the exact same row instead of depending on the name
@@ -1707,6 +1722,14 @@ function PortalApp({ accountSession, onLogout }) {
     (profilePicStatus === 'done' || profilePicStatus === 'flagged' || hasUploaded('profilepic')) &&
     (birthCertStatus === 'done' || birthCertStatus === 'flagged' || hasUploaded('birthcert')) &&
     (voterIdStatus === 'done' || voterIdStatus === 'flagged' || hasUploaded('voterid'))
+
+  // Sept 20 2026: Grades (Form 138) is now a required upload — CCC's own
+  // guidelines (Appendix J) list a Grade 11/12 report card as required for
+  // freshmen, and this was previously left optional by mistake. Kept as its
+  // own const (not folded into requiredAcademicInfoComplete above) because
+  // form138Status/hasUploaded aren't defined yet at that point in the file.
+  const requiredAcademicUploadsComplete =
+    form138Status === 'done' || form138Status === 'flagged' || hasUploaded('form138')
 
   const fetchHistory = async () => {
     try {
@@ -1957,6 +1980,7 @@ function PortalApp({ accountSession, onLogout }) {
             (personalInfo.lastName?.[0] || applicantName.trim().split(' ')[1]?.[0] || '').toUpperCase()
           }
           avatarUrl={profilePicPreviewUrl || persistedProfilePicUrl}
+          applicationNumber={applicationNumber}
           messagesCount={0}
           flaggedCount={flaggedCount}
           onLogout={() => setLogoutConfirmOpen(true)}
@@ -1990,7 +2014,7 @@ function PortalApp({ accountSession, onLogout }) {
               a matching stepper to show. ══════════ */}
           {activePanel === 'dashboard' && (() => {
             const personalDone = requiredPersonalInfoComplete && requiredInlineUploadsComplete
-            const academicDone = requiredAcademicInfoComplete
+            const academicDone = requiredAcademicInfoComplete && requiredAcademicUploadsComplete
             const familyDone = !!requiredFamilyInfoComplete
             // Health & Wellness has no required fields in Ivy's spec (Medical
             // Status and the exam-gated upload are both optional), so there's
@@ -2613,11 +2637,12 @@ function PortalApp({ accountSession, onLogout }) {
 
                 <div className="topic-doc-section">
                   <div className="topic-doc-label">
-                    Verifying Documents <span className="tdl-count">Optional</span>
+                    Verifying Documents <span className="tdl-count">1 required</span>
                   </div>
                   <InlineUploadRow
                     label="Grades (Proof of Grades / Form 138 / Report Card)"
                     sublabel="Latest grading period / semester, certified true copy"
+                    required
                     status={form138Status === 'idle' && hasUploaded('form138') ? 'done' : form138Status}
                     onFileSelected={(f) => handleInlineUpload('form138', f, setForm138Status, () => {})}
                     disabled={!!academicSubmittedAt}
@@ -2625,9 +2650,9 @@ function PortalApp({ accountSession, onLogout }) {
                 </div>
               </div>
 
-              {!requiredAcademicInfoComplete && applicantName.trim() && !academicSubmittedAt && (
+              {(!requiredAcademicInfoComplete || !requiredAcademicUploadsComplete) && applicantName.trim() && !academicSubmittedAt && (
                 <p className="text-[11px] text-ccc-muted -mt-2">
-                  Applying As, Term Applying In, both Priority Programs, and the Primary/Elementary row are required &mdash; this section saves independently of the others.
+                  Applying As, Term Applying In, both Priority Programs, the Primary/Elementary row, and the Grades (Form 138) upload are required &mdash; this section saves independently of the others.
                 </p>
               )}
               {academicSubmittedAt && (
