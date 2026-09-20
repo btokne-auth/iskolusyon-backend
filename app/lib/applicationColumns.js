@@ -82,6 +82,19 @@ export function academicInfoToColumns(academicInfo) {
     tech_voc_school: text(ai.techVocSchool),
     tech_voc_course: text(ai.techVocCourse),
     tech_voc_address: text(ai.techVocAddress),
+    // Sept 20 2026: added so the Scholarship Matching & Filtering engine
+    // (app/lib/matching.js) can actually evaluate Appendix J's transferee
+    // rule (no failing grade + >=26 units passed + GWA of 2.25 or better).
+    // Only meaningful when applyingAs === 'Transferee'; left null otherwise.
+    transferee_gwa:
+      typeof ai.transfereeGwa === 'number' || /^\d+(\.\d+)?$/.test(String(ai.transfereeGwa ?? '').trim())
+        ? Number(ai.transfereeGwa)
+        : null,
+    transferee_units_passed:
+      typeof ai.transfereeUnitsPassed === 'number' || /^\d+$/.test(String(ai.transfereeUnitsPassed ?? '').trim())
+        ? Number(ai.transfereeUnitsPassed)
+        : null,
+    transferee_failing_grade: text(ai.transfereeFailingGrade),
   }
 }
 

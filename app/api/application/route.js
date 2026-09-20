@@ -3,6 +3,7 @@ import { supabase } from '@/app/supabaseClient'
 import { Resend } from 'resend'
 import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns, familyInfoToColumns } from '@/app/lib/applicationColumns'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
+import { computeEligibility } from '@/app/lib/matching'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -135,13 +136,11 @@ function mergeApplicationRows(rows) {
 // path — a document being uploaded before that applicant's very first
 // application row exists is an edge case not worth handling here; it's
 // picked up on their very next save regardless.
-async function maybeAssignApplicationNumber(existingRow, updates, { userId, email, name }) {
-  if (existingRow.application_number) return {}
-
-  const requiredTypes = ['profilepic', 'birthcert', 'voterid', 'parentid', 'form138']
-  const workingStudent = updates.fam_working_student ?? existingRow.fam_working_student
-  if (workingStudent === 'Yes') requiredTypes.push('employmentcert')
-
+// Shared by maybeAssignApplicationNumber() and the Scholarship Matching
+// eligibility check below — both need "which document_type rows exist for
+// this applicant", just for different purposes, so this is fetched once per
+// request rather than duplicating the same three queries twice.
+async function fetchUploadedDocumentTypes({ userId, email, name }) {
   const uploadedTypes = new Set()
   async function addTypes(builder) {
     const { data, error } = await builder
@@ -151,12 +150,34 @@ async function maybeAssignApplicationNumber(existingRow, updates, { userId, emai
   if (userId) await addTypes(supabase.from('documents').select('document_type').eq('applicant_user_id', userId))
   if (email) await addTypes(supabase.from('documents').select('document_type').ilike('applicant_email', email))
   if (name) await addTypes(supabase.from('documents').select('document_type').ilike('applicant_name', name))
+  return uploadedTypes
+}
+
+function maybeAssignApplicationNumber(existingRow, updates, uploadedTypes) {
+  if (existingRow.application_number) return {}
+
+  const requiredTypes = ['profilepic', 'birthcert', 'voterid', 'parentid', 'form138']
+  const workingStudent = updates.fam_working_student ?? existingRow.fam_working_student
+  if (workingStudent === 'Yes') requiredTypes.push('employmentcert')
 
   const isComplete = requiredTypes.every((t) => uploadedTypes.has(t))
   if (!isComplete) return {}
 
   const year = new Date().getFullYear()
   return { application_number: `${year}A-${String(existingRow.id).padStart(4, '0')}` }
+}
+
+// Scholarship Matching & Filtering (Ivy's former module — see the long
+// grounding comment at the top of app/lib/matching.js for what is and
+// isn't encoded and why). Recomputed on every save, unlike
+// application_number above: nothing here is ever finalized automatically
+// (see that file — 'qualified' is never auto-set), so there's no "one-way"
+// concern with refreshing it as the applicant edits their profile. An
+// admin's manual eligibility_override is a separate column and is left
+// alone here — this only ever touches eligibility_status/eligibility_reasons.
+function computeEligibilityUpdate(mergedRow, uploadedTypes) {
+  const { status, reasons } = computeEligibility(mergedRow, uploadedTypes)
+  return { eligibility_status: status, eligibility_reasons: reasons }
 }
 
 // GET /api/application?name=Juan+Dela+Cruz&email=juan@example.com
@@ -298,14 +319,13 @@ export async function POST(request) {
         if (section === 'financial') updates.fam_financial_submitted_at = now
       }
 
-      Object.assign(
-        updates,
-        await maybeAssignApplicationNumber(existing, updates, {
-          userId: applicantUserId || existing.applicant_user_id,
-          email: applicantEmail || existing.applicant_email,
-          name: applicantName || existing.applicant_name,
-        })
-      )
+      const uploadedTypes = await fetchUploadedDocumentTypes({
+        userId: applicantUserId || existing.applicant_user_id,
+        email: applicantEmail || existing.applicant_email,
+        name: applicantName || existing.applicant_name,
+      })
+      Object.assign(updates, maybeAssignApplicationNumber(existing, updates, uploadedTypes))
+      Object.assign(updates, computeEligibilityUpdate({ ...existing, ...updates }, uploadedTypes))
 
       const { data, error } = await supabase
         .from('applications')
@@ -342,6 +362,20 @@ export async function POST(request) {
       ...healthInfoColumns,
       ...familyInfoColumns,
     }
+
+    // No application id yet on a brand-new row (unlike
+    // maybeAssignApplicationNumber, which needs the row's real id and so
+    // only ever runs on the two update paths), but eligibility doesn't need
+    // one — documents are looked up by account id/email/name, not by
+    // application row id — so this can run here too, giving a first-time
+    // applicant an accurate eligibility_status from their very first save.
+    Object.assign(
+      insertPayload,
+      computeEligibilityUpdate(
+        insertPayload,
+        await fetchUploadedDocumentTypes({ userId: applicantUserId, email: applicantEmail, name: applicantName })
+      )
+    )
 
     let { data, error } = await supabase
       .from('applications')
@@ -392,14 +426,13 @@ export async function POST(request) {
         if (section === 'financial') updates.fam_financial_submitted_at = now
       }
 
-      Object.assign(
-        updates,
-        await maybeAssignApplicationNumber(raceExisting, updates, {
-          userId: applicantUserId || raceExisting.applicant_user_id,
-          email: applicantEmail || raceExisting.applicant_email,
-          name: applicantName || raceExisting.applicant_name,
-        })
-      )
+      const raceUploadedTypes = await fetchUploadedDocumentTypes({
+        userId: applicantUserId || raceExisting.applicant_user_id,
+        email: applicantEmail || raceExisting.applicant_email,
+        name: applicantName || raceExisting.applicant_name,
+      })
+      Object.assign(updates, maybeAssignApplicationNumber(raceExisting, updates, raceUploadedTypes))
+      Object.assign(updates, computeEligibilityUpdate({ ...raceExisting, ...updates }, raceUploadedTypes))
 
       const retried = await supabase
         .from('applications')
@@ -517,4 +550,19 @@ export async function POST(request) {
 //
 // ALTER TABLE applications
 //   RENAME COLUMN financial_submitted_at TO fam_financial_submitted_at;
+//
+// Scholarship Matching & Filtering (Sept 20 2026) — transferee academic
+// fields (Educational Background panel) and the computed eligibility
+// result (see app/lib/matching.js) — also committed as
+// docs/migrations/2026-09-20-scholarship-matching.sql:
+//
+// ALTER TABLE applications
+//   ADD COLUMN IF NOT EXISTS transferee_gwa numeric,
+//   ADD COLUMN IF NOT EXISTS transferee_units_passed integer,
+//   ADD COLUMN IF NOT EXISTS transferee_failing_grade text,
+//   ADD COLUMN IF NOT EXISTS eligibility_status text,
+//   ADD COLUMN IF NOT EXISTS eligibility_reasons jsonb DEFAULT '[]'::jsonb,
+//   ADD COLUMN IF NOT EXISTS eligibility_override text,
+//   ADD COLUMN IF NOT EXISTS eligibility_override_by text,
+//   ADD COLUMN IF NOT EXISTS eligibility_override_at timestamptz;
 // ============================================================================

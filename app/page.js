@@ -222,6 +222,11 @@ function mapDbRowToAcademicInfo(row) {
     techVocSchool: row.tech_voc_school || '',
     techVocCourse: row.tech_voc_course || '',
     techVocAddress: row.tech_voc_address || '',
+    // Sept 20 2026: Scholarship Matching & Filtering — only meaningful when
+    // applyingAs === 'Transferee'. See app/lib/matching.js.
+    transfereeGwa: row.transferee_gwa ?? '',
+    transfereeUnitsPassed: row.transferee_units_passed ?? '',
+    transfereeFailingGrade: row.transferee_failing_grade || '',
   }
 }
 
@@ -1125,6 +1130,7 @@ function PortalApp({ accountSession, onLogout }) {
       tert: { school: '', address: '', section: '', year: '', honors: '' },
     },
     techVoc: '', techVocSchool: '', techVocCourse: '', techVocAddress: '',
+    transfereeGwa: '', transfereeUnitsPassed: '', transfereeFailingGrade: '',
   })
   const updateAI = (field, value) => setAcademicInfo((a) => ({ ...a, [field]: value }))
 
@@ -1205,7 +1211,14 @@ function PortalApp({ accountSession, onLogout }) {
     academicInfo.edu.prim.school.trim() &&
     academicInfo.edu.prim.address.trim() &&
     academicInfo.edu.prim.section.trim() &&
-    academicInfo.edu.prim.year.trim()
+    academicInfo.edu.prim.year.trim() &&
+    // Sept 20 2026: Scholarship Matching & Filtering needs these three to
+    // evaluate Appendix J's transferee rule (see app/lib/matching.js) —
+    // only required when actually applying as a Transferee.
+    (academicInfo.applyingAs !== 'Transferee' ||
+      (String(academicInfo.transfereeGwa).trim() &&
+        String(academicInfo.transfereeUnitsPassed).trim() &&
+        academicInfo.transfereeFailingGrade))
 
   // Inline upload state for the three document types now uploaded directly
   // inside the Personal Information cards, instead of via the Step 2 form.
@@ -2587,6 +2600,48 @@ function PortalApp({ accountSession, onLogout }) {
                   <SelectField label="Applying As" required value={academicInfo.applyingAs} onChange={(v) => updateAI('applyingAs', v)} options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} disabled={!!academicSubmittedAt} />
                   <SelectField label="Term Applying In" required value={academicInfo.termApplying} onChange={(v) => updateAI('termApplying', v)} options={['Term 1', 'Term 2']} disabled={!!academicSubmittedAt} />
                 </div>
+
+                {/* Sept 20 2026: Scholarship Matching & Filtering — CCC only
+                    accepts transferees who (a) have no failing grade in any
+                    semester from their previous school(s), (b) have passed
+                    at least 26 units, and (c) have a GWA of 2.25 or better
+                    (Appendix J, "Transferees" section). Only shown/required
+                    when actually applying as a Transferee. */}
+                {academicInfo.applyingAs === 'Transferee' && (
+                  <>
+                    <p className="topic-card-intro" style={{ marginTop: '15px' }}>
+                      As a transferee, CCC also requires your academic standing from your previous school(s).
+                    </p>
+                    <div className="form-grid">
+                      <TextField
+                        label="General Weighted Average (GWA)"
+                        required
+                        type="number"
+                        value={academicInfo.transfereeGwa}
+                        onChange={(v) => updateAI('transfereeGwa', v)}
+                        placeholder="e.g. 1.75 (2.25 or better required)"
+                        disabled={!!academicSubmittedAt}
+                      />
+                      <TextField
+                        label="Total Academic Units Passed"
+                        required
+                        type="number"
+                        value={academicInfo.transfereeUnitsPassed}
+                        onChange={(v) => updateAI('transfereeUnitsPassed', v)}
+                        placeholder="e.g. 30 (at least 26 required)"
+                        disabled={!!academicSubmittedAt}
+                      />
+                      <SelectField
+                        label="Did you get a failing grade in any semester at your previous school(s)?"
+                        required
+                        value={academicInfo.transfereeFailingGrade}
+                        onChange={(v) => updateAI('transfereeFailingGrade', v)}
+                        options={['Yes', 'No']}
+                        disabled={!!academicSubmittedAt}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* ---------- Card 2: Preferred Program ---------- */}
@@ -2652,7 +2707,7 @@ function PortalApp({ accountSession, onLogout }) {
 
               {(!requiredAcademicInfoComplete || !requiredAcademicUploadsComplete) && applicantName.trim() && !academicSubmittedAt && (
                 <p className="text-[11px] text-ccc-muted -mt-2">
-                  Applying As, Term Applying In, both Priority Programs, the Primary/Elementary row, and the Grades (Form 138) upload are required &mdash; this section saves independently of the others.
+                  Applying As, Term Applying In, both Priority Programs, the Primary/Elementary row, and the Grades (Form 138) upload are required (plus GWA, Units Passed, and the failing-grade question if applying as a Transferee) &mdash; this section saves independently of the others.
                 </p>
               )}
               {academicSubmittedAt && (

@@ -378,8 +378,109 @@ function DocumentReviewCard({ doc, onOverride, overriding }) {
   )
 }
 
+// ---------- Scholarship Matching & Filtering (Sept 20 2026) ----------
+// Automated eligibility result + the one manual override escape hatch.
+// See app/lib/matching.js for how eligibility_status is computed and why
+// 'qualified' is never set automatically.
+const ELIGIBILITY_META = {
+  qualified: { label: 'Qualified', className: 'bg-green-50 text-ccc-green border-ccc-green/30' },
+  waitlisted: { label: 'Waitlisted', className: 'bg-ccc-gold/10 text-ccc-navy border-ccc-gold/50' },
+  not_qualified: { label: 'Not Qualified', className: 'bg-red-50 text-ccc-red border-ccc-red/30' },
+  pending_exam: { label: 'Pending Exam Result', className: 'bg-blue-50 text-ccc-blue border-ccc-blue/30' },
+  incomplete: { label: 'Incomplete Profile', className: 'bg-ccc-off text-ccc-muted border-ccc-border' },
+}
+
+function EligibilityBadge({ status }) {
+  const meta = ELIGIBILITY_META[status] || ELIGIBILITY_META.incomplete
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.className}`}>
+      {meta.label}
+    </span>
+  )
+}
+
+// The expandable detail: computed status + why, plus the manual override
+// buttons. `row` is one entry from GET /api/admin-eligibility (or undefined
+// if this applicant has no `applications` row yet — e.g. documents were
+// uploaded before any profile section was ever saved).
+function EligibilitySection({ row, onOverride, overriding }) {
+  if (!row) {
+    return (
+      <div className="rounded-xl border border-ccc-border bg-ccc-off px-4 py-3 text-xs text-ccc-muted">
+        No application profile on file yet for this applicant — eligibility can&rsquo;t be evaluated until one exists.
+      </div>
+    )
+  }
+
+  const effectiveStatus = row.eligibility_override || row.eligibility_status || 'incomplete'
+  const isOverridden = !!row.eligibility_override
+  const isBusy = overriding === row.id
+  const reasons = Array.isArray(row.eligibility_reasons) ? row.eligibility_reasons : []
+
+  return (
+    <div className="rounded-xl border border-ccc-border bg-white px-4 py-3.5 space-y-2.5">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
+            Scholarship Eligibility
+          </span>
+          <EligibilityBadge status={effectiveStatus} />
+          {isOverridden && (
+            <span className="text-[10px] text-ccc-muted">
+              (manually set by {row.eligibility_override_by || 'an admin'})
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => onOverride(row.id, 'qualified')}
+            className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-ccc-green/40 text-ccc-green hover:bg-green-50 disabled:opacity-50"
+          >
+            Mark Qualified
+          </button>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => onOverride(row.id, 'waitlisted')}
+            className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-ccc-gold/50 text-ccc-navy hover:bg-ccc-gold/10 disabled:opacity-50"
+          >
+            Waitlist
+          </button>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => onOverride(row.id, 'not_qualified')}
+            className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-ccc-red/40 text-ccc-red hover:bg-red-50 disabled:opacity-50"
+          >
+            Mark Not Qualified
+          </button>
+          {isOverridden && (
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => onOverride(row.id, null)}
+              className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-ccc-border text-ccc-muted hover:text-ccc-navy disabled:opacity-50"
+            >
+              Clear override
+            </button>
+          )}
+        </div>
+      </div>
+      {reasons.length > 0 && (
+        <ul className="text-[11px] text-ccc-muted space-y-1 list-disc pl-4">
+          {reasons.map((r, i) => (
+            <li key={i}>{r}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 // One applicant, collapsed by default, with all their documents inside.
-function ApplicantGroup({ name, email, docs, defaultOpen, onOverride, overriding }) {
+function ApplicantGroup({ name, email, docs, defaultOpen, onOverride, overriding, eligibilityRow, onEligibilityOverride, eligibilityOverriding }) {
   const [open, setOpen] = useState(!!defaultOpen)
   const flaggedCount = docs.filter((d) => d.needs_review).length
 
@@ -404,6 +505,7 @@ function ApplicantGroup({ name, email, docs, defaultOpen, onOverride, overriding
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
+          <EligibilityBadge status={eligibilityRow?.eligibility_override || eligibilityRow?.eligibility_status || 'incomplete'} />
           {flaggedCount > 0 && (
             <span className="flex items-center gap-1 rounded-full bg-ccc-gold text-ccc-navy text-[10px] font-bold px-2 py-0.5">
               <IconAlertTriangle className="w-3 h-3" />
@@ -416,6 +518,7 @@ function ApplicantGroup({ name, email, docs, defaultOpen, onOverride, overriding
 
       {open && (
         <div className="px-5 pb-5 space-y-4 border-t border-ccc-border pt-4">
+          <EligibilitySection row={eligibilityRow} onOverride={onEligibilityOverride} overriding={eligibilityOverriding} />
           {docs.map((doc) => (
             <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} />
           ))}
@@ -428,11 +531,47 @@ function ApplicantGroup({ name, email, docs, defaultOpen, onOverride, overriding
 // ---------- Dashboard panel (document review — the app's existing,
 // already-working feature, unchanged in behavior) ----------
 
-function DashboardPanel({ docs, loading, error, onOverride, overriding, overrideError }) {
+function DashboardPanel({
+  docs,
+  loading,
+  error,
+  onOverride,
+  overriding,
+  overrideError,
+  eligibility,
+  onEligibilityOverride,
+  eligibilityOverriding,
+  eligibilityError,
+}) {
   const [search, setSearch] = useState('')
   const [onlyFlagged, setOnlyFlagged] = useState(false)
 
   const totalFlagged = docs.filter((d) => d.needs_review).length
+
+  // Matched by applicant name, same lowercase-trim key as the document
+  // grouping below — `applications` and `documents` aren't joined by a
+  // shared id everywhere yet (legacy rows), so name is the common signal
+  // both already rely on.
+  const eligibilityByName = useMemo(() => {
+    const map = new Map()
+    for (const row of eligibility || []) {
+      const key = (row.applicant_name || '').trim().toLowerCase()
+      if (key) map.set(key, row)
+    }
+    return map
+  }, [eligibility])
+
+  // Real automated counts, replacing what Ivy's admin.html mockup had as
+  // purely manual per-applicant stat cards (All/Pending/Qualified/Not
+  // Qualified) — see the module-level comment on ELIGIBILITY_META above.
+  const eligibilityCounts = useMemo(() => {
+    const counts = { qualified: 0, waitlisted: 0, not_qualified: 0, pending_exam: 0, incomplete: 0 }
+    for (const row of eligibility || []) {
+      const status = row.eligibility_override || row.eligibility_status || 'incomplete'
+      if (status in counts) counts[status] += 1
+    }
+    return counts
+  }, [eligibility])
 
   const groups = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -502,6 +641,35 @@ function DashboardPanel({ docs, loading, error, onOverride, overriding, override
         </button>
       </div>
 
+      {/* Scholarship Matching & Filtering — real, automated counts (see
+          app/lib/matching.js). 'qualified'/'waitlisted' only ever show up
+          here once an admin has manually set them (the engine itself never
+          auto-assigns them — see that file for why), so an all-zero look
+          at either of those two is expected until the entrance exam module
+          exists or a real edge case comes up. */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+        {[
+          ['qualified', 'Qualified'],
+          ['waitlisted', 'Waitlisted'],
+          ['not_qualified', 'Not Qualified'],
+          ['pending_exam', 'Pending Exam'],
+          ['incomplete', 'Incomplete'],
+        ].map(([key, label]) => (
+          <div key={key} className="rounded-xl border border-ccc-border bg-white px-3.5 py-3">
+            <p className="text-[10px] font-bold text-ccc-muted uppercase tracking-wide">{label}</p>
+            <p className="text-xl font-extrabold text-ccc-navy mt-0.5" style={{ fontFamily: 'var(--font-montserrat)' }}>
+              {eligibilityCounts[key]}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {eligibilityError && (
+        <div className="mb-4 p-3 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">
+          {eligibilityError}
+        </div>
+      )}
+
       {overrideError && (
         <div className="mb-4 p-3 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">
           {overrideError}
@@ -527,6 +695,9 @@ function DashboardPanel({ docs, loading, error, onOverride, overriding, override
               defaultOpen={i === 0}
               onOverride={onOverride}
               overriding={overriding}
+              eligibilityRow={eligibilityByName.get((g.name || '').trim().toLowerCase())}
+              onEligibilityOverride={onEligibilityOverride}
+              eligibilityOverriding={eligibilityOverriding}
             />
           ))}
         </div>
@@ -836,6 +1007,9 @@ function AdminPageInner() {
   const [docs, setDocs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [eligibility, setEligibility] = useState([])
+  const [eligibilityOverriding, setEligibilityOverriding] = useState(null)
+  const [eligibilityError, setEligibilityError] = useState('')
   const [adminName, setAdminName] = useState('')
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [overriding, setOverriding] = useState(null)
@@ -883,6 +1057,24 @@ function AdminPageInner() {
 
   useEffect(() => {
     fetchDocs()
+  }, [])
+
+  // Scholarship Matching & Filtering — the automated eligibility result per
+  // applicant (see app/lib/matching.js + app/api/admin-eligibility/route.js).
+  // Fetched separately from documents since it comes off the `applications`
+  // table, not `documents`.
+  const fetchEligibility = async () => {
+    try {
+      const res = await fetch('/api/admin-eligibility')
+      const data = await res.json()
+      if (data.success) setEligibility(data.applications)
+    } catch (err) {
+      console.error('Failed to load eligibility:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchEligibility()
   }, [])
 
   // Proactive connectivity banner, same module and pattern as the
@@ -945,6 +1137,32 @@ function AdminPageInner() {
     }
   }
 
+  const handleEligibilityOverride = async (applicationId, override) => {
+    setEligibilityOverriding(applicationId)
+    setEligibilityError('')
+    try {
+      const res = await fetch('/api/admin-eligibility', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: applicationId, override }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setEligibilityError(data.error || 'Override failed.')
+        return
+      }
+      await fetchEligibility()
+    } catch (err) {
+      setEligibilityError(
+        isNetworkError(err)
+          ? 'No connection right now — this change did not go through. Try again once you’re back online.'
+          : err.message
+      )
+    } finally {
+      setEligibilityOverriding(null)
+    }
+  }
+
   const totalFlagged = docs.filter((d) => d.needs_review).length
 
   return (
@@ -998,6 +1216,10 @@ function AdminPageInner() {
               onOverride={handleOverride}
               overriding={overriding}
               overrideError={overrideError}
+              eligibility={eligibility}
+              onEligibilityOverride={handleEligibilityOverride}
+              eligibilityOverriding={eligibilityOverriding}
+              eligibilityError={eligibilityError}
             />
           )}
           {activePanel === 'communications' && <CommunicationsPanel />}
