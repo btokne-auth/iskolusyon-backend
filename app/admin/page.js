@@ -5,6 +5,7 @@ import SiteHeader from '../components/SiteHeader'
 import AdminSidebar from '../components/AdminSidebar'
 import { getDocTypeLabel } from '../lib/documentTypes'
 import { onConnectivityChange, isNetworkError } from '../lib/offlineSync'
+import { suggestExamResult } from '../lib/matching'
 
 // ---------- Icons (same style as the applicant page) ----------
 
@@ -893,6 +894,17 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
     (examResult || '') !== (row.exam_result || '') ||
     (examDate || '') !== (row.exam_date || '')
 
+  // Sept 21 follow-up: surface suggestExamResult() as a live hint next to
+  // the score input, instead of only backing deriveScholarStatus() silently
+  // after save. Still just a suggestion the admin can ignore -- Result stays
+  // a manual dropdown, nothing here auto-fills it. See app/lib/matching.js
+  // for the Appendix D/J grounding ("Passing Score or Passed" against each
+  // program's own Appendix J cutoff).
+  const examSuggestion = useMemo(
+    () => suggestExamResult(examScore, row.program_choice_1),
+    [examScore, row.program_choice_1]
+  )
+
   const confirmOverride = (targetStatus) => setPendingOverride(targetStatus)
   const handleConfirmed = () => {
     onSetScholarStatus(row.id, pendingOverride, statusReason)
@@ -1005,6 +1017,27 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
             {isBusy ? 'Saving…' : 'Save & Verify'}
           </button>
         </div>
+        {examSuggestion.threshold != null && (
+          <p
+            className={
+              'text-[10.5px] rounded-lg px-2.5 py-1.5 ' +
+              (examSuggestion.suggested === 'passed'
+                ? 'bg-green-50 text-green-800'
+                : examSuggestion.suggested === 'failed'
+                ? 'bg-red-50 text-red-700'
+                : 'text-ccc-muted')
+            }
+          >
+            {row.program_choice_1}&rsquo;s passing grade per Appendix J: <strong>{examSuggestion.threshold}</strong>.
+            {examSuggestion.suggested && (
+              <>
+                {' '}Score of {examScore} suggests{' '}
+                <strong>{examSuggestion.suggested === 'passed' ? 'Passed' : 'Failed'}</strong> &mdash; this doesn&rsquo;t
+                auto-fill Result, pick it above to confirm.
+              </>
+            )}
+          </p>
+        )}
         {row.exam_verified_by && (
           <p className="text-[10px] text-ccc-muted">
             Last verified by {row.exam_verified_by}
