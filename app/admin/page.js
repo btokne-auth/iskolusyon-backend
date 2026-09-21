@@ -737,6 +737,58 @@ const SCHOLAR_STATUS_META = {
   forfeited: { label: 'Forfeited', className: 'bg-red-50 text-ccc-red border-ccc-red/30' },
 }
 
+// "What's next" hint -- Sept 21 follow-up. Scholarship Matching (Dashboard
+// panel) and Applicant Results (this panel) are genuinely two separate
+// modules per the Roles PDF, but working one applicant end to end means
+// reading both in sequence: eligibility decides whether an exam entry even
+// makes sense yet, and scholar status decides whether distribution tracking
+// applies. This spells out that sequence per-applicant instead of leaving
+// the admin to hold CCC's process in their head across two panels.
+function getNextStepHint(row) {
+  const eligStatus = row.eligibility_override || row.eligibility_status || 'incomplete'
+  const scholarStatus = row.scholar_status || 'pending_exam'
+
+  if (scholarStatus === 'disqualified' || scholarStatus === 'forfeited') {
+    return { text: `No further action -- applicant is ${SCHOLAR_STATUS_META[scholarStatus].label.toLowerCase()}.`, tone: 'stop' }
+  }
+  if (scholarStatus === 'passer' || scholarStatus === 'qualified_probationary') {
+    if (row.distribution_status === 'enrollment_complete') {
+      return { text: 'Enrollment complete -- no further action needed.', tone: 'done' }
+    }
+    return { text: 'Ready to advance Distribution Status below.', tone: 'go' }
+  }
+  if (scholarStatus === 'waitlisted_probationary') {
+    return { text: 'Waitlisted pending an open slot -- re-check later, or use Manual Override if a slot opens.', tone: 'wait' }
+  }
+  // scholarStatus is 'pending_exam' -- no exam result recorded yet, so
+  // whether exam entry even applies depends on eligibility.
+  if (eligStatus === 'incomplete') {
+    return { text: "Eligibility: Incomplete -- applicant hasn't finished their profile yet. Exam entry doesn't apply yet.", tone: 'wait' }
+  }
+  if (eligStatus === 'not_qualified') {
+    return { text: 'Eligibility: Not Qualified -- exam entry only applies here for a real Program Director exception.', tone: 'stop' }
+  }
+  // pending_exam (automated) or a manual qualified/waitlisted override --
+  // either way, this is the point where recording an exam result applies.
+  return { text: `Eligibility: ${ELIGIBILITY_META[eligStatus]?.label || eligStatus} -- ready for exam entry in Step 1 below.`, tone: 'go' }
+}
+
+const NEXT_STEP_TONE_CLASSES = {
+  go: 'border-ccc-blue/30 bg-blue-50 text-ccc-blue',
+  wait: 'border-ccc-gold/40 bg-ccc-gold/10 text-ccc-navy',
+  stop: 'border-ccc-red/30 bg-red-50 text-ccc-red',
+  done: 'border-ccc-green/30 bg-green-50 text-ccc-green',
+}
+
+function NextStepHint({ row }) {
+  const { text, tone } = getNextStepHint(row)
+  return (
+    <div className={`rounded-lg border px-3 py-2 text-[11px] font-semibold ${NEXT_STEP_TONE_CLASSES[tone]}`}>
+      {text}
+    </div>
+  )
+}
+
 const DISTRIBUTION_STATUS_STEPS = [
   ['pending_endorsement', 'Pending Endorsement'],
   ['endorsed_registrar', 'Endorsed to Registrar'],
@@ -865,6 +917,8 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         </div>
         <ScholarStatusBadge status={row.scholar_status || 'pending_exam'} />
       </div>
+
+      <NextStepHint row={row} />
 
       {/* Exam Score Entry and Verification */}
       <div className="rounded-xl border border-ccc-border bg-ccc-off/40 p-3.5 space-y-2.5">
@@ -1038,14 +1092,28 @@ function ResultsPanel() {
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState(null)
 
+  // Sept 21 follow-up: also pulls eligibility (Scholarship Matching, the
+  // Dashboard panel's own data) so each card can show a "what's next" hint.
+  // These two panels are genuinely two separate modules per the Roles PDF
+  // (Scholarship Matching & Filtering vs. Applicant Information & Results),
+  // but an admin working a real applicant end to end needs both readings at
+  // once -- this merges them client-side by `id` (the shared primary key
+  // both endpoints already select) rather than making the admin flip
+  // between Dashboard and here to piece the sequence together themselves.
   const load = async () => {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/admin-results')
-      const data = await res.json()
-      if (data.success) setRows(data.applications)
-      else setError(data.error || 'Failed to load applicant results.')
+      const [resultsRes, eligRes] = await Promise.all([
+        fetch('/api/admin-results'),
+        fetch('/api/admin-eligibility'),
+      ])
+      const resultsData = await resultsRes.json()
+      const eligData = await eligRes.json()
+      if (!resultsData.success) throw new Error(resultsData.error || 'Failed to load applicant results.')
+      if (!eligData.success) throw new Error(eligData.error || 'Failed to load eligibility data.')
+      const eligById = new Map(eligData.applications.map((r) => [r.id, r]))
+      setRows(resultsData.applications.map((r) => ({ ...eligById.get(r.id), ...r })))
     } catch (err) {
       setError(err.message)
     } finally {
