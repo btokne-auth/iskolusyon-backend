@@ -822,7 +822,10 @@ const SCHOLAR_STATUS_OVERRIDE_LABELS = {
 // browser chrome, easy to dismiss on reflex without reading it. This is an
 // actual overlay in the app's own CCC styling, so it can't be mistaken for
 // a routine popup.
-function ConfirmOverrideModal({ applicantName, targetLabel, onConfirm, onCancel }) {
+// Generic confirm modal -- Sept 21, generalized from the Scholar Status
+// override modal so the Distribution Status "Clear" action (added the same
+// day) can reuse it instead of duplicating the overlay markup.
+function ConfirmActionModal({ eyebrow = 'Confirm', title, message, onConfirm, onCancel }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
@@ -833,15 +836,9 @@ function ConfirmOverrideModal({ applicantName, targetLabel, onConfirm, onCancel 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 pt-5 pb-4 border-b border-ccc-border">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-ccc-orange mb-1">Confirm Override</p>
-          <p className="text-sm text-ccc-text">
-            Set <span className="font-bold text-ccc-navy">{applicantName || 'this applicant'}</span>&rsquo;s Scholar
-            Status to <span className="font-bold text-ccc-navy">&ldquo;{targetLabel}&rdquo;</span>?
-          </p>
-          <p className="text-[11px] text-ccc-muted mt-2">
-            This overrides the status immediately and does not save anything currently typed in the Entrance Exam
-            section above.
-          </p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-ccc-orange mb-1">{eyebrow}</p>
+          <p className="text-sm text-ccc-text">{title}</p>
+          {message && <p className="text-[11px] text-ccc-muted mt-2">{message}</p>}
         </div>
         <div className="flex gap-2 px-5 py-3.5 bg-ccc-off/50">
           <button
@@ -869,11 +866,19 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
   const [examResult, setExamResult] = useState(row.exam_result || '')
   const [examDate, setExamDate] = useState(row.exam_date || '')
   const [statusReason, setStatusReason] = useState('')
-  const [pendingOverride, setPendingOverride] = useState(null) // targetStatus string, or null
+  const [pendingOverride, setPendingOverride] = useState(null) // scholar_status target, or null
+  const [pendingClearDistribution, setPendingClearDistribution] = useState(false)
   const isBusy = busy === row.id
 
   const canDistribute = row.scholar_status === 'passer' || row.scholar_status === 'qualified_probationary'
   const currentStepIndex = DISTRIBUTION_STATUS_STEPS.findIndex(([key]) => key === row.distribution_status)
+  // Sept 21: a distribution_status set while the applicant still qualified
+  // (Passer/Qualified Probationary) is never auto-cleared if Scholar Status
+  // later changes away from those (e.g. an admin resets the exam result for
+  // retesting) -- the two columns are independent, same as everything else
+  // in this module. This flags that leftover case so the UI can surface it
+  // even when the stepper itself is hidden (canDistribute false).
+  const hasStaleDistribution = !canDistribute && row.distribution_status && row.distribution_status !== 'not_applicable'
 
   // The exam form and the manual override buttons below are two completely
   // separate write paths (exam form only saves on "Save & Verify"; override
@@ -893,15 +898,43 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
     onSetScholarStatus(row.id, pendingOverride, statusReason)
     setPendingOverride(null)
   }
+  const handleClearDistributionConfirmed = () => {
+    onAdvanceDistribution(row.id, 'not_applicable')
+    setPendingClearDistribution(false)
+  }
 
   return (
     <div className="rounded-2xl border border-ccc-border bg-white shadow-sm p-5 space-y-4">
       {pendingOverride && (
-        <ConfirmOverrideModal
-          applicantName={row.applicant_name}
-          targetLabel={SCHOLAR_STATUS_OVERRIDE_LABELS[pendingOverride] || pendingOverride}
+        <ConfirmActionModal
+          eyebrow="Confirm Override"
+          title={
+            <>
+              Set <span className="font-bold text-ccc-navy">{row.applicant_name || 'this applicant'}</span>&rsquo;s
+              Scholar Status to{' '}
+              <span className="font-bold text-ccc-navy">
+                &ldquo;{SCHOLAR_STATUS_OVERRIDE_LABELS[pendingOverride] || pendingOverride}&rdquo;
+              </span>
+              ?
+            </>
+          }
+          message="This overrides the status immediately and does not save anything currently typed in the Entrance Exam section above."
           onConfirm={handleConfirmed}
           onCancel={() => setPendingOverride(null)}
+        />
+      )}
+      {pendingClearDistribution && (
+        <ConfirmActionModal
+          eyebrow="Confirm Clear"
+          title={
+            <>
+              Clear the stored Distribution Status for{' '}
+              <span className="font-bold text-ccc-navy">{row.applicant_name || 'this applicant'}</span>?
+            </>
+          }
+          message="Resets it back to Not Applicable. This does not change their Scholar Status, and is safe to do any time (mainly for cleaning up test data or fixing a mistaken click)."
+          onConfirm={handleClearDistributionConfirmed}
+          onCancel={() => setPendingClearDistribution(false)}
         />
       )}
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1042,13 +1075,40 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           (Appendix D: Registrar -> Medical or Admissions -> enrollment). The
           "statement" itself is the audit_log trail each button click writes. */}
       <div className="rounded-xl border border-ccc-border p-3.5 space-y-2.5">
-        <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Distribution Status
-        </p>
-        {!canDistribute ? (
-          <p className="text-[11px] text-ccc-muted">
-            Not applicable yet -- becomes available once this applicant is a Passer or Qualified (Probationary).
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
+            Distribution Status
           </p>
+          {/* Clear button -- Sept 21, added after live testing found no way
+              to reset a leftover distribution_status once Scholar Status no
+              longer qualifies (e.g. an exam result got reset for retesting).
+              Shown whenever there's something to clear, whether or not the
+              stepper itself is currently visible. Data-hygiene only -- see
+              the comment above hasStaleDistribution. */}
+          {row.distribution_status && row.distribution_status !== 'not_applicable' && (
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => setPendingClearDistribution(true)}
+              className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-ccc-border text-ccc-muted hover:text-ccc-navy hover:bg-ccc-off disabled:opacity-50"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {hasStaleDistribution && (
+          <div className="rounded-lg border border-ccc-orange/40 bg-orange-50 px-3 py-2 text-[11px] text-ccc-orange">
+            This applicant&rsquo;s Scholar Status no longer qualifies for distribution tracking, but a stored value
+            (&ldquo;{DISTRIBUTION_STATUS_STEPS.find(([k]) => k === row.distribution_status)?.[1] || row.distribution_status}&rdquo;)
+            is still on file from before. Use Clear above if this should be reset.
+          </div>
+        )}
+        {!canDistribute ? (
+          !hasStaleDistribution && (
+            <p className="text-[11px] text-ccc-muted">
+              Not applicable yet -- becomes available once this applicant is a Passer or Qualified (Probationary).
+            </p>
+          )
         ) : (
           <div className="flex flex-wrap gap-1.5">
             {DISTRIBUTION_STATUS_STEPS.map(([key, label], i) => {
