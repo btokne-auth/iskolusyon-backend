@@ -759,6 +759,12 @@ function ScholarStatusBadge({ status }) {
 // accordions) since these three fields are read together far more than any
 // one of them is read alone -- an admin deciding a scholar status wants the
 // score right there, not behind another click.
+const SCHOLAR_STATUS_OVERRIDE_LABELS = {
+  qualified_probationary: 'Qualified (Probationary)',
+  disqualified: 'Disqualified',
+  forfeited: 'Forfeited',
+}
+
 function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution, busy }) {
   const [examScore, setExamScore] = useState(row.exam_score ?? '')
   const [examResult, setExamResult] = useState(row.exam_result || '')
@@ -768,6 +774,29 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
 
   const canDistribute = row.scholar_status === 'passer' || row.scholar_status === 'qualified_probationary'
   const currentStepIndex = DISTRIBUTION_STATUS_STEPS.findIndex(([key]) => key === row.distribution_status)
+
+  // The exam form and the manual override buttons below are two completely
+  // separate write paths (exam form only saves on "Save & Verify"; override
+  // buttons fire immediately) -- this compares the two so the UI can warn
+  // before an admin accidentally overwrites an unsaved exam entry with an
+  // unrelated override click. Real incident this fixes: entering "Passed"
+  // in the exam form, not saving it, then clicking Forfeit below expecting
+  // it to somehow combine -- Forfeit doesn't know about the unsaved form,
+  // so the "Passed" entry was silently lost. See Sept 21 session notes.
+  const hasUnsavedExamChanges =
+    String(examScore ?? '') !== String(row.exam_score ?? '') ||
+    (examResult || '') !== (row.exam_result || '') ||
+    (examDate || '') !== (row.exam_date || '')
+
+  const confirmOverride = (targetStatus) => {
+    const label = SCHOLAR_STATUS_OVERRIDE_LABELS[targetStatus] || targetStatus
+    const ok = window.confirm(
+      `Set ${row.applicant_name || 'this applicant'}'s Scholar Status to "${label}"?\n\n` +
+      'This overrides the status immediately and does not save anything currently typed in the Entrance Exam section above.'
+    )
+    if (!ok) return
+    onSetScholarStatus(row.id, targetStatus, statusReason)
+  }
 
   return (
     <div className="rounded-2xl border border-ccc-border bg-white shadow-sm p-5 space-y-4">
@@ -787,9 +816,14 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
 
       {/* Exam Score Entry and Verification */}
       <div className="rounded-xl border border-ccc-border bg-ccc-off/40 p-3.5 space-y-2.5">
-        <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Entrance Exam
-        </p>
+        <div>
+          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
+            Step 1 · Entrance Exam
+          </p>
+          <p className="text-[10.5px] text-ccc-muted">
+            Nothing here is saved until you click Save &amp; Verify. Saving auto-sets Scholar Status below (Passed &rarr; Passer, Failed &rarr; Waitlisted, Absent &rarr; Forfeited).
+          </p>
+        </div>
         <div className="flex flex-wrap items-end gap-2.5">
           <div>
             <label className="text-[10px] text-ccc-muted block mb-1">Score</label>
@@ -842,11 +876,30 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
 
       {/* Disqualification/Forfeiture Handling -- manual escape hatch for the
           two statuses the exam result alone can't decide (see matching.js
-          deriveScholarStatus). */}
-      <div className="rounded-xl border border-ccc-border p-3.5 space-y-2.5">
-        <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Scholar Status
-        </p>
+          deriveScholarStatus). Redesigned Sept 21 after live testing showed
+          an admin could type "Passed" into the exam form above, forget to
+          click Save & Verify, then click a button here expecting it to
+          somehow combine with the unsaved exam entry -- it doesn't, these
+          are two independent write paths. Now: clearly labeled Step 2,
+          visually set apart (orange-tinted, not the neutral card the exam
+          section uses), a live warning when the exam form above has
+          unsaved edits, and a confirm prompt before any override fires. */}
+      <div className="rounded-xl border border-ccc-orange/30 bg-orange-50/40 p-3.5 space-y-2.5">
+        <div>
+          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
+            Step 2 · Manual Override
+          </p>
+          <p className="text-[10.5px] text-ccc-muted">
+            Only for a real judgment call the exam result itself doesn&rsquo;t decide (Appendix D: a probationary contract, or a
+            later disqualification/forfeiture reason). Fires immediately &mdash; independent of Step 1 above.
+          </p>
+        </div>
+        {hasUnsavedExamChanges && (
+          <div className="rounded-lg border border-ccc-orange/50 bg-orange-100 px-3 py-2 text-[11px] font-semibold text-ccc-orange">
+            You have unsaved changes in the Entrance Exam section above. Clicking a button below will NOT save those &mdash;
+            save Step 1 first if you meant to record an exam result.
+          </div>
+        )}
         <div className="flex flex-wrap items-end gap-2.5">
           <div className="flex-1 min-w-[180px]">
             <label className="text-[10px] text-ccc-muted block mb-1">Reason / note (optional)</label>
@@ -859,15 +912,15 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
             />
           </div>
           <div className="flex flex-wrap gap-1.5">
-            <button type="button" disabled={isBusy} onClick={() => onSetScholarStatus(row.id, 'qualified_probationary', statusReason)}
+            <button type="button" disabled={isBusy} onClick={() => confirmOverride('qualified_probationary')}
               className="text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-ccc-gold/50 text-ccc-navy hover:bg-ccc-gold/10 disabled:opacity-50">
               Qualified (Probationary)
             </button>
-            <button type="button" disabled={isBusy} onClick={() => onSetScholarStatus(row.id, 'disqualified', statusReason)}
+            <button type="button" disabled={isBusy} onClick={() => confirmOverride('disqualified')}
               className="text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-ccc-red/40 text-ccc-red hover:bg-red-50 disabled:opacity-50">
               Disqualify
             </button>
-            <button type="button" disabled={isBusy} onClick={() => onSetScholarStatus(row.id, 'forfeited', statusReason)}
+            <button type="button" disabled={isBusy} onClick={() => confirmOverride('forfeited')}
               className="text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-ccc-red/40 text-ccc-red hover:bg-red-50 disabled:opacity-50">
               Forfeit
             </button>
