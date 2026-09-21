@@ -765,11 +765,59 @@ const SCHOLAR_STATUS_OVERRIDE_LABELS = {
   forfeited: 'Forfeited',
 }
 
+// In-app confirm modal, replacing window.confirm() -- Sept 21 follow-up.
+// The native browser dialog ("localhost:3000 says...") reads as generic
+// browser chrome, easy to dismiss on reflex without reading it. This is an
+// actual overlay in the app's own CCC styling, so it can't be mistaken for
+// a routine popup.
+function ConfirmOverrideModal({ applicantName, targetLabel, onConfirm, onCancel }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white shadow-xl border border-ccc-border overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 pt-5 pb-4 border-b border-ccc-border">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-ccc-orange mb-1">Confirm Override</p>
+          <p className="text-sm text-ccc-text">
+            Set <span className="font-bold text-ccc-navy">{applicantName || 'this applicant'}</span>&rsquo;s Scholar
+            Status to <span className="font-bold text-ccc-navy">&ldquo;{targetLabel}&rdquo;</span>?
+          </p>
+          <p className="text-[11px] text-ccc-muted mt-2">
+            This overrides the status immediately and does not save anything currently typed in the Entrance Exam
+            section above.
+          </p>
+        </div>
+        <div className="flex gap-2 px-5 py-3.5 bg-ccc-off/50">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 text-xs font-bold px-3.5 py-2.5 rounded-lg border border-ccc-border bg-white text-ccc-navy hover:bg-ccc-off"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="flex-1 text-xs font-bold px-3.5 py-2.5 rounded-lg bg-ccc-navy text-white hover:bg-ccc-blue"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution, busy }) {
   const [examScore, setExamScore] = useState(row.exam_score ?? '')
   const [examResult, setExamResult] = useState(row.exam_result || '')
   const [examDate, setExamDate] = useState(row.exam_date || '')
   const [statusReason, setStatusReason] = useState('')
+  const [pendingOverride, setPendingOverride] = useState(null) // targetStatus string, or null
   const isBusy = busy === row.id
 
   const canDistribute = row.scholar_status === 'passer' || row.scholar_status === 'qualified_probationary'
@@ -788,18 +836,22 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
     (examResult || '') !== (row.exam_result || '') ||
     (examDate || '') !== (row.exam_date || '')
 
-  const confirmOverride = (targetStatus) => {
-    const label = SCHOLAR_STATUS_OVERRIDE_LABELS[targetStatus] || targetStatus
-    const ok = window.confirm(
-      `Set ${row.applicant_name || 'this applicant'}'s Scholar Status to "${label}"?\n\n` +
-      'This overrides the status immediately and does not save anything currently typed in the Entrance Exam section above.'
-    )
-    if (!ok) return
-    onSetScholarStatus(row.id, targetStatus, statusReason)
+  const confirmOverride = (targetStatus) => setPendingOverride(targetStatus)
+  const handleConfirmed = () => {
+    onSetScholarStatus(row.id, pendingOverride, statusReason)
+    setPendingOverride(null)
   }
 
   return (
     <div className="rounded-2xl border border-ccc-border bg-white shadow-sm p-5 space-y-4">
+      {pendingOverride && (
+        <ConfirmOverrideModal
+          applicantName={row.applicant_name}
+          targetLabel={SCHOLAR_STATUS_OVERRIDE_LABELS[pendingOverride] || pendingOverride}
+          onConfirm={handleConfirmed}
+          onCancel={() => setPendingOverride(null)}
+        />
+      )}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <p className="text-sm font-semibold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
