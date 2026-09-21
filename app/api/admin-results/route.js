@@ -77,7 +77,14 @@ export async function PATCH(request) {
 
     if (field === 'exam') {
       const { examScore, examResult, examDate } = body
-      if (examResult != null && !EXAM_RESULT_VALUES.has(examResult)) {
+      // Sept 21 fix: the Result dropdown's blank option ("Not yet
+      // recorded") sends an empty string, not null/undefined -- the old
+      // `examResult != null` check treated '' as a real, unrecognized
+      // value and rejected every attempt to clear a result back to blank
+      // ("Unknown exam result value."). A plain truthy check lets '' (and
+      // null/undefined) through as "no result", while still rejecting an
+      // actual garbage string.
+      if (examResult && !EXAM_RESULT_VALUES.has(examResult)) {
         return NextResponse.json({ error: 'Unknown exam result value.' }, { status: 400 })
       }
       const score = examScore === '' || examScore == null ? null : Number(examScore)
