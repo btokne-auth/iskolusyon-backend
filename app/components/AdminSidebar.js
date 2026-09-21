@@ -20,6 +20,18 @@ const NAV_GROUPS = [
     section: 'Communications',
     items: [{ key: 'communications', label: 'Announcements' }],
   },
+  // Applicant Information & Results + Statistical Data & Reporting --
+  // Ivy's former modules, built Sept 21 2026 (see ISKOLUSYON_HANDOFF.md §2,
+  // items 8-9). Not gated behind Super Admin -- nothing in the Roles PDF
+  // ties either module to that role, same as Scholarship Matching &
+  // Filtering living on the plain Dashboard.
+  {
+    section: 'Results & Reporting',
+    items: [
+      { key: 'results', label: 'Applicant Results' },
+      { key: 'analytics', label: 'Statistics' },
+    ],
+  },
 ]
 
 const SUPER_ADMIN_GROUP = {

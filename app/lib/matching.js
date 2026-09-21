@@ -27,17 +27,15 @@
 //     least 26 units passed, GWA of 2.25 or better (numerically <= 2.25 —
 //     lower is better under PH collegiate grading).
 //
-// DELIBERATELY NOT ENCODED YET (real gaps, not oversights):
-//   - Per-program entrance exam passing grade (Appendix J Sec. VI table —
-//     BSA 80%, BSCS 85%, BSIT 80%, etc.). There is no entrance exam score
-//     anywhere in this system yet — that data belongs to the still-unbuilt
-//     Applicant Information & Results module (handoff §2, item 8). Until
-//     that module exists and actually records a score, this can only ever
-//     be "pending" — encoding fake thresholds against data that doesn't
-//     exist would just be decorative, the same mistake application_number
-//     used to be before Sept 20's fix. PROGRAM_PASSING_GRADES below is kept
-//     as a straight transcription of Appendix J for that future module to
-//     import, not used for any decision here.
+// UPDATE Sept 21 2026: the Applicant Information & Results module now
+// exists (see the bottom of this file -- getExamThreshold/suggestExamResult/
+// deriveScholarStatus) and uses PROGRAM_PASSING_GRADES for real. It is
+// still NOT wired into computeEligibility() above -- eligibility (this
+// function) and post-exam scholar status (the functions below) stay two
+// separate concerns, matching how CCC itself treats them as sequential, not
+// merged, steps.
+//
+// DELIBERATELY NOT ENCODED (real gaps, not oversights):
 //   - BSEd Math/Science SHS-grade rule (Appendix J Sec. VI.a: below-85 in
 //     ALL math/science SHS subjects across all programs -> BSEd Math/
 //     Science programs rejected). Needs per-subject SHS grades, which the
@@ -189,3 +187,94 @@ export function computeEligibility(row, uploadedTypes) {
 
   return { status, reasons }
 }
+
+// ---------------------------------------------------------------------------
+// Applicant Information & Results Module (Sept 21 2026)
+//
+// Ivy's former module (Roles PDF: "Individual Applicant Profile View, Exam
+// Score Entry and Verification, Distribution Status Tracking and Statement
+// of Subsequent Actions, Disqualification/Forfeiture Handling"). This is
+// what PROGRAM_PASSING_GRADES above was transcribed for back on Sept 20 --
+// it was flagged then as "not used yet, for this future module to import",
+// and this is that import. See docs/migrations/2026-09-21-applicant-results.sql
+// for the schema and its Appendix D grounding notes (same citations apply
+// here, not repeated in full).
+
+// A program passing grade of `null` means Appendix J itself hasn't set one
+// yet (Social Work / Entrepreneurship, pending their own CHED application) --
+// distinct from "no score entered", which is just `examScore == null`.
+export function getExamThreshold(programChoice) {
+  if (!programChoice) return null
+  const grade = PROGRAM_PASSING_GRADES[programChoice]
+  return typeof grade === 'number' ? grade : null
+}
+
+// A suggestion only, shown alongside the admin's own explicit exam_result
+// selection -- never applied automatically. This mirrors the eligibility
+// engine's own pattern (compute a real answer where the data supports one,
+// but leave the final call to a human where CCC's actual process says a
+// human makes it). The client interview is explicit that the exam is
+// evaluated as Passing Score or Passed (Appendix D: "Walang minimum grade.
+// It must be Passing Score or Passed in the entrance exam.") -- the numeric
+// PROGRAM_PASSING_GRADES table is Appendix J's own per-program cutoff for
+// what counts as passing, not a separate rule.
+export function suggestExamResult(examScore, programChoice) {
+  const threshold = getExamThreshold(programChoice)
+  if (examScore == null || examScore === '' || threshold == null) {
+    return { suggested: null, threshold }
+  }
+  const score = Number(examScore)
+  if (Number.isNaN(score)) return { suggested: null, threshold }
+  return { suggested: score >= threshold ? 'passed' : 'failed', threshold }
+}
+
+// Derives scholar_status from an admin-entered exam_result. Grounded in the
+// client interview (Appendix D):
+//   - absent  -> 'forfeited' ("Mafo-forfeit yung application nila kapag
+//                hindi sila dumalo")
+//   - passed  -> 'passer'
+//   - failed  -> 'waitlisted_probationary' ("ang gagawin natin ay waitlisted
+//                with probationary... base sa score ng entrance exam")
+// 'qualified_probationary' and 'disqualified' are deliberately NOT derived
+// here -- both are real admin judgment calls per Appendix D ("Qualified but
+// probationary... may contract na ibibigay"; disqualification follows a
+// separate later event, failing a subject under that contract, not the
+// entrance exam itself), so they're only ever set through the manual
+// scholar-status override, same escape-hatch pattern as eligibility_override.
+export function deriveScholarStatus(examResult) {
+  if (examResult === 'absent') {
+    return { status: 'forfeited', reason: 'Did not attend the scheduled entrance examination.' }
+  }
+  if (examResult === 'passed') {
+    return { status: 'passer', reason: null }
+  }
+  if (examResult === 'failed') {
+    return { status: 'waitlisted_probationary', reason: null }
+  }
+  return { status: 'pending_exam', reason: null }
+}
+
+export const SCHOLAR_STATUS_VALUES = new Set([
+  'pending_exam',
+  'passer',
+  'waitlisted_probationary',
+  'qualified_probationary',
+  'disqualified',
+  'forfeited',
+])
+
+// Endorsement pipeline after passing, per Appendix D: "ipopadala namin sa
+// registrar, tapos ie-endorse sila either sa medical o admissions para sa
+// enrollment." Modeled as an ordered sequence an admin advances manually
+// (not automated -- CCC's own process routes to either Medical OR
+// Admissions depending on a human decision, not a rule this system can
+// evaluate) rather than a strict linear state machine, since which of the
+// two endorsement branches applies is itself the human call.
+export const DISTRIBUTION_STATUS_VALUES = new Set([
+  'not_applicable',
+  'pending_endorsement',
+  'endorsed_registrar',
+  'endorsed_medical',
+  'endorsed_admissions',
+  'enrollment_complete',
+])

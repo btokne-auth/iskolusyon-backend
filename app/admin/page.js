@@ -722,6 +722,509 @@ function DashboardPanel({
   )
 }
 
+// ---------- Applicant Information & Results panel (Sept 21 2026) ----------
+// Ivy's former module. Self-fetching, same pattern as CommunicationsPanel
+// below rather than threaded through the top-level component's state, since
+// nothing else on the page needs this data. See app/api/admin-results/route.js
+// and app/lib/matching.js for the Appendix D grounding behind every status.
+
+const SCHOLAR_STATUS_META = {
+  pending_exam: { label: 'Pending Exam', className: 'bg-blue-50 text-ccc-blue border-ccc-blue/30' },
+  passer: { label: 'Passer', className: 'bg-green-50 text-ccc-green border-ccc-green/30' },
+  waitlisted_probationary: { label: 'Waitlisted (Probationary)', className: 'bg-ccc-gold/10 text-ccc-navy border-ccc-gold/50' },
+  qualified_probationary: { label: 'Qualified (Probationary)', className: 'bg-ccc-gold/10 text-ccc-navy border-ccc-gold/50' },
+  disqualified: { label: 'Disqualified', className: 'bg-red-50 text-ccc-red border-ccc-red/30' },
+  forfeited: { label: 'Forfeited', className: 'bg-red-50 text-ccc-red border-ccc-red/30' },
+}
+
+const DISTRIBUTION_STATUS_STEPS = [
+  ['pending_endorsement', 'Pending Endorsement'],
+  ['endorsed_registrar', 'Endorsed to Registrar'],
+  ['endorsed_medical', 'Endorsed to Medical'],
+  ['endorsed_admissions', 'Endorsed to Admissions'],
+  ['enrollment_complete', 'Enrollment Complete'],
+]
+
+function ScholarStatusBadge({ status }) {
+  const meta = SCHOLAR_STATUS_META[status] || SCHOLAR_STATUS_META.pending_exam
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.className}`}>
+      {meta.label}
+    </span>
+  )
+}
+
+// One applicant's exam entry + scholar status + distribution status. Kept
+// as one card (not split into three separate ApplicantGroup-style
+// accordions) since these three fields are read together far more than any
+// one of them is read alone -- an admin deciding a scholar status wants the
+// score right there, not behind another click.
+function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution, busy }) {
+  const [examScore, setExamScore] = useState(row.exam_score ?? '')
+  const [examResult, setExamResult] = useState(row.exam_result || '')
+  const [examDate, setExamDate] = useState(row.exam_date || '')
+  const [statusReason, setStatusReason] = useState('')
+  const isBusy = busy === row.id
+
+  const canDistribute = row.scholar_status === 'passer' || row.scholar_status === 'qualified_probationary'
+  const currentStepIndex = DISTRIBUTION_STATUS_STEPS.findIndex(([key]) => key === row.distribution_status)
+
+  return (
+    <div className="rounded-2xl border border-ccc-border bg-white shadow-sm p-5 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <p className="text-sm font-semibold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+            {row.applicant_name || 'Unknown applicant'}
+          </p>
+          <p className="text-[11px] text-ccc-muted">
+            {row.applicant_email || 'No email on file'}
+            {row.application_number && ` · ${row.application_number}`}
+            {row.program_choice_1 && ` · ${row.program_choice_1}`}
+          </p>
+        </div>
+        <ScholarStatusBadge status={row.scholar_status || 'pending_exam'} />
+      </div>
+
+      {/* Exam Score Entry and Verification */}
+      <div className="rounded-xl border border-ccc-border bg-ccc-off/40 p-3.5 space-y-2.5">
+        <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          Entrance Exam
+        </p>
+        <div className="flex flex-wrap items-end gap-2.5">
+          <div>
+            <label className="text-[10px] text-ccc-muted block mb-1">Score</label>
+            <input
+              type="number"
+              value={examScore}
+              onChange={(e) => setExamScore(e.target.value)}
+              className="w-24 rounded-lg border border-ccc-border px-2.5 py-1.5 text-sm"
+              placeholder="e.g. 82"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-ccc-muted block mb-1">Date</label>
+            <input
+              type="date"
+              value={examDate || ''}
+              onChange={(e) => setExamDate(e.target.value)}
+              className="rounded-lg border border-ccc-border px-2.5 py-1.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-ccc-muted block mb-1">Result</label>
+            <select
+              value={examResult}
+              onChange={(e) => setExamResult(e.target.value)}
+              className="rounded-lg border border-ccc-border px-2.5 py-1.5 text-sm"
+            >
+              <option value="">Not yet recorded</option>
+              <option value="passed">Passed</option>
+              <option value="failed">Failed</option>
+              <option value="absent">Absent (no-show)</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => onSaveExam(row.id, { examScore, examResult, examDate })}
+            className="text-xs font-bold px-3.5 py-2 rounded-lg bg-ccc-navy text-white hover:bg-ccc-blue disabled:opacity-50"
+          >
+            {isBusy ? 'Saving…' : 'Save & Verify'}
+          </button>
+        </div>
+        {row.exam_verified_by && (
+          <p className="text-[10px] text-ccc-muted">
+            Last verified by {row.exam_verified_by}
+            {row.exam_verified_at ? ` on ${new Date(row.exam_verified_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
+          </p>
+        )}
+      </div>
+
+      {/* Disqualification/Forfeiture Handling -- manual escape hatch for the
+          two statuses the exam result alone can't decide (see matching.js
+          deriveScholarStatus). */}
+      <div className="rounded-xl border border-ccc-border p-3.5 space-y-2.5">
+        <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          Scholar Status
+        </p>
+        <div className="flex flex-wrap items-end gap-2.5">
+          <div className="flex-1 min-w-[180px]">
+            <label className="text-[10px] text-ccc-muted block mb-1">Reason / note (optional)</label>
+            <input
+              type="text"
+              value={statusReason}
+              onChange={(e) => setStatusReason(e.target.value)}
+              placeholder="e.g. failed a subject under probationary contract"
+              className="w-full rounded-lg border border-ccc-border px-2.5 py-1.5 text-sm"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button type="button" disabled={isBusy} onClick={() => onSetScholarStatus(row.id, 'qualified_probationary', statusReason)}
+              className="text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-ccc-gold/50 text-ccc-navy hover:bg-ccc-gold/10 disabled:opacity-50">
+              Qualified (Probationary)
+            </button>
+            <button type="button" disabled={isBusy} onClick={() => onSetScholarStatus(row.id, 'disqualified', statusReason)}
+              className="text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-ccc-red/40 text-ccc-red hover:bg-red-50 disabled:opacity-50">
+              Disqualify
+            </button>
+            <button type="button" disabled={isBusy} onClick={() => onSetScholarStatus(row.id, 'forfeited', statusReason)}
+              className="text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-ccc-red/40 text-ccc-red hover:bg-red-50 disabled:opacity-50">
+              Forfeit
+            </button>
+          </div>
+        </div>
+        {row.scholar_status_reason && (
+          <p className="text-[11px] text-ccc-muted">Note: {row.scholar_status_reason}</p>
+        )}
+      </div>
+
+      {/* Distribution Status Tracking and Statement of Subsequent Actions --
+          only meaningful once a passer/qualified-probationary status exists
+          (Appendix D: Registrar -> Medical or Admissions -> enrollment). The
+          "statement" itself is the audit_log trail each button click writes. */}
+      <div className="rounded-xl border border-ccc-border p-3.5 space-y-2.5">
+        <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          Distribution Status
+        </p>
+        {!canDistribute ? (
+          <p className="text-[11px] text-ccc-muted">
+            Not applicable yet -- becomes available once this applicant is a Passer or Qualified (Probationary).
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {DISTRIBUTION_STATUS_STEPS.map(([key, label], i) => {
+              const isCurrent = row.distribution_status === key
+              const isPast = currentStepIndex >= 0 && i < currentStepIndex
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => onAdvanceDistribution(row.id, key)}
+                  className={`text-[10px] font-bold px-2.5 py-1.5 rounded-full border disabled:opacity-50 ${
+                    isCurrent
+                      ? 'bg-ccc-navy text-white border-ccc-navy'
+                      : isPast
+                      ? 'bg-ccc-off text-ccc-muted border-ccc-border'
+                      : 'border-ccc-blue/40 text-ccc-blue hover:bg-blue-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        {row.distribution_status_updated_by && row.distribution_status !== 'not_applicable' && (
+          <p className="text-[10px] text-ccc-muted">
+            Last updated by {row.distribution_status_updated_by}
+            {row.distribution_status_updated_at ? ` on ${new Date(row.distribution_status_updated_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ResultsPanel() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [busy, setBusy] = useState(null)
+
+  const load = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin-results')
+      const data = await res.json()
+      if (data.success) setRows(data.applications)
+      else setError(data.error || 'Failed to load applicant results.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  const runPatch = async (payload) => {
+    setBusy(payload.id)
+    setError('')
+    try {
+      const res = await fetch('/api/admin-results', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Update failed.')
+        return
+      }
+      await load()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleSaveExam = (id, { examScore, examResult, examDate }) =>
+    runPatch({ id, field: 'exam', examScore, examResult, examDate })
+  const handleSetScholarStatus = (id, scholarStatus, reason) =>
+    runPatch({ id, field: 'scholar_status', scholarStatus, reason })
+  const handleAdvanceDistribution = (id, distributionStatus) =>
+    runPatch({ id, field: 'distribution_status', distributionStatus })
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    if (!term) return rows
+    return rows.filter((r) => `${r.applicant_name || ''} ${r.applicant_email || ''} ${r.application_number || ''}`.toLowerCase().includes(term))
+  }, [rows, search])
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          Applicant Results
+        </h1>
+        <p className="text-xs text-ccc-muted mt-0.5">
+          Individual applicant profile view for exam score entry, scholar status, and post-passing distribution
+          tracking. Only applicants who have submitted an application (and so have an eligibility profile) appear here.
+        </p>
+      </div>
+
+      <div className="relative mb-5 max-w-md">
+        <IconSearch className="w-4 h-4 text-ccc-muted absolute left-3 top-1/2 -translate-y-1/2" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by applicant name, email, or application number..."
+          className="w-full rounded-lg border border-ccc-border bg-white pl-9 pr-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+        />
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
+      )}
+
+      {loading ? (
+        <div className="text-center py-20 text-ccc-muted text-sm">Loading applicants...</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-20 text-ccc-muted text-sm">
+          {rows.length === 0 ? 'No applications on file yet.' : 'No applicants match your search.'}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filtered.map((row) => (
+            <ResultRow
+              key={row.id}
+              row={row}
+              onSaveExam={handleSaveExam}
+              onSetScholarStatus={handleSetScholarStatus}
+              onAdvanceDistribution={handleAdvanceDistribution}
+              busy={busy}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------- Statistical Data & Reporting panel (Sept 21 2026) ----------
+// Ivy's other former module. Built to the two Roles-PDF bullets that are
+// actually in scope for this capstone version -- Demographic Distribution
+// Charts and the ongoing/qualified/not-qualified/waitlisted/appealed status
+// analytics. Allowance Distribution Monitoring and Exportable PDF/CSV
+// Reports for LGU Compliance are NOT built here: the manuscript's own
+// Chapter 1 (Scope and Delimitations) states "full allowance distribution
+// monitoring and exportable LGU compliance reports remain to-follow
+// modules" -- confirmed by direct text search of the manuscript, not
+// assumption. Building those now would be scope creep past what the
+// document being defended actually commits to.
+//
+// "Department" and "Year Level" (also named in the Roles PDF bullet) have
+// no backing field anywhere in this system -- Educational Background only
+// collects a program choice and an Applying As value (Freshman/Transferee/
+// Old Curriculum-ALS), never a department or literal year level. Rather
+// than invent a mapping with no source, this panel charts Program (the
+// closest real equivalent of "Course") and Applying As (the closest real
+// proxy this system has for "Year Level" -- most new applicants enter at
+// 1st year, but transferees don't), and says so on the card instead of
+// silently pretending the other two exist.
+
+function BarRow({ label, count, total, colorClass }) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="text-ccc-text font-medium truncate pr-2">{label}</span>
+        <span className="text-ccc-muted shrink-0">{count} ({pct}%)</span>
+      </div>
+      <div className="h-2 rounded-full bg-ccc-off overflow-hidden">
+        <div className={`h-full rounded-full ${colorClass || 'bg-ccc-blue'}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function AnalyticsPanel() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const [eligRes, resultsRes] = await Promise.all([
+          fetch('/api/admin-eligibility'),
+          fetch('/api/admin-results'),
+        ])
+        const eligData = await eligRes.json()
+        const resultsData = await resultsRes.json()
+        if (!eligData.success) throw new Error(eligData.error || 'Failed to load eligibility data.')
+        if (!resultsData.success) throw new Error(resultsData.error || 'Failed to load results data.')
+        // Merge by id -- both endpoints read the same `applications` table,
+        // just different column subsets, so this is a straight join on the
+        // one shared key rather than another name-based match.
+        const byId = new Map(eligData.applications.map((r) => [r.id, r]))
+        const merged = resultsData.applications.map((r) => ({ ...byId.get(r.id), ...r }))
+        setRows(merged)
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  const stats = useMemo(() => {
+    const total = rows.length
+    const byProgram = new Map()
+    const byApplyingAs = new Map()
+    const eligibilityCounts = { qualified: 0, waitlisted: 0, not_qualified: 0, pending_exam: 0, incomplete: 0 }
+    const scholarCounts = { pending_exam: 0, passer: 0, waitlisted_probationary: 0, qualified_probationary: 0, disqualified: 0, forfeited: 0 }
+
+    for (const r of rows) {
+      const program = r.program_choice_1 || 'Not yet chosen'
+      byProgram.set(program, (byProgram.get(program) || 0) + 1)
+
+      const applyingAs = r.applying_as || 'Not yet specified'
+      byApplyingAs.set(applyingAs, (byApplyingAs.get(applyingAs) || 0) + 1)
+
+      const elig = r.eligibility_override || r.eligibility_status || 'incomplete'
+      if (elig in eligibilityCounts) eligibilityCounts[elig] += 1
+
+      const scholar = r.scholar_status || 'pending_exam'
+      if (scholar in scholarCounts) scholarCounts[scholar] += 1
+    }
+
+    return {
+      total,
+      byProgram: Array.from(byProgram.entries()).sort((a, b) => b[1] - a[1]),
+      byApplyingAs: Array.from(byApplyingAs.entries()).sort((a, b) => b[1] - a[1]),
+      eligibilityCounts,
+      scholarCounts,
+    }
+  }, [rows])
+
+  if (loading) return <div className="text-center py-20 text-ccc-muted text-sm">Loading statistics...</div>
+  if (error) return <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          Statistics
+        </h1>
+        <p className="text-xs text-ccc-muted mt-0.5">
+          {stats.total} application{stats.total === 1 ? '' : 's'} on file. Allowance monitoring and exportable
+          LGU compliance reports aren&rsquo;t built here -- the manuscript itself marks both as to-follow modules,
+          out of scope for this version.
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-5">
+        <div className="rounded-2xl border border-ccc-border bg-white p-5 space-y-3">
+          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
+            By Program (Course)
+          </p>
+          {stats.byProgram.length === 0 ? (
+            <p className="text-[11px] text-ccc-muted">No data yet.</p>
+          ) : (
+            <div className="space-y-2.5">
+              {stats.byProgram.map(([label, count]) => (
+                <BarRow key={label} label={label} count={count} total={stats.total} colorClass="bg-ccc-blue" />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-ccc-border bg-white p-5 space-y-3">
+          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
+            By Applying As (nearest proxy for Year Level)
+          </p>
+          {stats.byApplyingAs.length === 0 ? (
+            <p className="text-[11px] text-ccc-muted">No data yet.</p>
+          ) : (
+            <div className="space-y-2.5">
+              {stats.byApplyingAs.map(([label, count]) => (
+                <BarRow key={label} label={label} count={count} total={stats.total} colorClass="bg-ccc-gold" />
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] text-ccc-muted pt-1 border-t border-ccc-border">
+            No dedicated &ldquo;Department&rdquo; or literal &ldquo;Year Level&rdquo; field exists anywhere in the
+            system yet, so those two aren&rsquo;t charted here rather than invented from a guess.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-ccc-border bg-white p-5 space-y-3">
+          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
+            Ongoing / Qualified / Not Qualified / Waitlisted (Scholarship Matching)
+          </p>
+          <div className="space-y-2.5">
+            <BarRow label="Qualified" count={stats.eligibilityCounts.qualified} total={stats.total} colorClass="bg-ccc-green" />
+            <BarRow label="Waitlisted" count={stats.eligibilityCounts.waitlisted} total={stats.total} colorClass="bg-ccc-gold" />
+            <BarRow label="Not Qualified" count={stats.eligibilityCounts.not_qualified} total={stats.total} colorClass="bg-ccc-red" />
+            <BarRow label="Pending Exam" count={stats.eligibilityCounts.pending_exam} total={stats.total} colorClass="bg-ccc-blue" />
+            <BarRow label="Incomplete (Ongoing)" count={stats.eligibilityCounts.incomplete} total={stats.total} colorClass="bg-ccc-muted" />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-ccc-border bg-white p-5 space-y-3">
+          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
+            Post-Exam Scholar Status
+          </p>
+          <div className="space-y-2.5">
+            <BarRow label="Passer" count={stats.scholarCounts.passer} total={stats.total} colorClass="bg-ccc-green" />
+            <BarRow label="Waitlisted (Probationary)" count={stats.scholarCounts.waitlisted_probationary} total={stats.total} colorClass="bg-ccc-gold" />
+            <BarRow label="Qualified (Probationary)" count={stats.scholarCounts.qualified_probationary} total={stats.total} colorClass="bg-ccc-gold" />
+            <BarRow label="Disqualified" count={stats.scholarCounts.disqualified} total={stats.total} colorClass="bg-ccc-red" />
+            <BarRow label="Forfeited" count={stats.scholarCounts.forfeited} total={stats.total} colorClass="bg-ccc-red" />
+            <BarRow label="Pending Exam" count={stats.scholarCounts.pending_exam} total={stats.total} colorClass="bg-ccc-blue" />
+          </div>
+          <p className="text-[10px] text-ccc-muted pt-1 border-t border-ccc-border">
+            &ldquo;Appeals&rdquo; analytics (per the Roles PDF) aren&rsquo;t charted separately -- the Appeal for
+            Retake/Re-application feature itself is still parked pending an ownership decision (see
+            ISKOLUSYON_HANDOFF.md §5), so there&rsquo;s no data to count yet.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ---------- Communications panel (new, real — post + list) ----------
 
 function CommunicationsPanel() {
@@ -1264,6 +1767,8 @@ function AdminPageInner() {
             />
           )}
           {activePanel === 'communications' && <CommunicationsPanel />}
+          {activePanel === 'results' && <ResultsPanel />}
+          {activePanel === 'analytics' && <AnalyticsPanel />}
           {activePanel === 'admins' && isSuperAdmin && <AdminAccountsPanel />}
           {activePanel === 'system' && isSuperAdmin && <SystemActivityPanel />}
         </div>
