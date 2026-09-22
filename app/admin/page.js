@@ -491,9 +491,22 @@ function EligibilitySection({ row, onOverride, overriding }) {
 // modal-overlay/modal-box markup -- same interaction, not a redesign of
 // what's already a real, working review flow (eligibility override,
 // per-document verify/flag) into her read-only summary layout.
+// The 4 real profile sections (app/page.js, applicant side) -- matches
+// Ivy's mockup's "X of 4 sections done" exactly, using the applicant's
+// actual *_submitted_at columns rather than a fabricated number.
+const PROFILE_SECTIONS = [
+  { key: 'personal_info_submitted_at', label: 'Personal Information' },
+  { key: 'academic_submitted_at', label: 'Educational Background' },
+  { key: 'fam_financial_submitted_at', label: 'Family & Financial Information' },
+  { key: 'health_submitted_at', label: 'Health & Wellness' },
+]
+
 function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibilityRow, onEligibilityOverride, eligibilityOverriding }) {
   const [modalOpen, setModalOpen] = useState(false)
   const flaggedCount = docs.filter((d) => d.needs_review).length
+  const verifiedCount = docs.filter((d) => !d.needs_review).length
+  const sectionsDone = PROFILE_SECTIONS.filter((s) => !!eligibilityRow?.[s.key]).length
+  const profilePct = Math.round((sectionsDone / PROFILE_SECTIONS.length) * 100)
 
   return (
     <>
@@ -546,6 +559,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                     {name || 'Unknown applicant'}
                   </p>
                   <p className="text-[11px] text-ccc-muted truncate">
+                    {eligibilityRow?.application_number ? `${eligibilityRow.application_number} · ` : ''}
                     {email || 'No email on file'} · {docs.length} document{docs.length === 1 ? '' : 's'}
                   </p>
                 </div>
@@ -559,7 +573,29 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                 &#10005;
               </button>
             </div>
+            {/* Mini-summary pair mirroring Ivy's modal's Profile Completion /
+                Documents cards -- real data, not her mockup's numbers: the
+                4 sections are the applicant's actual submitted_at columns,
+                and Documents is a real Verified/Pending split. Her third
+                bucket, "Deficient", isn't a state this system tracks (a
+                document is either needs_review or it isn't), so it's left
+                out rather than faked. */}
+            <div className="mini-summary-grid px-5 pt-4">
+              <div className={`mini-summary ms-profile${sectionsDone === PROFILE_SECTIONS.length ? ' complete' : sectionsDone > 0 ? ' ongoing' : ''}`}>
+                <div className="ms-label">Profile Completion</div>
+                <div className="ms-value">
+                  {sectionsDone} of {PROFILE_SECTIONS.length} sections done ({profilePct}%)
+                </div>
+              </div>
+              <div className="mini-summary ms-docs">
+                <div className="ms-label">Documents</div>
+                <div className="ms-value">
+                  {verifiedCount} Verified · {flaggedCount} Pending Review
+                </div>
+              </div>
+            </div>
             <div className="px-5 pb-5 pt-4 space-y-4 max-h-[75vh] overflow-y-auto">
+              <hr className="modal-divider" style={{ margin: '0 0 4px' }} />
               <EligibilitySection row={eligibilityRow} onOverride={onEligibilityOverride} overriding={eligibilityOverriding} />
               {docs.map((doc) => (
                 <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} />

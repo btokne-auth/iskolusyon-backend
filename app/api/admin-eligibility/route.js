@@ -28,10 +28,16 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
     }
 
+    // personal_info_submitted_at / academic_submitted_at /
+    // fam_financial_submitted_at / health_submitted_at added Sept 22 2026 —
+    // the applicant-side profile's 4 real sections (app/page.js), needed so
+    // the Dashboard's applicant detail modal can show a real "X of 4
+    // sections done" the way Ivy's mockup's Profile Completion mini-summary
+    // does, instead of a fabricated number.
     const { data, error } = await supabase
       .from('applications')
       .select(
-        'id, applicant_name, applicant_email, applying_as, program_choice_1, program_choice_2, application_number, eligibility_status, eligibility_reasons, eligibility_override, eligibility_override_by, eligibility_override_at, updated_at'
+        'id, applicant_name, applicant_email, applying_as, program_choice_1, program_choice_2, application_number, eligibility_status, eligibility_reasons, eligibility_override, eligibility_override_by, eligibility_override_at, updated_at, personal_info_submitted_at, academic_submitted_at, fam_financial_submitted_at, health_submitted_at'
       )
       .order('updated_at', { ascending: false })
 
