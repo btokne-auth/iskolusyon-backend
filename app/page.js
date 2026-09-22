@@ -2332,7 +2332,9 @@ function PortalApp({ accountSession, onLogout }) {
                         <h4>{m.title}</h4>
                         <p>{m.body}</p>
                         <span className="message-date">
-                          {formatWhen(m.created_at)}
+                          {m.created_at
+                            ? new Date(m.created_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+                            : ''}
                           {m.category ? ` · ${m.category}` : ''}
                         </span>
                       </div>
