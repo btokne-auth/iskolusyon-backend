@@ -482,16 +482,25 @@ function EligibilitySection({ row, onOverride, overriding }) {
 }
 
 // One applicant, collapsed by default, with all their documents inside.
-function ApplicantGroup({ name, email, docs, defaultOpen, onOverride, overriding, eligibilityRow, onEligibilityOverride, eligibilityOverriding }) {
-  const [open, setOpen] = useState(!!defaultOpen)
+// Row-in-a-list + click-to-open-detail-modal (Sept 22 2026) -- was an
+// inline-expanding accordion (defaultOpen={i===0} forced the first
+// applicant open on every page load, which read as broken/random rather
+// than deliberate). Matches the click-a-row-to-see-details pattern from
+// Ivy's mockup's applicant-table -> applicantModal, using this app's own
+// existing modal idiom (see ConfirmActionModal above) rather than her raw
+// modal-overlay/modal-box markup -- same interaction, not a redesign of
+// what's already a real, working review flow (eligibility override,
+// per-document verify/flag) into her read-only summary layout.
+function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibilityRow, onEligibilityOverride, eligibilityOverriding }) {
+  const [modalOpen, setModalOpen] = useState(false)
   const flaggedCount = docs.filter((d) => d.needs_review).length
 
   return (
-    <div className="rounded-2xl border border-ccc-border bg-white shadow-sm overflow-hidden">
+    <>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 px-5 py-4 hover:bg-ccc-off transition-colors"
+        onClick={() => setModalOpen(true)}
+        className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors"
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
@@ -514,19 +523,52 @@ function ApplicantGroup({ name, email, docs, defaultOpen, onOverride, overriding
               {flaggedCount} flagged
             </span>
           )}
-          <IconChevronDown className={`w-4 h-4 text-ccc-muted transition-transform ${open ? 'rotate-180' : ''}`} />
+          <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue">View</span>
         </div>
       </button>
 
-      {open && (
-        <div className="px-5 pb-5 space-y-4 border-t border-ccc-border pt-4">
-          <EligibilitySection row={eligibilityRow} onOverride={onEligibilityOverride} overriding={eligibilityOverriding} />
-          {docs.map((doc) => (
-            <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} />
-          ))}
+      {modalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-4 py-8 overflow-y-auto"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl bg-white shadow-xl border border-ccc-border overflow-hidden my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-ccc-border">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
+                  {name ? name.charAt(0).toUpperCase() : '?'}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ccc-navy truncate" style={{ fontFamily: 'var(--font-montserrat)' }}>
+                    {name || 'Unknown applicant'}
+                  </p>
+                  <p className="text-[11px] text-ccc-muted truncate">
+                    {email || 'No email on file'} · {docs.length} document{docs.length === 1 ? '' : 's'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                aria-label="Close"
+                className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-ccc-muted hover:bg-ccc-off hover:text-ccc-navy transition-colors"
+              >
+                &#10005;
+              </button>
+            </div>
+            <div className="px-5 pb-5 pt-4 space-y-4 max-h-[75vh] overflow-y-auto">
+              <EligibilitySection row={eligibilityRow} onOverride={onEligibilityOverride} overriding={eligibilityOverriding} />
+              {docs.map((doc) => (
+                <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} />
+              ))}
+            </div>
+          </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
@@ -902,7 +944,6 @@ function DashboardPanel({
                 name={g.name}
                 email={g.email}
                 docs={g.docs}
-                defaultOpen={i === 0}
                 onOverride={onOverride}
                 overriding={overriding}
                 eligibilityRow={eligibilityByName.get((g.name || '').trim().toLowerCase())}
