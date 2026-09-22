@@ -2822,35 +2822,53 @@ function ActivityLogCard() {
         {unreadCount > 0 && <span className="tag">{unreadCount} unread</span>}
       </div>
 
-      <div className="activity-filter-row">
-        <div className="mfield">
-          <label>Show</label>
-          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-            <option value="all">All</option>
-            {ACTIVITY_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="mfield">
-          <label>Status</label>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="all">All</option>
-            <option value="unread">Unread</option>
-            <option value="read">Read</option>
-          </select>
-        </div>
-        <div className="mfield-actions">
-          <button
-            type="button"
-            onClick={handleMarkAllRead}
-            disabled={markingAllRead || unreadCount === 0}
-            className="text-xs font-bold text-ccc-blue disabled:text-ccc-muted disabled:cursor-not-allowed hover:underline"
-          >
-            {markingAllRead ? 'Marking...' : 'Mark all as read'}
-          </button>
+      {/* The label/select styling for .mfield only applies inside
+          .announce-form (that's how it's scoped in Ivy's original CSS --
+          she built the filter row and the announcement composer as one
+          shared markup block). This isn't a real <form> (nothing here
+          submits), just reusing the class as a styling scope so the
+          dropdowns match the rest of the console instead of rendering as
+          bare unstyled native selects. */}
+      <div className="announce-form">
+        <div className="activity-filter-row">
+          <div className="mfield">
+            <label>Show</label>
+            <select
+              id="activityFeedSelect"
+              className="filter-select-compact"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+            >
+              <option value="all">All</option>
+              {ACTIVITY_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="mfield">
+            <label>Status</label>
+            <select
+              className="filter-select-compact"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All</option>
+              <option value="unread">Unread</option>
+              <option value="read">Read</option>
+            </select>
+          </div>
+          <div className="mfield-actions">
+            <button
+              type="button"
+              onClick={handleMarkAllRead}
+              disabled={markingAllRead || unreadCount === 0}
+              className="text-xs font-bold text-ccc-blue disabled:text-ccc-muted disabled:cursor-not-allowed hover:underline"
+            >
+              {markingAllRead ? 'Marking...' : 'Mark all as read'}
+            </button>
+          </div>
         </div>
       </div>
 
