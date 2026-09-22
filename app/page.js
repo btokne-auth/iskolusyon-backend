@@ -2293,7 +2293,21 @@ function PortalApp({ accountSession, onLogout }) {
                     <path d="M12 16h.01" />
                   </svg>
                   <span>
-                    Showing everything received &mdash; <b>Announcements</b> sent to all applicants (and posted on the guest page), plus <b>Messages</b> sent to you individually or to your applicant category.
+                    {messagesFilter === 'all' && (
+                      <>
+                        Showing everything received &mdash; <b>Announcements</b> sent to all applicants (and posted on the guest page), plus <b>Messages</b> sent to you individually or to your applicant category.
+                      </>
+                    )}
+                    {messagesFilter === 'announcement' && (
+                      <>
+                        Showing <b>Announcements</b> only &mdash; these are sent to all applicants and also posted on the guest (public) page.
+                      </>
+                    )}
+                    {messagesFilter === 'message' && (
+                      <>
+                        Showing <b>Messages</b> only &mdash; these are private, sent to you individually or to your applicant category, and never shown on the guest page.
+                      </>
+                    )}
                   </span>
                 </div>
                 {(() => {
