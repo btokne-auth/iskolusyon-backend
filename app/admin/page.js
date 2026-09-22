@@ -600,26 +600,40 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
             className="w-full max-w-4xl rounded-2xl bg-white shadow-xl border border-ccc-border overflow-hidden my-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-ccc-border">
+            {/* Tinted header band (Sept 22 2026 -- was a flat white bar
+                cramming application number, email and a redundant document
+                count onto one dense "·"-joined line; the count already
+                repeats what the Documents mini-summary card below shows).
+                A soft tint sets this off as a clear title area, the name
+                reads larger/bolder, and the application number is its own
+                badge instead of being run into the email line. */}
+            <div
+              className="flex items-center justify-between gap-3 px-5 py-4 border-b border-ccc-border"
+              style={{ background: 'linear-gradient(135deg, #eef3fd 0%, #ffffff 100%)' }}
+            >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
+                <div className="w-11 h-11 rounded-full bg-ccc-navy flex items-center justify-center text-base font-bold text-white shrink-0">
                   {name ? name.charAt(0).toUpperCase() : '?'}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ccc-navy truncate" style={{ fontFamily: 'var(--font-montserrat)' }}>
+                  <p className="text-base font-bold text-ccc-navy truncate" style={{ fontFamily: 'var(--font-montserrat)' }}>
                     {name || 'Unknown applicant'}
                   </p>
-                  <p className="text-[11px] text-ccc-muted truncate">
-                    {eligibilityRow?.application_number ? `${eligibilityRow.application_number} · ` : ''}
-                    {email || 'No email on file'} · {docs.length} document{docs.length === 1 ? '' : 's'}
-                  </p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {eligibilityRow?.application_number && (
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue bg-white/70 border border-ccc-blue/30 rounded-full px-2 py-0.5 shrink-0">
+                        {eligibilityRow.application_number}
+                      </span>
+                    )}
+                    <span className="text-[11px] text-ccc-muted truncate">{email || 'No email on file'}</span>
+                  </div>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
                 aria-label="Close"
-                className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-ccc-muted hover:bg-ccc-off hover:text-ccc-navy transition-colors"
+                className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-ccc-muted hover:bg-white hover:text-ccc-navy transition-colors"
               >
                 &#10005;
               </button>
