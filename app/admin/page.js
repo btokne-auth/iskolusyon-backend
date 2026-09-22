@@ -533,6 +533,53 @@ function ApplicantGroup({ name, email, docs, defaultOpen, onOverride, overriding
 // ---------- Dashboard panel (document review — the app's existing,
 // already-working feature, unchanged in behavior) ----------
 
+// Stat cards, in the order/labelling Ivy's admin.html mockup uses, mapped
+// onto this app's own real automated eligibility_status values (see
+// app/lib/matching.js) rather than the fully-manual counts her mockup had.
+// "appealed" stays at a real, honest 0 -- the Appeal for Retake/
+// Re-application feature under the Notifications Module isn't built yet
+// (see ISKOLUSYON_HANDOFF.md; Pau confirmed Sept 22 the manuscript's
+// Chapter 1 Scope and Delimitations is authoritative over the Roles PDF's
+// omission, so this is going in, just not in this pass).
+const DASHBOARD_STAT_CARDS = [
+  {
+    key: 'all',
+    label: 'All Applications',
+    className: 'stat-all',
+    note: 'All applications submitted across the pipeline.',
+  },
+  {
+    key: 'incomplete',
+    label: 'Pending for Review',
+    className: 'stat-pending',
+    note: 'Profile or documents not yet fully submitted/verified.',
+  },
+  {
+    key: 'qualified',
+    label: 'Qualified',
+    className: 'stat-qualified',
+    note: 'Meets requirements for the CCC scholarship program.',
+  },
+  {
+    key: 'not_qualified',
+    label: 'Not Qualified',
+    className: 'stat-notqualified',
+    note: 'Does not currently meet program requirements.',
+  },
+  {
+    key: 'waitlisted',
+    label: 'Waitlisted',
+    className: 'stat-waitlisted',
+    note: 'Meets baseline requirements, pending available slots.',
+  },
+  {
+    key: 'appealed',
+    label: 'Appealed',
+    className: 'stat-appealed',
+    note: 'Filed an appeal for reconsideration of their status. Not built yet.',
+  },
+]
+
 function DashboardPanel({
   docs,
   loading,
@@ -548,7 +595,10 @@ function DashboardPanel({
   recomputing,
 }) {
   const [search, setSearch] = useState('')
-  const [onlyFlagged, setOnlyFlagged] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [programFilter, setProgramFilter] = useState('all')
+  const [deptOpen, setDeptOpen] = useState(false)
+  const [yearOpen, setYearOpen] = useState(false)
 
   const totalFlagged = docs.filter((d) => d.needs_review).length
 
@@ -566,8 +616,8 @@ function DashboardPanel({
   }, [eligibility])
 
   // Real automated counts, replacing what Ivy's admin.html mockup had as
-  // purely manual per-applicant stat cards (All/Pending/Qualified/Not
-  // Qualified) — see the module-level comment on ELIGIBILITY_META above.
+  // purely manual per-applicant stat cards — see the module-level comment
+  // on ELIGIBILITY_META above.
   const eligibilityCounts = useMemo(() => {
     const counts = { qualified: 0, waitlisted: 0, not_qualified: 0, pending_exam: 0, incomplete: 0 }
     for (const row of eligibility || []) {
@@ -577,11 +627,62 @@ function DashboardPanel({
     return counts
   }, [eligibility])
 
+  const statCardCounts = {
+    all: (eligibility || []).length,
+    incomplete: eligibilityCounts.incomplete,
+    qualified: eligibilityCounts.qualified,
+    not_qualified: eligibilityCounts.not_qualified,
+    waitlisted: eligibilityCounts.waitlisted,
+    appealed: 0,
+  }
+
+  const programOptions = useMemo(() => {
+    const set = new Set()
+    for (const row of eligibility || []) {
+      if (row.program_choice_1) set.add(row.program_choice_1)
+    }
+    return Array.from(set).sort()
+  }, [eligibility])
+
+  // "Qualified Applicants per Department/Year Level" — same real grouping
+  // AnalyticsPanel uses (program_choice_1 as the closest real field to
+  // "Department", applying_as as the closest real proxy for "Year Level"),
+  // filtered down to applicants currently Qualified, matching what the
+  // mockup's two breakdown tables are meant to show.
+  const deptBreakdown = useMemo(() => {
+    const map = new Map()
+    for (const row of eligibility || []) {
+      const status = row.eligibility_override || row.eligibility_status || 'incomplete'
+      if (status !== 'qualified') continue
+      const key = row.program_choice_1 || 'Not yet chosen'
+      map.set(key, (map.get(key) || 0) + 1)
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
+  }, [eligibility])
+
+  const yearBreakdown = useMemo(() => {
+    const map = new Map()
+    for (const row of eligibility || []) {
+      const status = row.eligibility_override || row.eligibility_status || 'incomplete'
+      if (status !== 'qualified') continue
+      const key = row.applying_as || 'Not yet specified'
+      map.set(key, (map.get(key) || 0) + 1)
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
+  }, [eligibility])
+
   const groups = useMemo(() => {
     const term = search.trim().toLowerCase()
 
     const filtered = docs.filter((d) => {
-      if (onlyFlagged && !d.needs_review) return false
+      const key = (d.applicant_name || '').trim().toLowerCase()
+      const eligRow = eligibilityByName.get(key)
+
+      if (statusFilter !== 'all') {
+        const status = eligRow?.eligibility_override || eligRow?.eligibility_status || 'incomplete'
+        if (status !== statusFilter) return false
+      }
+      if (programFilter !== 'all' && eligRow?.program_choice_1 !== programFilter) return false
       if (!term) return true
       const haystack = `${d.applicant_name || ''} ${d.applicant_email || ''} ${getDocTypeLabel(d.document_type)}`.toLowerCase()
       return haystack.includes(term)
@@ -604,80 +705,48 @@ function DashboardPanel({
       if (aFlag !== bFlag) return bFlag - aFlag
       return (a.name || '').localeCompare(b.name || '')
     })
-  }, [docs, search, onlyFlagged])
+  }, [docs, search, statusFilter, programFilter, eligibilityByName])
 
   return (
     <div>
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+      <div className="portal-header">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            Dashboard
-          </h1>
-          <p className="text-xs text-ccc-muted mt-0.5">
-            {docs.length} document{docs.length === 1 ? '' : 's'} on file
-            {totalFlagged > 0 && <span className="text-ccc-orange"> · {totalFlagged} need review</span>}
+          <h1>Dashboard</h1>
+          <p>
+            {(eligibility || []).length} application{(eligibility || []).length === 1 ? '' : 's'} on file
+            {totalFlagged > 0 && ` · ${totalFlagged} document${totalFlagged === 1 ? '' : 's'} need review`}
           </p>
         </div>
-      </div>
-
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <div className="relative flex-1 min-w-[220px]">
-          <IconSearch className="w-4 h-4 text-ccc-muted absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by applicant name, email, or document type..."
-            className="w-full rounded-lg border border-ccc-border bg-white pl-9 pr-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => setOnlyFlagged((v) => !v)}
-          className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border text-xs font-semibold transition-colors ${
-            onlyFlagged
-              ? 'border-ccc-orange/60 bg-orange-50 text-ccc-orange'
-              : 'border-ccc-border bg-white text-ccc-muted hover:text-ccc-navy'
-          }`}
-        >
-          <IconAlertTriangle className="w-3.5 h-3.5" />
-          Flagged only
-        </button>
-      </div>
-
-      {/* Scholarship Matching & Filtering — real, automated counts (see
-          app/lib/matching.js). 'qualified'/'waitlisted' only ever show up
-          here once an admin has manually set them (the engine itself never
-          auto-assigns them — see that file for why), so an all-zero look
-          at either of those two is expected until the entrance exam module
-          exists or a real edge case comes up. */}
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
-        <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Scholarship Eligibility
-        </p>
         <button
           type="button"
           onClick={onRecomputeEligibility}
           disabled={recomputing}
           title="Recomputes eligibility for every applicant from their current data — needed for anyone who fully submitted before this feature existed, since a locked application never triggers a new save on its own."
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-ccc-border bg-white text-ccc-navy hover:bg-ccc-off disabled:opacity-50"
+          className="mbtn mbtn-ghost mbtn-sm"
         >
           {recomputing ? 'Recomputing…' : 'Recompute all'}
         </button>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-        {[
-          ['qualified', 'Qualified'],
-          ['waitlisted', 'Waitlisted'],
-          ['not_qualified', 'Not Qualified'],
-          ['pending_exam', 'Pending Exam'],
-          ['incomplete', 'Incomplete'],
-        ].map(([key, label]) => (
-          <div key={key} className="rounded-xl border border-ccc-border bg-white px-3.5 py-3">
-            <p className="text-[10px] font-bold text-ccc-muted uppercase tracking-wide">{label}</p>
-            <p className="text-xl font-extrabold text-ccc-navy mt-0.5" style={{ fontFamily: 'var(--font-montserrat)' }}>
-              {eligibilityCounts[key]}
-            </p>
+
+      {/* ── SCHOLARSHIP ELIGIBILITY: stat cards, click-to-filter (a real
+          working version of the mockup's "CLICK TO VIEW LIST" links --
+          clicking one sets statusFilter and jumps straight to the matching
+          slice of the All Applicants table below). ── */}
+      <div className="stat-grid">
+        {DASHBOARD_STAT_CARDS.map((card) => (
+          <div
+            key={card.key}
+            className={`stat-card ${card.className}`}
+            onClick={() => card.key !== 'appealed' && setStatusFilter(card.key === 'all' ? 'all' : card.key)}
+          >
+            <p className="stat-label">{card.label}</p>
+            <p className="stat-value">{statCardCounts[card.key]}</p>
+            <p className="stat-note">{card.note}</p>
+            {card.key !== 'appealed' && (
+              <p className="stat-card-hint">
+                <IconSearch className="w-3 h-3" /> Click to view list
+              </p>
+            )}
           </div>
         ))}
       </div>
@@ -687,39 +756,153 @@ function DashboardPanel({
           {eligibilityError}
         </div>
       )}
-
       {overrideError && (
         <div className="mb-4 p-3 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">
           {overrideError}
         </div>
       )}
 
-      {loading ? (
-        <div className="text-center py-20 text-ccc-muted text-sm">Loading documents...</div>
-      ) : error ? (
-        <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
-      ) : groups.length === 0 ? (
-        <div className="text-center py-20 text-ccc-muted text-sm">
-          {docs.length === 0 ? 'No documents uploaded yet.' : 'No documents match your search.'}
+      {/* ── Qualified Applicants per Department / per Year Level ── */}
+      <div className="qualified-breakdown-columns">
+        <div className="qualified-breakdown-col">
+          <div className={`dept-divider${deptOpen ? ' expanded' : ''}`} onClick={() => setDeptOpen((v) => !v)}>
+            Qualified Applicants per Department
+            <span className="dept-divider-arrow">&#9662;</span>
+          </div>
+          <p className="dept-helper-text">
+            &ldquo;Department&rdquo; isn&rsquo;t a field this system collects — grouped by Program (Course), the
+            closest real equivalent.
+          </p>
+          <div className={`dept-section-body${deptOpen ? '' : ' collapsed'}`}>
+            <div className="breakdown-table-wrap">
+              <table className="breakdown-table">
+                <thead>
+                  <tr>
+                    <th className="bd-program">Program</th>
+                    <th className="bd-count">Qualified</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deptBreakdown.length === 0 ? (
+                    <tr>
+                      <td colSpan={2} className="bd-program">No qualified applicants yet.</td>
+                    </tr>
+                  ) : (
+                    deptBreakdown.map(([label, count]) => (
+                      <tr key={label}>
+                        <td className="bd-program">{label}</td>
+                        <td className="bd-count bd-count-has">{count}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {groups.map((g, i) => (
-            <ApplicantGroup
-              key={g.name ? g.name.toLowerCase() : `unknown-${i}`}
-              name={g.name}
-              email={g.email}
-              docs={g.docs}
-              defaultOpen={i === 0}
-              onOverride={onOverride}
-              overriding={overriding}
-              eligibilityRow={eligibilityByName.get((g.name || '').trim().toLowerCase())}
-              onEligibilityOverride={onEligibilityOverride}
-              eligibilityOverriding={eligibilityOverriding}
-            />
-          ))}
+
+        <div className="qualified-breakdown-col">
+          <div className={`dept-divider${yearOpen ? ' expanded' : ''}`} onClick={() => setYearOpen((v) => !v)}>
+            Qualified Applicants per Year Level
+            <span className="dept-divider-arrow">&#9662;</span>
+          </div>
+          <p className="dept-helper-text">
+            No literal &ldquo;Year Level&rdquo; field exists yet — grouped by Applying As, the closest real proxy.
+          </p>
+          <div className={`dept-section-body${yearOpen ? '' : ' collapsed'}`}>
+            <div className="breakdown-table-wrap">
+              <table className="breakdown-table year-breakdown-table">
+                <thead>
+                  <tr>
+                    <th className="bd-program">Applying As</th>
+                    <th className="bd-count">Qualified</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {yearBreakdown.length === 0 ? (
+                    <tr>
+                      <td colSpan={2} className="bd-program">No qualified applicants yet.</td>
+                    </tr>
+                  ) : (
+                    yearBreakdown.map(([label, count]) => (
+                      <tr key={label}>
+                        <td className="bd-program">{label}</td>
+                        <td className="bd-count bd-count-has">{count}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* ── All Applicants ── */}
+      <div className="card">
+        <div className="card-title">
+          All Applicants
+          {statusFilter !== 'all' && (
+            <span className="tag">
+              Filtered: {DASHBOARD_STAT_CARDS.find((c) => c.key === statusFilter)?.label}
+            </span>
+          )}
+        </div>
+
+        <div className="filter-bar">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by applicant name, email, or document type..."
+          />
+          <select
+            className="program-filter-select"
+            value={programFilter}
+            onChange={(e) => setProgramFilter(e.target.value)}
+          >
+            <option value="all">All programs</option>
+            {programOptions.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          {statusFilter !== 'all' && (
+            <>
+              <div className="filter-divider" />
+              <button type="button" className="filter-clear" onClick={() => setStatusFilter('all')}>
+                Clear status filter
+              </button>
+            </>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="text-center py-20 text-ccc-muted text-sm">Loading documents...</div>
+        ) : error ? (
+          <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
+        ) : groups.length === 0 ? (
+          <div className="text-center py-20 text-ccc-muted text-sm">
+            {docs.length === 0 ? 'No documents uploaded yet.' : 'No applicants match your filters.'}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {groups.map((g, i) => (
+              <ApplicantGroup
+                key={g.name ? g.name.toLowerCase() : `unknown-${i}`}
+                name={g.name}
+                email={g.email}
+                docs={g.docs}
+                defaultOpen={i === 0}
+                onOverride={onOverride}
+                overriding={overriding}
+                eligibilityRow={eligibilityByName.get((g.name || '').trim().toLowerCase())}
+                onEligibilityOverride={onEligibilityOverride}
+                eligibilityOverriding={eligibilityOverriding}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
