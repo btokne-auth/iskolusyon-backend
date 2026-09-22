@@ -659,6 +659,7 @@ function DashboardPanel({
     }
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
   }, [eligibility])
+  const deptBreakdownTotal = useMemo(() => deptBreakdown.reduce((sum, [, count]) => sum + count, 0), [deptBreakdown])
 
   const yearBreakdown = useMemo(() => {
     const map = new Map()
@@ -670,6 +671,7 @@ function DashboardPanel({
     }
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
   }, [eligibility])
+  const yearBreakdownTotal = useMemo(() => yearBreakdown.reduce((sum, [, count]) => sum + count, 0), [yearBreakdown])
 
   const groups = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -774,30 +776,15 @@ function DashboardPanel({
             closest real equivalent.
           </p>
           <div className={`dept-section-body${deptOpen ? '' : ' collapsed'}`}>
-            <div className="breakdown-table-wrap">
-              <table className="breakdown-table">
-                <thead>
-                  <tr>
-                    <th className="bd-program">Program</th>
-                    <th className="bd-count">Qualified</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deptBreakdown.length === 0 ? (
-                    <tr>
-                      <td colSpan={2} className="bd-program">No qualified applicants yet.</td>
-                    </tr>
-                  ) : (
-                    deptBreakdown.map(([label, count]) => (
-                      <tr key={label}>
-                        <td className="bd-program">{label}</td>
-                        <td className="bd-count bd-count-has">{count}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            {deptBreakdown.length === 0 ? (
+              <p className="text-[11px] text-ccc-muted px-1 pb-2">No qualified applicants yet.</p>
+            ) : (
+              <div className="space-y-2.5 px-1 pb-2">
+                {deptBreakdown.map(([label, count]) => (
+                  <BarRow key={label} label={label} count={count} total={deptBreakdownTotal} colorClass="bg-ccc-blue" />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -810,30 +797,15 @@ function DashboardPanel({
             No literal &ldquo;Year Level&rdquo; field exists yet — grouped by Applying As, the closest real proxy.
           </p>
           <div className={`dept-section-body${yearOpen ? '' : ' collapsed'}`}>
-            <div className="breakdown-table-wrap">
-              <table className="breakdown-table year-breakdown-table">
-                <thead>
-                  <tr>
-                    <th className="bd-program">Applying As</th>
-                    <th className="bd-count">Qualified</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {yearBreakdown.length === 0 ? (
-                    <tr>
-                      <td colSpan={2} className="bd-program">No qualified applicants yet.</td>
-                    </tr>
-                  ) : (
-                    yearBreakdown.map(([label, count]) => (
-                      <tr key={label}>
-                        <td className="bd-program">{label}</td>
-                        <td className="bd-count bd-count-has">{count}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            {yearBreakdown.length === 0 ? (
+              <p className="text-[11px] text-ccc-muted px-1 pb-2">No qualified applicants yet.</p>
+            ) : (
+              <div className="space-y-2.5 px-1 pb-2">
+                {yearBreakdown.map(([label, count]) => (
+                  <BarRow key={label} label={label} count={count} total={yearBreakdownTotal} colorClass="bg-ccc-gold" />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

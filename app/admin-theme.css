@@ -581,97 +581,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 15px;
-} /* Program breakdowns are shown as a table directly under each section header
-   (no cards, no separate click-to-reveal step) — the header's own
-   expand/collapse controls whether the table shows at all. */
-.admin-portal .breakdown-table-wrap {
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
-  background: #fff;
-  max-height: 320px;
-  overflow: auto;
-  box-shadow: 0 3px 18px rgba(13, 47, 110, 0.06);
-}
-.admin-portal .breakdown-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-.admin-portal .breakdown-table th,
-.admin-portal .breakdown-table td {
-  text-align: left;
-  padding: 7.5px 12px;
-  font-size: 10.8px;
-  line-height: 1.45;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-  overflow-wrap: anywhere;
-}
-.admin-portal .breakdown-table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--off);
-  font-family: "Montserrat", sans-serif;
-  font-weight: 800;
-  font-size: 9.6px;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.admin-portal .breakdown-table tbody tr:last-child td {
-  border-bottom: none;
-}
-.admin-portal .breakdown-table td.bd-group,
-.admin-portal .breakdown-table th.bd-group {
-  font-family: "Montserrat", sans-serif;
-  font-weight: 800;
-  font-size: 10.2px;
-  color: var(--navy);
-  border-right: 1px solid var(--border);
-  width: 26%;
-}
-.admin-portal .breakdown-table td.bd-group {
-  background: var(--off);
-}
-.admin-portal .breakdown-table td.bd-count,
-.admin-portal .breakdown-table th.bd-count {
-  text-align: right;
-  width: 20%;
-  font-family: "Montserrat", sans-serif;
-  color: var(--navy);
-}
-.admin-portal .breakdown-table td.bd-count {
-  white-space: nowrap;
-}
-.admin-portal .breakdown-table th.bd-count {
-  font-weight: 800;
-}
-.admin-portal .breakdown-table td.bd-count {
-  font-weight: 400;
-}
-.admin-portal .breakdown-table td.bd-count.bd-count-has {
-  font-weight: 800;
-}
-.admin-portal .breakdown-table td.bd-program,
-.admin-portal .breakdown-table th.bd-program {
-  border-right: 1px solid var(--border);
-}
-.admin-portal .year-breakdown-table td.bd-program,
-.admin-portal .year-breakdown-table th.bd-program {
-  width: 52%;
-}
-.admin-portal .year-breakdown-table td.bd-count,
-.admin-portal .year-breakdown-table th.bd-count {
-  width: 16%;
-}
-.admin-portal .breakdown-table td.bd-program {
-  color: var(--text);
-}
-.admin-portal .breakdown-table tr td:last-child,
-.admin-portal .breakdown-table thead th:last-child {
-  border-right: none;
-}
+} /* Program breakdowns render as bar-rows (same pattern as the Statistics
+   tab's BarRow) directly under each section header — the header's own
+   expand/collapse controls whether the breakdown shows at all. */
 .admin-portal .dept-divider {
   cursor: pointer;
   user-select: none;
@@ -3037,7 +2949,6 @@
   overflow-wrap: break-word;
   word-break: break-word;
 } /* Strips that already scroll get smooth touch scrolling. */
-.admin-portal .breakdown-table-wrap,
 .admin-portal .doc-cat-tabs {
   -webkit-overflow-scrolling: touch;
 } /* The rich-text editor is a fixed-width third-party widget; keep it boxed. */
