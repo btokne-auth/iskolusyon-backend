@@ -835,9 +835,11 @@ function DashboardPanel({
           </p>
           <div className={`dept-section-body${deptOpen ? '' : ' collapsed'}`}>
             {!deptBreakdownHasAny ? (
-              <p className="text-[11px] text-ccc-muted px-1 pb-2">No qualified applicants yet.</p>
+              <div className="breakdown-bars-wrap">
+                <p className="text-[11px] text-ccc-muted">No qualified applicants yet.</p>
+              </div>
             ) : (
-              <div className="breakdown-bars-wrap px-1 pb-2">
+              <div className="breakdown-bars-wrap">
                 {deptBreakdown.map((dept) => (
                   <div className="breakdown-dept-group" key={dept.label}>
                     <p className="breakdown-dept-label">{dept.label}</p>
@@ -863,9 +865,11 @@ function DashboardPanel({
           </p>
           <div className={`dept-section-body${yearOpen ? '' : ' collapsed'}`}>
             {!yearBreakdownHasAny ? (
-              <p className="text-[11px] text-ccc-muted px-1 pb-2">No qualified applicants yet.</p>
+              <div className="breakdown-bars-wrap">
+                <p className="text-[11px] text-ccc-muted">No qualified applicants yet.</p>
+              </div>
             ) : (
-              <div className="breakdown-bars-wrap px-1 pb-2">
+              <div className="breakdown-bars-wrap">
                 {yearBreakdown.map((p) => (
                   <div className="breakdown-program-group" key={p.label}>
                     <p className="breakdown-program-label">{p.label}</p>

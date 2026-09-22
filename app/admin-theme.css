@@ -618,15 +618,20 @@
   opacity: 0;
   margin-bottom: 0;
 }
-/* Restores the old breakdown-table-wrap's internal scroll: the parent
-   dept-section-body's max-height is what drives the expand/collapse
-   animation, so anything taller than that needs its own scroll region
-   rather than getting silently clipped when expanded. Needed now that the
-   department/year-level breakdowns render full grouped structure (mirroring
-   the mockup) instead of one flat bar list. */
+/* Restores the old breakdown-table-wrap's boxed-widget treatment (border,
+   background, shadow) and internal scroll: the parent dept-section-body's
+   max-height is what drives the expand/collapse animation, so anything
+   taller than that needs its own scroll region rather than getting clipped
+   when expanded. Without the border/background here the bars just float on
+   the page background with nothing to read as a self-contained component. */
 .admin-portal .breakdown-bars-wrap {
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 3px 18px rgba(13, 47, 110, 0.06);
   max-height: 380px;
   overflow-y: auto;
+  padding: 14px 16px;
 }
 .admin-portal .breakdown-dept-group,
 .admin-portal .breakdown-program-group {
