@@ -1092,7 +1092,7 @@ function DashboardPanel({
         <div>
           <h1>Dashboard</h1>
           <p>
-            {(eligibility || []).length} application{(eligibility || []).length === 1 ? '' : 's'} on file
+            A summary of applicant statuses across the scholarship pipeline. Available to all types of Admins.
             {totalFlagged > 0 && ` · ${totalFlagged} document${totalFlagged === 1 ? '' : 's'} need review`}
           </p>
         </div>
@@ -2568,7 +2568,20 @@ function AdminPageInner() {
     <main className="admin-portal">
       <SiteHeader
         topbarLabel="Iskolusyon Admin Console"
+        topbarRight={
+          <span className="flex items-center gap-1.5 font-extrabold uppercase tracking-wide text-[10.2px] text-ccc-gold">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            {isSuperAdmin ? 'Super Admin Session' : 'Admin Session'}
+          </span>
+        }
         portalBadge="Admin Console"
+        logos={[
+          { src: '/LOGO_CCC.png', alt: 'City College of Calamba Logo' },
+          { src: '/LOGO_CCC_Admissions.png', alt: 'CCC Admissions Logo' },
+          { src: '/LOGO_CCC_Registrar.png', alt: 'CCC Registrar Logo' },
+        ]}
         rightSlot={
           <a
             href="/"

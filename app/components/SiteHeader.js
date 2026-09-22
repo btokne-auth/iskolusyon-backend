@@ -12,6 +12,12 @@
 // topbarLink: applicant.html's topbar pairs the phone numbers on the left
 // with a www.ccc.edu.ph link on the right; optional so other callers that
 // just pass a plain topbarLabel are unaffected.
+// topbarRight: admin.html's own topbar is laid out differently from
+// applicant.html's -- space-between (label on the left, a role/session
+// badge on the right, e.g. "Super Admin Session"), not applicant.html's
+// justify-end pairing of label+link at the right edge. Optional, and only
+// switches the row to space-between when a caller actually passes it, so
+// applicant.html/login/signup's existing topbarLink-only usage is unaffected.
 const DEFAULT_LOGOS = [
   { src: '/LOGO_CCC.png', alt: 'City College of Calamba Logo' },
   { src: '/LOGO_CCC_Admissions.png', alt: 'CCC Admissions Logo' },
@@ -20,6 +26,7 @@ const DEFAULT_LOGOS = [
 export default function SiteHeader({
   topbarLabel,
   topbarLink,
+  topbarRight,
   portalBadge,
   rightSlot,
   logos = DEFAULT_LOGOS,
@@ -30,19 +37,26 @@ export default function SiteHeader({
       {/* Topbar — spec's .topbar is var(--ccc-blue) (bright blue), not navy,
           and both the label and link sit together at the right edge
           (justify-end, spec's own .inner{justify-content:flex-end}), not
-          spread apart. Fixed as part of design-parity pass 5, Sept 19 2026. */}
+          spread apart. Fixed as part of design-parity pass 5, Sept 19 2026.
+          admin.html's own topbar is space-between instead (see topbarRight
+          above) -- only switches when a caller passes it. */}
       <div className="bg-ccc-blue text-white text-xs py-1.5" style={{ fontFamily: 'var(--font-montserrat)' }}>
-        <div className="max-w-[1400px] mx-auto px-4 md:px-8 flex justify-end items-center gap-6">
+        <div className={`max-w-[1400px] mx-auto px-4 md:px-8 flex items-center gap-6 ${topbarRight ? 'justify-between' : 'justify-end'}`}>
           <span className="font-bold">{topbarLabel}</span>
-          {topbarLink && (
-            <a
-              href={topbarLink.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-bold hover:opacity-80"
-            >
-              {topbarLink.label}
-            </a>
+          {(topbarLink || topbarRight) && (
+            <div className="flex items-center gap-6">
+              {topbarLink && (
+                <a
+                  href={topbarLink.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold hover:opacity-80"
+                >
+                  {topbarLink.label}
+                </a>
+              )}
+              {topbarRight}
+            </div>
           )}
         </div>
       </div>
