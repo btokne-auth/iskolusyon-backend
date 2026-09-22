@@ -638,6 +638,15 @@ function DashboardPanel({
   const [programFilter, setProgramFilter] = useState('all')
   const [deptOpen, setDeptOpen] = useState(false)
   const [yearOpen, setYearOpen] = useState(false)
+  // Click-to-sort for the two breakdown tables. null = mockup's default
+  // department/program order. For the dept table, sorting only reorders
+  // programs WITHIN each department (breaking the grouping to sort the
+  // whole table flat would defeat the point of having departments at all).
+  // For the year-level table there's no single "Qualified" column to sort
+  // by -- it's a per-year-level matrix -- so each of its three count
+  // columns is independently sortable instead.
+  const [deptSortDesc, setDeptSortDesc] = useState(false)
+  const [yearSortKey, setYearSortKey] = useState(null) // null | a DASHBOARD_YEAR_LEVELS value
 
   const totalFlagged = docs.filter((d) => d.needs_review).length
 
@@ -699,31 +708,46 @@ function DashboardPanel({
 
   // "per Department": department-grouped rows (rowSpan on the department
   // cell), one row per program — same shape as buildBreakdownRows() in the
-  // mockup.
+  // mockup. When deptSortDesc is on, programs within each department are
+  // reordered by count descending — the department grouping itself never
+  // gets flattened, so "which program has the most" stays answerable
+  // without losing the department context the table exists to show.
   const deptBreakdown = useMemo(() => {
-    return DASHBOARD_DEPARTMENTS.map((dept) => ({
-      label: dept.label,
-      programs: dept.programs.map((program) => ({
+    return DASHBOARD_DEPARTMENTS.map((dept) => {
+      const programs = dept.programs.map((program) => ({
         label: program,
         count: qualifiedRows.filter((row) => row.program_choice_1 === program || row.program_choice_2 === program).length,
-      })),
-    }))
-  }, [qualifiedRows])
+      }))
+      if (deptSortDesc) programs.sort((a, b) => b.count - a.count)
+      return { label: dept.label, programs }
+    })
+  }, [qualifiedRows, deptSortDesc])
 
   // "per Year Level": one row per program (flat, same order as the mockup's
-  // allPrograms), one column per year level — the same pivoted matrix as
-  // renderYearLevelStats().
+  // allPrograms unless yearSortKey is set), one column per year level — the
+  // same pivoted matrix as renderYearLevelStats(). Since there's no single
+  // "Qualified" column here (it's a matrix), each year-level column header
+  // is independently clickable to sort the whole table by that column.
   const yearBreakdown = useMemo(() => {
     const allPrograms = DASHBOARD_DEPARTMENTS.reduce((acc, d) => acc.concat(d.programs), [])
-    return allPrograms.map((program) => {
+    const rows = allPrograms.map((program) => {
       const matched = qualifiedRows.filter((row) => row.program_choice_1 === program || row.program_choice_2 === program)
       const levels = DASHBOARD_YEAR_LEVELS.map((yl) => ({
         label: yl.label,
+        value: yl.value,
         count: matched.filter((row) => row.applying_as === yl.value).length,
       }))
       return { label: program, levels }
     })
-  }, [qualifiedRows])
+    if (yearSortKey) {
+      rows.sort((a, b) => {
+        const bCount = b.levels.find((l) => l.value === yearSortKey)?.count || 0
+        const aCount = a.levels.find((l) => l.value === yearSortKey)?.count || 0
+        return bCount - aCount
+      })
+    }
+    return rows
+  }, [qualifiedRows, yearSortKey])
 
   const groups = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -835,13 +859,19 @@ function DashboardPanel({
                   <tr>
                     <th className="bd-group">Department</th>
                     <th className="bd-program">Program</th>
-                    <th className="bd-count">Qualified</th>
+                    <th
+                      className={`bd-count bd-count-sortable${deptSortDesc ? ' bd-sorted' : ''}`}
+                      onClick={() => setDeptSortDesc((v) => !v)}
+                      title={deptSortDesc ? 'Sorted highest first within each department — click to reset' : 'Click to sort each department by Qualified, highest first'}
+                    >
+                      Qualified {deptSortDesc ? '▼' : ''}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {deptBreakdown.map((dept) =>
                     dept.programs.map((p, i) => (
-                      <tr key={p.label}>
+                      <tr key={p.label} className={p.count === 0 ? 'bd-row-zero' : ''}>
                         {i === 0 && (
                           <td className="bd-group" rowSpan={dept.programs.length}>
                             {dept.label}
@@ -873,15 +903,20 @@ function DashboardPanel({
                   <tr>
                     <th className="bd-program">Program</th>
                     {DASHBOARD_YEAR_LEVELS.map((yl) => (
-                      <th key={yl.label} className="bd-count">
-                        {yl.label}
+                      <th
+                        key={yl.label}
+                        className={`bd-count bd-count-sortable${yearSortKey === yl.value ? ' bd-sorted' : ''}`}
+                        onClick={() => setYearSortKey((v) => (v === yl.value ? null : yl.value))}
+                        title={yearSortKey === yl.value ? 'Sorted highest first — click to reset' : `Click to sort all programs by ${yl.label}, highest first`}
+                      >
+                        {yl.label} {yearSortKey === yl.value ? '▼' : ''}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {yearBreakdown.map((p) => (
-                    <tr key={p.label}>
+                    <tr key={p.label} className={p.levels.every((lvl) => lvl.count === 0) ? 'bd-row-zero' : ''}>
                       <td className="bd-program">{p.label}</td>
                       {p.levels.map((lvl) => (
                         <td key={lvl.label} className={`bd-count${lvl.count > 0 ? ' bd-count-has' : ''}`}>

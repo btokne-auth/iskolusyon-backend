@@ -636,6 +636,14 @@
 }
 .admin-portal .breakdown-table td.bd-group {
   background: var(--off);
+  /* rowSpan'd across every program row in the department, so its own box is
+     already as tall as the group -- sticking it keeps the department name
+     visible while its programs scroll past instead of scrolling away with
+     row 1 the moment a department (e.g. Teacher Education's 7 programs)
+     runs longer than the visible area. 31px ~= the sticky header row's
+     rendered height (15px padding + ~14px line-height). */
+  position: sticky;
+  top: 31px;
 }
 .admin-portal .breakdown-table td.bd-count,
 .admin-portal .breakdown-table th.bd-count {
@@ -674,6 +682,28 @@
 .admin-portal .breakdown-table tr td:last-child,
 .admin-portal .breakdown-table thead th:last-child {
   border-right: none;
+}
+/* Most programs sit at 0 until the applicant pool grows, and a wall of
+   identical zero rows buries the 1-2 rows that actually have someone in
+   them. Dimming (not hiding -- the mockup's parity requires every program
+   to still be listed) lets the nonzero rows read first at a glance. */
+.admin-portal .breakdown-table tr.bd-row-zero td.bd-program {
+  color: var(--muted);
+}
+.admin-portal .breakdown-table tr.bd-row-zero td.bd-count {
+  color: var(--muted);
+  opacity: 0.55;
+}
+.admin-portal .breakdown-table th.bd-count-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+.admin-portal .breakdown-table th.bd-count-sortable:hover {
+  color: var(--ccc-blue);
+}
+.admin-portal .breakdown-table th.bd-count-sortable.bd-sorted {
+  color: var(--ccc-blue);
 }
 .admin-portal .dept-divider {
   cursor: pointer;
@@ -716,6 +746,17 @@
 }
 .admin-portal .qualified-breakdown-col {
   min-width: 0;
+}
+/* The existing 960px breakpoint (below) already stacks these to 1 column,
+   but the year-level table has 4 fixed-width columns (Program + 3 year
+   levels) and gets cramped well before 960px once it's squeezed into half
+   a 2-column grid — stack earlier, specifically for this pair, so that
+   table isn't fighting for space against the dept table's 3 columns. */
+@media (max-width: 1180px) {
+  .admin-portal .qualified-breakdown-columns {
+    grid-template-columns: 1fr;
+    gap: 30px 0;
+  }
 }
 .admin-portal .dept-helper-text {
   font-family: "Open Sans", sans-serif;
