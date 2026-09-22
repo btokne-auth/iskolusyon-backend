@@ -618,6 +618,46 @@
   opacity: 0;
   margin-bottom: 0;
 }
+/* Restores the old breakdown-table-wrap's internal scroll: the parent
+   dept-section-body's max-height is what drives the expand/collapse
+   animation, so anything taller than that needs its own scroll region
+   rather than getting silently clipped when expanded. Needed now that the
+   department/year-level breakdowns render full grouped structure (mirroring
+   the mockup) instead of one flat bar list. */
+.admin-portal .breakdown-bars-wrap {
+  max-height: 380px;
+  overflow-y: auto;
+}
+.admin-portal .breakdown-dept-group,
+.admin-portal .breakdown-program-group {
+  margin-bottom: 16px;
+}
+.admin-portal .breakdown-dept-group:last-child,
+.admin-portal .breakdown-program-group:last-child {
+  margin-bottom: 2px;
+}
+.admin-portal .breakdown-dept-label {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 10.2px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 8px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+}
+.admin-portal .breakdown-program-label {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11.4px;
+  color: var(--navy);
+  margin: 0 0 6px;
+}
+.admin-portal .breakdown-year-bars {
+  padding-left: 11px;
+  border-left: 2px solid var(--border);
+}
 .admin-portal .qualified-breakdown-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2949,6 +2989,7 @@
   overflow-wrap: break-word;
   word-break: break-word;
 } /* Strips that already scroll get smooth touch scrolling. */
+.admin-portal .breakdown-bars-wrap,
 .admin-portal .doc-cat-tabs {
   -webkit-overflow-scrolling: touch;
 } /* The rich-text editor is a fixed-width third-party widget; keep it boxed. */

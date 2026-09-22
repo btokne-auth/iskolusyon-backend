@@ -580,6 +580,45 @@ const DASHBOARD_STAT_CARDS = [
   },
 ]
 
+// Department groupings mirror Ivy's admin.html mockup's DEPARTMENTS const
+// (mirrors the "Programs Offered" listing on index.html) — kept in the same
+// order/labels so the "per Department" breakdown below has the same shape
+// as the approved mockup, not a flattened simplification of it.
+const DASHBOARD_DEPARTMENTS = [
+  {
+    label: 'Business and Accounting',
+    programs: ['Bachelor of Science in Accounting Information System', 'Bachelor of Science in Accountancy'],
+  },
+  {
+    label: 'Teacher Education',
+    programs: [
+      'Bachelor of Early Childhood Education',
+      'Bachelor of Secondary Education Major in Filipino',
+      'Bachelor of Secondary Education Major in English',
+      'Bachelor of Elementary Education',
+      'Bachelor of Secondary Education Major in Social Studies',
+      'Bachelor of Secondary Education Major in Science',
+      'Bachelor of Secondary Education Major in Mathematics',
+    ],
+  },
+  {
+    label: 'Computing and Informatics',
+    programs: ['Bachelor of Science in Computer Science', 'Bachelor of Science in Information Technology'],
+  },
+  {
+    label: 'Arts and Sciences',
+    programs: ['Bachelor of Science in Psychology'],
+  },
+]
+
+// Year Level groupings mirror the mockup's YEAR_LEVELS const — same values
+// as the real applying_as options (SelectField in ApplicantAuth.js / page.js).
+const DASHBOARD_YEAR_LEVELS = [
+  { label: 'First Year', value: 'First Year' },
+  { label: 'Transferee', value: 'Transferee' },
+  { label: 'Old Curriculum & ALS Completer', value: 'Old Curriculum and ALS Completer' },
+]
+
 function DashboardPanel({
   docs,
   loading,
@@ -644,34 +683,52 @@ function DashboardPanel({
     return Array.from(set).sort()
   }, [eligibility])
 
-  // "Qualified Applicants per Department/Year Level" — same real grouping
-  // AnalyticsPanel uses (program_choice_1 as the closest real field to
-  // "Department", applying_as as the closest real proxy for "Year Level"),
-  // filtered down to applicants currently Qualified, matching what the
-  // mockup's two breakdown tables are meant to show.
-  const deptBreakdown = useMemo(() => {
-    const map = new Map()
-    for (const row of eligibility || []) {
-      const status = row.eligibility_override || row.eligibility_status || 'incomplete'
-      if (status !== 'qualified') continue
-      const key = row.program_choice_1 || 'Not yet chosen'
-      map.set(key, (map.get(key) || 0) + 1)
-    }
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
-  }, [eligibility])
-  const deptBreakdownTotal = useMemo(() => deptBreakdown.reduce((sum, [, count]) => sum + count, 0), [deptBreakdown])
+  // "Qualified Applicants per Department/Year Level" — restructured (Sept 22
+  // 2026) to actually mirror Ivy's admin.html mockup's DEPARTMENTS/
+  // YEAR_LEVELS groupings and choice1-or-choice2 counting, rendered as bars
+  // instead of her plain tables (see DASHBOARD_DEPARTMENTS/DASHBOARD_YEAR_LEVELS
+  // above). Filtered down to applicants currently Qualified, same as hers.
+  // Qualified applicants counted for a program whenever it's EITHER of their
+  // two program choices — matches Ivy's mockup (renderDepartmentStats /
+  // renderYearLevelStats both check choice1 and choice2), not just choice 1.
+  const qualifiedRows = useMemo(
+    () => (eligibility || []).filter((row) => (row.eligibility_override || row.eligibility_status || 'incomplete') === 'qualified'),
+    [eligibility]
+  )
 
+  // "per Department": department-grouped sections, one bar per program in
+  // that department — same grouping as the mockup's DEPARTMENTS table, just
+  // rendered as bars instead of table rows.
+  const deptBreakdown = useMemo(() => {
+    return DASHBOARD_DEPARTMENTS.map((dept) => ({
+      label: dept.label,
+      programs: dept.programs.map((program) => ({
+        label: program,
+        count: qualifiedRows.filter((row) => row.program_choice_1 === program || row.program_choice_2 === program).length,
+      })),
+    }))
+  }, [qualifiedRows])
+  const deptBreakdownTotal = useMemo(
+    () => deptBreakdown.reduce((sum, dept) => sum + dept.programs.reduce((s, p) => s + p.count, 0), 0),
+    [deptBreakdown]
+  )
+  const deptBreakdownHasAny = deptBreakdownTotal > 0
+
+  // "per Year Level": one group per program (flat, same order as the
+  // mockup's allPrograms), each with a bar per year level — the bar version
+  // of the mockup's program × year-level matrix table.
   const yearBreakdown = useMemo(() => {
-    const map = new Map()
-    for (const row of eligibility || []) {
-      const status = row.eligibility_override || row.eligibility_status || 'incomplete'
-      if (status !== 'qualified') continue
-      const key = row.applying_as || 'Not yet specified'
-      map.set(key, (map.get(key) || 0) + 1)
-    }
-    return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
-  }, [eligibility])
-  const yearBreakdownTotal = useMemo(() => yearBreakdown.reduce((sum, [, count]) => sum + count, 0), [yearBreakdown])
+    const allPrograms = DASHBOARD_DEPARTMENTS.reduce((acc, d) => acc.concat(d.programs), [])
+    return allPrograms.map((program) => {
+      const matched = qualifiedRows.filter((row) => row.program_choice_1 === program || row.program_choice_2 === program)
+      const levels = DASHBOARD_YEAR_LEVELS.map((yl) => ({
+        label: yl.label,
+        count: matched.filter((row) => row.applying_as === yl.value).length,
+      }))
+      return { label: program, levels, total: levels.reduce((s, l) => s + l.count, 0) }
+    })
+  }, [qualifiedRows])
+  const yearBreakdownHasAny = useMemo(() => yearBreakdown.some((p) => p.total > 0), [yearBreakdown])
 
   const groups = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -772,16 +829,24 @@ function DashboardPanel({
             <span className="dept-divider-arrow">&#9662;</span>
           </div>
           <p className="dept-helper-text">
-            &ldquo;Department&rdquo; isn&rsquo;t a field this system collects — grouped by Program (Course), the
-            closest real equivalent.
+            &ldquo;Department&rdquo; isn&rsquo;t a field this system collects — grouped by the same
+            program-to-department mapping as the approved mockup, applied to each applicant&rsquo;s Program (Course)
+            choices.
           </p>
           <div className={`dept-section-body${deptOpen ? '' : ' collapsed'}`}>
-            {deptBreakdown.length === 0 ? (
+            {!deptBreakdownHasAny ? (
               <p className="text-[11px] text-ccc-muted px-1 pb-2">No qualified applicants yet.</p>
             ) : (
-              <div className="space-y-2.5 px-1 pb-2">
-                {deptBreakdown.map(([label, count]) => (
-                  <BarRow key={label} label={label} count={count} total={deptBreakdownTotal} colorClass="bg-ccc-blue" />
+              <div className="breakdown-bars-wrap px-1 pb-2">
+                {deptBreakdown.map((dept) => (
+                  <div className="breakdown-dept-group" key={dept.label}>
+                    <p className="breakdown-dept-label">{dept.label}</p>
+                    <div className="space-y-2.5">
+                      {dept.programs.map((p) => (
+                        <BarRow key={p.label} label={p.label} count={p.count} total={deptBreakdownTotal} colorClass="bg-ccc-blue" />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
@@ -797,12 +862,19 @@ function DashboardPanel({
             No literal &ldquo;Year Level&rdquo; field exists yet — grouped by Applying As, the closest real proxy.
           </p>
           <div className={`dept-section-body${yearOpen ? '' : ' collapsed'}`}>
-            {yearBreakdown.length === 0 ? (
+            {!yearBreakdownHasAny ? (
               <p className="text-[11px] text-ccc-muted px-1 pb-2">No qualified applicants yet.</p>
             ) : (
-              <div className="space-y-2.5 px-1 pb-2">
-                {yearBreakdown.map(([label, count]) => (
-                  <BarRow key={label} label={label} count={count} total={yearBreakdownTotal} colorClass="bg-ccc-gold" />
+              <div className="breakdown-bars-wrap px-1 pb-2">
+                {yearBreakdown.map((p) => (
+                  <div className="breakdown-program-group" key={p.label}>
+                    <p className="breakdown-program-label">{p.label}</p>
+                    <div className="breakdown-year-bars space-y-2.5">
+                      {p.levels.map((lvl) => (
+                        <BarRow key={lvl.label} label={lvl.label} count={lvl.count} total={p.total} colorClass="bg-ccc-gold" />
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
