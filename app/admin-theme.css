@@ -574,7 +574,9 @@
   font-size: 13.8px;
   color: var(--navy);
   letter-spacing: 0.3px;
-  margin: 7.5px 0 16.5px;
+  /* No top margin now that qualified-breakdown-col's own padding provides
+     the space above -- the divider is the first thing inside the card. */
+  margin: 0 0 16.5px;
   padding-bottom: 10.5px;
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -588,12 +590,14 @@
    with this much grouped/matrix data crammed into one card; a real table
    keeps the department/year-level structure legible at this density. */
 .admin-portal .breakdown-table-wrap {
-  border: 1.5px solid var(--border);
-  border-radius: 10px;
-  background: #fff;
+  /* No border/shadow of its own now that qualified-breakdown-col is the
+     boxed card -- a nested border+shadow here would double up against the
+     outer one. Keeps its own top border as the seam between the helper
+     text above and the table, plus the scroll region for long lists. */
+  border-top: 1.5px solid var(--border);
+  margin-top: 4px;
   max-height: 320px;
   overflow: auto;
-  box-shadow: 0 3px 18px rgba(13, 47, 110, 0.06);
 }
 .admin-portal .breakdown-table {
   width: 100%;
@@ -746,6 +750,18 @@
 }
 .admin-portal .qualified-breakdown-col {
   min-width: 0;
+  /* The header + helper text used to sit directly on the page background,
+     with only the table underneath getting a border/shadow -- so it read
+     as a floating label followed by an unrelated card, not one component
+     (the "dropdown label, then a menu" feeling). Boxing the whole column
+     -- header, helper text and table together -- matches how the
+     Statistics tab's cards are built and makes this read as a single
+     self-contained widget instead. */
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 3px 18px rgba(13, 47, 110, 0.06);
+  padding: 18px 20px 20px;
 }
 /* The existing 960px breakpoint (below) already stacks these to 1 column,
    but the year-level table has 4 fixed-width columns (Program + 3 year
