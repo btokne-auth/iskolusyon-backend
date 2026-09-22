@@ -840,7 +840,86 @@ function DashboardPanel({
         </div>
       )}
 
-      {/* ── Qualified Applicants per Department / per Year Level ── */}
+      {/* ── All Applicants — moved above the breakdown reports (Sept 22 2026).
+          This is the actual daily work queue (search, open a record, the
+          stat cards' "Click to view list" links jump straight here) so it
+          belongs right after the KPI summary, not after two read-only
+          report tables. Deviates from the mockup's literal top-to-bottom
+          order -- flagged and agreed with Pau first since it touches how
+          Ivy's Dashboard module is laid out, same as the department/
+          year-level table content itself did earlier. The report tables
+          below are unchanged in content/structure, just relocated. ── */}
+      <div className="card">
+        <div className="card-title">
+          All Applicants
+          {statusFilter !== 'all' && (
+            <span className="tag">
+              Filtered: {DASHBOARD_STAT_CARDS.find((c) => c.key === statusFilter)?.label}
+            </span>
+          )}
+        </div>
+
+        <div className="filter-bar">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by applicant name, email, or document type..."
+          />
+          <select
+            className="program-filter-select"
+            value={programFilter}
+            onChange={(e) => setProgramFilter(e.target.value)}
+          >
+            <option value="all">All programs</option>
+            {programOptions.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          {statusFilter !== 'all' && (
+            <>
+              <div className="filter-divider" />
+              <button type="button" className="filter-clear" onClick={() => setStatusFilter('all')}>
+                Clear status filter
+              </button>
+            </>
+          )}
+        </div>
+
+        {loading ? (
+          <div className="text-center py-20 text-ccc-muted text-sm">Loading documents...</div>
+        ) : error ? (
+          <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
+        ) : groups.length === 0 ? (
+          <div className="text-center py-20 text-ccc-muted text-sm">
+            {docs.length === 0 ? 'No documents uploaded yet.' : 'No applicants match your filters.'}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {groups.map((g, i) => (
+              <ApplicantGroup
+                key={g.name ? g.name.toLowerCase() : `unknown-${i}`}
+                name={g.name}
+                email={g.email}
+                docs={g.docs}
+                defaultOpen={i === 0}
+                onOverride={onOverride}
+                overriding={overriding}
+                eligibilityRow={eligibilityByName.get((g.name || '').trim().toLowerCase())}
+                onEligibilityOverride={onEligibilityOverride}
+                eligibilityOverriding={eligibilityOverriding}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Reports: Qualified Applicants per Department / per Year Level ──
+          Same tables, same data, same collapsed-by-default state as the
+          mockup -- just moved below the work queue instead of between the
+          KPIs and it, plus a section label so this reads as its own
+          "reference data" zone rather than a random interruption. ── */}
+      <div className="dashboard-section-label">Reports</div>
       <div className="qualified-breakdown-columns">
         <div className="qualified-breakdown-col">
           <div className={`dept-divider${deptOpen ? ' expanded' : ''}`} onClick={() => setDeptOpen((v) => !v)}>
@@ -930,72 +1009,6 @@ function DashboardPanel({
             </div>
           </div>
         </div>
-      </div>
-
-      {/* ── All Applicants ── */}
-      <div className="card">
-        <div className="card-title">
-          All Applicants
-          {statusFilter !== 'all' && (
-            <span className="tag">
-              Filtered: {DASHBOARD_STAT_CARDS.find((c) => c.key === statusFilter)?.label}
-            </span>
-          )}
-        </div>
-
-        <div className="filter-bar">
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by applicant name, email, or document type..."
-          />
-          <select
-            className="program-filter-select"
-            value={programFilter}
-            onChange={(e) => setProgramFilter(e.target.value)}
-          >
-            <option value="all">All programs</option>
-            {programOptions.map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
-          {statusFilter !== 'all' && (
-            <>
-              <div className="filter-divider" />
-              <button type="button" className="filter-clear" onClick={() => setStatusFilter('all')}>
-                Clear status filter
-              </button>
-            </>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="text-center py-20 text-ccc-muted text-sm">Loading documents...</div>
-        ) : error ? (
-          <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
-        ) : groups.length === 0 ? (
-          <div className="text-center py-20 text-ccc-muted text-sm">
-            {docs.length === 0 ? 'No documents uploaded yet.' : 'No applicants match your filters.'}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {groups.map((g, i) => (
-              <ApplicantGroup
-                key={g.name ? g.name.toLowerCase() : `unknown-${i}`}
-                name={g.name}
-                email={g.email}
-                docs={g.docs}
-                defaultOpen={i === 0}
-                onOverride={onOverride}
-                overriding={overriding}
-                eligibilityRow={eligibilityByName.get((g.name || '').trim().toLowerCase())}
-                onEligibilityOverride={onEligibilityOverride}
-                eligibilityOverriding={eligibilityOverriding}
-              />
-            ))}
-          </div>
-        )}
       </div>
     </div>
   )
