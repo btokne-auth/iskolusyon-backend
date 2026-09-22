@@ -79,6 +79,7 @@ export async function DELETE(request) {
           actor: session.name,
           action: `Removed admin account — ${deleted.name} (${deleted.email})`,
           kind: 'warn',
+          category: 'Admin Accounts',
         },
       ])
     } catch (auditErr) {

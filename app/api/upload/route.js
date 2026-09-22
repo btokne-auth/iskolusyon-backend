@@ -7,6 +7,7 @@ import { createWorker, PSM } from 'tesseract.js'
 import { VALID_DOCUMENT_TYPES, AUTOFILL_SCOPED_TYPES } from '@/app/lib/documentTypes'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
+import { getSystemSettings } from '@/app/lib/systemSettings'
 
 // ---------- Validation limits ----------
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
@@ -358,6 +359,22 @@ async function extractText(buffer, mimeType) {
 
 export async function POST(request) {
   try {
+    // Sept 22 2026: Application Cycle Settings gate. This route is
+    // applicant-facing upload only (the admin console's document actions
+    // go through different routes), so this blocks every call here when
+    // Document Uploads Enabled is off, no action-type check needed.
+    try {
+      const settings = await getSystemSettings()
+      if (!settings.document_uploads_enabled) {
+        return NextResponse.json(
+          { error: 'Document uploads are currently disabled. Please check back later.' },
+          { status: 403 }
+        )
+      }
+    } catch (settingsErr) {
+      console.error('Failed to read system settings (allowing upload):', settingsErr)
+    }
+
     const formData = await request.formData()
     const file = formData.get('file')
 
@@ -552,6 +569,7 @@ export async function POST(request) {
             ? `Document flagged for review — ${applicantName} \u00b7 ${documentType} (${Math.round(extractionConfidence)}% confidence)`
             : `Document auto-verified — ${applicantName} \u00b7 ${documentType} (${Math.round(extractionConfidence)}% confidence)`,
           kind: needsReview ? 'warn' : 'done',
+          category: 'Documents',
         },
       ])
     } catch (auditErr) {

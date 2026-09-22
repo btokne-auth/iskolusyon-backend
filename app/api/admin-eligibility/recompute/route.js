@@ -72,7 +72,7 @@ export async function POST(request) {
 
     try {
       await supabase.from('audit_log').insert([
-        { actor: adminName, action: `Recomputed Scholarship Matching eligibility for ${updated} application(s)`, kind: 'done' },
+        { actor: adminName, action: `Recomputed Scholarship Matching eligibility for ${updated} application(s)`, kind: 'done', category: 'Eligibility' },
       ])
     } catch (auditErr) {
       console.error('Audit log insert failed (non-blocking):', auditErr)

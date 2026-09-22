@@ -116,6 +116,7 @@ export async function PATCH(request) {
             actor: adminName,
             action: `Recorded entrance exam result for ${applicantLabel}: ${examResult || 'no result'}${score != null ? ` (score ${score})` : ''} -> ${derivedStatus}`,
             kind: examResult === 'absent' || examResult === 'failed' ? 'warn' : 'done',
+            category: 'Results',
           },
         ])
       } catch (auditErr) {
@@ -146,6 +147,7 @@ export async function PATCH(request) {
             actor: adminName,
             action: `Manually set scholar status to "${scholarStatus}" for ${applicantLabel}${reason ? ` -- ${reason}` : ''}`,
             kind: scholarStatus === 'disqualified' || scholarStatus === 'forfeited' ? 'warn' : 'done',
+            category: 'Results',
           },
         ])
       } catch (auditErr) {
@@ -175,6 +177,7 @@ export async function PATCH(request) {
             actor: adminName,
             action: `Advanced distribution status to "${distributionStatus}" for ${applicantLabel}`,
             kind: 'done',
+            category: 'Results',
           },
         ])
       } catch (auditErr) {

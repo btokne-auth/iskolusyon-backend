@@ -4,6 +4,7 @@ import { Resend } from 'resend'
 import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns, familyInfoToColumns } from '@/app/lib/applicationColumns'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { computeEligibility } from '@/app/lib/matching'
+import { getSystemSettings } from '@/app/lib/systemSettings'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -241,6 +242,25 @@ export async function POST(request) {
     const step = Number(body.step) || 1
     const action = ['submit', 'submit-section'].includes(body.action) ? body.action : 'save'
     const section = ['academic', 'personal', 'health', 'financial'].includes(body.section) ? body.section : null
+
+    // Sept 22 2026: Application Cycle Settings gate. Only the final
+    // submit is blocked when applications are closed -- an autosave
+    // ('save') or a section-level submit ('submit-section') for an
+    // applicant who already started a draft is left alone, since closing
+    // new applications shouldn't strand someone mid-draft.
+    if (action === 'submit') {
+      try {
+        const settings = await getSystemSettings()
+        if (!settings.applications_open) {
+          return NextResponse.json(
+            { error: 'Applications are currently closed. Please check back later.' },
+            { status: 403 }
+          )
+        }
+      } catch (settingsErr) {
+        console.error('Failed to read system settings (allowing submit):', settingsErr)
+      }
+    }
     const personalInfoColumns = personalInfoToColumns(body.personalInfo)
     const academicInfoColumns = academicInfoToColumns(body.academicInfo)
     const healthInfoColumns = healthInfoToColumns(body.healthInfo)

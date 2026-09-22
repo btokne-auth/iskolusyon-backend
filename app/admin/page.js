@@ -2557,37 +2557,238 @@ function AdminAccountsPanel() {
   )
 }
 
-// ---------- System & Activity panel (Global Audit Log, moved in from the
-// old standalone /admin/activity route — same content, same behavior) ----------
+// ---------- System & Activity panel ----------
+// Sept 22, 2026 rebuild: this used to be just the audit log (moved in from
+// the old standalone /admin/activity route), now split into the two real
+// halves Ivy's mockup shows. Scope decided this session: only Applications
+// Open and Document Uploads Enabled actually gate applicant behavior (see
+// app/api/application/route.js and app/api/upload/route.js) -- Applicant
+// Slots, the Acceptance Start/End Date window, and Exam Results Visible
+// are saved and round-trip through the form, but nothing enforces them
+// yet. The activity log gets real category/status filters and a shared
+// read/unread flag; Communications posts stay their own separate list in
+// the Communications panel rather than merging into this feed.
 
-function TimelineItem({ entry }) {
-  const isWarn = entry.kind === 'warn'
-  return (
-    <div className="flex gap-3">
-      <div
-        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-          isWarn ? 'bg-orange-50 text-ccc-orange border border-ccc-orange/40' : 'bg-green-50 text-ccc-green border border-ccc-green/40'
-        }`}
-      >
-        {isWarn ? <IconAlert className="w-3.5 h-3.5" /> : <IconCheck className="w-3.5 h-3.5" />}
+const ACTIVITY_CATEGORIES = ['Documents', 'Eligibility', 'Results', 'Communications', 'Admin Accounts', 'System']
+
+function CycleSettingsCard() {
+  const [settings, setSettings] = useState(null)
+  const [draft, setDraft] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [savedNote, setSavedNote] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/system-settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setSettings(data.settings)
+          setDraft(data.settings)
+        } else {
+          setError(data.error || 'Failed to load settings.')
+        }
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const dirty = settings && draft && JSON.stringify(settings) !== JSON.stringify(draft)
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError('')
+    setSavedNote(false)
+    try {
+      const res = await fetch('/api/system-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applications_open: draft.applications_open,
+          applicant_slots: draft.applicant_slots === '' ? null : draft.applicant_slots,
+          acceptance_start_date: draft.acceptance_start_date || null,
+          acceptance_end_date: draft.acceptance_end_date || null,
+          document_uploads_enabled: draft.document_uploads_enabled,
+          exam_results_visible: draft.exam_results_visible,
+        }),
+      })
+      const data = await res.json()
+      if (!data.success) {
+        setError(data.error || 'Failed to save settings.')
+        return
+      }
+      setSettings(data.settings)
+      setDraft(data.settings)
+      setSavedNote(true)
+      setTimeout(() => setSavedNote(false), 2500)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="card">
+        <div className="card-title">Application Cycle Settings</div>
+        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
       </div>
-      <div className="pb-4 border-b border-ccc-border flex-1 min-w-0">
-        <p className="text-sm text-ccc-text leading-snug">{entry.action}</p>
-        <p className="text-[11px] text-ccc-muted mt-1">
-          {entry.actor} &middot; {formatWhen(entry.created_at)}
-        </p>
+    )
+  }
+  if (!draft) {
+    return (
+      <div className="card">
+        <div className="card-title">Application Cycle Settings</div>
+        <p className="text-sm text-ccc-red text-center py-8">{error || 'Failed to load settings.'}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card">
+      <div className="card-title">Application Cycle Settings</div>
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-ccc-red/40 bg-red-50 px-4 py-2.5 text-xs font-semibold text-ccc-red">
+          {error}
+        </div>
+      )}
+
+      <div className="toggle-row">
+        <div className="toggle-row-info">
+          <h4>Applications Open</h4>
+          <p>When off, applicants can no longer submit new applications through the public site.</p>
+        </div>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={!!draft.applications_open}
+            onChange={(e) => setDraft((d) => ({ ...d, applications_open: e.target.checked }))}
+          />
+          <span className="slider" />
+        </label>
+      </div>
+      <div className={`toggle-detail-panel${draft.applications_open ? '' : ' collapsed'}`}>
+        <div className="efield">
+          <label>Applicant Slots</label>
+          <input
+            type="number"
+            min="0"
+            placeholder="e.g. 100"
+            value={draft.applicant_slots ?? ''}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, applicant_slots: e.target.value === '' ? null : Number(e.target.value) }))
+            }
+          />
+        </div>
+        <div className="efield">
+          <label>Acceptance Start Date</label>
+          <input
+            type="date"
+            value={draft.acceptance_start_date || ''}
+            onChange={(e) => setDraft((d) => ({ ...d, acceptance_start_date: e.target.value || null }))}
+          />
+        </div>
+        <div className="efield">
+          <label>Acceptance End Date</label>
+          <input
+            type="date"
+            value={draft.acceptance_end_date || ''}
+            onChange={(e) => setDraft((d) => ({ ...d, acceptance_end_date: e.target.value || null }))}
+          />
+        </div>
+      </div>
+
+      <div className="toggle-row">
+        <div className="toggle-row-info">
+          <h4>Document Uploads Enabled</h4>
+          <p>When off, applicants cannot upload or re-upload documents.</p>
+        </div>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={!!draft.document_uploads_enabled}
+            onChange={(e) => setDraft((d) => ({ ...d, document_uploads_enabled: e.target.checked }))}
+          />
+          <span className="slider" />
+        </label>
+      </div>
+
+      <div className="toggle-row">
+        <div className="toggle-row-info">
+          <h4>Exam Results Visible to Applicants</h4>
+          <p>
+            When on, qualifying exam results are shown on applicants&rsquo; dashboards once released. Saved here, but
+            not enforced anywhere yet &mdash; the Applicant Results panel doesn&rsquo;t check this setting.
+          </p>
+        </div>
+        <label className="switch">
+          <input
+            type="checkbox"
+            checked={!!draft.exam_results_visible}
+            onChange={(e) => setDraft((d) => ({ ...d, exam_results_visible: e.target.checked }))}
+          />
+          <span className="slider" />
+        </label>
+      </div>
+
+      <div className="flex items-center justify-end gap-3 mt-4">
+        {savedNote && <span className="text-xs font-bold text-ccc-green">Saved.</span>}
+        <button
+          type="button"
+          className="mbtn mbtn-secondary"
+          onClick={() => setDraft(settings)}
+          disabled={!dirty || saving}
+        >
+          Cancel
+        </button>
+        <button type="button" className="mbtn mbtn-primary" onClick={handleSave} disabled={!dirty || saving}>
+          {saving ? 'Saving...' : 'Save Changes'}
+        </button>
       </div>
     </div>
   )
 }
 
-function SystemActivityPanel() {
+function TimelineItem({ entry }) {
+  const isWarn = entry.kind === 'warn'
+  return (
+    <div className={`timeline-item${entry.read ? '' : ' unread'}`}>
+      <div className={`timeline-dot ${isWarn ? 'warn' : 'done'}`}>
+        {isWarn ? <IconAlert className="w-3.5 h-3.5" /> : <IconCheck className="w-3.5 h-3.5" />}
+      </div>
+      <div className="timeline-body min-w-0">
+        <h4>
+          {!entry.read && <span className="notif-unread-dot" style={{ marginRight: '6px', verticalAlign: 'middle' }} />}
+          {entry.action}
+        </h4>
+        <p>
+          {entry.actor}
+          {entry.category ? ` · ${entry.category}` : ''}
+        </p>
+        <span className="timeline-date">{formatWhen(entry.created_at)}</span>
+      </div>
+    </div>
+  )
+}
+
+function ActivityLogCard() {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [markingAllRead, setMarkingAllRead] = useState(false)
 
   useEffect(() => {
-    fetch('/api/audit-log')
+    setLoading(true)
+    const params = new URLSearchParams()
+    if (categoryFilter !== 'all') params.set('category', categoryFilter)
+    if (statusFilter !== 'all') params.set('status', statusFilter)
+    const qs = params.toString()
+    fetch(`/api/audit-log${qs ? `?${qs}` : ''}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) setEntries(data.entries)
@@ -2595,8 +2796,82 @@ function SystemActivityPanel() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [])
+  }, [categoryFilter, statusFilter])
 
+  const unreadCount = entries.filter((e) => !e.read).length
+
+  const handleMarkAllRead = async () => {
+    setMarkingAllRead(true)
+    try {
+      const res = await fetch('/api/audit-log', { method: 'PATCH' })
+      const data = await res.json()
+      if (data.success) {
+        setEntries((prev) => prev.map((e) => ({ ...e, read: true })))
+      }
+    } catch {
+      // non-blocking -- switching filters re-fetches real state either way
+    } finally {
+      setMarkingAllRead(false)
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="card-title">
+        Recent Activity Log &amp; Notifications
+        {unreadCount > 0 && <span className="tag">{unreadCount} unread</span>}
+      </div>
+
+      <div className="activity-filter-row">
+        <div className="mfield">
+          <label>Show</label>
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
+            <option value="all">All</option>
+            {ACTIVITY_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="mfield">
+          <label>Status</label>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="all">All</option>
+            <option value="unread">Unread</option>
+            <option value="read">Read</option>
+          </select>
+        </div>
+        <div className="mfield-actions">
+          <button
+            type="button"
+            onClick={handleMarkAllRead}
+            disabled={markingAllRead || unreadCount === 0}
+            className="text-xs font-bold text-ccc-blue disabled:text-ccc-muted disabled:cursor-not-allowed hover:underline"
+          >
+            {markingAllRead ? 'Marking...' : 'Mark all as read'}
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+      ) : error ? (
+        <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+      ) : entries.length === 0 ? (
+        <p className="text-sm text-ccc-muted text-center py-8">No activity recorded yet.</p>
+      ) : (
+        <div className="timeline">
+          {entries.map((entry) => (
+            <TimelineItem key={entry.id} entry={entry} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SystemActivityPanel() {
   return (
     <div>
       <div className="mb-6">
@@ -2604,26 +2879,13 @@ function SystemActivityPanel() {
           System &amp; Activity
         </h1>
         <p className="text-xs text-ccc-muted mt-0.5">
-          A running, auto-recorded timeline of system activity — document uploads, manual overrides, and
-          announcement posts.
+          Application cycle controls, and a running, auto-recorded timeline of system activity — document uploads,
+          manual overrides, and announcement posts.
         </p>
       </div>
 
-      <div className="bg-white border border-ccc-border rounded-2xl p-6">
-        {loading ? (
-          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
-        ) : error ? (
-          <p className="text-sm text-ccc-red text-center py-8">{error}</p>
-        ) : entries.length === 0 ? (
-          <p className="text-sm text-ccc-muted text-center py-8">No activity recorded yet.</p>
-        ) : (
-          <div className="space-y-0">
-            {entries.map((entry) => (
-              <TimelineItem key={entry.id} entry={entry} />
-            ))}
-          </div>
-        )}
-      </div>
+      <CycleSettingsCard />
+      <ActivityLogCard />
     </div>
   )
 }

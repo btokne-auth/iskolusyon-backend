@@ -99,6 +99,7 @@ export async function PATCH(request) {
             ? `Manually set eligibility to "${override}" for ${existing.applicant_name || 'Unknown applicant'} (Scholarship Matching override)`
             : `Cleared manual eligibility override for ${existing.applicant_name || 'Unknown applicant'} (back to automated result)`,
           kind: override === 'not_qualified' ? 'warn' : 'done',
+          category: 'Eligibility',
         },
       ])
     } catch (auditErr) {

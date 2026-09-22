@@ -111,6 +111,7 @@ export async function POST(request) {
               ? `Sent a message to ${targetLabel} — "${title.trim()}"`
               : `Posted announcement — "${title.trim()}"`,
           kind: 'done',
+          category: 'Communications',
         },
       ])
     } catch (auditErr) {
@@ -154,6 +155,7 @@ export async function DELETE(request) {
           actor: session.name,
           action: `Removed ${existing.type === 'message' ? 'message' : 'announcement'} — "${existing.title}"`,
           kind: 'warn',
+          category: 'Communications',
         },
       ])
     } catch (auditErr) {
