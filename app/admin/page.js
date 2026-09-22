@@ -402,6 +402,22 @@ function EligibilityBadge({ status }) {
   )
 }
 
+// The 3 manual-override choices, restyled Sept 22 2026 as Ivy's mockup's
+// big "Update Application Status" cards (.status-action-grid/.status-btn,
+// already in admin-theme.css, previously unused) instead of small pills --
+// cosmetic only, per the user's explicit scope pick that day: no new
+// per-field editing or admin-controlled applicant emails (her mockup's
+// "EDIT"/"EDITABLE" toggles and "Emails Applicant" switch aren't real
+// features this app has yet, so they're deliberately left out here, not
+// silently added). `key` matches VALID_OVERRIDES in
+// app/api/admin-eligibility/route.js; `cls` is only the CSS modifier name
+// (status-btn.not-qualified, hyphenated) so it doesn't have to match.
+const STATUS_OPTIONS = [
+  { key: 'qualified', cls: 'qualified', icon: '✓', label: 'Qualified' },
+  { key: 'waitlisted', cls: 'waitlisted', icon: '⏳', label: 'Waitlisted' },
+  { key: 'not_qualified', cls: 'not-qualified', icon: '✕', label: 'Not Qualified' },
+]
+
 // The expandable detail: computed status + why, plus the manual override
 // buttons. `row` is one entry from GET /api/admin-eligibility (or undefined
 // if this applicant has no `applications` row yet — e.g. documents were
@@ -421,55 +437,38 @@ function EligibilitySection({ row, onOverride, overriding }) {
   const reasons = Array.isArray(row.eligibility_reasons) ? row.eligibility_reasons : []
 
   return (
-    <div className="rounded-xl border border-ccc-border bg-white px-4 py-3.5 space-y-2.5">
+    <div className="rounded-xl border border-ccc-border bg-white px-4 py-3.5 space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            Scholarship Eligibility
-          </span>
-          <EligibilityBadge status={effectiveStatus} />
-          {isOverridden && (
-            <span className="text-[10px] text-ccc-muted">
-              (manually set by {row.eligibility_override_by || 'an admin'})
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={() => onOverride(row.id, 'qualified')}
-            className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-ccc-green/40 text-ccc-green hover:bg-green-50 disabled:opacity-50"
-          >
-            Mark Qualified
-          </button>
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={() => onOverride(row.id, 'waitlisted')}
-            className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-ccc-gold/50 text-ccc-navy hover:bg-ccc-gold/10 disabled:opacity-50"
-          >
-            Waitlist
-          </button>
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={() => onOverride(row.id, 'not_qualified')}
-            className="text-[10px] font-bold px-2.5 py-1 rounded-full border border-ccc-red/40 text-ccc-red hover:bg-red-50 disabled:opacity-50"
-          >
-            Mark Not Qualified
-          </button>
-          {isOverridden && (
+        <span className="modal-section-label" style={{ marginBottom: 0 }}>
+          Update Application Status
+        </span>
+        {isOverridden && (
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-ccc-muted">Manually set by {row.eligibility_override_by || 'an admin'}</span>
             <button
               type="button"
               disabled={isBusy}
               onClick={() => onOverride(row.id, null)}
-              className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-ccc-border text-ccc-muted hover:text-ccc-navy disabled:opacity-50"
+              className="text-[10px] font-semibold text-ccc-blue hover:underline disabled:opacity-50"
             >
               Clear override
             </button>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
+      <div className="status-action-grid">
+        {STATUS_OPTIONS.map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            disabled={isBusy}
+            onClick={() => onOverride(row.id, opt.key)}
+            className={`status-btn ${opt.cls}${effectiveStatus === opt.key ? ' current' : ''}`}
+          >
+            <div className="sb-icon">{opt.icon}</div>
+            <div className="sb-label">{opt.label}</div>
+          </button>
+        ))}
       </div>
       {reasons.length > 0 && (
         <ul className="text-[11px] text-ccc-muted space-y-1 list-disc pl-4">
@@ -738,9 +737,20 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                 <div className="modal-section-label">Submitted Documents &amp; Profile Data</div>
                 <div className="doc-cat-tabs">
                   {PROFILE_CATEGORIES.map((cat) => {
-                    const catDocTypes = cat.stacks.flatMap((s) => s.docTypes)
+                    const visibleStacks = cat.stacks.filter((s) => !s.showIf || s.showIf(detail))
+                    const catDocTypes = visibleStacks.flatMap((s) => s.docTypes)
                     const catDocs = docs.filter((d) => catDocTypes.includes(d.document_type))
                     const catFlagged = catDocs.filter((d) => d.needs_review).length
+                    // Stacks that require a document but have none submitted
+                    // yet -- the real-data equivalent of Ivy's tab count/
+                    // asterisk (her mockup's exact numbers came from her own
+                    // mock data, not a documented formula, so this counts
+                    // what's actually missing for this applicant instead of
+                    // trying to reproduce her specific numbers).
+                    const catMissing = visibleStacks.filter(
+                      (s) => s.docTypes.length > 0 && docs.filter((d) => s.docTypes.includes(d.document_type)).length === 0
+                    ).length
+                    const catAttention = catFlagged + catMissing
                     return (
                       <button
                         key={cat.key}
@@ -748,9 +758,14 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                         onClick={() => setActiveCat(cat.key)}
                         className={`doc-cat-tab${activeCat === cat.key ? ' active' : ''}`}
                       >
-                        <span className={`cat-dot${catFlagged > 0 ? ' attention' : catDocs.length > 0 ? ' complete' : ''}`} />
+                        <span className={`cat-dot${catAttention > 0 ? ' attention' : catDocs.length > 0 ? ' complete' : ''}`} />
                         {cat.label}
-                        {catFlagged > 0 && <span className="cat-count">{catFlagged}</span>}
+                        {catAttention > 0 && (
+                          <>
+                            <span className="cat-count">({catAttention})</span>
+                            <span className="cat-required-asterisk">*</span>
+                          </>
+                        )}
                       </button>
                     )
                   })}
