@@ -1,6 +1,7 @@
 'use client'
 import { Suspense, useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
+import '../admin-theme.css'
 import SiteHeader from '../components/SiteHeader'
 import AdminSidebar from '../components/AdminSidebar'
 import { getDocTypeLabel } from '../lib/documentTypes'
@@ -1974,7 +1975,7 @@ function AdminPageInner() {
   const totalFlagged = docs.filter((d) => d.needs_review).length
 
   return (
-    <main className="min-h-screen bg-ccc-off text-ccc-text">
+    <main className="admin-portal">
       <SiteHeader
         topbarLabel="Iskolusyon Admin Console"
         portalBadge="Admin Console"
@@ -2005,7 +2006,7 @@ function AdminPageInner() {
         </div>
       )}
 
-      <div className="w-full max-w-6xl mx-auto px-4 pt-8 pb-16 flex flex-col lg:flex-row gap-6">
+      <div className="portal-shell">
         <AdminSidebar
           activePanel={activePanel}
           onSelectPanel={setActivePanel}
@@ -2015,7 +2016,7 @@ function AdminPageInner() {
           onLogout={handleLogout}
         />
 
-        <div className="flex-1 min-w-0">
+        <div className="portal-main">
           {activePanel === 'dashboard' && (
             <DashboardPanel
               docs={docs}

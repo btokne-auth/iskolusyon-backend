@@ -1,0 +1,3348 @@
+/* ============================================================
+   Admin portal theme (design-parity pass, Sept 22 2026)
+   Scoped, near-verbatim port of the front-end repo's admin.html
+   <style> block as of its "main" branch Patch 5 (Sept 19 2026),
+   so the real admin app is a pixel match instead of an approximation
+   built from ad hoc Tailwind utilities -- same technique already
+   used for the applicant portal in portal-theme.css.
+
+   Everything here is wrapped in .admin-portal so it only affects the
+   admin-facing pages (app/admin/*) and never leaks into the
+   applicant portal, history, about, or auth screens.
+
+   Source rem values were all relative to the mockup's own
+   html{font-size:15px}; since this app doesn't (and shouldn't)
+   change its global root font-size just for one section, every rem
+   in the original was converted to its exact px equivalent
+   (rem * 15) so sizing matches pixel-for-pixel regardless of the
+   app's base font size.
+
+   Deliberately NOT ported: every rule scoped to
+   body.role-is-registrar / .role-tag.registrar. The "Office of the
+   Registrar" role + Allowance-posting panel is real, new scope in
+   Ivy's Patch 5 mockup, but it isn't built anywhere in this app yet
+   and isn't in the manuscript's committed scope -- that gets its own
+   branch later, on purpose. This file should stay free of any
+   registrar-specific styling until that happens.
+   ============================================================ */
+
+.admin-portal {
+  --navy: var(--ccc-navy);
+  --blue: var(--ccc-blue-mid);
+  --blue-light: var(--ccc-blue-light);
+  --green: var(--ccc-green);
+  --green-dark: var(--ccc-green-dark);
+  --gold: var(--ccc-gold);
+  --gold-light: #f2ce67;
+  --yellow: var(--ccc-yellow);
+  --white: #fff;
+  --off: var(--ccc-off);
+  --text: var(--ccc-text);
+  --muted: var(--ccc-muted);
+  --border: var(--ccc-border);
+  --orange: var(--ccc-orange);
+  --red: var(--ccc-red);
+  --pending-light: #c99a4a;
+  --qualified-light: #4fa173;
+  --notqualified-light: #c16b62;
+  --waitlisted-light: #9fb2c9;
+  --appealed-light: #c99a4a;
+  /* --ccc-blue needs no alias: the app's global :root already defines it
+     with the exact spec value and inherits into this scope fine on its
+     own (same reasoning as portal-theme.css). */
+
+  font-family: "Open Sans", sans-serif;
+  line-height: 1.65;
+  min-height: 100vh;
+}
+
+/* ── TOPBAR ── */
+.admin-portal .topbar {
+  background: var(--navy);
+  color: #fff;
+  font-size: 11.25px;
+  padding: 6px 0;
+  font-family: "Montserrat", sans-serif;
+  letter-spacing: 0.3px;
+}
+.admin-portal .topbar .inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 30px;
+  display: flex;
+  justify-content: space-between;
+  gap: 22.5px;
+  align-items: center;
+}
+.admin-portal .topbar .badge-supersecure {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  font-size: 10.2px;
+  color: var(--gold);
+} /* ── NAVBAR ── */
+.admin-portal .navbar {
+  background: var(--white);
+  border-bottom: 3px solid var(--gold);
+  position: sticky;
+  top: 0;
+  z-index: 300;
+  box-shadow: 0 2px 12px rgba(13, 47, 110, 0.08);
+}
+.admin-portal .nav-inner {
+  width: 100%;
+  margin: 0;
+  padding: 0 37.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+  gap: 15px;
+}
+.admin-portal .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+.admin-portal .brand-logos {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-portal .brand-logos img {
+  height: 52px;
+  width: auto;
+  object-fit: contain;
+}
+.admin-portal .brand-text {
+  font-family: "Montserrat", sans-serif;
+  border-left: 2px solid var(--border);
+  padding-left: 10px;
+}
+.admin-portal .brand-text .main {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--navy);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  display: block;
+  line-height: 1.1;
+}
+.admin-portal .brand-text .sub {
+  font-size: 8.7px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  margin-top: 1px;
+  display: block;
+}
+.admin-portal .nav-portal-badge {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 10.2px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--navy);
+  background: #f3ecd9;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid #e4d5a8;
+} /* ══ PORTAL SHELL ══ */
+.admin-portal .portal-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: calc(100vh - 108px);
+  align-items: stretch;
+} /* ── SIDEBAR ── */
+.admin-portal .sidebar {
+  background: linear-gradient(180deg, var(--navy) 0%, #081f49 100%);
+  color: #fff;
+  padding: 30px 20.25px 22.5px;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: var(--sticky-top, 75px);
+  height: calc(100vh - var(--sticky-top, 75px));
+  overflow-y: auto;
+}
+.admin-portal .sidebar-profile {
+  text-align: center;
+  margin-bottom: 26.25px;
+  padding-bottom: 22.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+.admin-portal .admin-avatar {
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  margin: 0 auto 12.75px;
+  border: 3px solid var(--gold);
+  background: rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22.5px;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.2s;
+  flex-shrink: 0;
+}
+.admin-portal .admin-avatar:hover {
+  border-color: #fff;
+}
+.admin-portal .admin-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+  position: absolute;
+  inset: 0;
+}
+.admin-portal .admin-avatar .aa-initials {
+  position: relative;
+  z-index: 1;
+  transition: opacity 0.2s;
+}
+.admin-portal .admin-avatar-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 2;
+  border-radius: 50%;
+}
+.admin-portal .admin-avatar:hover .admin-avatar-overlay {
+  opacity: 1;
+}
+.admin-portal .admin-avatar-overlay svg {
+  color: #fff;
+}
+.admin-portal #adminAvatarInput {
+  display: none;
+}
+.admin-portal .admin-name {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 14.25px;
+}
+.admin-portal .admin-role {
+  font-size: 10.2px;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-top: 4px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+}
+.admin-portal .sidebar-menu {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  flex: 1;
+}
+.admin-portal .sidebar-menu-group {
+  display: block;
+}
+.admin-portal .sidebar-menu-label {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 8.4px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0 0 4.5px 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+  user-select: none;
+}
+.admin-portal .sml-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  display: inline-flex;
+}
+.admin-portal .sidebar-menu-sub {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0 0 0 16px;
+  padding-left: 11px;
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+.admin-portal .menu-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 600;
+  font-size: 10.8px;
+  color: rgba(255, 255, 255, 0.8);
+  transition:
+    background 0.2s,
+    color 0.2s;
+  width: 100%;
+}
+.admin-portal .menu-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.admin-portal .menu-btn.active {
+  background: #fff;
+  color: var(--navy);
+}
+.admin-portal .menu-icon {
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 13.5px;
+}
+.admin-portal .menu-badge {
+  margin-left: auto;
+  background: var(--gold-light);
+  color: var(--navy);
+  font-size: 9.3px;
+  font-weight: 800;
+  line-height: 1;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.admin-portal .menu-badge.is-empty,
+.admin-portal .count-badge.is-empty {
+  display: none;
+}
+.admin-portal .count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 8px;
+  background: var(--gold-light);
+  color: var(--navy);
+  font-family: "Montserrat", sans-serif;
+  font-size: 9.3px;
+  font-weight: 800;
+  line-height: 1;
+  border-radius: 999px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.admin-portal .sidebar-logout {
+  margin-top: 18.75px;
+  padding-top: 16.5px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+.admin-portal .logout-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 10.8px;
+  color: rgba(255, 255, 255, 0.85);
+  width: 100%;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.admin-portal .logout-btn:hover {
+  background: rgba(192, 57, 43, 0.35);
+  color: #fff;
+} /* ── MAIN CONTENT ── */
+.admin-portal .portal-main {
+  padding: 37.5px 45px 60px;
+  overflow-y: auto;
+}
+.admin-portal .portal-panel {
+  display: none;
+}
+.admin-portal .portal-panel.active {
+  display: block;
+  animation: slideDown 0.3s ease;
+}
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.admin-portal .portal-header {
+  margin-bottom: 26.25px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 22.5px;
+  flex-wrap: wrap;
+}
+.admin-portal .portal-header h1 {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 22.5px;
+  color: var(--navy);
+  letter-spacing: 0.2px;
+}
+.admin-portal .portal-header p {
+  font-size: 12.75px;
+  color: var(--muted);
+  margin-top: 5.25px;
+  max-width: 640px;
+}
+.admin-portal .card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 3px 18px rgba(13, 47, 110, 0.06);
+  padding: 26.25px 30px;
+  margin-bottom: 22.5px;
+}
+.admin-portal .card-title {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 13.8px;
+  color: var(--navy);
+  letter-spacing: 0.3px;
+  margin-bottom: 16.5px;
+  padding-bottom: 10.5px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+.admin-portal .card-title span.tag {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.3px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--off);
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+.admin-portal .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 10.2px;
+  letter-spacing: 0.3px;
+  padding: 4px 11px;
+  border-radius: 20px;
+}
+.admin-portal .badge-pending {
+  background: #fef3e8;
+  color: #7a4210;
+}
+.admin-portal .badge-verified {
+  background: #e6f4ec;
+  color: #1a5c3a;
+}
+.admin-portal .badge-deficient {
+  background: #fbe7e7;
+  color: #902020;
+}
+.admin-portal .badge-progress {
+  background: #eef3fd;
+  color: var(--ccc-blue);
+}
+.admin-portal .badge-waitlisted {
+  background: #f8fafc;
+  color: var(--muted);
+}
+.admin-portal .badge-orange {
+  background: #fdf0dc;
+  color: #8a5a10;
+}
+.admin-portal .badge-notsubmitted {
+  background: #eef0f3;
+  color: var(--muted);
+} /* ── dashboard status summary cards ── */
+.admin-portal .stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 15px;
+  margin-bottom: 22.5px;
+}
+.admin-portal .stat-card {
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 18.75px 21px;
+  box-shadow: 0 3px 18px rgba(13, 47, 110, 0.06);
+  cursor: pointer;
+  transition:
+    box-shadow 0.2s,
+    transform 0.15s,
+    border-color 0.2s;
+}
+.admin-portal .stat-card:hover {
+  box-shadow: 0 6px 22px rgba(13, 47, 110, 0.12);
+  transform: translateY(-1px);
+}
+.admin-portal .stat-card .stat-label {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 10.2px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 7.5px;
+}
+.admin-portal .stat-card .stat-value {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 27.75px;
+  color: var(--navy);
+}
+.admin-portal .stat-card .stat-note {
+  font-size: 10.8px;
+  color: var(--muted);
+  margin-top: 7.5px;
+  line-height: 1.5;
+}
+.admin-portal .stat-card-hint {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.3px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ccc-blue);
+  margin-top: 9px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.admin-portal .stat-card.stat-all {
+  border-top: 4px solid var(--navy);
+}
+.admin-portal .stat-card.stat-pending {
+  border-top: 4px solid var(--pending-light);
+}
+.admin-portal .stat-card.stat-qualified {
+  border-top: 4px solid var(--qualified-light);
+}
+.admin-portal .stat-card.stat-notqualified {
+  border-top: 4px solid var(--notqualified-light);
+}
+.admin-portal .stat-card.stat-waitlisted {
+  border-top: 4px solid var(--waitlisted-light);
+}
+.admin-portal .stat-card.stat-appealed {
+  border-top: 4px solid var(--appealed-light);
+}
+.admin-portal .dept-divider {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 13.8px;
+  color: var(--navy);
+  letter-spacing: 0.3px;
+  margin: 7.5px 0 16.5px;
+  padding-bottom: 10.5px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+} /* Program breakdowns are shown as a table directly under each section header
+   (no cards, no separate click-to-reveal step) — the header's own
+   expand/collapse controls whether the table shows at all. */
+.admin-portal .breakdown-table-wrap {
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  max-height: 320px;
+  overflow: auto;
+  box-shadow: 0 3px 18px rgba(13, 47, 110, 0.06);
+}
+.admin-portal .breakdown-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.admin-portal .breakdown-table th,
+.admin-portal .breakdown-table td {
+  text-align: left;
+  padding: 7.5px 12px;
+  font-size: 10.8px;
+  line-height: 1.45;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.admin-portal .breakdown-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--off);
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 9.6px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.admin-portal .breakdown-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.admin-portal .breakdown-table td.bd-group,
+.admin-portal .breakdown-table th.bd-group {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 10.2px;
+  color: var(--navy);
+  border-right: 1px solid var(--border);
+  width: 26%;
+}
+.admin-portal .breakdown-table td.bd-group {
+  background: var(--off);
+}
+.admin-portal .breakdown-table td.bd-count,
+.admin-portal .breakdown-table th.bd-count {
+  text-align: right;
+  width: 20%;
+  font-family: "Montserrat", sans-serif;
+  color: var(--navy);
+}
+.admin-portal .breakdown-table td.bd-count {
+  white-space: nowrap;
+}
+.admin-portal .breakdown-table th.bd-count {
+  font-weight: 800;
+}
+.admin-portal .breakdown-table td.bd-count {
+  font-weight: 400;
+}
+.admin-portal .breakdown-table td.bd-count.bd-count-has {
+  font-weight: 800;
+}
+.admin-portal .breakdown-table td.bd-program,
+.admin-portal .breakdown-table th.bd-program {
+  border-right: 1px solid var(--border);
+}
+.admin-portal .year-breakdown-table td.bd-program,
+.admin-portal .year-breakdown-table th.bd-program {
+  width: 52%;
+}
+.admin-portal .year-breakdown-table td.bd-count,
+.admin-portal .year-breakdown-table th.bd-count {
+  width: 16%;
+}
+.admin-portal .breakdown-table td.bd-program {
+  color: var(--text);
+}
+.admin-portal .breakdown-table tr td:last-child,
+.admin-portal .breakdown-table thead th:last-child {
+  border-right: none;
+}
+.admin-portal .dept-divider {
+  cursor: pointer;
+  user-select: none;
+}
+.admin-portal .dept-divider:hover {
+  color: var(--ccc-blue);
+}
+.admin-portal .dept-divider-arrow {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  transition:
+    transform 0.25s,
+    color 0.2s;
+  flex-shrink: 0;
+}
+.admin-portal .dept-divider.expanded .dept-divider-arrow {
+  transform: rotate(180deg);
+  color: var(--ccc-blue);
+}
+.admin-portal .dept-section-body {
+  max-height: 420px;
+  overflow: hidden;
+  transition:
+    max-height 0.3s ease,
+    opacity 0.25s ease,
+    margin-bottom 0.3s ease;
+  opacity: 1;
+}
+.admin-portal .dept-section-body.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-bottom: 0;
+}
+.admin-portal .qualified-breakdown-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 30px;
+}
+.admin-portal .qualified-breakdown-col {
+  min-width: 0;
+}
+.admin-portal .dept-helper-text {
+  font-family: "Open Sans", sans-serif;
+  font-size: 11.1px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 15px;
+}
+.admin-portal .mbtn {
+  padding: 10px 22px;
+  border: none;
+  border-radius: 6px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.admin-portal .mbtn-primary {
+  background: var(--ccc-blue);
+  color: #fff;
+}
+.admin-portal .mbtn-primary:hover {
+  background: #002fa8;
+}
+.admin-portal .mbtn-secondary {
+  background: var(--green);
+  color: #fff;
+}
+.admin-portal .mbtn-secondary:hover {
+  background: var(--green-dark);
+}
+.admin-portal .mbtn-ghost {
+  background: none;
+  border: 1.5px solid var(--border);
+  color: var(--muted);
+}
+.admin-portal .mbtn-ghost:hover {
+  background: var(--off);
+  color: var(--text);
+}
+.admin-portal .mbtn-danger {
+  background: #c0392b;
+  color: #fff;
+}
+.admin-portal .mbtn-danger:hover {
+  background: #992d22;
+}
+.admin-portal .mbtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+} /* Shared state for every send/publish/submit/save button — gray + unclickable
+   while a required field is still empty or there is simply nothing to send. */
+.admin-portal .mbtn-idle,
+.admin-portal .mbtn:disabled {
+  background: #d5d9df !important;
+  color: #8a9199 !important;
+  cursor: not-allowed !important;
+  box-shadow: none;
+  opacity: 1;
+}
+.admin-portal .mbtn-idle:hover,
+.admin-portal .mbtn:disabled:hover {
+  background: #d5d9df !important;
+  color: #8a9199 !important;
+}
+.admin-portal .mbtn-sm {
+  padding: 7px 14px;
+  font-size: 10.5px;
+} /* ── PASSWORD GATE ── */
+.admin-portal .gate-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(
+    160deg,
+    var(--navy) 0%,
+    #081f49 60%,
+    #04122b 100%
+  );
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22.5px;
+}
+.admin-portal .gate-overlay.hidden {
+  display: none;
+}
+.admin-portal .gate-box {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.35);
+  max-width: 400px;
+  width: 100%;
+  padding: 37.5px 33.75px;
+  text-align: center;
+}
+.admin-portal .gate-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #eef3fd;
+  color: var(--ccc-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin: 0 auto 16.5px;
+}
+.admin-portal .gate-box h2 {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 17.25px;
+  color: var(--navy);
+  margin-bottom: 6px;
+}
+.admin-portal .gate-box p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 22.5px;
+}
+.admin-portal .gate-field {
+  position: relative;
+  margin-bottom: 15px;
+  text-align: left;
+}
+.admin-portal .gate-field label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 5px;
+  font-family: "Montserrat", sans-serif;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.admin-portal .gate-field input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 7px;
+  font-size: 13.5px;
+  outline: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+  letter-spacing: 1px;
+}
+.admin-portal .gate-field input:focus {
+  border-color: var(--ccc-blue);
+  box-shadow: 0 0 0 3px rgba(0, 60, 208, 0.1);
+}
+.admin-portal .gate-error {
+  font-size: 11.25px;
+  color: var(--red);
+  margin: -6px 0 15px;
+  text-align: left;
+  display: none;
+  font-weight: 600;
+}
+.admin-portal .gate-error.show {
+  display: block;
+}
+.admin-portal .gate-box .mbtn {
+  width: 100%;
+}
+.admin-portal .gate-shake {
+  animation: gateShake 0.35s;
+}
+@keyframes gateShake {
+  10%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  80% {
+    transform: translateX(4px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-7px);
+  }
+  40%,
+  60% {
+    transform: translateX(7px);
+  }
+}
+.admin-portal .gate-foot {
+  font-size: 10.2px;
+  color: var(--muted);
+  margin-top: 18.75px;
+}
+.admin-portal .gate-view {
+  display: none;
+}
+.admin-portal .gate-view.active {
+  display: block;
+}
+.admin-portal .gate-forgot {
+  font-size: 11.25px;
+  font-weight: 700;
+  color: var(--ccc-blue);
+  text-decoration: none;
+  font-family: "Montserrat", sans-serif;
+  cursor: pointer;
+}
+.admin-portal .gate-forgot:hover {
+  text-decoration: underline;
+}
+.admin-portal .gate-remember-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin: 12.75px 0 16.5px;
+}
+.admin-portal .gate-remember {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.25px;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 600;
+}
+.admin-portal .gate-remember input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--ccc-blue);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.admin-portal .gate-back {
+  display: inline-block;
+  font-size: 10.8px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-top: 16.5px;
+  text-decoration: none;
+  font-family: "Montserrat", sans-serif;
+  cursor: pointer;
+}
+.admin-portal .gate-back:hover {
+  color: var(--navy);
+}
+.admin-portal .gate-box .modal-alert {
+  border-radius: 6px;
+  padding: 10.5px 15px;
+  font-size: 11.7px;
+  margin-bottom: 15px;
+  text-align: left;
+  background: #e8f0fa;
+  color: #0d2f6e;
+  border: 1px solid #b5d0f0;
+}
+.admin-portal .gate-box .field-err {
+  font-size: 10.8px;
+  color: #c0392b;
+  margin: 4px 0 0;
+  display: none;
+}
+.admin-portal .otp-wrap {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 15px 0;
+}
+.admin-portal .otp-box {
+  width: 46px;
+  height: 54px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+  font-size: 19.5px;
+  font-weight: 700;
+  font-family: "Montserrat", sans-serif;
+  color: var(--navy);
+  outline: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.admin-portal .otp-box:focus {
+  border-color: var(--ccc-blue);
+  box-shadow: 0 0 0 3px rgba(0, 60, 208, 0.12);
+}
+.admin-portal .resend-btn {
+  background: none;
+  border: none;
+  color: var(--ccc-blue);
+  font-size: 11.25px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  font-family: "Montserrat", sans-serif;
+}
+.admin-portal .resend-btn:disabled {
+  color: var(--muted);
+  text-decoration: none;
+  cursor: default;
+}
+.admin-portal .resend-btn.is-cooldown {
+  color: var(--muted);
+  text-decoration: none;
+}
+.admin-portal .timer-text {
+  font-size: 10.8px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 3.75px;
+}
+.admin-portal .resend-wrap {
+  position: relative;
+  display: inline-block;
+}
+.admin-portal .resend-tooltip {
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--navy);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  padding: 7px 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(13, 47, 110, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+  z-index: 40;
+}
+.admin-portal .resend-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--navy);
+}
+.admin-portal .resend-tooltip.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+.admin-portal .app-content {
+  display: none;
+}
+.admin-portal .app-content.unlocked {
+  display: block;
+} /* ── APPLICANTS TABLE ── */
+.admin-portal .filter-bar {
+  display: flex;
+  gap: 11.25px;
+  align-items: center;
+  margin-bottom: 18.75px;
+  flex-wrap: wrap;
+}
+.admin-portal .filter-bar input[type="search"] {
+  flex: 1;
+  min-width: 220px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 7px;
+  font-size: 12.75px;
+  outline: none;
+}
+.admin-portal .filter-bar input[type="search"]:focus {
+  border-color: var(--ccc-blue);
+}
+.admin-portal .filter-bar select {
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 7px;
+  font-size: 12.3px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 600;
+  color: var(--text);
+  background: #fff;
+  cursor: pointer;
+}
+.admin-portal .filter-bar select.program-filter-select {
+  min-width: 300px;
+}
+.admin-portal .filter-bar input[type="date"] {
+  padding: 9px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 7px;
+  font-size: 12px;
+  font-family: "Open Sans", sans-serif;
+  color: var(--text);
+  background: #fff;
+  cursor: pointer;
+}
+.admin-portal .filter-bar-label {
+  font-size: 10.8px;
+  font-weight: 700;
+  color: var(--muted);
+  font-family: "Montserrat", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.admin-portal .filter-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.admin-portal .filter-clear {
+  all: unset;
+  cursor: pointer;
+  color: var(--ccc-blue);
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11.7px;
+  letter-spacing: 0.2px;
+  padding: 8px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  border-radius: 6px;
+}
+.admin-portal .filter-clear:hover {
+  background: var(--off);
+  text-decoration: underline;
+}
+.admin-portal .filter-clear-icon {
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.admin-portal .filter-clear-icon:hover {
+  text-decoration: none;
+}
+.admin-portal .notif-bulk-actions {
+  display: flex;
+  gap: 6px;
+  padding-top: 2px;
+}
+.admin-portal .applicant-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.6px;
+}
+.admin-portal .applicant-table th {
+  text-align: left;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--border);
+}
+.admin-portal .applicant-table th.sortable-th {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+.admin-portal .applicant-table th.sortable-th:hover {
+  color: var(--ccc-blue);
+}
+.admin-portal .sort-header-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.admin-portal .sort-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  transition:
+    transform 0.15s,
+    opacity 0.15s;
+  opacity: 0.85;
+}
+.admin-portal .sort-icon.asc {
+  transform: rotate(180deg);
+}
+.admin-portal .sort-icon.active {
+  opacity: 1;
+  color: var(--ccc-blue);
+}
+.admin-portal .sortable-th:hover .sort-icon {
+  opacity: 1;
+}
+.admin-portal .applicant-table td {
+  padding: 13px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.admin-portal .applicant-table tr:last-child td {
+  border-bottom: none;
+}
+.admin-portal .applicant-table tr.app-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.admin-portal .applicant-table tr.app-row:hover {
+  background: var(--off);
+}
+.admin-portal .applicant-table tr.app-row.row-locked {
+  background: #eef0f3 !important;
+  cursor: default;
+}
+.admin-portal .applicant-table tr.app-row.row-locked .nm,
+.admin-portal .applicant-table tr.app-row.row-locked .id,
+.admin-portal .applicant-table tr.app-row.row-locked .app-avatar,
+.admin-portal .applicant-table tr.app-row.row-locked .row-gray-cell {
+  color: var(--muted) !important;
+  background: #eef0f3 !important;
+  border-color: var(--border) !important;
+}
+.admin-portal .app-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.admin-portal .app-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #eef3fd;
+  color: var(--ccc-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 11.7px;
+  flex-shrink: 0;
+}
+.admin-portal .app-name-cell .nm {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12.45px;
+  color: var(--text);
+} /* New submission this admin hasn't opened yet — same bold treatment as an
+   unread entry in Recent Activity Log & Notifications. */
+.admin-portal .applicant-table tr.app-row.row-new .nm {
+  font-weight: 900;
+  color: var(--navy);
+}
+.admin-portal .app-name-cell .id {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.admin-portal .review-lock-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.6px;
+  font-weight: 700;
+  color: var(--muted);
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-top: 4px;
+}
+.admin-portal .review-lock-tag.self {
+  color: #1a5c3a;
+  background: #e6f4ec;
+  border-color: #bfe3cd;
+}
+.admin-portal .review-lock-tag svg {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+}
+.admin-portal .reviewer-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #eef3fd;
+  border: 1px solid #d6e3fa;
+  border-radius: 8px;
+  padding: 12.75px 15px;
+  font-size: 11.7px;
+  color: var(--navy);
+  margin-bottom: 16.5px;
+}
+.admin-portal .reviewer-note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--ccc-blue);
+}
+.admin-portal .ready-tag {
+  display: inline-flex;
+  align-items: center;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.2px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.admin-portal .ready-tag.ready {
+  background: #e6f4ec;
+  color: #1a5c3a;
+}
+.admin-portal .ready-tag.not-ready {
+  background: #eef0f3;
+  color: var(--muted);
+} /* ── APPLICANT DETAIL MODAL ── */
+.admin-portal .modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 20, 38, 0.6);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 22.5px;
+}
+.admin-portal .modal-overlay.open {
+  display: flex;
+}
+.admin-portal .modal-box {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.3);
+  width: 95vw;
+  max-width: 1400px;
+  height: 92vh;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideDown 0.25s ease;
+  overflow: hidden;
+}
+.admin-portal .modal-head {
+  padding: 22.5px 30px 18.75px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 16.5px;
+  flex-shrink: 0;
+}
+.admin-portal .modal-head-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+.admin-portal .modal-head-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.admin-portal .modal-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #eef3fd;
+  color: var(--ccc-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.admin-portal .modal-head h3 {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 15.3px;
+  color: var(--navy);
+}
+.admin-portal .modal-head .msub {
+  font-size: 11.1px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.admin-portal .modal-close {
+  all: unset;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 16.5px;
+  padding: 6px;
+  border-radius: 50%;
+  line-height: 1;
+}
+.admin-portal .modal-close:hover {
+  background: var(--off);
+  color: var(--text);
+}
+.admin-portal .modal-body {
+  padding: 26.25px 30px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.admin-portal .modal-section-label {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 10.8px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--navy);
+  margin-bottom: 13.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.admin-portal .modal-section-label .tag {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--off);
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+.admin-portal .edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 18.75px;
+  margin-bottom: 0;
+}
+.admin-portal .req-info-layout {
+  display: flex;
+  gap: 22.5px;
+  align-items: flex-start;
+  margin-bottom: 22.5px;
+}
+.admin-portal .req-info-layout .edit-grid {
+  flex: 1;
+}
+.admin-portal .req-info-photo {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.admin-portal .req-info-photo-box {
+  width: 130px;
+  height: 130px;
+  border-radius: 8px;
+  background: #eef3fd;
+  color: var(--ccc-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  overflow: hidden;
+  border: 1.5px solid var(--border);
+}
+.admin-portal .req-info-photo-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.admin-portal .efield {
+  margin-bottom: 13.5px;
+}
+.admin-portal .efield.full {
+  grid-column: 1/-1;
+}
+.admin-portal .efield label {
+  display: block;
+  font-size: 10.2px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+  font-family: "Montserrat", sans-serif;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.admin-portal .efield input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  font-size: 12.75px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.admin-portal .efield input:focus {
+  border-color: var(--ccc-blue);
+  box-shadow: 0 0 0 3px rgba(0, 60, 208, 0.1);
+}
+.admin-portal .edit-save-row {
+  display: flex;
+  align-items: center;
+  gap: 11.25px;
+  margin-bottom: 24px;
+}
+.admin-portal .save-flash {
+  font-size: 10.8px;
+  color: var(--green);
+  font-weight: 700;
+  display: none;
+  align-items: center;
+  gap: 5px;
+}
+.admin-portal .save-flash.show {
+  display: flex;
+}
+.admin-portal .cycle-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 11.25px;
+  margin-top: 21px;
+  padding-top: 21px;
+  border-top: 1px solid var(--border);
+}
+.admin-portal .confirm-password-error {
+  font-size: 11.25px;
+  color: var(--red);
+  margin: -6px 0 17.25px;
+  text-align: left;
+  display: none;
+  font-weight: 600;
+}
+.admin-portal .confirm-password-error.show {
+  display: block;
+}
+.admin-portal .confirm-box.has-password {
+  padding: 35.25px 30px;
+}
+.admin-portal .confirm-box.has-password .confirm-icon {
+  margin-bottom: 17.25px;
+}
+.admin-portal .confirm-box.has-password h3 {
+  margin-bottom: 9px;
+}
+.admin-portal .confirm-box.has-password p {
+  margin-bottom: 24.75px;
+}
+.admin-portal .efield input:disabled,
+.admin-portal .efield select:disabled,
+.admin-portal .efield textarea:disabled {
+  background: var(--off);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.admin-portal .efield select,
+.admin-portal .efield textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  font-size: 12.75px;
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: "Open Sans", sans-serif;
+}
+.admin-portal .efield select:focus,
+.admin-portal .efield textarea:focus {
+  border-color: var(--ccc-blue);
+  box-shadow: 0 0 0 3px rgba(0, 60, 208, 0.1);
+}
+.admin-portal .approved-status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--orange);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.admin-portal .approved-status-dot.complete {
+  background: var(--green);
+}
+.admin-portal .section-edit-btn {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.9px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--ccc-blue);
+  background: #eef3fd;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+.admin-portal .section-edit-btn:hover {
+  background: #e0eafb;
+}
+.admin-portal .section-edit-btn.is-editing {
+  color: #902020;
+  background: #fbe7e7;
+} /* ── Status-change email fields (Email / Subject / Message) ── */
+.admin-portal .email-fields {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 12.75px 13.5px 4.5px;
+  margin-bottom: 12.75px;
+}
+.admin-portal .email-field-row {
+  margin-bottom: 11.25px;
+}
+.admin-portal .email-field-row label {
+  display: block;
+  font-size: 9.6px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+  font-family: "Montserrat", sans-serif;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.admin-portal .email-field-input-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 7.5px;
+}
+.admin-portal .email-field-input {
+  flex: 1;
+  width: 100%;
+  padding: 8px 11px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  font-size: 11.7px;
+  font-family: "Open Sans", sans-serif;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s;
+  resize: vertical;
+}
+.admin-portal .email-field-input:disabled {
+  background: var(--off);
+  color: var(--muted);
+  cursor: not-allowed;
+  resize: none;
+}
+.admin-portal .email-field-input:not(:disabled) {
+  border-color: var(--ccc-blue);
+  box-shadow: 0 0 0 3px rgba(0, 60, 208, 0.1);
+}
+.admin-portal textarea.email-field-input {
+  min-height: 64px;
+  line-height: 1.5;
+}
+.admin-portal .email-field-edit-btn {
+  flex-shrink: 0;
+  margin-top: 1px;
+} /* ── Document categories ── */
+.admin-portal .doc-cat-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-bottom: 16.5px;
+  border-bottom: 2px solid var(--border);
+}
+.admin-portal .doc-cat-tab {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11.1px;
+  letter-spacing: 0.2px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  padding: 10.5px 15px;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-portal .doc-cat-tab:hover {
+  color: var(--text);
+}
+.admin-portal .doc-cat-tab.active {
+  color: var(--ccc-blue);
+  border-color: var(--ccc-blue);
+}
+.admin-portal .doc-cat-tab .cat-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+.admin-portal .doc-cat-tab .cat-dot.complete {
+  background: var(--green);
+}
+.admin-portal .doc-cat-tab .cat-dot.attention {
+  background: var(--orange);
+}
+.admin-portal .doc-cat-tab .cat-count {
+  font-size: 9.9px;
+  color: var(--red);
+  font-weight: 800;
+  opacity: 1;
+}
+.admin-portal .doc-cat-panel {
+  background: var(--off);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16.5px 18px;
+  margin-bottom: 24px;
+}
+.admin-portal .doc-cat-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 13.5px;
+}
+.admin-portal .doc-cat-panel-head h5 {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 11.4px;
+  color: var(--navy);
+  letter-spacing: 0.2px;
+}
+.admin-portal .doc-list {
+  margin-bottom: 15px;
+}
+.admin-portal .doc-list-head {
+  display: flex;
+  align-items: center;
+  gap: 11.25px;
+  padding: 0 12.75px 7.5px;
+}
+.admin-portal .doc-list-head .dlh-name {
+  flex: 1;
+}
+.admin-portal .doc-list-head .dlh-status {
+  width: 130px;
+  flex-shrink: 0;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.3px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.admin-portal .doc-row {
+  display: flex;
+  align-items: center;
+  gap: 11.25px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9.75px 12.75px;
+  margin-bottom: 7.5px;
+}
+.admin-portal .doc-row-main {
+  flex: 1;
+  min-width: 0;
+}
+.admin-portal .doc-row-name {
+  display: block;
+  width: 100%;
+  font-size: 12px;
+  color: var(--ccc-blue);
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.admin-portal .doc-row-name:hover {
+  text-decoration: underline;
+}
+.admin-portal .doc-row-filename {
+  font-size: 10.5px;
+  color: var(--green);
+  margin-top: 3px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+} /* Replace-document control, mirroring the applicant portal's upload button. */
+.admin-portal .doc-upload-btn {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.3px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--ccc-blue);
+  border: 1.5px solid var(--ccc-blue);
+  border-radius: 6px;
+  padding: 6px 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+  transition:
+    background 0.2s,
+    color 0.2s;
+}
+.admin-portal .doc-upload-btn:hover {
+  background: var(--ccc-blue);
+  color: #fff;
+}
+.admin-portal .doc-upload-btn input[type="file"] {
+  display: none;
+} /* Document viewer — opens the file in-place, never downloads it. */
+.admin-portal .doc-view-overlay {
+  z-index: 1100;
+}
+.admin-portal .doc-view-box {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.3);
+  width: 95vw;
+  max-width: 900px;
+  height: 88vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideDown 0.25s ease;
+  overflow: hidden;
+}
+.admin-portal .doc-view-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 16.5px 21px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.admin-portal .doc-view-title {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 14.25px;
+  color: var(--navy);
+}
+.admin-portal .doc-view-sub {
+  font-size: 11.1px;
+  color: var(--muted);
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.admin-portal .doc-view-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--off);
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-portal .doc-view-body img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(13, 47, 110, 0.15);
+  background: #fff;
+}
+.admin-portal .doc-view-body iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 8px;
+  background: #fff;
+}
+.admin-portal .doc-view-placeholder {
+  text-align: center;
+  max-width: 430px;
+}
+.admin-portal .doc-view-placeholder h4 {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 12.75px;
+  color: var(--navy);
+  margin-bottom: 6.75px;
+}
+.admin-portal .doc-view-placeholder p {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.admin-portal .doc-row .doc-row-status {
+  width: auto;
+  flex-shrink: 0;
+}
+.admin-portal .doc-row select {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 10.2px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: #fff;
+  width: 100%;
+}
+.admin-portal .doc-row select:disabled {
+  border: none;
+  background: none;
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 4px 0;
+  color: inherit;
+}
+.admin-portal .doc-cat-divider {
+  border: none;
+  border-top: 1px dashed var(--border);
+  margin: 16.5px 0;
+}
+.admin-portal .doc-cat-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0 18.75px;
+}
+.admin-portal .doc-cat-empty {
+  font-size: 11.7px;
+  color: var(--muted);
+  padding: 6px 0 9px;
+}
+.admin-portal .doc-cat-stack {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 15px 16.5px;
+  margin-bottom: 15px;
+}
+.admin-portal .doc-cat-stack:last-child {
+  margin-bottom: 0;
+}
+.admin-portal .doc-cat-stack-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 10.5px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--navy);
+  margin-bottom: 9.75px;
+}
+.admin-portal .doc-cat-stack-label .stack-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ccc-blue);
+  color: #fff;
+  font-size: 9.3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.admin-portal .doc-cat-stack-label .stack-tag {
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: #fff;
+  padding: 2px 9px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+.admin-portal .doc-list-sub {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.3px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 1.5px 0 7.5px;
+}
+.admin-portal .mini-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 11.25px;
+}
+.admin-portal .mini-summary {
+  background: var(--off);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10.5px 15px;
+  border-left: 4px solid var(--border);
+}
+.admin-portal .mini-summary .ms-label {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.3px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 5.25px;
+}
+.admin-portal .mini-summary .ms-value {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12.3px;
+  color: var(--text);
+}
+.admin-portal .mini-summary.ms-profile {
+  background: #eef3fd;
+  border-color: #d6e2fa;
+  border-left-color: var(--ccc-blue);
+}
+.admin-portal .mini-summary.ms-profile .ms-label {
+  color: var(--ccc-blue);
+}
+.admin-portal .mini-summary.ms-profile.ongoing {
+  background: #fff7db;
+  border-color: #f5e4a0;
+  border-left-color: var(--orange);
+}
+.admin-portal .mini-summary.ms-profile.ongoing .ms-label {
+  color: #8a5a10;
+}
+.admin-portal .mini-summary.ms-profile.complete {
+  background: #f0f8f3;
+  border-color: #d6ecdd;
+  border-left-color: var(--green);
+}
+.admin-portal .mini-summary.ms-profile.complete .ms-label {
+  color: var(--green-dark);
+}
+.admin-portal .mini-summary.ms-docs {
+  background: #f0f8f3;
+  border-color: #d6ecdd;
+  border-left-color: var(--green);
+}
+.admin-portal .mini-summary.ms-docs .ms-label {
+  color: var(--green-dark);
+}
+.admin-portal .modal-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 26.25px 0;
+}
+.admin-portal .status-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10.5px;
+}
+.admin-portal .status-btn {
+  border: 1.5px solid var(--border);
+  background: #fff;
+  border-radius: 9px;
+  padding: 13.5px 9px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.18s;
+  font-family: "Montserrat", sans-serif;
+}
+.admin-portal .status-btn .sb-icon {
+  font-size: 17.25px;
+  margin-bottom: 5.25px;
+}
+.admin-portal .status-btn .sb-label {
+  font-weight: 700;
+  font-size: 11.1px;
+  letter-spacing: 0.2px;
+}
+.admin-portal .status-btn.qualified:hover {
+  border-color: var(--green);
+  background: #f3faf6;
+}
+.admin-portal .status-btn.waitlisted:hover {
+  border-color: var(--orange);
+  background: #fdf6ee;
+}
+.admin-portal .status-btn.not-qualified:hover {
+  border-color: var(--red);
+  background: #fdf2f1;
+}
+.admin-portal .status-btn.current {
+  cursor: default;
+}
+.admin-portal .status-btn.qualified.current {
+  border-color: var(--green);
+  background: #e6f4ec;
+  color: var(--green-dark);
+}
+.admin-portal .status-btn.waitlisted.current {
+  border-color: var(--orange);
+  background: #fdf0dc;
+  color: #8a5a10;
+}
+.admin-portal .status-btn.not-qualified.current {
+  border-color: var(--red);
+  background: #fbe7e7;
+  color: #902020;
+} /* ── Application-status readiness gating (requires all required fields,
+   dropdowns & documents to be filled in before a status can be chosen) ── */
+.admin-portal .status-action-wrap {
+  position: relative;
+}
+.admin-portal .status-action-grid.locked {
+  pointer-events: none;
+  opacity: 0.5;
+  filter: grayscale(0.2);
+}
+.admin-portal .status-requirement-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+  background: var(--navy);
+  color: #fff;
+  font-size: 10.8px;
+  font-family: "Open Sans", sans-serif;
+  padding: 8px 12px;
+  border-radius: 7px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 5;
+}
+.admin-portal .status-requirement-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--navy);
+}
+.admin-portal .status-action-wrap.locked:hover .status-requirement-tooltip {
+  visibility: visible;
+  opacity: 1;
+  transition:
+    opacity 0.15s ease 1.6s,
+    visibility 0s linear 1.6s;
+} /* ── Approved Program readiness gating: the select is fully disabled
+   (unclickable) — matching .efield select:disabled styling — until the
+   applicant's info is completely submitted & system-verified. ── */
+.admin-portal .approved-program-wrap {
+  position: relative;
+}
+.admin-portal .approved-program-wrap.locked:hover .status-requirement-tooltip {
+  visibility: visible;
+  opacity: 1;
+  transition:
+    opacity 0.15s ease 1.6s,
+    visibility 0s linear 1.6s;
+} /* ── Missing-required-item markers (asterisks on tabs & individual fields/docs) ── */
+.admin-portal .cat-required-asterisk {
+  color: var(--red);
+  font-weight: 800;
+  margin-left: 1px;
+}
+.admin-portal .missing-required-asterisk {
+  color: var(--red);
+  font-weight: 800;
+  margin-left: 3px;
+}
+.admin-portal .efield.field-missing label {
+  color: var(--red);
+}
+.admin-portal .efield.field-missing input,
+.admin-portal .efield.field-missing select {
+  border-color: var(--red);
+}
+.admin-portal .doc-row.field-missing {
+  border-color: var(--red);
+  background: #fdf2f1;
+} /* ── Admin flagging: mark any field, document, or dropdown for the applicant's attention ── */
+.admin-portal .efield-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-portal .efield-row input,
+.admin-portal .efield-row select {
+  flex: 1;
+  min-width: 0;
+}
+.admin-portal .flag-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: #fff;
+  color: var(--muted);
+  font-size: 12.75px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  padding: 0;
+}
+.admin-portal .flag-btn:hover {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+.admin-portal .flag-btn.active {
+  background: #fdf0dc;
+  border-color: var(--orange);
+  color: #8a5a10;
+}
+.admin-portal span.flag-btn {
+  cursor: default;
+}
+.admin-portal .flag-note-input {
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 10px;
+  border: 1.5px solid #f5e4a0;
+  background: #fffcf3;
+  border-radius: 6px;
+  font-size: 11.4px;
+  outline: none;
+  font-family: "Open Sans", sans-serif;
+}
+.admin-portal .flag-note-input:disabled {
+  background: #fffcf3;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.admin-portal .efield.field-flagged label {
+  color: #8a5a10;
+}
+.admin-portal .efield.field-flagged input:not(:disabled),
+.admin-portal .efield.field-flagged select:not(:disabled) {
+  border-color: var(--orange);
+}
+.admin-portal .doc-row {
+  flex-wrap: wrap;
+}
+.admin-portal .doc-row.field-flagged {
+  border-color: var(--orange);
+  background: #fffcf3;
+}
+.admin-portal .doc-row-flagnote-wrap {
+  flex-basis: 100%;
+  margin-top: 2px;
+}
+.admin-portal .confirm-inline {
+  margin-top: 16.5px;
+  background: var(--off);
+  border: 1.5px dashed var(--border);
+  border-radius: 9px;
+  padding: 15px 17.25px;
+  display: none;
+}
+.admin-portal .confirm-inline.show {
+  display: block;
+  animation: slideDown 0.2s ease;
+}
+.admin-portal .confirm-inline p {
+  font-size: 12.3px;
+  color: var(--text);
+  margin-bottom: 12.75px;
+  line-height: 1.55;
+}
+.admin-portal .confirm-inline .email-preview {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 10.5px 12.75px;
+  font-size: 11.1px;
+  color: var(--muted);
+  margin-bottom: 12.75px;
+}
+.admin-portal .confirm-inline .email-preview b {
+  color: var(--text);
+}
+.admin-portal .confirm-inline-actions {
+  display: flex;
+  gap: 9px;
+} /* ── ANNOUNCEMENTS PANEL ── */
+.admin-portal .announce-form .mfield {
+  margin-bottom: 15px;
+}
+.admin-portal .announce-form label {
+  display: block;
+  font-size: 10.8px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 5px;
+  font-family: "Montserrat", sans-serif;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.admin-portal .announce-form input,
+.admin-portal .announce-form select,
+.admin-portal .announce-form textarea {
+  width: 100%;
+  padding: 10px 13px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  font-family: "Open Sans", sans-serif;
+  font-size: 12.75px;
+  outline: none;
+}
+.admin-portal .announce-form textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.admin-portal .announce-form input:focus,
+.admin-portal .announce-form select:focus,
+.admin-portal .announce-form textarea:focus {
+  border-color: var(--ccc-blue);
+  box-shadow: 0 0 0 3px rgba(0, 60, 208, 0.1);
+} /* ── Rich-text (WYSIWYG) message editor for Announcements & Messages ── */
+.admin-portal .rte-wrap {
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.admin-portal .rte-wrap:focus-within {
+  border-color: var(--ccc-blue);
+  box-shadow: 0 0 0 3px rgba(0, 60, 208, 0.1);
+}
+.admin-portal .rte-wrap .ql-toolbar.ql-snow {
+  border: none;
+  border-bottom: 1.5px solid var(--border);
+  background: var(--off);
+  font-family: "Open Sans", sans-serif;
+}
+.admin-portal .rte-wrap .ql-container.ql-snow {
+  border: none;
+  font-family: "Open Sans", sans-serif;
+  font-size: 12.75px;
+}
+.admin-portal .rte-wrap .ql-editor {
+  min-height: 150px;
+}
+.admin-portal .rte-wrap .ql-editor img {
+  max-width: 100%;
+  border-radius: 4px;
+  margin: 6px 0;
+}
+.admin-portal .rte-wrap .ql-editor.ql-blank::before {
+  color: var(--muted);
+  font-style: normal;
+  font-family: "Open Sans", sans-serif;
+}
+.admin-portal .rte-content {
+  font-size: 12.75px;
+  color: var(--text);
+  line-height: 1.55;
+}
+.admin-portal .rte-content p {
+  margin: 0 0 7.5px;
+}
+.admin-portal .rte-content p:last-child {
+  margin-bottom: 0;
+}
+.admin-portal .rte-content img {
+  max-width: 100%;
+  border-radius: 4px;
+  margin: 6px 0;
+  display: block;
+}
+.admin-portal .publish-note {
+  font-size: 10.8px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7.5px;
+}
+.admin-portal .announce-item {
+  display: flex;
+  gap: 14px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--border);
+}
+.admin-portal .announce-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.admin-portal .announce-dot {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #eef3fd;
+  color: var(--ccc-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.admin-portal .announce-dot.auto {
+  background: #f3ecd9;
+  color: #8a5a10;
+}
+.admin-portal .announce-body {
+  flex: 1;
+}
+.admin-portal .announce-body h4 {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12.75px;
+  color: var(--text);
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-portal .announce-body p {
+  font-size: 12px;
+  color: var(--muted);
+}
+.admin-portal .announce-body .announce-date {
+  font-size: 10.2px;
+  color: var(--muted);
+  margin-top: 4px;
+  display: block;
+}
+.admin-portal .auto-tag {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 8.7px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #8a5a10;
+  background: #f3ecd9;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.admin-portal .msg-target-tag {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 8.7px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ccc-blue);
+  background: #eef3fd;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.admin-portal .announce-del {
+  all: unset;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12.75px;
+  padding: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.admin-portal .announce-del:hover {
+  background: var(--off);
+  color: var(--red);
+} /* ── Recent Activity: Show + Status(Read/Unread) filter row ──
+   Both dropdowns stretch to fill the row edge-to-edge, splitting the
+   container's full width evenly between them. */
+.admin-portal .activity-filter-row {
+  display: flex;
+  gap: 15px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.admin-portal .activity-filter-row .mfield {
+  margin-bottom: 15px;
+  flex: 1 1 0;
+  min-width: 160px;
+}
+.admin-portal .mfield-compact {
+  flex: 1 1 0;
+  min-width: 160px;
+}
+.admin-portal .announce-form select.filter-select-compact {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 7px;
+  font-size: 12.3px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 600;
+  color: var(--text);
+  background: #fff;
+  cursor: pointer;
+}
+.admin-portal .announce-form select.filter-select-compact:focus {
+  border-color: var(--ccc-blue);
+  box-shadow: 0 0 0 3px rgba(0, 60, 208, 0.1);
+}
+.admin-portal #activityFeedSelect {
+  width: 100%;
+  padding: 10px 14px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 600;
+  font-size: 12.3px;
+  cursor: pointer;
+} /* The bulk-toggle column doesn't stretch with the dropdowns, so it settles
+   against the row's right edge on its own. */
+.admin-portal .activity-filter-row .mfield-actions {
+  flex: 0 0 auto;
+  margin-left: auto;
+} /* ── Read/unread notification indicators ── */
+.admin-portal .timeline-item,
+.admin-portal .announce-item,
+.admin-portal .message-item {
+  cursor: pointer;
+}
+.admin-portal .notif-unread-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ccc-blue);
+  flex-shrink: 0;
+}
+.admin-portal .timeline-item.unread .timeline-body h4,
+.admin-portal .announce-item.unread .announce-body h4,
+.admin-portal .message-item.unread .message-body h4 {
+  font-weight: 900;
+  color: var(--navy);
+}
+.admin-portal .announce-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+} /* ── communications: scope note (shown above announcements / messages forms) ── */
+.admin-portal .comm-scope-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  background: var(--off);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 11.25px 14.25px;
+  font-size: 11.7px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin-bottom: 18.75px;
+}
+.admin-portal .comm-scope-note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--ccc-blue);
+}
+.admin-portal .comm-scope-note b {
+  color: var(--text);
+} /* ── MESSAGES PANEL (private, applicant-only communications) ── */
+.admin-portal .message-item {
+  display: flex;
+  gap: 14px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--border);
+}
+.admin-portal .message-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.admin-portal .message-dot {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #eef3fd;
+  color: var(--ccc-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.admin-portal .message-body {
+  flex: 1;
+}
+.admin-portal .message-body h4 {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12.75px;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.admin-portal .message-body p {
+  font-size: 12px;
+  color: var(--muted);
+}
+.admin-portal .message-body .message-date {
+  font-size: 10.2px;
+  color: var(--muted);
+  margin-top: 4px;
+  display: block;
+}
+.admin-portal .message-del {
+  all: unset;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12.75px;
+  padding: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.admin-portal .message-del:hover {
+  background: var(--off);
+  color: var(--red);
+} /* ── SUPER ADMIN: ACCOUNTS ── */
+.admin-portal .admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10.5px;
+  margin-bottom: 22.5px;
+}
+.admin-portal .admin-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 12.75px 15px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+.admin-portal .admin-row .aa-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--off);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 11.7px;
+  color: var(--navy);
+  flex-shrink: 0;
+}
+.admin-portal .admin-row .aa-info {
+  flex: 1;
+  min-width: 0;
+}
+.admin-portal .admin-row .aa-name {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12.45px;
+  color: var(--text);
+}
+.admin-portal .admin-row .aa-email {
+  font-size: 10.8px;
+  color: var(--muted);
+}
+.admin-portal .role-tag {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.3px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 4px 11px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+.admin-portal .role-tag.super {
+  background: #f3ecd9;
+  color: #8a5a10;
+}
+.admin-portal .role-tag.admin {
+  background: #eef3fd;
+  color: var(--ccc-blue);
+}
+.admin-portal .status-pill {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 20px;
+  flex-shrink: 0;
+  background: #fef3e8;
+  color: #7a4210;
+}
+.admin-portal .admin-row-del {
+  all: unset;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12.75px;
+  padding: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.admin-portal .admin-row-del:hover {
+  background: var(--off);
+  color: var(--red);
+}
+.admin-portal .admin-row-del.is-disabled {
+  color: #c6cbd2;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.admin-portal .add-admin-form {
+  display: grid;
+  grid-template-columns: 1.4fr 1.6fr 1fr auto;
+  gap: 10.5px;
+  align-items: end;
+}
+.admin-portal .add-admin-form .efield {
+  margin-bottom: 0;
+} /* ── SYSTEM TOGGLE ── */
+.admin-portal .toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--border);
+}
+.admin-portal .toggle-row:last-child {
+  border-bottom: none;
+}
+.admin-portal .toggle-row-info h4 {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12.75px;
+  color: var(--text);
+}
+.admin-portal .toggle-row-info p {
+  font-size: 11.4px;
+  color: var(--muted);
+  margin-top: 2px;
+  max-width: 440px;
+}
+.admin-portal .toggle-detail-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10.5px;
+  padding: 0 0 15px;
+  border-bottom: 1px solid var(--border);
+  max-height: 200px;
+  overflow: hidden;
+  transition:
+    max-height 0.25s ease,
+    opacity 0.2s ease,
+    padding 0.25s ease;
+  opacity: 1;
+}
+.admin-portal .toggle-detail-panel.collapsed {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  border-bottom: none;
+}
+.admin-portal .toggle-detail-panel .efield {
+  margin-bottom: 0;
+}
+.admin-portal .switch {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.admin-portal .switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.admin-portal .slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #c9d2e0;
+  border-radius: 20px;
+  transition: 0.2s;
+}
+.admin-portal .slider::before {
+  content: "";
+  position: absolute;
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+.admin-portal .switch input:checked + .slider {
+  background: var(--green);
+}
+.admin-portal .switch input:checked + .slider::before {
+  transform: translateX(20px);
+} /* activity timeline */
+.admin-portal .timeline {
+  display: flex;
+  flex-direction: column;
+}
+.admin-portal .timeline-item {
+  display: flex;
+  gap: 14px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--border);
+}
+.admin-portal .timeline-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.admin-portal .timeline-dot {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #eef3fd;
+  color: var(--ccc-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.admin-portal .timeline-dot.done {
+  background: #e6f4ec;
+  color: var(--green);
+}
+.admin-portal .timeline-dot.warn {
+  background: #fbe7e7;
+  color: #902020;
+}
+.admin-portal .timeline-body h4 {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12.75px;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.admin-portal .timeline-body p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.admin-portal .timeline-body .timeline-date {
+  font-size: 10.2px;
+  color: var(--muted);
+  margin-top: 4px;
+  display: block;
+} /* ── LOGOUT CONFIRM MODAL ── */
+.admin-portal .confirm-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 20, 38, 0.55);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 22.5px;
+}
+.admin-portal .confirm-overlay.open {
+  display: flex;
+}
+.admin-portal .confirm-box {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 380px;
+  width: 100%;
+  padding: 30px;
+  text-align: center;
+  animation: slideDown 0.25s ease;
+}
+.admin-portal .confirm-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fbe7e7;
+  color: #c0392b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 21px;
+  margin: 0 auto 15px;
+}
+.admin-portal .confirm-box h3 {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 15.75px;
+  color: var(--navy);
+  margin-bottom: 7.5px;
+}
+.admin-portal .confirm-box p {
+  font-size: 12.75px;
+  color: var(--muted);
+  margin-bottom: 22.5px;
+}
+.admin-portal .confirm-actions {
+  display: flex;
+  gap: 11.25px;
+}
+.admin-portal .confirm-actions .mbtn {
+  flex: 1;
+}
+
+@media (max-width: 960px) {
+  .admin-portal .portal-shell {
+    grid-template-columns: 1fr;
+  }
+  .admin-portal .sidebar {
+    position: relative;
+    top: 0;
+    height: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 18.75px;
+  }
+  .admin-portal .sidebar-profile {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+    flex-shrink: 0;
+  }
+  .admin-portal .sidebar-menu {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-left: 15px;
+  }
+  .admin-portal .sidebar-menu-label {
+    display: none;
+  }
+  .admin-portal .sidebar-menu-group {
+    display: contents;
+  }
+  .admin-portal .sidebar-menu-sub {
+    display: contents;
+  }
+  .admin-portal .sidebar-logout {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+    margin-left: auto;
+  }
+  .admin-portal .portal-main {
+    padding: 26.25px 18.75px 45px;
+  }
+  .admin-portal .edit-grid,
+  .admin-portal .status-action-grid,
+  .admin-portal .mini-summary-grid,
+  .admin-portal .qualified-breakdown-columns {
+    grid-template-columns: 1fr;
+  }
+  .admin-portal .req-info-layout {
+    flex-direction: column;
+  }
+  .admin-portal .add-admin-form {
+    grid-template-columns: 1fr;
+  }
+  .admin-portal .toggle-detail-panel {
+    grid-template-columns: 1fr;
+    max-height: 400px;
+  }
+  .admin-portal .applicant-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+} /* ══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE LAYER — fluid layout hardening
+   Appended last so it only ever refines the rules above it. Everything here
+   is either a no-op at desktop widths or lives inside a media query, so all
+   existing colours, component styling and behaviour are untouched.
+   Note: overflow-x:hidden is deliberately NOT used on html/body — it breaks
+   the sticky navbar and sticky sidebar. Overflow is fixed at its source.
+   ══════════════════════════════════════════════════════════════════════════ */
+.admin-portal img,
+.admin-portal svg,
+.admin-portal video,
+.admin-portal canvas {
+  max-width: 100%;
+} /* Flex/grid children default to min-width:auto and so refuse to shrink below
+   their content — the usual cause of a row blowing past its container. */
+.admin-portal .portal-shell > *,
+.admin-portal .nav-inner > *,
+.admin-portal .stat-grid > *,
+.admin-portal .edit-grid > *,
+.admin-portal .status-action-grid > *,
+.admin-portal .mini-summary-grid > *,
+.admin-portal .add-admin-form > *,
+.admin-portal .filter-bar > *,
+.admin-portal .portal-header > *,
+.admin-portal .modal-head-top > *,
+.admin-portal .modal-head-info > *,
+.admin-portal .admin-row > *,
+.admin-portal .toggle-row > *,
+.admin-portal .activity-filter-row > *,
+.admin-portal .qualified-breakdown-columns > *,
+.admin-portal .req-info-layout > * {
+  min-width: 0;
+} /* Long unbroken strings (emails, filenames, applicant IDs) wrap instead of
+   forcing a horizontal scrollbar. */
+.admin-portal .card,
+.admin-portal .portal-header,
+.admin-portal .modal-head,
+.admin-portal .modal-body,
+.admin-portal .doc-row-main,
+.admin-portal .doc-row-filename,
+.admin-portal .admin-row,
+.admin-portal .timeline-body,
+.admin-portal .announce-body,
+.admin-portal .message-body,
+.admin-portal .stat-card,
+.admin-portal .confirm-box,
+.admin-portal .toggle-row {
+  overflow-wrap: break-word;
+  word-break: break-word;
+} /* Strips that already scroll get smooth touch scrolling. */
+.admin-portal .breakdown-table-wrap,
+.admin-portal .doc-cat-tabs {
+  -webkit-overflow-scrolling: touch;
+} /* The rich-text editor is a fixed-width third-party widget; keep it boxed. */
+.admin-portal .rte-wrap {
+  max-width: 100%;
+}
+.admin-portal .rte-wrap .ql-editor {
+  overflow-wrap: break-word;
+  word-break: break-word;
+} /* ── ≤1080px: nav bar breathing room before anything collides ── */
+
+@media (max-width: 1080px) {
+  .admin-portal .nav-inner {
+    padding: 0 22.5px;
+    gap: 12.75px;
+  }
+  .admin-portal .brand-logos img {
+    height: 44px;
+  }
+  .admin-portal .brand-text .main {
+    font-size: 13.8px;
+  }
+} /* ── ≤960px: the existing breakpoint turns the sidebar into a horizontal
+   strip. Let that strip scroll rather than pile up when it runs out of
+   room, and keep the shell from being forced wide by it. ── */
+
+@media (max-width: 960px) {
+  .admin-portal .portal-shell {
+    min-height: 0;
+  }
+  .admin-portal .sidebar {
+    gap: 7.5px;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-portal .sidebar-menu {
+    gap: 4px;
+    margin-left: 11.25px;
+    min-width: 0;
+  }
+  .admin-portal .menu-btn {
+    white-space: nowrap;
+  }
+  .admin-portal .portal-header {
+    align-items: flex-start;
+  } /* The applicant table already switches to a scrolling block here; make sure
+     its horizontal scroll is reachable by touch. */
+  .admin-portal .applicant-table {
+    -webkit-overflow-scrolling: touch;
+  }
+} /* ── ≤860px: nav bar stacks onto two rows; modals reclaim edge space ── */
+
+@media (max-width: 860px) {
+  .admin-portal .nav-inner {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 10.5px 18.75px;
+    row-gap: 7.5px;
+  }
+  .admin-portal .topbar .inner {
+    flex-wrap: wrap;
+    gap: 7.5px;
+    padding: 0 18.75px;
+  }
+  .admin-portal .portal-main {
+    padding: 22.5px 16.5px 37.5px;
+  }
+  .admin-portal .card {
+    padding: 21px 18px;
+  }
+  .admin-portal .stat-grid {
+    grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+    gap: 12.75px;
+  }
+  .admin-portal .mini-summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+  .admin-portal .status-action-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .admin-portal .modal-overlay {
+    padding: 17.25px 15px;
+  }
+  .admin-portal .modal-box {
+    width: 100%;
+    height: 94vh;
+    max-height: 94vh;
+  }
+  .admin-portal .modal-head {
+    padding: 17.25px 18.75px 15px;
+  }
+  .admin-portal .modal-body {
+    padding: 20.25px 18.75px;
+  }
+  .admin-portal .doc-view-box {
+    width: 100%;
+    height: 90vh;
+  }
+} /* ── ≤640px ── */
+
+@media (max-width: 640px) {
+  .admin-portal .nav-inner {
+    padding: 9px 15px;
+  }
+  .admin-portal .brand-logos {
+    gap: 4px;
+  }
+  .admin-portal .brand-logos img {
+    height: 36px;
+  }
+  .admin-portal .brand-text {
+    padding-left: 8px;
+  }
+  .admin-portal .brand-text .main {
+    font-size: 12.3px;
+    letter-spacing: 0.3px;
+  }
+  .admin-portal .brand-text .sub {
+    font-size: 7.8px;
+    letter-spacing: 0.8px;
+  }
+  .admin-portal .nav-portal-badge {
+    display: none;
+  }
+  .admin-portal .sidebar {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 15px;
+  }
+  .admin-portal .sidebar-profile {
+    margin-bottom: 12.75px;
+    align-self: center;
+  }
+  .admin-portal .sidebar-menu {
+    margin-left: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .admin-portal .sidebar-menu::-webkit-scrollbar {
+    display: none;
+  }
+  .admin-portal .sidebar-logout {
+    margin-left: 0;
+    margin-top: 11.25px;
+    align-self: stretch;
+  }
+  .admin-portal .portal-main {
+    padding: 18.75px 13.5px 33.75px;
+  }
+  .admin-portal .card {
+    padding: 18px 15px;
+  }
+  .admin-portal .stat-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10.5px;
+  }
+  .admin-portal .status-action-grid {
+    grid-template-columns: 1fr;
+  } /* Filter and action rows wrap onto their own lines instead of squeezing. */
+  .admin-portal .filter-bar {
+    gap: 8.25px;
+  }
+  .admin-portal .filter-bar > * {
+    flex: 1 1 auto;
+  }
+  .admin-portal .filter-divider {
+    display: none;
+  }
+  .admin-portal .activity-filter-row {
+    gap: 11.25px;
+  }
+  .admin-portal .notif-bulk-actions {
+    flex-wrap: wrap;
+  }
+  .admin-portal .add-admin-form {
+    grid-template-columns: 1fr;
+  }
+  .admin-portal .admin-row {
+    flex-wrap: wrap;
+  }
+  .admin-portal .toggle-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 9px;
+  }
+  .admin-portal .efield-row {
+    flex-wrap: wrap;
+  }
+  .admin-portal .doc-row {
+    flex-wrap: wrap;
+  }
+  .admin-portal .edit-save-row,
+  .admin-portal .cycle-settings-actions,
+  .admin-portal .confirm-actions,
+  .admin-portal .confirm-inline-actions,
+  .admin-portal .mfield-actions {
+    flex-wrap: wrap;
+  }
+  .admin-portal .confirm-actions > *,
+  .admin-portal .cycle-settings-actions > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .admin-portal .modal-overlay {
+    padding: 11.25px 9px;
+  }
+  .admin-portal .modal-box {
+    height: 96vh;
+    max-height: 96vh;
+    border-radius: 10px;
+  }
+  .admin-portal .modal-head {
+    padding: 15px 15px 13.5px;
+  }
+  .admin-portal .modal-head-top {
+    align-items: flex-start;
+    gap: 9px;
+  }
+  .admin-portal .modal-body {
+    padding: 17.25px 15px;
+  }
+  .admin-portal .modal-avatar {
+    width: 42px;
+    height: 42px;
+    font-size: 12.75px;
+  }
+  .admin-portal .doc-cat-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .admin-portal .doc-cat-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .admin-portal .req-info-photo {
+    align-self: center;
+  }
+  .admin-portal .gate-box {
+    padding: 30px 20.25px;
+  }
+  .admin-portal .toggle-detail-panel {
+    max-height: none;
+  }
+} /* ── ≤480px ── */
+
+@media (max-width: 480px) {
+  .admin-portal .nav-inner {
+    padding: 8.25px 12.75px;
+    gap: 7.5px;
+  }
+  .admin-portal .brand-text {
+    display: none;
+  }
+  .admin-portal .topbar .inner {
+    padding: 0 12.75px;
+    font-size: 10.2px;
+  }
+  .admin-portal .portal-main {
+    padding: 16.5px 11.25px 30px;
+  }
+  .admin-portal .card {
+    padding: 15.75px 12.75px;
+  }
+  .admin-portal .stat-grid,
+  .admin-portal .mini-summary-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-portal .modal-box {
+    height: 97vh;
+    max-height: 97vh;
+  }
+  .admin-portal .confirm-box {
+    padding: 22.5px 17.25px;
+  }
+  .admin-portal .gate-box {
+    padding: 26.25px 16.5px;
+  }
+  .admin-portal .otp-wrap {
+    gap: 6px;
+  }
+  .admin-portal .otp-box {
+    width: clamp(34px, 13vw, 46px);
+  }
+} /* ── PASS 2: remaining nowrap overflow ── */
+
+@media (max-width: 640px) {
+  /* Both tooltips are nowrap and centred on their trigger, so near a screen
+     edge they ran off-screen. Let them wrap and cap to the viewport. */
+  .admin-portal .resend-tooltip {
+    white-space: normal;
+    width: max-content;
+    max-width: min(260px, calc(100vw - 32px));
+    text-align: center;
+  }
+  .admin-portal .status-requirement-tooltip {
+    white-space: normal;
+    width: max-content;
+    max-width: min(240px, calc(100vw - 32px));
+    text-align: center;
+  }
+  .admin-portal .filter-bar-label {
+    white-space: normal;
+  }
+}

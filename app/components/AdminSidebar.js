@@ -1,24 +1,105 @@
 'use client'
 
 // Sidebar navigation for the admin console shell. Structure (groups,
-// section labels, item order) is ported 1:1 from Ivy's admin.html sidebar
-// markup (Overview / Communications / Super Admin) — this is the confirmed-
-// merged Patch 2 version, not the still-Draft Patch 3 (PR #8) redesign.
-// Same "approved shape, real logic behind it" treatment as
+// section labels, icons, item order) is now ported to match Ivy's live
+// admin.html sidebar markup on the front-end repo's `main` branch as of
+// Patch 5 (Sept 19 2026) -- classes (.sidebar, .sidebar-menu-label,
+// .menu-btn, etc.) come from app/admin-theme.css, the design-parity CSS
+// pass, same "approved shape, real logic behind it" treatment as
 // PortalSidebar.js on the applicant side.
 //
+// Deliberately NOT ported from Patch 5: the "Office of the Registrar"
+// role and its Allowance nav item (.registrar-only in the mockup). That
+// role doesn't exist in this app yet and isn't in the manuscript's
+// committed scope -- see admin-theme.css's header comment. This sidebar
+// only ever renders Super Admin / Admin, same as before.
+//
 // admin.html gates "Admin Accounts" and "System & Activity" behind a
-// Super Admin role — see app/lib/adminAuth.js and the Sept 18 migration
-// for how that's now real (is_super_admin on admin_accounts), not faked.
+// Super Admin role -- see app/lib/adminAuth.js and the Sept 18 migration
+// for how that's real (is_super_admin on admin_accounts), not faked.
+// "Results & Reporting" (Applicant Results, Statistics) isn't part of
+// Ivy's original mockup at all -- it's Pau's own addition for the two
+// modules built Sept 21 -- so it keeps its own icons/section here rather
+// than inventing a fake mockup source for it.
+
+function IconOverview() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  )
+}
+function IconDashboard() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}>
+      <rect x="3" y="12" width="4" height="8" />
+      <rect x="10" y="7" width="4" height="13" />
+      <rect x="17" y="3" width="4" height="17" />
+    </svg>
+  )
+}
+function IconComms() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  )
+}
+function IconAnnouncements() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}>
+      <path d="M3 11v2a2 2 0 0 0 2 2h1l4 4V5l-4 4H5a2 2 0 0 0-2 2z" />
+      <path d="M16 8a4 4 0 0 1 0 8" />
+      <path d="M19 5a8 8 0 0 1 0 14" />
+    </svg>
+  )
+}
+function IconSuperAdmin() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  )
+}
+function IconResults() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  )
+}
+function IconApplicantResults() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}>
+      <path d="M9 11l3 3L22 4" />
+      <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+    </svg>
+  )
+}
+function IconStatistics() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}>
+      <rect x="3" y="12" width="4" height="8" />
+      <rect x="10" y="7" width="4" height="13" />
+      <rect x="17" y="3" width="4" height="17" />
+    </svg>
+  )
+}
 
 const NAV_GROUPS = [
   {
     section: 'Overview',
-    items: [{ key: 'dashboard', label: 'Dashboard', badgeKey: 'flagged' }],
+    labelIcon: <IconOverview />,
+    items: [{ key: 'dashboard', label: 'Dashboard', icon: <IconDashboard />, badgeKey: 'flagged', badgeId: 'dashNewBadge' }],
   },
   {
     section: 'Communications',
-    items: [{ key: 'communications', label: 'Announcements' }],
+    labelIcon: <IconComms />,
+    items: [{ key: 'communications', label: 'Announcements', icon: <IconAnnouncements /> }],
   },
   // Applicant Information & Results + Statistical Data & Reporting --
   // Ivy's former modules, built Sept 21 2026 (see ISKOLUSYON_HANDOFF.md §2,
@@ -27,18 +108,20 @@ const NAV_GROUPS = [
   // Filtering living on the plain Dashboard.
   {
     section: 'Results & Reporting',
+    labelIcon: <IconResults />,
     items: [
-      { key: 'results', label: 'Applicant Results' },
-      { key: 'analytics', label: 'Statistics' },
+      { key: 'results', label: 'Applicant Results', icon: <IconApplicantResults /> },
+      { key: 'analytics', label: 'Statistics', icon: <IconStatistics /> },
     ],
   },
 ]
 
 const SUPER_ADMIN_GROUP = {
   section: 'Super Admin',
+  labelIcon: <IconSuperAdmin />,
   items: [
-    { key: 'admins', label: 'Admin Accounts' },
-    { key: 'system', label: 'System & Activity' },
+    { key: 'admins', label: 'Admin Accounts', icon: '\u{1F6E1}️' },
+    { key: 'system', label: 'System & Activity', icon: '⚙️' },
   ],
 }
 
@@ -49,20 +132,14 @@ function NavButton({ item, active, onSelect, flaggedCount }) {
     <li>
       <button
         type="button"
+        className={`menu-btn${active ? ' active' : ''}`}
+        data-panel={item.key}
         onClick={() => onSelect(item.key)}
-        className={`w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-semibold transition-colors ${
-          active ? 'bg-ccc-blue text-white' : 'text-ccc-text hover:bg-ccc-off'
-        }`}
       >
-        <span className="flex-1">{item.label}</span>
-        {badgeCount != null && badgeCount > 0 && (
-          <span
-            className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
-              active ? 'bg-white text-ccc-blue' : 'bg-ccc-gold text-ccc-navy'
-            }`}
-          >
-            {badgeCount}
-          </span>
+        <span className="menu-icon">{item.icon}</span>
+        {' '}{item.label}{' '}
+        {badgeCount != null && (
+          <span className={`menu-badge${badgeCount > 0 ? '' : ' is-empty'}`}>{badgeCount}</span>
         )}
       </button>
     </li>
@@ -80,28 +157,25 @@ export default function AdminSidebar({
   const groups = isSuperAdmin ? [...NAV_GROUPS, SUPER_ADMIN_GROUP] : NAV_GROUPS
 
   return (
-    <aside className="w-full lg:w-64 shrink-0 bg-white border border-ccc-border rounded-2xl p-4 lg:sticky lg:top-6 h-fit space-y-5">
+    <aside className="sidebar">
       {/* ---- Profile block ---- */}
-      <div className="flex flex-col items-center text-center gap-1 pb-4 border-b border-ccc-border">
-        <div className="w-14 h-14 rounded-full bg-ccc-navy text-white flex items-center justify-center text-lg font-bold">
-          {displayName ? displayName.charAt(0).toUpperCase() : '—'}
+      <div className="sidebar-profile">
+        <div className="admin-avatar" title={displayName || 'Admin'}>
+          <span className="aa-initials">{displayName ? displayName.charAt(0).toUpperCase() : '\u{1F464}'}</span>
         </div>
-        <div className="text-sm font-bold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          {displayName || 'Admin'}
-        </div>
-        <div className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest">
-          {isSuperAdmin ? 'Super Admin' : 'Admin'}
-        </div>
+        <div className="admin-name">{displayName || 'Admin'}</div>
+        <div className="admin-role">{isSuperAdmin ? 'Super Admin' : 'Admin'}</div>
       </div>
 
       {/* ---- Nav groups ---- */}
-      <div className="space-y-5">
+      <ul className="sidebar-menu">
         {groups.map((group) => (
-          <div key={group.section}>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-ccc-muted mb-1.5 px-1">
+          <li className="sidebar-menu-group" key={group.section}>
+            <div className="sidebar-menu-label">
+              <span className="sml-icon">{group.labelIcon}</span>
               {group.section}
             </div>
-            <ul className="space-y-0.5">
+            <ul className="sidebar-menu-sub">
               {group.items.map((item) => (
                 <NavButton
                   key={item.key}
@@ -112,18 +186,14 @@ export default function AdminSidebar({
                 />
               ))}
             </ul>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
 
-      {/* ---- Log out (real — the admin login system exists) ---- */}
-      <div className="pt-3 border-t border-ccc-border">
-        <button
-          type="button"
-          onClick={onLogout}
-          className="w-full text-left rounded-lg px-3 py-2 text-[13px] font-semibold text-ccc-blue hover:text-ccc-navy hover:bg-ccc-off transition-colors"
-        >
-          Log Out
+      {/* ---- Log out (real -- the admin login system exists) ---- */}
+      <div className="sidebar-logout">
+        <button type="button" className="logout-btn" onClick={onLogout}>
+          <span className="menu-icon">&#10162;</span> Log Out
         </button>
       </div>
     </aside>
