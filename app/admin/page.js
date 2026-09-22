@@ -2082,17 +2082,51 @@ function AnalyticsPanel() {
   )
 }
 
-// ---------- Communications panel (new, real — post + list) ----------
+// ---------- Communications panel (real — post + list) ----------
+//
+// Sept 22 2026: rebuilt to match Ivy's admin.html Communications panel --
+// a real Type split (public Announcement vs private, targeted Message),
+// a fixed category dropdown instead of free text, and Send To targeting
+// (All Applicants / one Specific Applicant / a Category of Applicants --
+// mapped onto this app's real eligibility buckets, see
+// docs/migrations/2026-09-22-communications-targeting.sql). One
+// deliberate simplification from her mockup: her Message/Body field is a
+// full WYSIWYG rich-text editor (Quill) that stores raw HTML; this app
+// has no rich-text library wired in yet and storing admin-authored raw
+// HTML would need real sanitization before it's safe to render back to
+// applicants, so this uses a plain textarea for now -- same information,
+// same real send behavior, just not bold/italic/images. Flagged as a
+// separate, lower-priority polish item, not blocking the real feature.
+const COMM_CATEGORIES = ['General', 'Exam', 'Deficiency', 'Result', 'Others']
+const COMM_CATEGORY_LABELS = {
+  General: 'General',
+  Exam: 'Exam Schedule',
+  Deficiency: 'Document Deficiency',
+  Result: 'Results & Status',
+  Others: 'Others',
+}
+// Real eligibility buckets (ELIGIBILITY_META above) -- Ivy's mockup only
+// has 4 (pending/qualified/waitlisted/not-qualified); this uses the app's
+// real 5 so 'Category of Applicants' targeting doesn't silently collapse
+// pending_exam and incomplete into one bucket.
+const COMM_ELIGIBILITY_CATEGORIES = ['incomplete', 'pending_exam', 'qualified', 'waitlisted', 'not_qualified']
 
 function CommunicationsPanel() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [applicants, setApplicants] = useState([])
+
+  const [commType, setCommType] = useState('')
   const [title, setTitle] = useState('')
+  const [category, setCategory] = useState('General')
   const [body, setBody] = useState('')
-  const [category, setCategory] = useState('')
+  const [targetType, setTargetType] = useState('all')
+  const [targetApplicationId, setTargetApplicationId] = useState('')
+  const [targetCategory, setTargetCategory] = useState('qualified')
   const [posting, setPosting] = useState(false)
   const [postError, setPostError] = useState('')
+  const [deletingId, setDeletingId] = useState(null)
 
   const load = async () => {
     setLoading(true)
@@ -2111,27 +2145,53 @@ function CommunicationsPanel() {
 
   useEffect(() => {
     load()
+    fetch('/api/admin-eligibility')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) setApplicants(data.applications)
+      })
+      .catch(() => {})
   }, [])
+
+  const resetForm = () => {
+    setCommType('')
+    setTitle('')
+    setCategory('General')
+    setBody('')
+    setTargetType('all')
+    setTargetApplicationId('')
+    setTargetCategory('qualified')
+  }
 
   const handlePost = async (e) => {
     e.preventDefault()
-    if (!title.trim() || !body.trim()) return
+    if (!commType || !title.trim() || !body.trim()) return
+    if (commType === 'message' && targetType === 'specific' && !targetApplicationId) {
+      setPostError('Pick which applicant this message goes to.')
+      return
+    }
     setPosting(true)
     setPostError('')
     try {
       const res = await fetch('/api/announcements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, body, category: category || undefined }),
+        body: JSON.stringify({
+          title,
+          body,
+          category,
+          type: commType,
+          targetType: commType === 'message' ? targetType : undefined,
+          targetApplicationId: commType === 'message' && targetType === 'specific' ? targetApplicationId : undefined,
+          targetCategory: commType === 'message' && targetType === 'category' ? targetCategory : undefined,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
         setPostError(data.error || 'Failed to post.')
         return
       }
-      setTitle('')
-      setBody('')
-      setCategory('')
+      resetForm()
       await load()
     } catch (err) {
       setPostError(err.message)
@@ -2140,88 +2200,226 @@ function CommunicationsPanel() {
     }
   }
 
+  const handleDelete = async (id) => {
+    setDeletingId(id)
+    try {
+      const res = await fetch(`/api/announcements?id=${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to delete.')
+        return
+      }
+      setItems((prev) => prev.filter((i) => i.id !== id))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Communications
-        </h1>
-        <p className="text-xs text-ccc-muted mt-0.5">
-          Post announcements visible to admins here. Applicant-facing delivery (the Messages panel on the
-          applicant portal) isn&apos;t wired up to this yet — that&apos;s the next connection once this panel is confirmed.
-        </p>
+      <div className="portal-header">
+        <h1>Communications</h1>
+        <p>Manage public announcements and private messages for signed-in applicants.</p>
       </div>
 
-      <form onSubmit={handlePost} className="bg-white border border-ccc-border rounded-2xl p-5 mb-6 space-y-3">
-        <div>
-          <label className="text-[11px] font-bold uppercase tracking-widest text-ccc-muted block mb-1">Title</label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Document submission deadline extended"
-            className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
-            required
-          />
-        </div>
-        <div>
-          <label className="text-[11px] font-bold uppercase tracking-widest text-ccc-muted block mb-1">Category (optional)</label>
-          <input
-            type="text"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            placeholder="e.g. Deadlines, Requirements, General"
-            className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
-          />
-        </div>
-        <div>
-          <label className="text-[11px] font-bold uppercase tracking-widest text-ccc-muted block mb-1">Message</label>
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={3}
-            placeholder="Write the announcement..."
-            className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
-            required
-          />
-        </div>
-        {postError && <p className="text-xs text-ccc-red">{postError}</p>}
-        <button
-          type="submit"
-          disabled={posting}
-          className="rounded-lg bg-ccc-navy text-white text-sm font-semibold px-4 py-2.5 disabled:opacity-60"
-        >
-          {posting ? 'Posting...' : 'Post announcement'}
-        </button>
-      </form>
+      <div className="card">
+        <div className="card-title">New Post</div>
+        <form onSubmit={handlePost} className="announce-form">
+          <div className="mfield">
+            <label htmlFor="commTypeSelect">Type</label>
+            <select id="commTypeSelect" value={commType} onChange={(e) => setCommType(e.target.value)}>
+              <option value="">Select a type…</option>
+              <option value="announcement">Announcement</option>
+              <option value="message">Message</option>
+            </select>
+          </div>
 
-      <div className="bg-white border border-ccc-border rounded-2xl p-5">
+          {!commType && <p className="publish-note">Please choose a communication type. Each option serves a different purpose.</p>}
+
+          {commType && (
+            <>
+              <div className="comm-scope-note">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v4" />
+                  <path d="M12 16h.01" />
+                </svg>
+                <span>
+                  {commType === 'announcement' ? (
+                    <>
+                      <b>Announcements</b> are displayed at the guest (public) page as well as the Applicant Portal,
+                      and are received by all applicants.
+                    </>
+                  ) : (
+                    <>
+                      <b>Messages</b> are private and never shown on the guest/public page — send to a specific
+                      applicant or a category of applicants.
+                    </>
+                  )}
+                </span>
+              </div>
+
+              <div className="mfield">
+                <label htmlFor="commTitle">Title</label>
+                <input
+                  id="commTitle"
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g. Scholarship Examination Schedule Released"
+                  required
+                />
+              </div>
+
+              <div className="mfield">
+                <label htmlFor="commCategory">Category</label>
+                <select id="commCategory" value={category} onChange={(e) => setCategory(e.target.value)}>
+                  {COMM_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {COMM_CATEGORY_LABELS[c]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {commType === 'message' && (
+                <>
+                  <div className="mfield">
+                    <label htmlFor="msgTarget">Send To</label>
+                    <select id="msgTarget" value={targetType} onChange={(e) => setTargetType(e.target.value)}>
+                      <option value="all">All Applicants</option>
+                      <option value="specific">Specific Applicant</option>
+                      <option value="category">Category of Applicants</option>
+                    </select>
+                  </div>
+                  {targetType === 'specific' && (
+                    <div className="mfield">
+                      <label htmlFor="msgTargetApplicant">Applicant</label>
+                      <select
+                        id="msgTargetApplicant"
+                        value={targetApplicationId}
+                        onChange={(e) => setTargetApplicationId(e.target.value)}
+                      >
+                        <option value="">Select an applicant…</option>
+                        {applicants.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.applicant_name || 'Unknown applicant'}
+                            {a.application_number ? ` (${a.application_number})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {targetType === 'category' && (
+                    <div className="mfield">
+                      <label htmlFor="msgTargetCategory">Category</label>
+                      <select id="msgTargetCategory" value={targetCategory} onChange={(e) => setTargetCategory(e.target.value)}>
+                        {COMM_ELIGIBILITY_CATEGORIES.map((key) => (
+                          <option key={key} value={key}>
+                            {ELIGIBILITY_META[key]?.label || key}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="mfield">
+                <label htmlFor="commBody">Message</label>
+                <textarea
+                  id="commBody"
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  rows={4}
+                  placeholder={commType === 'announcement' ? 'Write the announcement…' : 'Write the message to applicants…'}
+                  required
+                />
+              </div>
+
+              {postError && <p className="text-xs text-ccc-red mb-2">{postError}</p>}
+              <button type="submit" disabled={posting} className="mbtn mbtn-primary">
+                {posting ? (commType === 'announcement' ? 'Posting…' : 'Sending…') : commType === 'announcement' ? 'Publish Announcement' : 'Send Message'}
+              </button>
+              <p className="publish-note">
+                {commType === 'announcement'
+                  ? '📢 This will publish immediately to the Applicant Portal and the public website.'
+                  : "📢 This will be sent immediately to the selected recipient(s)' Applicant Portal Messages."}
+              </p>
+            </>
+          )}
+        </form>
+      </div>
+
+      <div className="card">
+        <div className="card-title">
+          Posted
+          <span className="tag">{items.length} total</span>
+        </div>
         {loading ? (
-          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+          <p className="text-sm text-ccc-muted text-center py-8">Loading…</p>
         ) : error ? (
           <p className="text-sm text-ccc-red text-center py-8">{error}</p>
         ) : items.length === 0 ? (
-          <p className="text-sm text-ccc-muted text-center py-8">No announcements posted yet.</p>
+          <p className="text-sm text-ccc-muted text-center py-8">Nothing posted yet.</p>
         ) : (
-          <div className="space-y-4">
-            {items.map((item) => (
-              <div key={item.id} className="pb-4 border-b border-ccc-border last:border-0 last:pb-0">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-semibold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-                    {item.title}
-                  </p>
-                  {item.category && (
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue bg-blue-50 border border-ccc-blue/30 rounded-full px-2 py-0.5 shrink-0">
-                      {item.category}
+          <div>
+            {items.map((item) =>
+              item.type === 'message' ? (
+                <div key={item.id} className="message-item">
+                  <div className="message-dot">✉️</div>
+                  <div className="message-body">
+                    <h4>
+                      {item.title}
+                      <span className="msg-target-tag">
+                        {item.target_type === 'specific'
+                          ? applicants.find((a) => a.id === item.target_application_id)?.applicant_name || 'Applicant'
+                          : item.target_type === 'category'
+                          ? ELIGIBILITY_META[item.target_category]?.label || item.target_category
+                          : 'All Applicants'}
+                      </span>
+                    </h4>
+                    <p>{item.body}</p>
+                    <span className="message-date">
+                      {item.author} · {formatWhen(item.created_at)}
+                      {item.category ? ` · ${COMM_CATEGORY_LABELS[item.category] || item.category}` : ''}
                     </span>
-                  )}
+                  </div>
+                  <button
+                    type="button"
+                    className="message-del"
+                    disabled={deletingId === item.id}
+                    onClick={() => handleDelete(item.id)}
+                    title="Delete message"
+                  >
+                    🗑
+                  </button>
                 </div>
-                <p className="text-sm text-ccc-text mt-1 whitespace-pre-wrap">{item.body}</p>
-                <p className="text-[11px] text-ccc-muted mt-1.5">
-                  {item.author} · {formatWhen(item.created_at)}
-                </p>
-              </div>
-            ))}
+              ) : (
+                <div key={item.id} className="announce-item">
+                  <div className="announce-dot">📣</div>
+                  <div className="announce-body">
+                    <h4>{item.title}</h4>
+                    <p>{item.body}</p>
+                    <span className="announce-date">
+                      {item.author} · {formatWhen(item.created_at)}
+                      {item.category ? ` · ${COMM_CATEGORY_LABELS[item.category] || item.category}` : ''}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="announce-del"
+                    disabled={deletingId === item.id}
+                    onClick={() => handleDelete(item.id)}
+                    title="Delete announcement"
+                  >
+                    🗑
+                  </button>
+                </div>
+              )
+            )}
           </div>
         )}
       </div>

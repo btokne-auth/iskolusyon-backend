@@ -1269,10 +1269,30 @@ function PortalApp({ accountSession, onLogout }) {
   const [rescheduleHistory, setRescheduleHistory] = useState([])
   const [supportDocStatus, setSupportDocStatus] = useState('idle')
   const [supportDocRejection, setSupportDocRejection] = useState(null)
-  // Purely client-side filter for the Messages panel — there's no
-  // announcements/messages backend yet (that needs an admin authoring UI
-  // that isn't built), so this just controls which empty-state copy shows.
+  // Messages panel — Sept 22 2026: wired to the real /api/portal-messages
+  // feed now that the admin-side Communications panel can actually author
+  // announcements/messages (see app/api/announcements/route.js and
+  // app/api/portal-messages/route.js). messagesFilter still just controls
+  // which of the fetched posts show (All/Announcements/Messages), same as
+  // before. Deliberately left out: her mockup's per-item read/unread
+  // tracking (isNotifRead, a localStorage concept in her version) — this
+  // shows every post every time rather than half-building a read-state
+  // feature; can come back as its own pass if that's wanted.
   const [messagesFilter, setMessagesFilter] = useState('all')
+  const [messages, setMessages] = useState([])
+  const [messagesLoading, setMessagesLoading] = useState(true)
+  const [messagesError, setMessagesError] = useState('')
+
+  useEffect(() => {
+    fetch('/api/portal-messages')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) setMessages(data.posts)
+        else setMessagesError(data.error || 'Failed to load messages.')
+      })
+      .catch((err) => setMessagesError(err.message))
+      .finally(() => setMessagesLoading(false))
+  }, [])
 
   const panelRef = useRef(null)
   const formCardRef = useRef(null)
@@ -1994,7 +2014,7 @@ function PortalApp({ accountSession, onLogout }) {
           }
           avatarUrl={profilePicPreviewUrl || persistedProfilePicUrl}
           applicationNumber={applicationNumber}
-          messagesCount={0}
+          messagesCount={messages.length}
           flaggedCount={flaggedCount}
           onLogout={() => setLogoutConfirmOpen(true)}
           onOpenHistory={() => setHistoryOpen(true)}
@@ -2242,12 +2262,9 @@ function PortalApp({ accountSession, onLogout }) {
             )
           })()}
 
-          {/* ══════════ MESSAGES (built as a real, working empty-state shell —
-              the All/Announcements/Messages filter genuinely works, but
-              there's nothing behind it yet: an admin needs a way to author
-              announcements/messages first, and that's not built anywhere
-              (not clearly listed in either module's scope in the Roles
-              doc). Honest empty state instead of fake sample data.) ══════════ */}
+          {/* ══════════ MESSAGES (Sept 22 2026: now wired to the real feed
+              from /api/portal-messages, now that the admin side has a
+              real Communications panel to author from) ══════════ */}
           {activePanel === 'messages' && (
             <div>
               <div className="portal-header">
@@ -2279,16 +2296,49 @@ function PortalApp({ accountSession, onLogout }) {
                     Showing everything received &mdash; <b>Announcements</b> sent to all applicants (and posted on the guest page), plus <b>Messages</b> sent to you individually or to your applicant category.
                   </span>
                 </div>
-                <div style={{ textAlign: 'center', padding: '30px 15px' }}>
-                  <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>
-                    No {messagesFilter === 'all' ? 'messages' : messagesFilter + 's'} yet.
-                  </p>
-                  <p style={{ fontSize: '11.25px', color: 'var(--muted)', marginTop: '6px' }}>
-                    You&rsquo;ll get an email confirmation when you submit your application. An in-portal
-                    announcements/messages feed needs an admin-side authoring tool first, which isn&rsquo;t
-                    built yet.
-                  </p>
-                </div>
+                {(() => {
+                  const filtered = messages.filter((m) => messagesFilter === 'all' || m.type === messagesFilter)
+                  if (messagesLoading) {
+                    return (
+                      <div style={{ textAlign: 'center', padding: '30px 15px' }}>
+                        <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>Loading…</p>
+                      </div>
+                    )
+                  }
+                  if (messagesError) {
+                    return (
+                      <div style={{ textAlign: 'center', padding: '30px 15px' }}>
+                        <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ccc-red)' }}>{messagesError}</p>
+                      </div>
+                    )
+                  }
+                  if (filtered.length === 0) {
+                    return (
+                      <div style={{ textAlign: 'center', padding: '30px 15px' }}>
+                        <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>
+                          No {messagesFilter === 'all' ? 'messages' : messagesFilter + 's'} yet.
+                        </p>
+                        <p style={{ fontSize: '11.25px', color: 'var(--muted)', marginTop: '6px' }}>
+                          You&rsquo;ll get an email confirmation when you submit your application, and anything the
+                          Guidance office sends you will show up here.
+                        </p>
+                      </div>
+                    )
+                  }
+                  return filtered.map((m) => (
+                    <div key={m.id} className="message-item">
+                      <div className="message-dot">{m.type === 'message' ? '✉️' : '📣'}</div>
+                      <div className="message-body">
+                        <h4>{m.title}</h4>
+                        <p>{m.body}</p>
+                        <span className="message-date">
+                          {formatWhen(m.created_at)}
+                          {m.category ? ` · ${m.category}` : ''}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                })()}
               </div>
             </div>
           )}
