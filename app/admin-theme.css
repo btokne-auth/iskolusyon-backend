@@ -2022,6 +2022,20 @@
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 0 18.75px;
 }
+/* Sept 22 2026 -- these stacks carry much longer field labels than
+   Ivy's original edit-grid usage ("Mother's Highest Educational
+   Attainment", "Person to be Notified in Case of Emergency", etc.), which
+   wrap to 2 lines at this column width while shorter labels in the same
+   grid row stay on 1 -- .efield's label+input is plain block flow, so a
+   wrapped label pushes its own input down while its row-mates' inputs
+   stay put, breaking the row-aligned look a form like this needs.
+   Reserving a fixed 2-line height on every label in this grid (not
+   .efield labels generally -- those are fine elsewhere) keeps every
+   field's input starting at the same y regardless of its label's length. */
+.admin-portal .doc-cat-fields .efield label {
+  min-height: 27px;
+  line-height: 1.3;
+}
 .admin-portal .doc-cat-empty {
   font-size: 11.7px;
   color: var(--muted);
