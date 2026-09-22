@@ -7,6 +7,7 @@ import AdminSidebar from '../components/AdminSidebar'
 import { getDocTypeLabel } from '../lib/documentTypes'
 import { onConnectivityChange, isNetworkError } from '../lib/offlineSync'
 import { suggestExamResult } from '../lib/matching'
+import { PROFILE_CATEGORIES, formatFieldValue } from '../lib/applicantProfileSchema'
 
 // ---------- Icons (same style as the applicant page) ----------
 
@@ -503,10 +504,45 @@ const PROFILE_SECTIONS = [
 
 function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibilityRow, onEligibilityOverride, eligibilityOverriding }) {
   const [modalOpen, setModalOpen] = useState(false)
+  const [detail, setDetail] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
+  const [activeCat, setActiveCat] = useState(PROFILE_CATEGORIES[0].key)
   const flaggedCount = docs.filter((d) => d.needs_review).length
   const verifiedCount = docs.filter((d) => !d.needs_review).length
   const sectionsDone = PROFILE_SECTIONS.filter((s) => !!eligibilityRow?.[s.key]).length
   const profilePct = Math.round((sectionsDone / PROFILE_SECTIONS.length) * 100)
+
+  // Full-row fetch, lazy -- only once an admin actually opens this
+  // applicant's modal (see app/api/admin-applicant-detail/route.js), and
+  // only once per applicant (skipped once `detail` is already populated).
+  useEffect(() => {
+    if (!modalOpen || !eligibilityRow?.id || detail || detailLoading) return
+    let cancelled = false
+    setDetailLoading(true)
+    setDetailError('')
+    fetch(`/api/admin-applicant-detail?id=${encodeURIComponent(eligibilityRow.id)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data?.success) {
+          setDetail(data.application)
+        } else {
+          setDetailError(data?.error || 'Could not load applicant profile.')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setDetailError('Could not load applicant profile.')
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [modalOpen, eligibilityRow?.id, detail, detailLoading])
+
+  const activeCategory = PROFILE_CATEGORIES.find((c) => c.key === activeCat) || PROFILE_CATEGORIES[0]
 
   return (
     <>
@@ -546,7 +582,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
           onClick={() => setModalOpen(false)}
         >
           <div
-            className="w-full max-w-2xl rounded-2xl bg-white shadow-xl border border-ccc-border overflow-hidden my-auto"
+            className="w-full max-w-4xl rounded-2xl bg-white shadow-xl border border-ccc-border overflow-hidden my-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-ccc-border">
@@ -595,11 +631,143 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               </div>
             </div>
             <div className="px-5 pb-5 pt-4 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* General Information grid -- mirrors Ivy's modal's own top
+                  section (Last Name / First Name / Email / Contact Number /
+                  Applying As / Term Applying In / Approved Program), read
+                  from the full-row fetch above. One deliberate deviation:
+                  her "Approved Program for Applicant" is an editable
+                  dropdown an admin sets manually -- this app has no such
+                  feature, since the automated Scholarship Matching &
+                  Filtering engine (app/lib/matching.js) decides eligibility
+                  against the applicant's own two program choices instead of
+                  an admin-assigned program. Shown here read-only as the
+                  applicant's actual First/Second Priority Program. */}
+              <div>
+                <div className="modal-section-label">
+                  General Information
+                  {detailLoading && <span className="tag">Loading…</span>}
+                </div>
+                {detailError && <p className="text-[11px] text-ccc-red mb-2">{detailError}</p>}
+                <div className="edit-grid">
+                  <div className="efield">
+                    <label>Last Name</label>
+                    <input value={formatFieldValue(detail, { key: 'last_name' })} disabled readOnly />
+                  </div>
+                  <div className="efield">
+                    <label>First Name</label>
+                    <input value={formatFieldValue(detail, { key: 'first_name' })} disabled readOnly />
+                  </div>
+                  <div className="efield">
+                    <label>Email Address</label>
+                    <input value={detail?.applicant_email || email || '—'} disabled readOnly />
+                  </div>
+                  <div className="efield">
+                    <label>Contact Number</label>
+                    <input value={formatFieldValue(detail, { key: 'contact_number' })} disabled readOnly />
+                  </div>
+                  <div className="efield">
+                    <label>Applying As</label>
+                    <input value={formatFieldValue(detail, { key: 'applying_as' })} disabled readOnly />
+                  </div>
+                  <div className="efield">
+                    <label>Term Applying In</label>
+                    <input value={formatFieldValue(detail, { key: 'term_applying' })} disabled readOnly />
+                  </div>
+                  <div className="efield">
+                    <label>First Priority Program</label>
+                    <input value={formatFieldValue(detail, { key: 'program_choice_1' })} disabled readOnly />
+                  </div>
+                  <div className="efield">
+                    <label>Second Priority Program</label>
+                    <input value={formatFieldValue(detail, { key: 'program_choice_2' })} disabled readOnly />
+                  </div>
+                </div>
+              </div>
+
               <hr className="modal-divider" style={{ margin: '0 0 4px' }} />
               <EligibilitySection row={eligibilityRow} onOverride={onEligibilityOverride} overriding={eligibilityOverriding} />
-              {docs.map((doc) => (
-                <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} />
-              ))}
+
+              {/* Submitted Documents & Profile Data -- Ivy's mockup's 4
+                  tabbed categories (CATEGORY_DEFS), remapped onto this app's
+                  real fields/doc types in app/lib/applicantProfileSchema.js.
+                  Each stack shows the applicant's real submitted values plus
+                  its verifying document(s), reusing the existing, already-
+                  working DocumentReviewCard for the actual verify/flag
+                  controls rather than a read-only copy of them. */}
+              <div>
+                <div className="modal-section-label">Submitted Documents &amp; Profile Data</div>
+                <div className="doc-cat-tabs">
+                  {PROFILE_CATEGORIES.map((cat) => {
+                    const catDocTypes = cat.stacks.flatMap((s) => s.docTypes)
+                    const catDocs = docs.filter((d) => catDocTypes.includes(d.document_type))
+                    const catFlagged = catDocs.filter((d) => d.needs_review).length
+                    return (
+                      <button
+                        key={cat.key}
+                        type="button"
+                        onClick={() => setActiveCat(cat.key)}
+                        className={`doc-cat-tab${activeCat === cat.key ? ' active' : ''}`}
+                      >
+                        <span className={`cat-dot${catFlagged > 0 ? ' attention' : catDocs.length > 0 ? ' complete' : ''}`} />
+                        {cat.label}
+                        {catFlagged > 0 && <span className="cat-count">{catFlagged}</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="doc-cat-panel">
+                  {activeCategory.stacks
+                    .filter((stack) => !stack.showIf || stack.showIf(detail))
+                    .map((stack, si) => {
+                      const stackDocs = docs.filter((d) => stack.docTypes.includes(d.document_type))
+                      return (
+                        <div key={stack.label} className="doc-cat-stack">
+                          <div className="doc-cat-stack-label">
+                            <span className="stack-num">{si + 1}</span>
+                            {stack.label}
+                          </div>
+                          {stack.fields.length > 0 && (
+                            <div className="doc-cat-fields">
+                              {stack.fields.map((field) => (
+                                <div key={field.key} className="efield">
+                                  <label>{field.label}</label>
+                                  <input value={formatFieldValue(detail, field)} disabled readOnly />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {stack.docTypes.length > 0 && (
+                            stackDocs.length > 0 ? (
+                              stackDocs.map((doc) => (
+                                <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} />
+                              ))
+                            ) : (
+                              <p className="doc-cat-empty">No document submitted for this yet.</p>
+                            )
+                          )}
+                        </div>
+                      )
+                    })}
+                </div>
+              </div>
+
+              {/* Safety net: any submitted document whose type doesn't map
+                  to one of the 4 tabbed categories above. Shouldn't happen
+                  given VALID_DOCUMENT_TYPES, but better a visible fallback
+                  than a silently dropped document. */}
+              {(() => {
+                const mappedTypes = PROFILE_CATEGORIES.flatMap((c) => c.stacks.flatMap((s) => s.docTypes))
+                const leftover = docs.filter((d) => !mappedTypes.includes(d.document_type))
+                if (leftover.length === 0) return null
+                return (
+                  <div>
+                    <div className="modal-section-label">Other Documents</div>
+                    {leftover.map((doc) => (
+                      <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} />
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
           </div>
         </div>
