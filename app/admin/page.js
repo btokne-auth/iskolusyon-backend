@@ -514,33 +514,48 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
   const profilePct = Math.round((sectionsDone / PROFILE_SECTIONS.length) * 100)
 
   // Full-row fetch, lazy -- only once an admin actually opens this
-  // applicant's modal (see app/api/admin-applicant-detail/route.js), and
-  // only once per applicant (skipped once `detail` is already populated).
-  useEffect(() => {
-    if (!modalOpen || !eligibilityRow?.id || detail || detailLoading) return
-    let cancelled = false
+  // applicant's modal (see app/api/admin-applicant-detail/route.js).
+  // `attemptedIdRef` tracks which applicant id has already been fetched
+  // (success OR failure) so a failed request surfaces its real error
+  // instead of silently retrying forever -- the original version here
+  // had `detail`/`detailLoading` in its own dependency array, so a
+  // failed fetch (detail still null, detailLoading back to false) made
+  // the effect immediately re-run and refetch in a tight loop, which is
+  // why the modal could get stuck showing "Loading..." with every field
+  // blank and no error ever visible (Sept 22 2026 bug report). fetchDetail
+  // is exposed via a "Retry" button instead, for a deliberate re-attempt.
+  const attemptedIdRef = useRef(null)
+  const fetchDetail = () => {
+    if (!eligibilityRow?.id) return
+    attemptedIdRef.current = eligibilityRow.id
     setDetailLoading(true)
     setDetailError('')
     fetch(`/api/admin-applicant-detail?id=${encodeURIComponent(eligibilityRow.id)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return
-        if (data?.success) {
-          setDetail(data.application)
-        } else {
-          setDetailError(data?.error || 'Could not load applicant profile.')
+      .then(async (res) => {
+        let data = null
+        try {
+          data = await res.json()
+        } catch {
+          throw new Error(`Server returned an unexpected response (HTTP ${res.status}).`)
         }
+        if (!res.ok || !data?.success) {
+          throw new Error(data?.error || `Could not load applicant profile (HTTP ${res.status}).`)
+        }
+        setDetail(data.application)
       })
-      .catch(() => {
-        if (!cancelled) setDetailError('Could not load applicant profile.')
+      .catch((err) => {
+        setDetailError(err?.message || 'Could not load applicant profile.')
       })
       .finally(() => {
-        if (!cancelled) setDetailLoading(false)
+        setDetailLoading(false)
       })
-    return () => {
-      cancelled = true
-    }
-  }, [modalOpen, eligibilityRow?.id, detail, detailLoading])
+  }
+  useEffect(() => {
+    if (!modalOpen || !eligibilityRow?.id) return
+    if (attemptedIdRef.current === eligibilityRow.id) return
+    fetchDetail()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalOpen, eligibilityRow?.id])
 
   const activeCategory = PROFILE_CATEGORIES.find((c) => c.key === activeCat) || PROFILE_CATEGORIES[0]
 
@@ -647,7 +662,18 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                   General Information
                   {detailLoading && <span className="tag">Loading…</span>}
                 </div>
-                {detailError && <p className="text-[11px] text-ccc-red mb-2">{detailError}</p>}
+                {detailError && (
+                  <p className="text-[11px] text-ccc-red mb-2 flex items-center gap-2">
+                    {detailError}
+                    <button
+                      type="button"
+                      onClick={fetchDetail}
+                      className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue underline"
+                    >
+                      Retry
+                    </button>
+                  </p>
+                )}
                 <div className="edit-grid">
                   <div className="efield">
                     <label>Last Name</label>
