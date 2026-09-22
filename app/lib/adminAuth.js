@@ -75,16 +75,25 @@ async function hmacHex(message, secret) {
 // Builds a signed cookie value "<base64url(json)>.<hmac-hex>" so the
 // browser can't just hand-edit the cookie to claim a different name or
 // escalate to Super Admin.
-export async function createAdminCookieValue(name, isSuperAdmin) {
+//
+// Sept 22, 2026: added the account's own email to the payload (was just
+// n/s before) so the new Admin Accounts delete flow can tell "am I
+// deleting my own currently-signed-in account" without a fragile
+// name-based guess -- two admins could share a display name, emails are
+// the actual unique key on admin_accounts. Same no-migration-needed
+// story as the Sept 18 change: an old cookie without `e` just fails
+// typeof-checking below and forces a re-login, and sessions are only
+// 8 hours anyway.
+export async function createAdminCookieValue(name, isSuperAdmin, email) {
   const secret = getSecret()
-  const encodedPayload = toBase64Url(JSON.stringify({ n: name, s: !!isSuperAdmin }))
+  const encodedPayload = toBase64Url(JSON.stringify({ n: name, s: !!isSuperAdmin, e: email }))
   const signature = await hmacHex(encodedPayload, secret)
   return { value: `${encodedPayload}.${signature}`, maxAge: COOKIE_MAX_AGE_SECONDS }
 }
 
-// Verifies a cookie value and returns { name, isSuperAdmin }, or null if
-// the cookie is missing, malformed, tampered, or from before the Sept 18
-// payload-format change.
+// Verifies a cookie value and returns { name, isSuperAdmin, email }, or
+// null if the cookie is missing, malformed, tampered, or from before the
+// Sept 18 (role) / Sept 22 (email) payload-format changes.
 export async function verifyAdminCookieFull(cookieValue) {
   if (!cookieValue || !cookieValue.includes('.')) return null
   const [encodedPayload, signature] = cookieValue.split('.')
@@ -101,8 +110,8 @@ export async function verifyAdminCookieFull(cookieValue) {
     if (mismatch !== 0) return null
 
     const payload = JSON.parse(fromBase64Url(encodedPayload))
-    if (!payload || typeof payload.n !== 'string') return null
-    return { name: payload.n, isSuperAdmin: !!payload.s }
+    if (!payload || typeof payload.n !== 'string' || typeof payload.e !== 'string') return null
+    return { name: payload.n, isSuperAdmin: !!payload.s, email: payload.e }
   } catch {
     return null
   }

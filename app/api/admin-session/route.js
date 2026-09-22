@@ -8,5 +8,10 @@ export async function GET(request) {
   if (!session) {
     return NextResponse.json({ loggedIn: false }, { status: 401 })
   }
-  return NextResponse.json({ loggedIn: true, name: session.name, isSuperAdmin: session.isSuperAdmin })
+  return NextResponse.json({
+    loggedIn: true,
+    name: session.name,
+    isSuperAdmin: session.isSuperAdmin,
+    email: session.email,
+  })
 }

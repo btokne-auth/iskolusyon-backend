@@ -2433,8 +2433,12 @@ function AdminAccountsPanel() {
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [myEmail, setMyEmail] = useState('')
+  const [removingEmail, setRemovingEmail] = useState(null)
+  const [removeError, setRemoveError] = useState('')
 
-  useEffect(() => {
+  const loadAccounts = () => {
+    setLoading(true)
     fetch('/api/admin-accounts')
       .then((res) => res.json())
       .then((data) => {
@@ -2443,7 +2447,36 @@ function AdminAccountsPanel() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadAccounts()
+    fetch('/api/admin-session')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.loggedIn) setMyEmail((data.email || '').toLowerCase())
+      })
+      .catch(() => {})
   }, [])
+
+  const handleRemove = async (acc) => {
+    if (!window.confirm(`Remove ${acc.name} (${acc.email}) from Admin Accounts? This can't be undone.`)) return
+    setRemoveError('')
+    setRemovingEmail(acc.email)
+    try {
+      const res = await fetch(`/api/admin-accounts?email=${encodeURIComponent(acc.email)}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!data.success) {
+        setRemoveError(data.error || 'Failed to remove admin account.')
+        return
+      }
+      setAccounts((prev) => prev.filter((a) => a.email !== acc.email))
+    } catch (err) {
+      setRemoveError(err.message)
+    } finally {
+      setRemovingEmail(null)
+    }
+  }
 
   return (
     <div>
@@ -2452,10 +2485,17 @@ function AdminAccountsPanel() {
           Admin Accounts
         </h1>
         <p className="text-xs text-ccc-muted mt-0.5">
-          Read-only roster for now — inviting or removing an admin isn&apos;t wired up yet (no real User Account Module
-          to hang it on). New accounts are still seeded via <code>scripts/seed-admin-account.mjs</code>.
+          Super admin only. Inviting a new admin isn&apos;t wired up yet (no real email delivery to send an invite
+          through) — new accounts are still seeded via <code>scripts/seed-admin-account.mjs</code>. Removing an
+          account is real and takes effect immediately.
         </p>
       </div>
+
+      {removeError && (
+        <div className="mb-4 rounded-xl border border-ccc-red/40 bg-red-50 px-4 py-2.5 text-xs font-semibold text-ccc-red">
+          {removeError}
+        </div>
+      )}
 
       <div className="bg-white border border-ccc-border rounded-2xl overflow-hidden">
         {loading ? (
@@ -2471,26 +2511,44 @@ function AdminAccountsPanel() {
                 <th className="px-5 py-3">Name</th>
                 <th className="px-5 py-3">Email</th>
                 <th className="px-5 py-3">Role</th>
+                <th className="px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {accounts.map((acc) => (
-                <tr key={acc.email} className="border-b border-ccc-border last:border-0">
-                  <td className="px-5 py-3 font-semibold text-ccc-navy">{acc.name}</td>
-                  <td className="px-5 py-3 text-ccc-text">{acc.email}</td>
-                  <td className="px-5 py-3">
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${
-                        acc.is_super_admin
-                          ? 'text-ccc-navy bg-ccc-gold/30 border border-ccc-gold/60'
-                          : 'text-ccc-muted bg-ccc-off border border-ccc-border'
-                      }`}
-                    >
-                      {acc.is_super_admin ? 'Super Admin' : 'Admin'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {accounts.map((acc) => {
+                const isSelf = acc.email.toLowerCase() === myEmail
+                return (
+                  <tr key={acc.email} className="border-b border-ccc-border last:border-0">
+                    <td className="px-5 py-3 font-semibold text-ccc-navy">
+                      {acc.name}
+                      {isSelf && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-ccc-muted">You</span>}
+                    </td>
+                    <td className="px-5 py-3 text-ccc-text">{acc.email}</td>
+                    <td className="px-5 py-3">
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                          acc.is_super_admin
+                            ? 'text-ccc-navy bg-ccc-gold/30 border border-ccc-gold/60'
+                            : 'text-ccc-muted bg-ccc-off border border-ccc-border'
+                        }`}
+                      >
+                        {acc.is_super_admin ? 'Super Admin' : 'Admin'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleRemove(acc)}
+                        disabled={isSelf || removingEmail === acc.email}
+                        title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
+                        className="text-xs font-bold text-ccc-red disabled:text-ccc-muted disabled:cursor-not-allowed hover:underline"
+                      >
+                        {removingEmail === acc.email ? 'Removing...' : 'Remove'}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}

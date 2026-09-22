@@ -65,3 +65,32 @@ export async function listAdminAccounts() {
   if (error) throw new Error(error.message)
   return data || []
 }
+
+// Sept 22, 2026: delete-only for now (see app/api/admin-accounts/route.js's
+// DELETE handler for why invite/create is deliberately not built yet --
+// there's no email infrastructure to hang a real invite flow on). Two
+// guards live here rather than only in the route so any future caller gets
+// them too: never let the roster go to zero Super Admins (the console
+// would have no way back in), and the route layers a "not deleting your
+// own signed-in account" check on top using the cookie's email.
+export async function countSuperAdmins() {
+  const { count, error } = await supabase
+    .from('admin_accounts')
+    .select('email', { count: 'exact', head: true })
+    .eq('is_super_admin', true)
+
+  if (error) throw new Error(error.message)
+  return count || 0
+}
+
+export async function deleteAdminAccount(email) {
+  const { data, error } = await supabase
+    .from('admin_accounts')
+    .delete()
+    .eq('email', email)
+    .select('name, email, is_super_admin')
+    .maybeSingle()
+
+  if (error) throw new Error(error.message)
+  return data
+}
