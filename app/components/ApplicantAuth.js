@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import SiteHeader from './SiteHeader'
+import '../welcome-theme.css'
+import WelcomeNavbar from './WelcomeNavbar'
+import WelcomeFooter from './WelcomeFooter'
 
 // Mirrors isValidEmailFormat() in applicantAccounts.js — a real format
 // check, not just "contains an @". Catches "name@" / "name@domain" with no
@@ -246,36 +248,51 @@ const SIDE_STEPS = {
 // mode: 'login' | 'signup' | 'forgot'. step is the 1-based current step
 // within that mode's own list above — each mode tracks its stage
 // independently (e.g. login's stage 'otp' maps to step 2 here).
+// Sept 23, 2026: brought in line with index.html/signup.html's own
+// .auth-side panel — 160deg navy-to-blue gradient (was 135deg), 320px wide
+// (was 300px), and the "← Back to homepage" link at the bottom that this
+// panel was missing entirely (the mockup's modal has "← Close" here since
+// it's a popup; a dedicated /login page has nothing to close, so this
+// points back to "/" instead, matching signup.html's own wording exactly).
 function AuthSide({ mode, step }) {
   const steps = SIDE_STEPS[mode]
   return (
-    <div className="hidden md:flex flex-col bg-gradient-to-br from-ccc-navy to-ccc-blue text-white p-8 w-[300px] shrink-0">
-      <h1 className="text-xl font-extrabold mb-2" style={{ fontFamily: 'var(--font-montserrat)' }}>
-        {mode === 'login' ? 'Welcome back.' : mode === 'forgot' ? 'Forgot your password?' : 'Start your scholarship journey.'}
+    <div
+      className="hidden md:flex flex-col text-white p-[2.5rem_2.1rem] w-[320px] shrink-0 relative overflow-hidden"
+      style={{ background: 'linear-gradient(160deg, var(--ccc-navy) 0%, var(--ccc-blue) 100%)' }}
+    >
+      <div className="absolute -right-[60px] -bottom-[60px] w-[200px] h-[200px] rounded-full bg-white/5 pointer-events-none" />
+      <h1 className="text-[1.3rem] font-extrabold mb-2.5 leading-snug relative z-10" style={{ fontFamily: 'var(--font-montserrat)' }}>
+        {mode === 'login' ? 'Welcome back, Scholar.' : mode === 'forgot' ? 'Forgot your password?' : 'Start your scholarship journey.'}
       </h1>
-      <p className="text-sm text-white/70 mb-8 leading-relaxed">
+      <p className="text-[.8rem] text-white/70 mb-8 leading-relaxed relative z-10">
         {mode === 'login'
-          ? 'Log in to track and manage your City College of Calamba scholarship application.'
+          ? 'Sign in to continue your scholarship application, check your status, and manage your submitted documents.'
           : mode === 'forgot'
           ? 'No worries — we’ll help you find your account and get back in.'
           : 'Create your account to apply, track, and manage your City College of Calamba scholarship application.'}
       </p>
       {(mode === 'signup' || mode === 'login' || mode === 'forgot') && step > 0 && (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col relative z-10">
           {steps.map((label, i) => {
             const num = i + 1
             const isDone = num < step
             const isCurrent = num === step
+            const isLast = i === steps.length - 1
             return (
-              <div key={label} className="flex gap-3 items-start">
+              <div key={label} className={`flex gap-3 relative ${isLast ? 'pb-0' : 'pb-[22px]'}`}>
+                {!isLast && (
+                  <span className="absolute left-[13px] top-[30px] bottom-0 w-[2px] bg-white/15" aria-hidden="true" />
+                )}
                 <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-extrabold shrink-0 ${
-                    isDone ? 'bg-emerald-500 text-white' : isCurrent ? 'bg-white text-ccc-blue' : 'bg-white/15 text-white/70'
+                  className={`w-[27px] h-[27px] rounded-full flex items-center justify-center text-[.72rem] font-extrabold shrink-0 relative z-10 ${
+                    isDone ? 'bg-emerald-500 text-white' : isCurrent ? 'bg-white text-ccc-blue shadow-[0_0_0_4px_rgba(255,255,255,.22)]' : 'bg-white/15 text-white/70'
                   }`}
+                  style={{ fontFamily: 'var(--font-montserrat)' }}
                 >
                   {isDone ? '✓' : num}
                 </div>
-                <span className={`text-sm pt-1 font-semibold ${isCurrent || isDone ? 'text-white' : 'text-white/55'}`}>
+                <span className={`text-[.78rem] pt-[5px] font-semibold ${isCurrent || isDone ? 'text-white' : 'text-white/55'}`}>
                   {label}
                 </span>
               </div>
@@ -283,6 +300,11 @@ function AuthSide({ mode, step }) {
           })}
         </div>
       )}
+      <div className="mt-auto pt-7 relative z-10">
+        <a href="/" className="inline-flex items-center gap-1.5 text-[.75rem] text-white/75 font-semibold hover:text-white no-underline">
+          ← Back to homepage
+        </a>
+      </div>
     </div>
   )
 }
@@ -296,14 +318,24 @@ function Alert({ tone = 'info', children }) {
   return <div className={`text-[13px] rounded-md border px-3 py-2 mb-4 ${styles[tone]}`}>{children}</div>
 }
 
-export default function ApplicantAuth({ onAuthenticated }) {
-  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'forgot'
+export default function ApplicantAuth({ onAuthenticated, initialMode = 'login' }) {
+  const [mode, setMode] = useState(initialMode) // 'login' | 'signup' | 'forgot'
 
+  // Sept 23, 2026: was just a bare SiteHeader + centered card on a plain
+  // ccc-off background. Pau asked for /login and signup to carry the same
+  // "top part and lower part" (navbar + footer) design as the new homepage,
+  // matching signup.html's full-page chrome instead of looking like a
+  // standalone modal with nothing around it. WelcomeNavbar/WelcomeFooter are
+  // the exact same components app/page.js uses; links on this page fall
+  // back to plain "/#id" hrefs (no scroll-spy/section state here) since
+  // this isn't the page those sections actually live on.
   return (
-    <div className="min-h-screen bg-ccc-off flex flex-col">
-      <SiteHeader topbarLabel="(049) 559-8900 to 8907 / (02) 8-539-5170 to 5171" />
+    <div className="welcome-page min-h-screen flex flex-col" style={{ background: 'var(--ccc-off)' }}>
+      <WelcomeNavbar />
       <div className="flex-1 flex items-center justify-center p-4 md:p-8">
-        <div className="w-full max-w-[900px] bg-white rounded-2xl shadow-xl overflow-hidden flex">
+        {/* max-w-[960px] + rounded-[14px] + this shadow match the mockup's
+            own .auth-shell exactly (Sept 23, 2026 design-parity pass). */}
+        <div className="w-full max-w-[960px] bg-white rounded-[14px] shadow-[0_12px_48px_rgba(13,47,110,.22)] overflow-hidden flex max-h-[92vh] my-8">
           {mode === 'login' && (
             <LoginPanel
               onSwitch={() => setMode('signup')}
@@ -315,6 +347,7 @@ export default function ApplicantAuth({ onAuthenticated }) {
           {mode === 'forgot' && <ForgotPasswordPanel onSwitch={() => setMode('login')} />}
         </div>
       </div>
+      <WelcomeFooter />
     </div>
   )
 }
