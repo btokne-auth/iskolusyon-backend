@@ -1,0 +1,234 @@
+/* ============================================================
+   Public welcome page theme (Sept 23, 2026)
+   A near-pixel port of Ivy's iskolusyon_front-end/index.html mockup's own
+   <style> block, scoped under .welcome-page so it can never leak into the
+   admin/portal/login screens. Written fresh (this file, not copied) but
+   deliberately matching the mockup's exact colors, spacing and component
+   behavior at Pau's request — the homepage needs to look and feel like the
+   approved mockup, not just carry the same words.
+
+   Source values were rem, relative to the mockup's own html{font-size:15px}.
+   Converted to px (rem*15) here, same approach as portal-theme.css, so
+   sizing matches regardless of this app's own root font-size.
+   ============================================================ */
+
+.welcome-page {
+  --w-navy: var(--ccc-navy);
+  --w-blue: var(--ccc-blue);
+  --w-blue-mid: var(--ccc-blue-mid);
+  --w-blue-light: var(--ccc-blue-light);
+  --w-green: var(--ccc-green);
+  --w-green-dark: var(--ccc-green-dark);
+  --w-gold: var(--ccc-gold);
+  --w-off: var(--ccc-off);
+  --w-text: var(--ccc-text);
+  --w-muted: var(--ccc-muted);
+  --w-border: var(--ccc-border);
+  font-family: 'Open Sans', sans-serif;
+  color: var(--w-text);
+  background: #fff;
+}
+
+/* ── TOPBAR ── */
+.welcome-page .w-topbar{background:var(--w-blue);color:#fff;font-size:11.25px;padding:6px 0;font-family:'Montserrat',sans-serif;letter-spacing:.3px}
+.welcome-page .w-topbar .inner{max-width:1200px;margin:0 auto;padding:0 30px;display:flex;justify-content:flex-end;gap:22.5px;align-items:center;flex-wrap:wrap}
+.welcome-page .w-topbar a{color:#fff;text-decoration:none;font-weight:700}
+.welcome-page .w-topbar a:hover{opacity:.8}
+.welcome-page .w-topbar span{color:#fff;font-weight:700}
+
+/* ── NAVBAR ── */
+.welcome-page .w-navbar{background:#fff;border-bottom:3px solid var(--w-gold);position:sticky;top:0;z-index:300;box-shadow:0 2px 12px rgba(13,47,110,.08)}
+.welcome-page .w-nav-inner{width:100%;margin:0;padding:0 37.5px;display:flex;align-items:center;justify-content:space-between;height:72px;gap:15px;position:relative;flex-wrap:wrap;row-gap:8px}
+.welcome-page .w-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.welcome-page .w-brand-logos{display:flex;align-items:center;gap:6px}
+.welcome-page .w-brand-logos img{height:52px;width:auto;object-fit:contain}
+.welcome-page .w-brand-text{font-family:'Montserrat',sans-serif;border-left:2px solid var(--w-border);padding-left:10px}
+.welcome-page .w-brand-text .main{font-size:15px;font-weight:900;color:var(--w-navy);letter-spacing:.5px;text-transform:uppercase;display:block;line-height:1.1}
+.welcome-page .w-brand-text .sub{font-size:8.7px;font-weight:600;color:var(--w-muted);letter-spacing:1.2px;text-transform:uppercase;margin-top:1px;display:block}
+.welcome-page .w-nav-links{display:flex;align-items:center;gap:2px;font-family:'Montserrat',sans-serif;flex-wrap:wrap}
+.welcome-page .w-nav-links a{font-size:10.2px;font-weight:600;color:var(--w-text);padding:6px 10px;border-radius:4px;text-decoration:none;letter-spacing:.4px;text-transform:uppercase;transition:all .2s;white-space:nowrap;cursor:pointer;border-bottom:2px solid transparent}
+.welcome-page .w-nav-links a:hover{color:var(--w-blue-mid);background:rgba(26,79,160,.06)}
+.welcome-page .w-nav-links a.active{color:var(--w-blue-mid);border-bottom-color:var(--w-blue-mid)}
+.welcome-page .w-nav-actions{display:flex;align-items:center;gap:8px;font-family:'Montserrat',sans-serif;flex-shrink:0}
+.welcome-page .w-nav-actions a{font-size:10.2px;font-weight:600;padding:6px 10px;border-radius:4px;text-decoration:none;letter-spacing:.4px;text-transform:uppercase;transition:all .2s;white-space:nowrap;cursor:pointer}
+.welcome-page .w-btn-login{border:1.5px solid var(--w-navy);color:var(--w-navy);border-radius:4px}
+.welcome-page .w-btn-signup{background:var(--w-green);color:#fff;border-radius:4px}
+.welcome-page .w-btn-signup:hover{background:var(--w-green-dark);color:#fff}
+
+/* ── HERO ── */
+.welcome-page .w-hero{background:var(--w-green);position:relative;overflow:hidden;padding:67.5px 30px;text-align:center}
+.welcome-page .w-hero::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,0) 0px,rgba(255,255,255,0) 18px,rgba(255,255,255,.045) 18px,rgba(255,255,255,.045) 36px)}
+.welcome-page .w-hero::after{content:'';position:absolute;right:0;top:0;bottom:0;width:320px;background:repeating-linear-gradient(-45deg,transparent 0,transparent 28px,rgba(255,255,255,.07) 28px,rgba(255,255,255,.07) 56px);clip-path:polygon(18% 0%,100% 0%,100% 100%,0% 100%)}
+.welcome-page .w-hero-content{position:relative;z-index:2}
+.welcome-page .w-hero h1{font-family:'Montserrat',sans-serif;font-weight:900;font-size:clamp(27px,5vw,48px);color:#fff;letter-spacing:6px;text-transform:uppercase;text-shadow:0 2px 12px rgba(0,0,0,.18);margin-bottom:11.25px}
+.welcome-page .w-hero p{color:rgba(255,255,255,.88);font-size:14.25px;max-width:600px;margin:0 auto 26.25px;font-weight:500}
+.welcome-page .w-hero-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.welcome-page .w-hero-btns a{font-family:'Montserrat',sans-serif;font-weight:700;font-size:11.7px;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;padding:11px 26px;border-radius:4px;transition:all .2s;cursor:pointer}
+.welcome-page .w-btn-white{background:#fff;color:var(--w-green);border:2px solid #fff}
+.welcome-page .w-btn-white:hover{background:#e8f5ed;border-color:#e8f5ed}
+.welcome-page .w-btn-outline-w{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.55)}
+.welcome-page .w-btn-outline-w:hover{background:rgba(255,255,255,.1)}
+
+.welcome-page .w-gold-rule{height:3px;background:var(--w-gold);border:none;margin:0}
+
+/* ── ANNOUNCEMENTS / CAROUSEL ── */
+.welcome-page .w-announce-wrap{background:var(--w-off);padding:37.5px 30px}
+.welcome-page .w-section-heading{font-family:'Montserrat',sans-serif;font-weight:800;font-size:24px;color:var(--w-blue-mid);text-align:center;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:22.5px}
+.welcome-page .w-carousel-outer{max-width:900px;margin:0 auto;position:relative}
+.welcome-page .w-carousel-track-wrap{overflow:hidden;border-radius:8px;box-shadow:0 4px 28px rgba(13,47,110,.13)}
+.welcome-page .w-carousel-text-slide{background:#fff;min-height:230px;display:flex;flex-direction:column;justify-content:center;padding:45px 52.5px;text-align:left}
+.welcome-page .w-carousel-text-slide h3{font-family:'Montserrat',sans-serif;font-weight:800;font-size:21px;color:var(--w-navy);margin-bottom:11.25px;line-height:1.3}
+.welcome-page .w-carousel-text-slide p{font-size:14.25px;color:var(--w-text);line-height:1.7;white-space:pre-line}
+.welcome-page .w-carousel-btn{position:absolute;top:50%;transform:translateY(-50%);background:rgba(13,47,110,.72);color:#fff;border:none;border-radius:50%;width:42px;height:42px;font-size:16.5px;cursor:pointer;z-index:10;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.welcome-page .w-carousel-btn:hover{background:var(--w-blue)}
+.welcome-page .w-carousel-prev{left:-20px}
+.welcome-page .w-carousel-next{right:-20px}
+.welcome-page .w-carousel-counter{text-align:center;font-family:'Montserrat',sans-serif;font-size:10.8px;color:var(--w-muted);margin-top:9px;font-weight:600;letter-spacing:.5px}
+
+/* ── HOW TO APPLY ── */
+.welcome-page .w-how-section{background:var(--w-blue);padding:45px 30px}
+.welcome-page .w-how-inner{max-width:1100px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 6px 32px rgba(0,0,0,.22);padding:37.5px 37.5px 41.25px}
+.welcome-page .w-how-title{font-family:'Montserrat',sans-serif;font-weight:800;font-size:24px;color:var(--w-blue-mid);text-align:center;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px}
+.welcome-page .w-how-sub{text-align:center;font-size:12.75px;color:var(--w-muted);margin-bottom:37.5px}
+.welcome-page .w-steps-map{display:flex;align-items:flex-start;justify-content:center;gap:0;flex-wrap:wrap;position:relative}
+.welcome-page .w-step-item{display:flex;flex-direction:column;align-items:center;width:160px;position:relative;z-index:1;cursor:pointer}
+.welcome-page .w-step-circle{width:58px;height:58px;border-radius:50%;background:var(--w-blue);border:3px solid #fff;box-shadow:0 3px 14px rgba(0,60,208,.22);display:flex;align-items:center;justify-content:center;font-family:'Montserrat',sans-serif;font-weight:900;font-size:19.5px;color:#fff;margin-bottom:11.25px;flex-shrink:0;transition:transform .2s,background .2s,box-shadow .2s}
+.welcome-page .w-step-item:hover .w-step-circle{transform:scale(1.08)}
+.welcome-page .w-step-item.active .w-step-circle{background:var(--w-gold);box-shadow:0 4px 18px rgba(200,168,75,.45);transform:scale(1.12)}
+.welcome-page .w-step-title{font-family:'Montserrat',sans-serif;font-weight:700;font-size:11.7px;text-transform:uppercase;letter-spacing:.5px;color:var(--w-navy);text-align:center;margin-bottom:4.5px;transition:color .2s}
+.welcome-page .w-step-item.active .w-step-title{color:var(--w-gold)}
+.welcome-page .w-step-desc{font-size:11.25px;color:var(--w-muted);text-align:center;line-height:1.5;max-width:130px}
+.welcome-page .w-step-arrow{display:flex;align-items:center;padding-bottom:58px;color:var(--w-gold);margin:0 -8px;flex-shrink:0}
+@media(max-width:860px){
+  .welcome-page .w-step-arrow{display:none}
+  .welcome-page .w-steps-map{gap:18.75px}
+  .welcome-page .w-step-item{width:140px}
+}
+.welcome-page .w-steps-dropdown-wrap{width:100%;margin-top:26.25px}
+.welcome-page .w-step-guide{background:var(--w-off);border-radius:8px;border:1.5px solid var(--w-border);animation:welcomeSlideDown .3s ease}
+.welcome-page .w-step-guide-header{background:var(--w-blue);border-radius:6px 6px 0 0;padding:15px 22.5px;display:flex;align-items:center;gap:10px}
+.welcome-page .w-guide-num{font-family:'Montserrat',sans-serif;font-weight:900;font-size:18px;color:#fff;background:rgba(255,255,255,.2);width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.welcome-page .w-guide-title{font-family:'Montserrat',sans-serif;font-weight:700;font-size:14.25px;color:#fff;text-transform:uppercase;letter-spacing:.5px}
+.welcome-page .w-step-guide-body{padding:22.5px}
+.welcome-page .w-guide-branch{margin-bottom:18.75px}
+.welcome-page .w-guide-branch-label{font-family:'Montserrat',sans-serif;font-weight:700;font-size:11.25px;text-transform:uppercase;letter-spacing:.6px;color:#fff;background:var(--w-navy);display:inline-block;padding:3px 10px;border-radius:3px;margin-bottom:11.25px}
+.welcome-page .w-guide-branch-label.alt{background:var(--w-green)}
+.welcome-page .w-guide-steps{display:flex;flex-direction:column;gap:9px;list-style:none}
+.welcome-page .w-guide-steps li{display:flex;align-items:flex-start;gap:10px;font-size:12.75px;color:#4A5568;line-height:1.6}
+.welcome-page .w-gs-num{min-width:22px;height:22px;border-radius:50%;background:var(--w-blue);color:#fff;font-family:'Montserrat',sans-serif;font-weight:700;font-size:10.5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.welcome-page .w-gs-num.green{background:var(--w-green)}
+.welcome-page .w-guide-divider{border:none;border-top:1px solid var(--w-border);margin:11.25px 0}
+.welcome-page .w-guide-note{font-size:11.7px;color:var(--w-muted);font-style:italic;margin-top:7.5px}
+.welcome-page .w-guide-close-btn{display:block;margin:3.75px auto 0;font-family:'Montserrat',sans-serif;font-size:10.8px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--w-muted);background:none;border:1px solid var(--w-border);border-radius:3px;padding:5px 16px;cursor:pointer;transition:all .2s}
+.welcome-page .w-guide-close-btn:hover{background:var(--w-border);color:var(--w-text)}
+@keyframes welcomeSlideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── BEFORE YOU APPLY ── */
+.welcome-page .w-content-wrap{max-width:1100px;margin:0 auto;padding:0 30px}
+.welcome-page .w-bya-section{padding:45px 0}
+.welcome-page .w-bya-heading{font-family:'Montserrat',sans-serif;font-weight:800;font-size:24px;color:var(--w-blue-mid);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5.25px}
+.welcome-page .w-bya-sub{font-size:12.75px;color:var(--w-muted);margin-bottom:33.75px}
+.welcome-page .w-bya-accordion{background:#fff;border:1px solid var(--w-border);border-radius:12px;box-shadow:0 4px 24px rgba(13,47,110,.08);overflow:hidden}
+.welcome-page .w-bya-l1{border-bottom:1px solid var(--w-border)}
+.welcome-page .w-bya-l1:last-child{border-bottom:none}
+.welcome-page .w-bya-l1-header{width:100%;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:20.25px 26.25px;background:none;border:none;cursor:pointer;text-align:left;transition:background .15s}
+.welcome-page .w-bya-l1-header:hover{background:var(--w-off)}
+.welcome-page .w-bya-l1-title{display:flex;align-items:center;gap:13.5px;font-family:'Montserrat',sans-serif;font-weight:700;font-size:15.75px;color:var(--w-navy)}
+.welcome-page .w-bya-l1-num{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--w-off);color:var(--w-blue);font-size:11.7px;font-weight:800;flex-shrink:0;transition:background .2s,color .2s}
+.welcome-page .w-bya-l1.open .w-bya-l1-num{background:var(--w-blue);color:#fff}
+.welcome-page .w-bya-l1-arrow{color:var(--w-muted);transition:transform .25s,color .2s;flex-shrink:0}
+.welcome-page .w-bya-l1.open .w-bya-l1-arrow{transform:rotate(180deg);color:var(--w-blue)}
+.welcome-page .w-bya-l1-body{padding:0 26.25px 27.75px;margin-top:-5.25px;animation:welcomeSlideDown .3s ease}
+.welcome-page .w-bya-intro{font-size:13.2px;color:#4A5568;margin-bottom:18.75px}
+.welcome-page .w-programs-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 45px}
+.welcome-page .w-programs-dept{font-family:'Montserrat',sans-serif;font-weight:700;font-size:12.3px;color:var(--w-navy);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7.5px}
+.welcome-page .w-programs-list{list-style:disc;padding-left:22.5px;display:flex;flex-direction:column;gap:5px;margin:0 0 15px}
+.welcome-page .w-programs-list li{font-size:13.2px;color:#4A5568}
+.welcome-page .w-bya-l1-body p.qual{font-size:13.5px;color:#4A5568;margin-bottom:11.25px;line-height:1.75}
+@media(max-width:900px){ .welcome-page .w-programs-grid{grid-template-columns:1fr} }
+@media(max-width:640px){
+  .welcome-page .w-bya-l1-header{padding:15.75px 16.5px}
+  .welcome-page .w-bya-l1-title{font-size:13.8px;gap:9px}
+  .welcome-page .w-bya-l1-body{padding:0 16.5px 21px}
+}
+
+/* Admission requirement tabs */
+.welcome-page .w-req-tabs-wrap{margin-top:7.5px}
+.welcome-page .w-req-tabs{display:flex;gap:2px;overflow-x:auto;border-bottom:2px solid var(--w-border)}
+.welcome-page .w-req-tab{flex-shrink:0;padding:12px 18px;font-family:'Montserrat',sans-serif;font-weight:700;font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--w-muted);background:transparent;border:none;cursor:pointer;white-space:nowrap;position:relative;transition:color .2s}
+.welcome-page .w-req-tab:hover{color:var(--w-blue)}
+.welcome-page .w-req-tab.active{color:var(--w-blue)}
+.welcome-page .w-req-tab.active::after{content:'';position:absolute;left:10px;right:10px;bottom:-2px;height:3px;background:var(--w-gold);border-radius:2px 2px 0 0}
+.welcome-page .w-req-panel-wrap{background:var(--w-off);border:1px solid var(--w-border);border-top:none;border-radius:0 0 10px 10px;padding:22.5px 22.5px 26.25px}
+.welcome-page .w-req-panel-title{font-family:'Montserrat',sans-serif;font-weight:800;font-size:13.8px;color:var(--w-navy);letter-spacing:.2px;margin-bottom:13.5px;padding-bottom:9.75px;border-bottom:1px solid var(--w-border)}
+.welcome-page .w-req-panel ul{list-style:disc;padding-left:19.5px;display:flex;flex-direction:column;gap:5px;margin:0}
+.welcome-page .w-req-panel ol{padding-left:19.5px;display:flex;flex-direction:column;gap:6px;margin:0}
+.welcome-page .w-req-panel li{font-size:12.75px;color:#4A5568;line-height:1.6}
+.welcome-page .w-req-panel p{font-size:12.75px;color:#4A5568;line-height:1.7;margin-bottom:7.5px}
+.welcome-page .w-qual-head{font-family:'Montserrat',sans-serif;font-weight:700;font-size:12.3px;color:var(--w-navy);margin:11.25px 0 4.5px;text-transform:uppercase;letter-spacing:.4px}
+@media(max-width:640px){
+  .welcome-page .w-req-tab{padding:10px 13px;font-size:9.6px}
+  .welcome-page .w-req-panel-wrap{padding:18.75px 16.5px 22.5px}
+}
+
+/* ── FAQ ── */
+.welcome-page .w-faq-section{padding:45px 30px;background-image:linear-gradient(rgba(13,47,110,.55),rgba(13,47,110,.7)),url('https://static.where-e.com/Philippines/City-College-Of-Calamba_ba2dfbc35e249893367f22e7076f4a27.jpg');background-size:cover;background-position:center;background-repeat:no-repeat}
+.welcome-page .w-faq-inner{max-width:1100px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 6px 32px rgba(0,0,0,.35);padding:37.5px 37.5px 41.25px}
+.welcome-page .w-faq-title{font-family:'Montserrat',sans-serif;font-weight:800;font-size:30px;color:var(--w-blue-mid);text-align:left;letter-spacing:1px;text-transform:uppercase;margin-bottom:5.25px}
+.welcome-page .w-faq-sub{font-size:12.75px;color:var(--w-muted);margin-bottom:22.5px;text-align:left}
+.welcome-page .w-faq-search-wrap{margin-bottom:18.75px}
+.welcome-page .w-faq-search-wrap input{width:100%;padding:11.25px 15px;border:1.5px solid var(--w-border);border-radius:6px;font-size:13.5px;font-family:inherit;color:var(--w-text)}
+.welcome-page .w-faq-search-wrap input:focus{outline:none;border-color:var(--w-blue)}
+.welcome-page .w-faq-list-scroll{max-height:420px;overflow-y:auto;padding-right:7.5px}
+.welcome-page .w-faq-category{font-family:'Montserrat',sans-serif;font-weight:800;font-size:14.25px;text-transform:uppercase;letter-spacing:.6px;color:var(--w-blue);margin:18.75px 0 9px}
+.welcome-page .w-faq-category:first-child{margin-top:0}
+.welcome-page .w-faq-subcategory{font-family:'Montserrat',sans-serif;font-weight:700;font-size:12px;color:var(--w-gold);text-transform:uppercase;letter-spacing:.4px;margin:15px 0 7.5px}
+.welcome-page .w-faq-item{border:1px solid var(--w-border);border-radius:6px;margin-bottom:6px;overflow:hidden}
+.welcome-page .w-faq-item-header{width:100%;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:12.75px 16.5px;background:var(--w-off);border:none;cursor:pointer;text-align:left;font-family:'Montserrat',sans-serif;font-weight:600;font-size:12.75px;color:var(--w-navy)}
+.welcome-page .w-faq-item-toggle{font-size:15px;font-weight:400;color:var(--w-muted);flex-shrink:0;transition:transform .2s,color .2s}
+.welcome-page .w-faq-item.open .w-faq-item-toggle{color:var(--w-blue);transform:rotate(45deg)}
+.welcome-page .w-faq-item-body{padding:0 16.5px 15px;font-size:12.75px;color:#4A5568;line-height:1.65;animation:welcomeSlideDown .3s ease}
+.welcome-page .w-faq-empty-msg{font-size:12.75px;color:var(--w-muted);font-style:italic;padding:15px 0}
+@media(max-width:860px){
+  .welcome-page .w-faq-inner{padding:26.25px 22.5px 30px}
+  .welcome-page .w-faq-title{font-size:22.5px}
+}
+
+/* ── CONTACT ── */
+.welcome-page .w-contact-section{background:var(--w-blue);padding:45px 30px}
+.welcome-page .w-contact-inner{max-width:1100px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 6px 32px rgba(0,0,0,.22);padding:37.5px 37.5px 41.25px}
+.welcome-page .w-contact-title{font-family:'Montserrat',sans-serif;font-weight:800;font-size:24px;color:var(--w-blue-mid);text-align:center;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px}
+.welcome-page .w-contact-sub{text-align:center;font-size:12.75px;color:var(--w-muted);margin-bottom:30px}
+.welcome-page .w-contact-table{width:100%;border-collapse:collapse;font-size:12.3px}
+.welcome-page .w-contact-table th{background:var(--w-blue);color:#fff;padding:10px 14px;text-align:center;font-family:'Montserrat',sans-serif;font-weight:600;font-size:11.7px;letter-spacing:.3px}
+.welcome-page .w-contact-table td{padding:9px 14px;text-align:center;border:1px solid var(--w-border);color:#4A5568}
+.welcome-page .w-contact-table a{color:var(--w-blue-mid);text-decoration:underline}
+@media(max-width:640px){
+  .welcome-page .w-contact-inner{padding:26.25px 17.25px 30px}
+  .welcome-page .w-contact-table{display:block;overflow-x:auto}
+}
+
+/* ── FOOTER ── */
+.welcome-page .w-footer{background:#1a1f36;color:rgba(255,255,255,.65);padding:52.5px 0 0}
+.welcome-page .w-footer-inner{max-width:1200px;margin:0 auto;padding:0 30px}
+.welcome-page .w-footer-main{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.welcome-page .w-footer-logo-col{display:flex;flex-direction:row;align-items:center;justify-content:center;gap:24px;padding:0 45px 45px 0;flex-shrink:0;flex-wrap:wrap}
+.welcome-page .w-footer-logo-col img{height:100px;width:auto;object-fit:contain;mix-blend-mode:lighten}
+.welcome-page .w-footer-content-col{flex:1;min-width:260px;padding:0 0 45px 45px;display:flex;flex-direction:column;gap:26.25px}
+.welcome-page .w-footer-content-row{display:grid;grid-template-columns:1fr 1fr;gap:22.5px}
+.welcome-page .w-footer h4{font-family:'Montserrat',sans-serif;font-weight:700;font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:#fff;margin-bottom:15px}
+.welcome-page .w-footer a{display:block;font-size:12px;color:rgba(255,255,255,.5);text-decoration:none;margin-bottom:7.5px;transition:color .2s}
+.welcome-page .w-footer a:hover{color:#fff}
+.welcome-page .w-footer-bar{background:var(--w-blue);text-align:center;padding:9.75px;font-family:'Montserrat',sans-serif;font-size:10.5px;font-weight:700;color:rgba(255,255,255,.9);letter-spacing:.5px;text-transform:uppercase}
+@media(max-width:900px){
+  .welcome-page .w-footer-main{flex-direction:column}
+  .welcome-page .w-footer-logo-col{padding:0 0 30px;justify-content:flex-start}
+  .welcome-page .w-footer-content-col{padding:30px 0}
+}
+@media(max-width:600px){
+  .welcome-page .w-footer-content-row{grid-template-columns:1fr}
+}
+
+/* ── SCROLL TO TOP ── */
+.welcome-page .w-to-top{position:fixed;bottom:24px;right:24px;width:36px;height:36px;background:var(--w-blue-mid);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 3px 12px rgba(26,79,160,.35);opacity:0;transition:opacity .3s;z-index:999;border:none;pointer-events:none}
+.welcome-page .w-to-top.show{opacity:1;pointer-events:auto}
