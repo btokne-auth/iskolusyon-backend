@@ -29,6 +29,12 @@ import { supabase } from '@/app/supabaseClient'
 import { personalInfoToColumns, academicInfoToColumns } from './applicationColumns'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+// Sept 23, 2026: iskolusyon.dev is now verified on Resend, so this no
+// longer has to be the onboarding@resend.dev sandbox address (which could
+// only ever deliver to the developer's own inbox). Configurable via env
+// so a future domain change doesn't need another code patch.
+const EMAIL_FROM = process.env.RESEND_FROM_EMAIL || 'Iskolusyon <noreply@iskolusyon.dev>'
 const KEY_LENGTH = 64
 const OTP_TTL_MINUTES = 10
 const OTP_MAX_ATTEMPTS = 5
@@ -160,7 +166,7 @@ export async function sendVerificationCode(accountId, email) {
 
   try {
     await resend.emails.send({
-      from: 'Iskolusyon <onboarding@resend.dev>',
+      from: EMAIL_FROM,
       to: email,
       subject: 'Your Iskolusyon verification code',
       html: `
@@ -343,7 +349,7 @@ export async function requestPasswordReset(email) {
 
   try {
     await resend.emails.send({
-      from: 'Iskolusyon <onboarding@resend.dev>',
+      from: EMAIL_FROM,
       to: account.email,
       subject: 'Reset your Iskolusyon password',
       html: `
@@ -452,7 +458,7 @@ export async function sendLoginCode(accountId, email) {
 
   try {
     await resend.emails.send({
-      from: 'Iskolusyon <onboarding@resend.dev>',
+      from: EMAIL_FROM,
       to: email,
       subject: 'Your Iskolusyon login code',
       html: `
