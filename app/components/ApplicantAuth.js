@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import SiteHeader from './SiteHeader'
+import '../welcome-theme.css'
+import WelcomeNavbar from './WelcomeNavbar'
+import WelcomeFooter from './WelcomeFooter'
 
 // Mirrors isValidEmailFormat() in applicantAccounts.js — a real format
 // check, not just "contains an @". Catches "name@" / "name@domain" with no
@@ -319,13 +321,21 @@ function Alert({ tone = 'info', children }) {
 export default function ApplicantAuth({ onAuthenticated, initialMode = 'login' }) {
   const [mode, setMode] = useState(initialMode) // 'login' | 'signup' | 'forgot'
 
+  // Sept 23, 2026: was just a bare SiteHeader + centered card on a plain
+  // ccc-off background. Pau asked for /login and signup to carry the same
+  // "top part and lower part" (navbar + footer) design as the new homepage,
+  // matching signup.html's full-page chrome instead of looking like a
+  // standalone modal with nothing around it. WelcomeNavbar/WelcomeFooter are
+  // the exact same components app/page.js uses; links on this page fall
+  // back to plain "/#id" hrefs (no scroll-spy/section state here) since
+  // this isn't the page those sections actually live on.
   return (
-    <div className="min-h-screen bg-ccc-off flex flex-col">
-      <SiteHeader topbarLabel="(049) 559-8900 to 8907 / (02) 8-539-5170 to 5171" />
+    <div className="welcome-page min-h-screen flex flex-col" style={{ background: 'var(--ccc-off)' }}>
+      <WelcomeNavbar />
       <div className="flex-1 flex items-center justify-center p-4 md:p-8">
         {/* max-w-[960px] + rounded-[14px] + this shadow match the mockup's
             own .auth-shell exactly (Sept 23, 2026 design-parity pass). */}
-        <div className="w-full max-w-[960px] bg-white rounded-[14px] shadow-[0_12px_48px_rgba(13,47,110,.22)] overflow-hidden flex max-h-[92vh]">
+        <div className="w-full max-w-[960px] bg-white rounded-[14px] shadow-[0_12px_48px_rgba(13,47,110,.22)] overflow-hidden flex max-h-[92vh] my-8">
           {mode === 'login' && (
             <LoginPanel
               onSwitch={() => setMode('signup')}
@@ -337,6 +347,7 @@ export default function ApplicantAuth({ onAuthenticated, initialMode = 'login' }
           {mode === 'forgot' && <ForgotPasswordPanel onSwitch={() => setMode('login')} />}
         </div>
       </div>
+      <WelcomeFooter />
     </div>
   )
 }
