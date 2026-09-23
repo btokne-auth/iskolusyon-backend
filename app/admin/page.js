@@ -3120,7 +3120,7 @@ function AdminPageInner() {
         ]}
         rightSlot={
           <a
-            href="/"
+            href="/portal"
             className="text-xs font-semibold text-ccc-blue hover:text-ccc-navy transition-colors underline underline-offset-2"
           >
             Back to applicant portal

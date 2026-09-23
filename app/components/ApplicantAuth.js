@@ -296,8 +296,8 @@ function Alert({ tone = 'info', children }) {
   return <div className={`text-[13px] rounded-md border px-3 py-2 mb-4 ${styles[tone]}`}>{children}</div>
 }
 
-export default function ApplicantAuth({ onAuthenticated }) {
-  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'forgot'
+export default function ApplicantAuth({ onAuthenticated, initialMode = 'login' }) {
+  const [mode, setMode] = useState(initialMode) // 'login' | 'signup' | 'forgot'
 
   return (
     <div className="min-h-screen bg-ccc-off flex flex-col">

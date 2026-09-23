@@ -157,7 +157,7 @@ export default function HistoryPage() {
             Your application history is tied to your account now — log in to see it.
           </p>
           <Link
-            href="/"
+            href="/login"
             className="inline-block px-5 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8]"
           >
             Go to Log In
