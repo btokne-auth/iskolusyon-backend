@@ -8,6 +8,12 @@ import { getSystemSettings } from '@/app/lib/systemSettings'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+// Sept 23, 2026: iskolusyon.dev is now verified on Resend, so this no
+// longer has to be the onboarding@resend.dev sandbox address (which could
+// only ever deliver to the developer's own inbox). Configurable via env
+// so a future domain change doesn't need another code patch.
+const EMAIL_FROM = process.env.RESEND_FROM_EMAIL || 'Iskolusyon <noreply@iskolusyon.dev>'
+
 // personalInfoToColumns() / academicInfoToColumns() moved to
 // app/lib/applicationColumns.js on Sept 19, 2026 so the new signup flow
 // (applicantAccounts.js) can build the first `applications` row from
@@ -23,7 +29,7 @@ async function sendSubmissionEmail(applicantName, applicantEmail) {
 
   try {
     await resend.emails.send({
-      from: 'Iskolusyon <onboarding@resend.dev>',
+      from: EMAIL_FROM,
       to: applicantEmail,
       subject: 'Your Iskolusyon application has been submitted',
       html: `
