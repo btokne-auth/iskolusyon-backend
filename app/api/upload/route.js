@@ -2,8 +2,6 @@ import sharp from 'sharp'
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import crypto from 'crypto'
-import { PDFParse } from 'pdf-parse'
-import { createWorker, PSM } from 'tesseract.js'
 import { VALID_DOCUMENT_TYPES, AUTOFILL_SCOPED_TYPES } from '@/app/lib/documentTypes'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
@@ -272,6 +270,10 @@ async function preprocessForOCR(buffer) {
 // the single biggest lever we have on the "OCR falls apart on anything that
 // isn't a clean, born-digital PDF" problem, without adding new dependencies.
 async function ocrWithBestSegmentation(worker, buffer) {
+  // Loaded here (not as a top-level import) so this file's GET handler
+  // never pulls tesseract.js's module code into memory just to list
+  // documents — see the comment above extractText() for why that matters.
+  const { PSM } = await import('tesseract.js')
   const candidates = [PSM.AUTO, PSM.SINGLE_BLOCK]
   let best = null
 
@@ -300,8 +302,20 @@ async function ocrImageBuffer(worker, buffer) {
 // - PDFs   -> try the embedded text layer first (fast, exact); if the PDF
 //             turns out to be a scan with no real text layer, rasterize each
 //             page to an image and OCR those instead.
+//
+// pdf-parse and tesseract.js are dynamically imported below, inside this
+// function, instead of as top-level imports at the top of this file. Both
+// libraries pull in code that references browser-only globals (pdf-parse's
+// pdfjs-dist internals touch `DOMMatrix`, which doesn't exist in Node.js).
+// A top-level import runs that code the moment ANY route in this file is
+// hit — including the plain GET handler that just lists documents from
+// Supabase and never touches a PDF — which crashed every GET /api/upload
+// request in production with "ReferenceError: DOMMatrix is not defined"
+// (Sept 23, 2026). Importing dynamically, only on this code path that
+// actually parses a file, keeps that crash from ever happening on GET.
 async function extractText(buffer, mimeType) {
   if (mimeType.startsWith('image/')) {
+    const { createWorker } = await import('tesseract.js')
     const worker = await createWorker('eng')
     try {
       const { text, confidence } = await ocrImageBuffer(worker, buffer)
@@ -312,6 +326,7 @@ async function extractText(buffer, mimeType) {
   }
 
   if (mimeType === 'application/pdf') {
+    const { PDFParse } = await import('pdf-parse')
     const parser = new PDFParse({ data: buffer })
     try {
       const result = await parser.getText()
@@ -328,6 +343,7 @@ async function extractText(buffer, mimeType) {
 
       // No usable text layer found — treat as a scanned PDF and OCR each page.
       const screenshot = await parser.getScreenshot({ scale: 2 })
+      const { createWorker } = await import('tesseract.js')
       const worker = await createWorker('eng')
       try {
         let ocrText = ''
