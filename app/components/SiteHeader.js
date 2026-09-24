@@ -64,6 +64,17 @@ export default function SiteHeader({
       {/* Navbar */}
       <nav className="bg-white border-b-[3px] border-ccc-gold sticky top-0 z-30 shadow-sm">
         <div className="w-full px-4 md:px-10 flex items-center justify-between h-[72px] gap-4">
+          {/* Sept 24 2026: brought pixel-for-pixel in line with the mockup's
+              own .brand/.brand-logos/.brand-text CSS (index.html) -- this
+              component was noticeably off from it in several ways: logos
+              were 44px instead of 52px, the title was weight 800 instead of
+              900 and missing its uppercase/letter-spacing/line-height, and
+              the subtitle was rendering at 11px instead of the spec's
+              ~8.7px (0.58rem @ the mockup's 15px root) and missing its own
+              weight/uppercase/letter-spacing too. Fixed here since
+              SiteHeader is shared by every page -- applicant and admin
+              alike -- so this one fix restores consistency everywhere at
+              once instead of needing to be redone per page. */}
           <div className="flex items-center gap-2.5">
             <div className="flex items-center gap-1.5">
               {logos.map((logo) => (
@@ -71,18 +82,24 @@ export default function SiteHeader({
                   key={logo.src}
                   src={logo.src}
                   alt={logo.alt}
-                  className="h-11 w-auto object-contain"
+                  className="h-[52px] w-auto object-contain"
                 />
               ))}
             </div>
             <div
-              className="pl-2.5 ml-1 border-l-2 border-ccc-border"
+              className="pl-2.5 border-l-2 border-ccc-border"
               style={{ fontFamily: 'var(--font-montserrat)' }}
             >
-              <div className="text-[15px] font-extrabold text-ccc-navy leading-tight">
+              <div
+                className="text-[15px] font-black text-ccc-navy uppercase leading-[1.1]"
+                style={{ letterSpacing: '0.5px' }}
+              >
                 City College of Calamba
               </div>
-              <div className="text-[11px] text-ccc-muted leading-tight">
+              <div
+                className="text-[8.7px] font-semibold text-ccc-muted uppercase mt-px"
+                style={{ letterSpacing: '1.2px' }}
+              >
                 {subtitle}
               </div>
             </div>
