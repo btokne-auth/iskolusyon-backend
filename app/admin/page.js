@@ -97,6 +97,18 @@ function formatWhen(iso) {
   }
 }
 
+// Sept 24 2026: two-letter initials for the Admin Accounts row avatars,
+// matching Ivy's mockup (e.g. "Guidance & Testing Office" -> "GO", "Grace
+// Villanueva" -> "GV") -- first letter of the first word + first letter of
+// the last word, so a multi-word office name still collapses to two letters
+// instead of overflowing the circle.
+function getInitials(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
+}
+
 // A document preview image that failed to load (slow/dropped connection,
 // most commonly) previously just sat there as a broken image icon with no
 // way to fix it short of refreshing the entire page. This retries just
@@ -2694,7 +2706,23 @@ function AdminAccountsPanel() {
         </div>
       )}
 
-      <div className="card" style={{ marginBottom: 0, padding: 0, overflow: 'hidden' }}>
+      {/* Sept 24 2026: swapped the plain table for the .admin-list/.admin-row
+          markup from Ivy's mockup CSS (already sitting unused in
+          admin-theme.css under "SUPER ADMIN: ACCOUNTS") -- avatar-initials
+          circle, name/email stack, a role-tag pill, and an icon-only delete
+          button instead of a text "Remove" link. The Add Admin Account form
+          from her mockup is deliberately left out: inviting isn't wired up
+          yet (no email delivery), so there's nothing for it to submit to --
+          this is the CSS pass only, per Pau's note. */}
+      <div className="card" style={{ marginBottom: 0 }}>
+        <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>Current Accounts</span>
+          {!loading && !error && (
+            <span className="badge badge-notsubmitted">
+              {accounts.length} account{accounts.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
         {loading ? (
           <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
         ) : error ? (
@@ -2702,46 +2730,35 @@ function AdminAccountsPanel() {
         ) : accounts.length === 0 ? (
           <p className="text-sm text-ccc-muted text-center py-8">No admin accounts found.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-ccc-border text-left text-[10px] font-bold uppercase tracking-widest text-ccc-muted">
-                <th className="px-5 py-3">Name</th>
-                <th className="px-5 py-3">Email</th>
-                <th className="px-5 py-3">Role</th>
-                <th className="px-5 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {accounts.map((acc) => {
-                const isSelf = acc.email.toLowerCase() === myEmail
-                return (
-                  <tr key={acc.email} className="border-b border-ccc-border last:border-0">
-                    <td className="px-5 py-3 font-semibold text-ccc-navy">
+          <div className="admin-list">
+            {accounts.map((acc) => {
+              const isSelf = acc.email.toLowerCase() === myEmail
+              return (
+                <div key={acc.email} className="admin-row">
+                  <div className="aa-avatar">{getInitials(acc.name)}</div>
+                  <div className="aa-info">
+                    <div className="aa-name">
                       {acc.name}
                       {isSelf && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-ccc-muted">You</span>}
-                    </td>
-                    <td className="px-5 py-3 text-ccc-text">{acc.email}</td>
-                    <td className="px-5 py-3">
-                      <span className={`badge ${acc.is_super_admin ? 'badge-orange' : 'badge-notsubmitted'}`}>
-                        {acc.is_super_admin ? 'Super Admin' : 'Admin'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleRemove(acc)}
-                        disabled={isSelf || removingEmail === acc.email}
-                        title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
-                        className="text-xs font-bold text-ccc-red disabled:text-ccc-muted disabled:cursor-not-allowed hover:underline"
-                      >
-                        {removingEmail === acc.email ? 'Removing...' : 'Remove'}
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                    </div>
+                    <div className="aa-email">{acc.email}</div>
+                  </div>
+                  <span className={`role-tag ${acc.is_super_admin ? 'super' : 'admin'}`}>
+                    {acc.is_super_admin ? 'Super Admin' : 'Admin'}
+                  </span>
+                  <button
+                    type="button"
+                    className={`admin-row-del${isSelf ? ' is-disabled' : ''}`}
+                    onClick={() => handleRemove(acc)}
+                    disabled={isSelf || removingEmail === acc.email}
+                    title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
+                  >
+                    {removingEmail === acc.email ? '…' : '🗑'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
     </div>
