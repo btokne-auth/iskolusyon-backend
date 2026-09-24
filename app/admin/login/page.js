@@ -100,17 +100,17 @@ function AdminLoginForm() {
       >
         Admin Console Access
       </h1>
-      {/* Sept 24 2026: kept the app's own accurate copy instead of the
-          mockup's shorter text -- this still names what isn't built yet
-          (self-signup, password reset, session timeout), which matters
-          because Forgot Password / Keep me signed in below are disabled
-          for exactly that reason. Swapping to the mockup's copy would have
-          dropped that disclosure. */}
+      {/* Sept 24 2026, updated same day once Super Admin password reset
+          shipped: "password reset" dropped from this list -- it exists now,
+          just not self-service (see the removed Forgot Password link
+          below and its replacement copy). Self-signup and session timeout
+          are still genuinely missing, so those stay named. */}
       <p className="text-xs text-ccc-muted mb-6">
         Sign in with your own admin account. This still isn&apos;t backed
-        by a real account system yet — no self-signup, password reset, or
-        session timeout — just individual credentials in place of the old
-        shared passcode, until the User Account Module is ready.
+        by a real account system yet — no self-signup or session timeout —
+        just individual credentials in place of the old shared passcode,
+        until the User Account Module is ready. Forgot your password? Ask
+        a Super Admin to reset it for you.
       </p>
 
       <form onSubmit={handleSubmit} style={{ textAlign: 'left' }}>
@@ -152,11 +152,14 @@ function AdminLoginForm() {
           </div>
         </div>
 
-        {/* Sept 24 2026: both from the mockup, both disabled -- neither
-            remember-me nor password reset exists yet (see the copy above),
-            so these are placeholders for when the User Account Module
-            lands rather than live controls. */}
-        <div className="flex items-center justify-between mb-4">
+        {/* Sept 24 2026, updated same day: dropped "Forgot Password?" --
+            Super Admin password reset shipped, so it's no longer a dead
+            end, just not self-service (see the copy above). Keeping it
+            here as a disabled link would have implied a self-serve flow
+            that isn't coming. "Keep me signed in" is still a genuine gap
+            (remember-me isn't built), so it stays as a disabled
+            placeholder. */}
+        <div className="mb-4">
           <label
             className="flex items-center gap-1.5 text-[11px] text-ccc-muted"
             style={{ cursor: 'not-allowed' }}
@@ -165,13 +168,6 @@ function AdminLoginForm() {
             <input type="checkbox" disabled />
             Keep me signed in
           </label>
-          <span
-            className="text-[11px] font-semibold text-ccc-muted"
-            style={{ cursor: 'not-allowed' }}
-            title="Password reset isn't built yet -- contact whoever seeded your account."
-          >
-            Forgot Password?
-          </span>
         </div>
 
         {error && <p className="text-xs text-ccc-red mb-3">{error}</p>}
