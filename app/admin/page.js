@@ -72,6 +72,93 @@ function IconAlert(props) {
   )
 }
 
+// Sept 24 2026: category icons for the Activity Log timeline (see
+// ACTIVITY_CATEGORIES / ACTIVITY_CATEGORY_STYLE below) -- added so each row
+// reads as its own kind of event at a glance instead of every entry
+// rendering the same green checkmark regardless of what actually happened.
+function IconTarget(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="12" cy="12" r="0.5" fill="currentColor" />
+    </svg>
+  )
+}
+function IconBarChart(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M5 20V10M12 20V4M19 20v-6" />
+    </svg>
+  )
+}
+function IconMessage(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+    </svg>
+  )
+}
+function IconShield(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" />
+    </svg>
+  )
+}
+function IconGear(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+    </svg>
+  )
+}
+
+// One icon + tint per category, all distinct from the warn/red used for
+// entries needing attention (kind === 'warn' always wins over category --
+// see TimelineItem -- so "something needs a look" stays a reserved signal
+// rather than one more category color).
+const ACTIVITY_CATEGORY_STYLE = {
+  Documents: { icon: IconFile, className: 'cat-documents' },
+  Eligibility: { icon: IconTarget, className: 'cat-eligibility' },
+  Results: { icon: IconBarChart, className: 'cat-results' },
+  Communications: { icon: IconMessage, className: 'cat-communications' },
+  'Admin Accounts': { icon: IconShield, className: 'cat-admin' },
+  System: { icon: IconGear, className: 'cat-system' },
+}
+function getCategoryStyle(category) {
+  return ACTIVITY_CATEGORY_STYLE[category] || { icon: IconCheck, className: 'done' }
+}
+
+// Sept 24 2026: date-section headers for the Activity Log timeline ("Today"
+// / "Yesterday" / a full date) so 50+ entries don't read as one
+// undifferentiated scroll -- groups consecutive entries by calendar day,
+// in whatever order the API already returned them (newest first).
+function activityDateLabel(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+  const startOf = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffDays = Math.round((startOf(now) - startOf(d)) / 86400000)
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  return d.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined })
+}
+function groupActivityByDate(entries) {
+  const groups = []
+  for (const entry of entries) {
+    const label = activityDateLabel(entry.created_at)
+    const last = groups[groups.length - 1]
+    if (last && last.label === label) {
+      last.items.push(entry)
+    } else {
+      groups.push({ label, items: [entry] })
+    }
+  }
+  return groups
+}
+
 function getCleanFileName(path) {
   if (!path) return 'Unknown file'
   const parts = path.split('-')
@@ -3228,11 +3315,18 @@ function CycleSettingsCard() {
 }
 
 function TimelineItem({ entry }) {
+  // Sept 24 2026: kind === 'warn' (an account removed, a password reset --
+  // things worth a second look) still always wins and shows the red alert
+  // dot, same as before. Everything else now gets its category's own
+  // icon/tint instead of one green checkmark for every kind of event, so
+  // "reserved for status" (warn/red) and "identity" (category) don't mix --
+  // same rule as the rest of the console's data visuals.
   const isWarn = entry.kind === 'warn'
+  const { icon: CategoryIcon, className: categoryClass } = getCategoryStyle(entry.category)
   return (
     <div className={`timeline-item${entry.read ? '' : ' unread'}`}>
-      <div className={`timeline-dot ${isWarn ? 'warn' : 'done'}`}>
-        {isWarn ? <IconAlert className="w-3.5 h-3.5" /> : <IconCheck className="w-3.5 h-3.5" />}
+      <div className={`timeline-dot ${isWarn ? 'warn' : categoryClass}`}>
+        {isWarn ? <IconAlert className="w-3.5 h-3.5" /> : <CategoryIcon className="w-3.5 h-3.5" />}
       </div>
       <div className="timeline-body min-w-0">
         <h4>
@@ -3274,6 +3368,7 @@ function ActivityLogCard() {
   }, [categoryFilter, statusFilter])
 
   const unreadCount = entries.filter((e) => !e.read).length
+  const groupedEntries = useMemo(() => groupActivityByDate(entries), [entries])
 
   const handleMarkAllRead = async () => {
     setMarkingAllRead(true)
@@ -3292,10 +3387,14 @@ function ActivityLogCard() {
 
   return (
     <div className="card">
-      <div className="card-title">
-        Recent Activity Log &amp; Notifications
-        {unreadCount > 0 && <span className="tag">{unreadCount} unread</span>}
-      </div>
+      {/* Sept 24 2026: the unread count moved out of the card title and
+          down next to "Mark all as read" -- previously it sat pinned to
+          the title's top-right corner while the individual unread dots
+          and the mark-all-read action lived in two other spots on the
+          card, so the same "unread" concept was represented three
+          different, disconnected ways. Now it's one line: count, then
+          the action that clears it. */}
+      <div className="card-title">Recent Activity Log &amp; Notifications</div>
 
       {/* The label/select styling for .mfield only applies inside
           .announce-form (that's how it's scoped in Ivy's original CSS --
@@ -3334,7 +3433,8 @@ function ActivityLogCard() {
               <option value="read">Read</option>
             </select>
           </div>
-          <div className="mfield-actions">
+          <div className="mfield-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {unreadCount > 0 && <span className="tag">{unreadCount} unread</span>}
             <button
               type="button"
               onClick={handleMarkAllRead}
@@ -3354,9 +3454,19 @@ function ActivityLogCard() {
       ) : entries.length === 0 ? (
         <p className="text-sm text-ccc-muted text-center py-8">No activity recorded yet.</p>
       ) : (
+        // Sept 24 2026: entries grouped into "Today / Yesterday / <date>"
+        // sections (groupActivityByDate) instead of one continuous list --
+        // 50+ entries with no section breaks read as a single undifferen-
+        // tiated block; a date header every so often gives the eye a place
+        // to land and re-orient while scanning.
         <div className="timeline">
-          {entries.map((entry) => (
-            <TimelineItem key={entry.id} entry={entry} />
+          {groupedEntries.map((group) => (
+            <div key={group.label}>
+              <div className="activity-date-heading">{group.label}</div>
+              {group.items.map((entry) => (
+                <TimelineItem key={entry.id} entry={entry} />
+              ))}
+            </div>
           ))}
         </div>
       )}
