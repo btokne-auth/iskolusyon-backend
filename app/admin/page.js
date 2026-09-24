@@ -2109,22 +2109,20 @@ function AnalyticsPanel() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Statistics
-        </h1>
-        <p className="text-xs text-ccc-muted mt-0.5">
-          {stats.total} application{stats.total === 1 ? '' : 's'} on file. Allowance monitoring and exportable
-          LGU compliance reports aren&rsquo;t built here -- the manuscript itself marks both as to-follow modules,
-          out of scope for this version.
-        </p>
+      <div className="portal-header">
+        <div>
+          <h1>Statistics</h1>
+          <p>
+            {stats.total} application{stats.total === 1 ? '' : 's'} on file. Allowance monitoring and exportable
+            LGU compliance reports aren&rsquo;t built here -- the manuscript itself marks both as to-follow modules,
+            out of scope for this version.
+          </p>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-5">
-        <div className="rounded-2xl border border-ccc-border bg-white p-5 space-y-3">
-          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            By Program (Course)
-          </p>
+        <div className="card" style={{ marginBottom: 0 }}>
+          <div className="card-title">By Program (Course)</div>
           {stats.byProgram.length === 0 ? (
             <p className="text-[11px] text-ccc-muted">No data yet.</p>
           ) : (
@@ -2136,10 +2134,8 @@ function AnalyticsPanel() {
           )}
         </div>
 
-        <div className="rounded-2xl border border-ccc-border bg-white p-5 space-y-3">
-          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            By Applying As (nearest proxy for Year Level)
-          </p>
+        <div className="card" style={{ marginBottom: 0 }}>
+          <div className="card-title">By Applying As (nearest proxy for Year Level)</div>
           {stats.byApplyingAs.length === 0 ? (
             <p className="text-[11px] text-ccc-muted">No data yet.</p>
           ) : (
@@ -2149,16 +2145,14 @@ function AnalyticsPanel() {
               ))}
             </div>
           )}
-          <p className="text-[10px] text-ccc-muted pt-1 border-t border-ccc-border">
+          <p className="text-[10px] text-ccc-muted pt-3 mt-1 border-t border-ccc-border">
             No dedicated &ldquo;Department&rdquo; or literal &ldquo;Year Level&rdquo; field exists anywhere in the
             system yet, so those two aren&rsquo;t charted here rather than invented from a guess.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-ccc-border bg-white p-5 space-y-3">
-          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            Ongoing / Qualified / Not Qualified / Waitlisted (Scholarship Matching)
-          </p>
+        <div className="card" style={{ marginBottom: 0 }}>
+          <div className="card-title">Ongoing / Qualified / Not Qualified / Waitlisted (Scholarship Matching)</div>
           <div className="space-y-2.5">
             <BarRow label="Qualified" count={stats.eligibilityCounts.qualified} total={stats.total} colorClass="bg-ccc-green" />
             <BarRow label="Waitlisted" count={stats.eligibilityCounts.waitlisted} total={stats.total} colorClass="bg-ccc-gold" />
@@ -2168,10 +2162,8 @@ function AnalyticsPanel() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-ccc-border bg-white p-5 space-y-3">
-          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            Post-Exam Scholar Status
-          </p>
+        <div className="card" style={{ marginBottom: 0 }}>
+          <div className="card-title">Post-Exam Scholar Status</div>
           <div className="space-y-2.5">
             <BarRow label="Passer" count={stats.scholarCounts.passer} total={stats.total} colorClass="bg-ccc-green" />
             <BarRow label="Waitlisted (Probationary)" count={stats.scholarCounts.waitlisted_probationary} total={stats.total} colorClass="bg-ccc-gold" />
@@ -2180,7 +2172,7 @@ function AnalyticsPanel() {
             <BarRow label="Forfeited" count={stats.scholarCounts.forfeited} total={stats.total} colorClass="bg-ccc-red" />
             <BarRow label="Pending Exam" count={stats.scholarCounts.pending_exam} total={stats.total} colorClass="bg-ccc-blue" />
           </div>
-          <p className="text-[10px] text-ccc-muted pt-1 border-t border-ccc-border">
+          <p className="text-[10px] text-ccc-muted pt-3 mt-1 border-t border-ccc-border">
             &ldquo;Appeals&rdquo; analytics (per the Roles PDF) aren&rsquo;t charted separately -- the Appeal for
             Retake/Re-application feature itself is still parked pending an ownership decision (see
             ISKOLUSYON_HANDOFF.md §5), so there&rsquo;s no data to count yet.
