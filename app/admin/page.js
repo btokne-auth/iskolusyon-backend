@@ -109,6 +109,29 @@ function getInitials(name) {
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
 }
 
+// Sept 24 2026: same eye / eye-slash icons as the applicant side (see
+// ApplicantAuth.js's EyeIcon/EyeOffIcon, which itself matches app/page.js's
+// IconEye/IconEyeOff) -- reused here rather than a new pair so the show/
+// hide toggle looks identical across the whole app, admin included. An
+// emoji version was tried first but rendered as a broken fallback glyph on
+// some Windows setups, which is exactly the kind of inconsistency this
+// avoids.
+function EyeIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="15" height="15" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />
+      <circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+function EyeOffIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="15" height="15" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18M10.6 10.6a3 3 0 004.24 4.24M9.36 5.11A10.6 10.6 0 0112 5c6 0 9.5 7 9.5 7a13.6 13.6 0 01-3.13 3.94M6.6 6.6C4.16 8.2 2.5 10.5 2.5 12c0 0 3.5 7 9.5 7 1.13 0 2.19-.19 3.17-.53" />
+    </svg>
+  )
+}
+
 // A document preview image that failed to load (slow/dropped connection,
 // most commonly) previously just sat there as a broken image icon with no
 // way to fix it short of refreshing the entire page. This retries just
@@ -2866,22 +2889,11 @@ function AdminAccountsPanel() {
               <button
                 type="button"
                 onClick={() => setShowNewPassword((v) => !v)}
-                className="text-ccc-muted hover:text-ccc-navy"
-                style={{
-                  position: 'absolute',
-                  right: 8,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  lineHeight: 1,
-                }}
-                title={showNewPassword ? 'Hide password' : 'Show password'}
+                aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
                 tabIndex={-1}
               >
-                {showNewPassword ? '🙈' : '👁'}
+                {showNewPassword ? <EyeOffIcon /> : <EyeIcon />}
               </button>
             </div>
           </div>
@@ -2983,22 +2995,11 @@ function AdminAccountsPanel() {
                         <button
                           type="button"
                           onClick={() => setShowResetPassword((v) => !v)}
-                          className="text-ccc-muted hover:text-ccc-navy"
-                          style={{
-                            position: 'absolute',
-                            right: 8,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontSize: 13,
-                            lineHeight: 1,
-                          }}
-                          title={showResetPassword ? 'Hide password' : 'Show password'}
+                          aria-label={showResetPassword ? 'Hide password' : 'Show password'}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
                           tabIndex={-1}
                         >
-                          {showResetPassword ? '🙈' : '👁'}
+                          {showResetPassword ? <EyeOffIcon /> : <EyeIcon />}
                         </button>
                       </div>
                       <button
