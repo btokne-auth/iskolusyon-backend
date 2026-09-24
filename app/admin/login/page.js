@@ -157,8 +157,19 @@ export default function AdminLoginPage() {
       {/* SiteHeader has no public nav links or Sign Up/Log In buttons built
           into it -- it only renders the logo cluster, college name, and an
           optional badge -- so it's already the "slim branding bar" without
-          needing a separate trimmed-down component. */}
-      <SiteHeader topbarLabel="Iskolusyon Admin Console" portalBadge="Admin Sign-in" />
+          needing a separate trimmed-down component. Logos explicitly set to
+          the same 3-logo set (CCC, Admissions, Registrar) the rest of the
+          admin console uses, instead of SiteHeader's 2-logo applicant-side
+          default, so this page's branding matches its own section. */}
+      <SiteHeader
+        topbarLabel="Iskolusyon Admin Console"
+        portalBadge="Admin Sign-in"
+        logos={[
+          { src: '/LOGO_CCC.png', alt: 'City College of Calamba Logo' },
+          { src: '/LOGO_CCC_Admissions.png', alt: 'CCC Admissions Logo' },
+          { src: '/LOGO_CCC_Registrar.png', alt: 'CCC Registrar Logo' },
+        ]}
+      />
 
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <Suspense fallback={null}>
