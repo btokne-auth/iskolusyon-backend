@@ -2672,15 +2672,20 @@ function AdminAccountsPanel() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Admin Accounts
-        </h1>
-        <p className="text-xs text-ccc-muted mt-0.5">
-          Super admin only. Inviting a new admin isn&apos;t wired up yet (no real email delivery to send an invite
-          through) — new accounts are still seeded via <code>scripts/seed-admin-account.mjs</code>. Removing an
-          account is real and takes effect immediately.
-        </p>
+      {/* Sept 24 2026 reskin: header moved onto the shared .portal-header
+          class (matches Applicant Results / Statistics) instead of a
+          hand-rolled h1/p pair; the account list moved into .card so it
+          reads as the same "card" surface as every other panel rather than
+          a plain bordered box. No logic or API calls touched. */}
+      <div className="portal-header">
+        <div>
+          <h1>Admin Accounts</h1>
+          <p>
+            Super admin only. Inviting a new admin isn&apos;t wired up yet (no real email delivery to send an
+            invite through) — new accounts are still seeded via <code>scripts/seed-admin-account.mjs</code>.
+            Removing an account is real and takes effect immediately.
+          </p>
+        </div>
       </div>
 
       {removeError && (
@@ -2689,7 +2694,7 @@ function AdminAccountsPanel() {
         </div>
       )}
 
-      <div className="bg-white border border-ccc-border rounded-2xl overflow-hidden">
+      <div className="card" style={{ marginBottom: 0, padding: 0, overflow: 'hidden' }}>
         {loading ? (
           <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
         ) : error ? (
@@ -2717,13 +2722,7 @@ function AdminAccountsPanel() {
                     </td>
                     <td className="px-5 py-3 text-ccc-text">{acc.email}</td>
                     <td className="px-5 py-3">
-                      <span
-                        className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${
-                          acc.is_super_admin
-                            ? 'text-ccc-navy bg-ccc-gold/30 border border-ccc-gold/60'
-                            : 'text-ccc-muted bg-ccc-off border border-ccc-border'
-                        }`}
-                      >
+                      <span className={`badge ${acc.is_super_admin ? 'badge-orange' : 'badge-notsubmitted'}`}>
                         {acc.is_super_admin ? 'Super Admin' : 'Admin'}
                       </span>
                     </td>
