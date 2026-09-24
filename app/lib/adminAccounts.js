@@ -101,6 +101,29 @@ export async function createAdminAccount({ name, email, password, isSuperAdmin }
   return { account: data }
 }
 
+// Sept 24 2026: the other half of "no email infrastructure yet" -- an admin
+// who forgets their password can't reset it themselves (no email to send a
+// reset code to), so a Super Admin sets a new one for them directly instead,
+// the same way account creation itself works. The admin then needs to be
+// told the new password through some other channel, same as at creation.
+export async function resetAdminPassword(email, newPassword) {
+  const normalizedEmail = (email || '').trim().toLowerCase()
+  if (!normalizedEmail) return { error: 'Missing email.' }
+  if (!newPassword || newPassword.length < 8) return { error: 'Password must be at least 8 characters.' }
+
+  const password_hash = hashPassword(newPassword)
+  const { data, error } = await supabase
+    .from('admin_accounts')
+    .update({ password_hash })
+    .eq('email', normalizedEmail)
+    .select('name, email, is_super_admin')
+    .maybeSingle()
+
+  if (error) return { error: error.message }
+  if (!data) return { error: 'That admin account no longer exists.' }
+  return { account: data }
+}
+
 // Sept 22, 2026: delete-only for now (see app/api/admin-accounts/route.js's
 // DELETE handler for why invite/create is deliberately not built yet --
 // there's no email infrastructure to hang a real invite flow on). Two

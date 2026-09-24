@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieFull } from '@/app/lib/adminAuth'
-import { listAdminAccounts, countSuperAdmins, deleteAdminAccount, createAdminAccount } from '@/app/lib/adminAccounts'
+import { listAdminAccounts, countSuperAdmins, deleteAdminAccount, createAdminAccount, resetAdminPassword } from '@/app/lib/adminAccounts'
 
 // Matches admin.html's "Admin Accounts" panel roster. Gated to Super
 // Admins only, same as the nav item itself.
@@ -66,6 +66,49 @@ export async function POST(request) {
     }
 
     return NextResponse.json({ success: true, account: result.account })
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
+
+// Sept 24 2026: pairs with createAdminAccount's "no email infrastructure"
+// reasoning -- an admin who forgets their password has no reset-code email
+// to receive, so a Super Admin sets a new password for them directly here,
+// same as at account creation. The admin then needs to be told the new
+// password through some other channel (in person, chat, whatever they'd
+// already use), same as when their account was first created.
+export async function PATCH(request) {
+  try {
+    const cookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value
+    const session = await verifyAdminCookieFull(cookie)
+    if (!session) {
+      return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
+    }
+    if (!session.isSuperAdmin) {
+      return NextResponse.json({ error: 'Super Admin access required.' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const email = (body.email || '').trim().toLowerCase()
+    if (!email) return NextResponse.json({ error: 'Missing email.' }, { status: 400 })
+
+    const result = await resetAdminPassword(email, body.password)
+    if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
+
+    try {
+      await supabase.from('audit_log').insert([
+        {
+          actor: session.name,
+          action: `Reset password for admin account — ${result.account.name} (${result.account.email})`,
+          kind: 'warn',
+          category: 'Admin Accounts',
+        },
+      ])
+    } catch (auditErr) {
+      console.error('Audit log insert failed (non-blocking):', auditErr)
+    }
+
+    return NextResponse.json({ success: true })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }

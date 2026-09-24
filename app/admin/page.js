@@ -2651,6 +2651,16 @@ function AdminAccountsPanel() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
 
+  // Sept 24 2026: forgot-password handling, same reasoning as createAdmin-
+  // Account above -- no email infra to send a reset code to, so a Super
+  // Admin sets the new password directly. `resetTarget` is the email of
+  // whichever row currently has its inline reset form open (only one at a
+  // time).
+  const [resetTarget, setResetTarget] = useState(null)
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState('')
+
   const loadAccounts = () => {
     setLoading(true)
     fetch('/api/admin-accounts')
@@ -2721,6 +2731,45 @@ function AdminAccountsPanel() {
       setCreateError(err.message)
     } finally {
       setCreating(false)
+    }
+  }
+
+  const startReset = (email) => {
+    setResetError('')
+    setResetPassword('')
+    setResetTarget(email)
+  }
+
+  const cancelReset = () => {
+    setResetTarget(null)
+    setResetPassword('')
+    setResetError('')
+  }
+
+  const handleResetSave = async (email) => {
+    setResetError('')
+    if (!resetPassword || resetPassword.length < 8) {
+      setResetError('Password must be at least 8 characters.')
+      return
+    }
+    setResetting(true)
+    try {
+      const res = await fetch('/api/admin-accounts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: resetPassword }),
+      })
+      const data = await res.json()
+      if (!data.success) {
+        setResetError(data.error || 'Failed to reset password.')
+        return
+      }
+      setResetTarget(null)
+      setResetPassword('')
+    } catch (err) {
+      setResetError(err.message)
+    } finally {
+      setResetting(false)
     }
   }
 
@@ -2845,28 +2894,79 @@ function AdminAccountsPanel() {
           <div className="admin-list">
             {accounts.map((acc) => {
               const isSelf = acc.email.toLowerCase() === myEmail
+              const isResetting = resetTarget === acc.email
               return (
-                <div key={acc.email} className="admin-row">
-                  <div className="aa-avatar">{getInitials(acc.name)}</div>
-                  <div className="aa-info">
-                    <div className="aa-name">
-                      {acc.name}
-                      {isSelf && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-ccc-muted">You</span>}
+                <div
+                  key={acc.email}
+                  className="admin-row"
+                  style={isResetting ? { flexDirection: 'column', alignItems: 'stretch', gap: '10px' } : undefined}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '13px', width: '100%' }}>
+                    <div className="aa-avatar">{getInitials(acc.name)}</div>
+                    <div className="aa-info">
+                      <div className="aa-name">
+                        {acc.name}
+                        {isSelf && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-ccc-muted">You</span>}
+                      </div>
+                      <div className="aa-email">{acc.email}</div>
                     </div>
-                    <div className="aa-email">{acc.email}</div>
+                    <span className={`role-tag ${acc.is_super_admin ? 'super' : 'admin'}`}>
+                      {acc.is_super_admin ? 'Super Admin' : 'Admin'}
+                    </span>
+                    {/* Sept 24 2026: forgot-password action -- no matching CSS
+                        class in admin-theme.css for this variant, so it's
+                        hand-styled with Tailwind to match .admin-row-del's
+                        footprint (same size/padding) but blue instead of red
+                        so the two actions read as distinct at a glance. */}
+                    <button
+                      type="button"
+                      onClick={() => (isResetting ? cancelReset() : startReset(acc.email))}
+                      className="flex items-center justify-center w-8 h-8 rounded-lg text-sm text-ccc-blue hover:bg-blue-50 transition-colors"
+                      title={isResetting ? 'Cancel password reset' : "Reset this admin's password"}
+                    >
+                      {isResetting ? '✕' : '🔑'}
+                    </button>
+                    <button
+                      type="button"
+                      className={`admin-row-del${isSelf ? ' is-disabled' : ''}`}
+                      onClick={() => handleRemove(acc)}
+                      disabled={isSelf || removingEmail === acc.email}
+                      title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
+                    >
+                      {removingEmail === acc.email ? '…' : '🗑'}
+                    </button>
                   </div>
-                  <span className={`role-tag ${acc.is_super_admin ? 'super' : 'admin'}`}>
-                    {acc.is_super_admin ? 'Super Admin' : 'Admin'}
-                  </span>
-                  <button
-                    type="button"
-                    className={`admin-row-del${isSelf ? ' is-disabled' : ''}`}
-                    onClick={() => handleRemove(acc)}
-                    disabled={isSelf || removingEmail === acc.email}
-                    title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
-                  >
-                    {removingEmail === acc.email ? '…' : '🗑'}
-                  </button>
+                  {isResetting && (
+                    <div className="flex items-center gap-2.5 pl-[53px]">
+                      <input
+                        type="password"
+                        value={resetPassword}
+                        onChange={(e) => setResetPassword(e.target.value)}
+                        placeholder="New password (at least 8 characters)"
+                        minLength={8}
+                        autoFocus
+                        className="flex-1 rounded-lg border border-ccc-border px-3 py-2 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleResetSave(acc.email)}
+                        disabled={resetting}
+                        className="text-xs font-bold uppercase tracking-wide text-white bg-ccc-navy px-3 py-2 rounded-lg disabled:opacity-60"
+                      >
+                        {resetting ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelReset}
+                        className="text-xs font-bold uppercase tracking-wide text-ccc-muted px-3 py-2 rounded-lg hover:bg-ccc-off"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                  {isResetting && resetError && (
+                    <p className="text-xs font-semibold text-ccc-red pl-[53px]">{resetError}</p>
+                  )}
                 </div>
               )
             })}
