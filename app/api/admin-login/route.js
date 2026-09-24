@@ -13,6 +13,25 @@ export async function POST(request) {
 
     const account = await verifyAdminCredentials(email, password)
     if (!account) {
+      // Sept 24 2026: logs the attempt, deliberately the simple version --
+      // no rate-limiting or lockout yet (that's real brute-force
+      // protection, scoped for later once actual brute-force testing
+      // happens). This just gives a Super Admin visibility: if the same
+      // email keeps showing up here, that's worth a look. Non-blocking,
+      // same as every other audit_log write -- a logging hiccup should
+      // never be the reason a real login fails.
+      try {
+        await supabase.from('audit_log').insert([
+          {
+            actor: (email || '').trim().toLowerCase() || 'Unknown',
+            action: 'Failed sign-in attempt',
+            kind: 'warn',
+            category: 'System',
+          },
+        ])
+      } catch (auditErr) {
+        console.error('Audit log insert failed (non-blocking):', auditErr)
+      }
       return NextResponse.json({ error: 'Incorrect email or password.' }, { status: 401 })
     }
 
@@ -22,10 +41,7 @@ export async function POST(request) {
     // used to claim "Access is logged" without this ever actually
     // happening (Ivy's mockup had the line, our build didn't back it), so
     // it was deliberately left off. Now that a successful sign-in writes
-    // here, the footer copy can say that truthfully. Failed attempts are
-    // deliberately not logged yet -- that's a separate, bigger call
-    // (do we log the email that was tried, do we rate-limit, etc.) than
-    // "a real admin actually got in."
+    // here, the footer copy can say that truthfully.
     try {
       await supabase.from('audit_log').insert([
         {
