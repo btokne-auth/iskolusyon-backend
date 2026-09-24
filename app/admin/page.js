@@ -1507,8 +1507,93 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
     setPendingClearDistribution(false)
   }
 
+  // Sept 24 2026: collapsed-row + click-to-open-modal, replacing the old
+  // always-expanded card. Live testing (Pau, Sept 24) found a scrolling
+  // list of fully-expanded Step 1/Step 2/Distribution Status sections per
+  // applicant overwhelming to scan. Mirrors ApplicantGroup's existing
+  // pattern above (Dashboard panel) for consistency across the admin
+  // console -- that panel deliberately moved to this same collapsed-row +
+  // modal shape on Sept 22 for the same reason (an inline accordion with
+  // the first row forced open read as broken/random). No new data fetch
+  // needed here, unlike ApplicantGroup's lazy detail fetch -- ResultsPanel
+  // already loads every field this modal shows up front.
+  const [modalOpen, setModalOpen] = useState(false)
+
   return (
-    <div className="card space-y-4">
+    <>
+      <button
+        type="button"
+        onClick={() => setModalOpen(true)}
+        className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors mb-4"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
+            {row.applicant_name ? row.applicant_name.charAt(0).toUpperCase() : '?'}
+          </div>
+          <div className="text-left min-w-0">
+            <p className="text-sm font-semibold text-ccc-navy truncate" style={{ fontFamily: 'var(--font-montserrat)' }}>
+              {row.applicant_name || 'Unknown applicant'}
+            </p>
+            <p className="text-[11px] text-ccc-muted truncate">
+              {row.applicant_email || 'No email on file'}
+              {row.application_number && ` · ${row.application_number}`}
+              {row.program_choice_1 && ` · ${row.program_choice_1}`}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <ScholarStatusBadge status={row.scholar_status || 'pending_exam'} />
+          <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue">View</span>
+        </div>
+      </button>
+
+      {!modalOpen ? null : (
+      <div
+        className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-4 py-8 overflow-y-auto"
+        onClick={() => setModalOpen(false)}
+      >
+        <div
+          className="w-full max-w-2xl rounded-2xl bg-white shadow-xl border border-ccc-border overflow-hidden my-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Tinted header band -- same treatment as ApplicantGroup's modal
+              above, for visual consistency between the two panels. */}
+          <div
+            className="flex items-center justify-between gap-3 px-5 py-4 border-b border-ccc-border"
+            style={{ background: 'linear-gradient(135deg, #eef3fd 0%, #ffffff 100%)' }}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-full bg-ccc-navy flex items-center justify-center text-base font-bold text-white shrink-0">
+                {row.applicant_name ? row.applicant_name.charAt(0).toUpperCase() : '?'}
+              </div>
+              <div className="min-w-0">
+                <p className="text-base font-bold text-ccc-navy truncate" style={{ fontFamily: 'var(--font-montserrat)' }}>
+                  {row.applicant_name || 'Unknown applicant'}
+                </p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {row.application_number && (
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue bg-white/70 border border-ccc-blue/30 rounded-full px-2 py-0.5 shrink-0">
+                      {row.application_number}
+                    </span>
+                  )}
+                  <span className="text-[11px] text-ccc-muted truncate">{row.applicant_email || 'No email on file'}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <ScholarStatusBadge status={row.scholar_status || 'pending_exam'} />
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                aria-label="Close"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-ccc-muted hover:bg-white hover:text-ccc-navy transition-colors"
+              >
+                &#10005;
+              </button>
+            </div>
+          </div>
+
+          <div className="px-5 pb-5 pt-4 space-y-4 max-h-[75vh] overflow-y-auto">
       {pendingOverride && (
         <ConfirmActionModal
           eyebrow="Confirm Override"
@@ -1541,19 +1626,6 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           onCancel={() => setPendingClearDistribution(false)}
         />
       )}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <p className="text-sm font-semibold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            {row.applicant_name || 'Unknown applicant'}
-          </p>
-          <p className="text-[11px] text-ccc-muted">
-            {row.applicant_email || 'No email on file'}
-            {row.application_number && ` · ${row.application_number}`}
-            {row.program_choice_1 && ` · ${row.program_choice_1}`}
-          </p>
-        </div>
-        <ScholarStatusBadge status={row.scholar_status || 'pending_exam'} />
-      </div>
 
       <NextStepHint row={row} />
 
@@ -1760,7 +1832,11 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           </p>
         )}
       </div>
-    </div>
+          </div>
+        </div>
+      </div>
+      )}
+    </>
   )
 }
 
