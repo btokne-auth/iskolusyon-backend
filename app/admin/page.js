@@ -2174,6 +2174,14 @@ function AnalyticsPanel() {
         </div>
       </div>
 
+      {/* Sept 24 2026: the four cards below answer two different questions
+          (how many applied to what, vs where do they stand) but read as one
+          undifferentiated 2x2 grid without a lead-in -- same section-label
+          pattern the Dashboard panel already uses for its own breakdown
+          tables, reused here rather than inventing new CSS. */}
+      <div className="dashboard-section-label" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none' }}>
+        Application Volume
+      </div>
       <div className="grid md:grid-cols-2 gap-5">
         <div className="card" style={{ marginBottom: 0 }}>
           <div className="card-title">By Program (Course)</div>
@@ -2205,8 +2213,15 @@ function AnalyticsPanel() {
           </p>
         </div>
 
+      </div>
+
+      <div className="dashboard-section-label">Status Breakdown</div>
+      <div className="grid md:grid-cols-2 gap-5">
         <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">Ongoing / Qualified / Not Qualified / Waitlisted (Scholarship Matching)</div>
+          {/* Shortened from "Ongoing / Qualified / Not Qualified / Waitlisted
+              (Scholarship Matching)" -- the legend right below already spells
+              out every category, so the heading doesn't need to. */}
+          <div className="card-title">Eligibility Status</div>
           <StackedBar
             total={stats.total}
             segments={[
