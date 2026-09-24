@@ -2041,6 +2041,50 @@ function BarRow({ label, count, total, colorClass }) {
   )
 }
 
+// Sept 24 2026: single 100%-stacked bar + legend, replacing a column of
+// separate BarRow bars for part-to-whole data (every applicant has exactly
+// one eligibility status / one scholar status, so these always sum to the
+// same total). Five-to-six bars each independently scaled against that
+// same total made it hard to see at a glance that they add up to a whole,
+// and repeated the total that many times. One stacked bar with a legend
+// (colored dot + label + count + percent) reads as one whole made of
+// parts instead. Segment colors reuse the same status color mapping the
+// rest of the admin console already uses (green=good, gold=warning,
+// red=critical, blue=neutral/pending, gray=unresolved/incomplete) rather
+// than introducing a second color scheme.
+function StackedBar({ segments, total }) {
+  const visible = segments.filter((s) => s.count > 0)
+  return (
+    <div className="space-y-3">
+      <div className="flex w-full h-6 rounded-full overflow-hidden bg-ccc-off" style={{ gap: '2px' }}>
+        {total > 0 && visible.length > 0 ? (
+          visible.map((s) => (
+            <div
+              key={s.label}
+              className={s.colorClass}
+              style={{ width: `${(s.count / total) * 100}%` }}
+              title={`${s.label}: ${s.count} (${Math.round((s.count / total) * 100)}%)`}
+            />
+          ))
+        ) : (
+          <div className="w-full bg-ccc-off" />
+        )}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+        {segments.map((s) => (
+          <div key={s.label} className="flex items-center gap-1.5 text-[11px]">
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.colorClass}`} />
+            <span className="text-ccc-text font-medium">{s.label}</span>
+            <span className="text-ccc-muted">
+              {s.count} ({total > 0 ? Math.round((s.count / total) * 100) : 0}%)
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function AnalyticsPanel() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -2113,10 +2157,20 @@ function AnalyticsPanel() {
         <div>
           <h1>Statistics</h1>
           <p>
-            {stats.total} application{stats.total === 1 ? '' : 's'} on file. Allowance monitoring and exportable
-            LGU compliance reports aren&rsquo;t built here -- the manuscript itself marks both as to-follow modules,
-            out of scope for this version.
+            Allowance monitoring and exportable LGU compliance reports aren&rsquo;t built here -- the manuscript
+            itself marks both as to-follow modules, out of scope for this version.
           </p>
+        </div>
+        {/* Sept 24 2026: the headline number gets its own tile instead of
+            being buried in a sentence -- a dashboard's lead number should
+            read in one glance, not require reading a paragraph. */}
+        <div className="rounded-2xl border border-ccc-border bg-white px-5 py-3 text-right shrink-0">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-ccc-muted" style={{ fontFamily: 'var(--font-montserrat)' }}>
+            Total Applications
+          </div>
+          <div className="text-2xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+            {stats.total}
+          </div>
         </div>
       </div>
 
@@ -2153,25 +2207,47 @@ function AnalyticsPanel() {
 
         <div className="card" style={{ marginBottom: 0 }}>
           <div className="card-title">Ongoing / Qualified / Not Qualified / Waitlisted (Scholarship Matching)</div>
-          <div className="space-y-2.5">
-            <BarRow label="Qualified" count={stats.eligibilityCounts.qualified} total={stats.total} colorClass="bg-ccc-green" />
-            <BarRow label="Waitlisted" count={stats.eligibilityCounts.waitlisted} total={stats.total} colorClass="bg-ccc-gold" />
-            <BarRow label="Not Qualified" count={stats.eligibilityCounts.not_qualified} total={stats.total} colorClass="bg-ccc-red" />
-            <BarRow label="Pending Exam" count={stats.eligibilityCounts.pending_exam} total={stats.total} colorClass="bg-ccc-blue" />
-            <BarRow label="Incomplete (Ongoing)" count={stats.eligibilityCounts.incomplete} total={stats.total} colorClass="bg-ccc-muted" />
-          </div>
+          <StackedBar
+            total={stats.total}
+            segments={[
+              { label: 'Qualified', count: stats.eligibilityCounts.qualified, colorClass: 'bg-ccc-green' },
+              { label: 'Waitlisted', count: stats.eligibilityCounts.waitlisted, colorClass: 'bg-ccc-gold' },
+              { label: 'Not Qualified', count: stats.eligibilityCounts.not_qualified, colorClass: 'bg-ccc-red' },
+              { label: 'Pending Exam', count: stats.eligibilityCounts.pending_exam, colorClass: 'bg-ccc-blue' },
+              { label: 'Incomplete (Ongoing)', count: stats.eligibilityCounts.incomplete, colorClass: 'bg-ccc-muted' },
+            ]}
+          />
         </div>
 
         <div className="card" style={{ marginBottom: 0 }}>
           <div className="card-title">Post-Exam Scholar Status</div>
-          <div className="space-y-2.5">
-            <BarRow label="Passer" count={stats.scholarCounts.passer} total={stats.total} colorClass="bg-ccc-green" />
-            <BarRow label="Waitlisted (Probationary)" count={stats.scholarCounts.waitlisted_probationary} total={stats.total} colorClass="bg-ccc-gold" />
-            <BarRow label="Qualified (Probationary)" count={stats.scholarCounts.qualified_probationary} total={stats.total} colorClass="bg-ccc-gold" />
-            <BarRow label="Disqualified" count={stats.scholarCounts.disqualified} total={stats.total} colorClass="bg-ccc-red" />
-            <BarRow label="Forfeited" count={stats.scholarCounts.forfeited} total={stats.total} colorClass="bg-ccc-red" />
-            <BarRow label="Pending Exam" count={stats.scholarCounts.pending_exam} total={stats.total} colorClass="bg-ccc-blue" />
-          </div>
+          <StackedBar
+            total={stats.total}
+            segments={[
+              { label: 'Passer', count: stats.scholarCounts.passer, colorClass: 'bg-ccc-green' },
+              {
+                label: 'Waitlisted (Probationary)',
+                count: stats.scholarCounts.waitlisted_probationary,
+                colorClass: 'bg-ccc-gold',
+              },
+              {
+                // Sept 24 2026: split from Waitlisted's gold to bg-ccc-orange --
+                // both used the same gold in the old separate-bars layout (fine
+                // there, each got its own full bar), but two adjacent segments
+                // sharing a color in one stacked bar would visually merge into
+                // one blob and defeat the point of stacking them.
+                label: 'Qualified (Probationary)',
+                count: stats.scholarCounts.qualified_probationary,
+                colorClass: 'bg-ccc-orange',
+              },
+              { label: 'Disqualified', count: stats.scholarCounts.disqualified, colorClass: 'bg-ccc-red' },
+              // Same collision as Waitlisted/Qualified (Probationary) above --
+              // Forfeited was also sharing bg-ccc-red with the segment right
+              // next to it, so it gets its own color here too.
+              { label: 'Forfeited', count: stats.scholarCounts.forfeited, colorClass: 'bg-ccc-muted' },
+              { label: 'Pending Exam', count: stats.scholarCounts.pending_exam, colorClass: 'bg-ccc-blue' },
+            ]}
+          />
           <p className="text-[10px] text-ccc-muted pt-3 mt-1 border-t border-ccc-border">
             &ldquo;Appeals&rdquo; analytics (per the Roles PDF) aren&rsquo;t charted separately -- the Appeal for
             Retake/Re-application feature itself is still parked pending an ownership decision (see
