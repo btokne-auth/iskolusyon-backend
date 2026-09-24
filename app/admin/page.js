@@ -72,6 +72,93 @@ function IconAlert(props) {
   )
 }
 
+// Sept 24 2026: category icons for the Activity Log timeline (see
+// ACTIVITY_CATEGORIES / ACTIVITY_CATEGORY_STYLE below) -- added so each row
+// reads as its own kind of event at a glance instead of every entry
+// rendering the same green checkmark regardless of what actually happened.
+function IconTarget(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="12" cy="12" r="0.5" fill="currentColor" />
+    </svg>
+  )
+}
+function IconBarChart(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M5 20V10M12 20V4M19 20v-6" />
+    </svg>
+  )
+}
+function IconMessage(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+    </svg>
+  )
+}
+function IconShield(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" />
+    </svg>
+  )
+}
+function IconGear(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+    </svg>
+  )
+}
+
+// One icon + tint per category, all distinct from the warn/red used for
+// entries needing attention (kind === 'warn' always wins over category --
+// see TimelineItem -- so "something needs a look" stays a reserved signal
+// rather than one more category color).
+const ACTIVITY_CATEGORY_STYLE = {
+  Documents: { icon: IconFile, className: 'cat-documents' },
+  Eligibility: { icon: IconTarget, className: 'cat-eligibility' },
+  Results: { icon: IconBarChart, className: 'cat-results' },
+  Communications: { icon: IconMessage, className: 'cat-communications' },
+  'Admin Accounts': { icon: IconShield, className: 'cat-admin' },
+  System: { icon: IconGear, className: 'cat-system' },
+}
+function getCategoryStyle(category) {
+  return ACTIVITY_CATEGORY_STYLE[category] || { icon: IconCheck, className: 'done' }
+}
+
+// Sept 24 2026: date-section headers for the Activity Log timeline ("Today"
+// / "Yesterday" / a full date) so 50+ entries don't read as one
+// undifferentiated scroll -- groups consecutive entries by calendar day,
+// in whatever order the API already returned them (newest first).
+function activityDateLabel(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+  const startOf = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffDays = Math.round((startOf(now) - startOf(d)) / 86400000)
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  return d.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined })
+}
+function groupActivityByDate(entries) {
+  const groups = []
+  for (const entry of entries) {
+    const label = activityDateLabel(entry.created_at)
+    const last = groups[groups.length - 1]
+    if (last && last.label === label) {
+      last.items.push(entry)
+    } else {
+      groups.push({ label, items: [entry] })
+    }
+  }
+  return groups
+}
+
 function getCleanFileName(path) {
   if (!path) return 'Unknown file'
   const parts = path.split('-')
@@ -107,6 +194,29 @@ function getInitials(name) {
   if (parts.length === 0) return '?'
   if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
+}
+
+// Sept 24 2026: same eye / eye-slash icons as the applicant side (see
+// ApplicantAuth.js's EyeIcon/EyeOffIcon, which itself matches app/page.js's
+// IconEye/IconEyeOff) -- reused here rather than a new pair so the show/
+// hide toggle looks identical across the whole app, admin included. An
+// emoji version was tried first but rendered as a broken fallback glyph on
+// some Windows setups, which is exactly the kind of inconsistency this
+// avoids.
+function EyeIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="15" height="15" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />
+      <circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+function EyeOffIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="15" height="15" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18M10.6 10.6a3 3 0 004.24 4.24M9.36 5.11A10.6 10.6 0 0112 5c6 0 9.5 7 9.5 7a13.6 13.6 0 01-3.13 3.94M6.6 6.6C4.16 8.2 2.5 10.5 2.5 12c0 0 3.5 7 9.5 7 1.13 0 2.19-.19 3.17-.53" />
+    </svg>
+  )
 }
 
 // A document preview image that failed to load (slow/dropped connection,
@@ -2641,6 +2751,28 @@ function AdminAccountsPanel() {
   const [removingEmail, setRemovingEmail] = useState(null)
   const [removeError, setRemoveError] = useState('')
 
+  // Sept 24 2026: real account creation, replacing scripts/seed-admin-
+  // account.mjs -- see app/api/admin-accounts/route.js's POST for why this
+  // is Super-Admin-sets-the-password-directly rather than an email invite.
+  const [newName, setNewName] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newRole, setNewRole] = useState('admin')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
+
+  // Sept 24 2026: forgot-password handling, same reasoning as createAdmin-
+  // Account above -- no email infra to send a reset code to, so a Super
+  // Admin sets the new password directly. `resetTarget` is the email of
+  // whichever row currently has its inline reset form open (only one at a
+  // time).
+  const [resetTarget, setResetTarget] = useState(null)
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState('')
+  const [showResetPassword, setShowResetPassword] = useState(false)
+
   const loadAccounts = () => {
     setLoading(true)
     fetch('/api/admin-accounts')
@@ -2682,6 +2814,79 @@ function AdminAccountsPanel() {
     }
   }
 
+  const handleCreate = async (e) => {
+    e.preventDefault()
+    setCreateError('')
+    setCreating(true)
+    try {
+      const res = await fetch('/api/admin-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newName,
+          email: newEmail,
+          password: newPassword,
+          isSuperAdmin: newRole === 'super_admin',
+        }),
+      })
+      const data = await res.json()
+      if (!data.success) {
+        setCreateError(data.error || 'Failed to create admin account.')
+        return
+      }
+      setAccounts((prev) => [...prev, data.account])
+      setNewName('')
+      setNewEmail('')
+      setNewPassword('')
+      setNewRole('admin')
+    } catch (err) {
+      setCreateError(err.message)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const startReset = (email) => {
+    setResetError('')
+    setResetPassword('')
+    setShowResetPassword(false)
+    setResetTarget(email)
+  }
+
+  const cancelReset = () => {
+    setResetTarget(null)
+    setResetPassword('')
+    setResetError('')
+    setShowResetPassword(false)
+  }
+
+  const handleResetSave = async (email) => {
+    setResetError('')
+    if (!resetPassword || resetPassword.length < 8) {
+      setResetError('Password must be at least 8 characters.')
+      return
+    }
+    setResetting(true)
+    try {
+      const res = await fetch('/api/admin-accounts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: resetPassword }),
+      })
+      const data = await res.json()
+      if (!data.success) {
+        setResetError(data.error || 'Failed to reset password.')
+        return
+      }
+      setResetTarget(null)
+      setResetPassword('')
+    } catch (err) {
+      setResetError(err.message)
+    } finally {
+      setResetting(false)
+    }
+  }
+
   return (
     <div>
       {/* Sept 24 2026 reskin: header moved onto the shared .portal-header
@@ -2692,12 +2897,101 @@ function AdminAccountsPanel() {
       <div className="portal-header">
         <div>
           <h1>Admin Accounts</h1>
+          {/* Sept 24 2026: copy updated now that creation is real (see the
+              Add Admin Account card below) -- this used to say accounts
+              were only seeded via scripts/seed-admin-account.mjs, which is
+              no longer true for day-to-day use. Still no email invite --
+              Resend is sandbox-restricted to the developer's own inbox on
+              the free tier -- so the Super Admin sets the password
+              directly instead. */}
           <p>
-            Super admin only. Inviting a new admin isn&apos;t wired up yet (no real email delivery to send an
-            invite through) — new accounts are still seeded via <code>scripts/seed-admin-account.mjs</code>.
-            Removing an account is real and takes effect immediately.
+            Super admin only. Create an Admin or Super Admin account below by setting its password directly — there&apos;s
+            no email invite yet (no email provider set up that can reach an arbitrary CCC inbox), so whoever creates
+            the account should share the password with its owner through some other channel. Removing an account is
+            real and takes effect immediately.
           </p>
         </div>
+      </div>
+
+      {/* Sept 24 2026: the "Add Admin Account" form from Ivy's mockup,
+          wired up for real now instead of left out -- uses .add-admin-form
+          (already in admin-theme.css, unused until now) with its column
+          count widened by one via inline style for the Password field the
+          mockup's email-invite version didn't need. */}
+      <div className="card">
+        <div className="card-title">Add Admin Account</div>
+        {createError && (
+          <div className="mb-4 rounded-xl border border-ccc-red/40 bg-red-50 px-4 py-2.5 text-xs font-semibold text-ccc-red">
+            {createError}
+          </div>
+        )}
+        <form
+          className="add-admin-form"
+          style={{ gridTemplateColumns: '1.2fr 1.5fr 0.9fr 1fr auto' }}
+          onSubmit={handleCreate}
+        >
+          <div className="efield">
+            <label>Full Name</label>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="e.g. Grace Villanueva"
+              required
+            />
+          </div>
+          <div className="efield">
+            <label>Email</label>
+            <input
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="name@ccc.edu.ph"
+              required
+            />
+          </div>
+          <div className="efield">
+            <label>Role</label>
+            <select value={newRole} onChange={(e) => setNewRole(e.target.value)}>
+              <option value="admin">Admin</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+          </div>
+          <div className="efield">
+            <label>Password</label>
+            {/* Sept 24 2026: show/hide toggle, same pattern as the admin
+                login page and the reset-password field below -- no matching
+                CSS class for this in admin-theme.css, so the input is
+                wrapped in a relative container. */}
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showNewPassword ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                minLength={8}
+                required
+                style={{ paddingRight: 32 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword((v) => !v)}
+                aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
+                tabIndex={-1}
+              >
+                {showNewPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={creating}
+            className="text-xs font-bold uppercase tracking-wide text-white bg-ccc-navy px-4 py-2.5 rounded-lg disabled:opacity-60"
+          >
+            {creating ? 'Adding...' : 'Add Account'}
+          </button>
+        </form>
       </div>
 
       {removeError && (
@@ -2710,10 +3004,7 @@ function AdminAccountsPanel() {
           markup from Ivy's mockup CSS (already sitting unused in
           admin-theme.css under "SUPER ADMIN: ACCOUNTS") -- avatar-initials
           circle, name/email stack, a role-tag pill, and an icon-only delete
-          button instead of a text "Remove" link. The Add Admin Account form
-          from her mockup is deliberately left out: inviting isn't wired up
-          yet (no email delivery), so there's nothing for it to submit to --
-          this is the CSS pass only, per Pau's note. */}
+          button instead of a text "Remove" link. */}
       <div className="card" style={{ marginBottom: 0 }}>
         <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>Current Accounts</span>
@@ -2733,28 +3024,91 @@ function AdminAccountsPanel() {
           <div className="admin-list">
             {accounts.map((acc) => {
               const isSelf = acc.email.toLowerCase() === myEmail
+              const isResetting = resetTarget === acc.email
               return (
-                <div key={acc.email} className="admin-row">
-                  <div className="aa-avatar">{getInitials(acc.name)}</div>
-                  <div className="aa-info">
-                    <div className="aa-name">
-                      {acc.name}
-                      {isSelf && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-ccc-muted">You</span>}
+                <div
+                  key={acc.email}
+                  className="admin-row"
+                  style={isResetting ? { flexDirection: 'column', alignItems: 'stretch', gap: '10px' } : undefined}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '13px', width: '100%' }}>
+                    <div className="aa-avatar">{getInitials(acc.name)}</div>
+                    <div className="aa-info">
+                      <div className="aa-name">
+                        {acc.name}
+                        {isSelf && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-ccc-muted">You</span>}
+                      </div>
+                      <div className="aa-email">{acc.email}</div>
                     </div>
-                    <div className="aa-email">{acc.email}</div>
+                    <span className={`role-tag ${acc.is_super_admin ? 'super' : 'admin'}`}>
+                      {acc.is_super_admin ? 'Super Admin' : 'Admin'}
+                    </span>
+                    {/* Sept 24 2026: forgot-password action -- no matching CSS
+                        class in admin-theme.css for this variant, so it's
+                        hand-styled with Tailwind to match .admin-row-del's
+                        footprint (same size/padding) but blue instead of red
+                        so the two actions read as distinct at a glance. */}
+                    <button
+                      type="button"
+                      onClick={() => (isResetting ? cancelReset() : startReset(acc.email))}
+                      className="flex items-center justify-center w-8 h-8 rounded-lg text-sm text-ccc-blue hover:bg-blue-50 transition-colors"
+                      title={isResetting ? 'Cancel password reset' : "Reset this admin's password"}
+                    >
+                      {isResetting ? '✕' : '🔑'}
+                    </button>
+                    <button
+                      type="button"
+                      className={`admin-row-del${isSelf ? ' is-disabled' : ''}`}
+                      onClick={() => handleRemove(acc)}
+                      disabled={isSelf || removingEmail === acc.email}
+                      title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
+                    >
+                      {removingEmail === acc.email ? '…' : '🗑'}
+                    </button>
                   </div>
-                  <span className={`role-tag ${acc.is_super_admin ? 'super' : 'admin'}`}>
-                    {acc.is_super_admin ? 'Super Admin' : 'Admin'}
-                  </span>
-                  <button
-                    type="button"
-                    className={`admin-row-del${isSelf ? ' is-disabled' : ''}`}
-                    onClick={() => handleRemove(acc)}
-                    disabled={isSelf || removingEmail === acc.email}
-                    title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
-                  >
-                    {removingEmail === acc.email ? '…' : '🗑'}
-                  </button>
+                  {isResetting && (
+                    <div className="flex items-center gap-2.5 pl-[53px]">
+                      <div className="flex-1" style={{ position: 'relative' }}>
+                        <input
+                          type={showResetPassword ? 'text' : 'password'}
+                          value={resetPassword}
+                          onChange={(e) => setResetPassword(e.target.value)}
+                          placeholder="New password (at least 8 characters)"
+                          minLength={8}
+                          autoFocus
+                          className="w-full rounded-lg border border-ccc-border px-3 py-2 text-xs"
+                          style={{ paddingRight: 30 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowResetPassword((v) => !v)}
+                          aria-label={showResetPassword ? 'Hide password' : 'Show password'}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
+                          tabIndex={-1}
+                        >
+                          {showResetPassword ? <EyeOffIcon /> : <EyeIcon />}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleResetSave(acc.email)}
+                        disabled={resetting}
+                        className="text-xs font-bold uppercase tracking-wide text-white bg-ccc-navy px-3 py-2 rounded-lg disabled:opacity-60"
+                      >
+                        {resetting ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelReset}
+                        className="text-xs font-bold uppercase tracking-wide text-ccc-muted px-3 py-2 rounded-lg hover:bg-ccc-off"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                  {isResetting && resetError && (
+                    <p className="text-xs font-semibold text-ccc-red pl-[53px]">{resetError}</p>
+                  )}
                 </div>
               )
             })}
@@ -2961,17 +3315,21 @@ function CycleSettingsCard() {
 }
 
 function TimelineItem({ entry }) {
+  // Sept 24 2026: kind === 'warn' (an account removed, a password reset --
+  // things worth a second look) still always wins and shows the red alert
+  // dot, same as before. Everything else now gets its category's own
+  // icon/tint instead of one green checkmark for every kind of event, so
+  // "reserved for status" (warn/red) and "identity" (category) don't mix --
+  // same rule as the rest of the console's data visuals.
   const isWarn = entry.kind === 'warn'
+  const { icon: CategoryIcon, className: categoryClass } = getCategoryStyle(entry.category)
   return (
-    <div className={`timeline-item${entry.read ? '' : ' unread'}`}>
-      <div className={`timeline-dot ${isWarn ? 'warn' : 'done'}`}>
-        {isWarn ? <IconAlert className="w-3.5 h-3.5" /> : <IconCheck className="w-3.5 h-3.5" />}
+    <div className="timeline-item">
+      <div className={`timeline-dot ${isWarn ? 'warn' : categoryClass}`}>
+        {isWarn ? <IconAlert className="w-3.5 h-3.5" /> : <CategoryIcon className="w-3.5 h-3.5" />}
       </div>
       <div className="timeline-body min-w-0">
-        <h4>
-          {!entry.read && <span className="notif-unread-dot" style={{ marginRight: '6px', verticalAlign: 'middle' }} />}
-          {entry.action}
-        </h4>
+        <h4>{entry.action}</h4>
         <p>
           {entry.actor}
           {entry.category ? ` · ${entry.category}` : ''}
@@ -2987,14 +3345,11 @@ function ActivityLogCard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [markingAllRead, setMarkingAllRead] = useState(false)
 
   useEffect(() => {
     setLoading(true)
     const params = new URLSearchParams()
     if (categoryFilter !== 'all') params.set('category', categoryFilter)
-    if (statusFilter !== 'all') params.set('status', statusFilter)
     const qs = params.toString()
     fetch(`/api/audit-log${qs ? `?${qs}` : ''}`)
       .then((res) => res.json())
@@ -3004,39 +3359,28 @@ function ActivityLogCard() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [categoryFilter, statusFilter])
+  }, [categoryFilter])
 
-  const unreadCount = entries.filter((e) => !e.read).length
-
-  const handleMarkAllRead = async () => {
-    setMarkingAllRead(true)
-    try {
-      const res = await fetch('/api/audit-log', { method: 'PATCH' })
-      const data = await res.json()
-      if (data.success) {
-        setEntries((prev) => prev.map((e) => ({ ...e, read: true })))
-      }
-    } catch {
-      // non-blocking -- switching filters re-fetches real state either way
-    } finally {
-      setMarkingAllRead(false)
-    }
-  }
+  const groupedEntries = useMemo(() => groupActivityByDate(entries), [entries])
 
   return (
     <div className="card">
-      <div className="card-title">
-        Recent Activity Log &amp; Notifications
-        {unreadCount > 0 && <span className="tag">{unreadCount} unread</span>}
-      </div>
+      {/* Sept 24 2026: dropped the unread-count badge and "Mark all as
+          read" entirely -- this was a single shared read/unread flag
+          across every admin (see the old audit-log route's own comment),
+          not a real per-admin notification system, and surfacing "50
+          unread" for something that isn't really tracking who's seen what
+          just read as a false notification count. This is a plain
+          chronological log now, same as it always functionally was. */}
+      <div className="card-title">Recent Activity Log</div>
 
       {/* The label/select styling for .mfield only applies inside
           .announce-form (that's how it's scoped in Ivy's original CSS --
           she built the filter row and the announcement composer as one
           shared markup block). This isn't a real <form> (nothing here
           submits), just reusing the class as a styling scope so the
-          dropdowns match the rest of the console instead of rendering as
-          bare unstyled native selects. */}
+          dropdown matches the rest of the console instead of rendering as
+          a bare unstyled native select. */}
       <div className="announce-form">
         <div className="activity-filter-row">
           <div className="mfield">
@@ -3055,28 +3399,6 @@ function ActivityLogCard() {
               ))}
             </select>
           </div>
-          <div className="mfield">
-            <label>Status</label>
-            <select
-              className="filter-select-compact"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All</option>
-              <option value="unread">Unread</option>
-              <option value="read">Read</option>
-            </select>
-          </div>
-          <div className="mfield-actions">
-            <button
-              type="button"
-              onClick={handleMarkAllRead}
-              disabled={markingAllRead || unreadCount === 0}
-              className="text-xs font-bold text-ccc-blue disabled:text-ccc-muted disabled:cursor-not-allowed hover:underline"
-            >
-              {markingAllRead ? 'Marking...' : 'Mark all as read'}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -3087,9 +3409,19 @@ function ActivityLogCard() {
       ) : entries.length === 0 ? (
         <p className="text-sm text-ccc-muted text-center py-8">No activity recorded yet.</p>
       ) : (
+        // Sept 24 2026: entries grouped into "Today / Yesterday / <date>"
+        // sections (groupActivityByDate) instead of one continuous list --
+        // 50+ entries with no section breaks read as a single undifferen-
+        // tiated block; a date header every so often gives the eye a place
+        // to land and re-orient while scanning.
         <div className="timeline">
-          {entries.map((entry) => (
-            <TimelineItem key={entry.id} entry={entry} />
+          {groupedEntries.map((group) => (
+            <div key={group.label}>
+              <div className="activity-date-heading">{group.label}</div>
+              {group.items.map((entry) => (
+                <TimelineItem key={entry.id} entry={entry} />
+              ))}
+            </div>
           ))}
         </div>
       )}

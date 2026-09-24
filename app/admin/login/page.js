@@ -10,6 +10,27 @@ import SiteHeader from '../../components/SiteHeader'
 // class like .efield does nothing without the wrapper class present too.
 import '../../admin-theme.css'
 
+// Sept 24 2026: same eye / eye-slash icons as the applicant side (see
+// ApplicantAuth.js's EyeIcon/EyeOffIcon, which itself matches app/page.js's
+// IconEye/IconEyeOff) -- reused here so the show/hide toggle looks
+// identical across the whole app rather than introducing a third variant
+// just for this page.
+function EyeIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="15" height="15" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />
+      <circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+function EyeOffIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="15" height="15" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18M10.6 10.6a3 3 0 004.24 4.24M9.36 5.11A10.6 10.6 0 0112 5c6 0 9.5 7 9.5 7a13.6 13.6 0 01-3.13 3.94M6.6 6.6C4.16 8.2 2.5 10.5 2.5 12c0 0 3.5 7 9.5 7 1.13 0 2.19-.19 3.17-.53" />
+    </svg>
+  )
+}
+
 // Sept 24 2026: rebuilt to match Ivy's "REVISED-3" mockup for this screen --
 // a full-bleed dark backdrop with a centered card, no public nav or footer
 // links (this is its own standalone screen, not embedded in the normal
@@ -25,6 +46,7 @@ function AdminLoginForm() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -78,17 +100,18 @@ function AdminLoginForm() {
       >
         Admin Console Access
       </h1>
-      {/* Sept 24 2026: kept the app's own accurate copy instead of the
-          mockup's shorter text -- this still names what isn't built yet
-          (self-signup, password reset, session timeout), which matters
-          because Forgot Password / Keep me signed in below are disabled
-          for exactly that reason. Swapping to the mockup's copy would have
-          dropped that disclosure. */}
+      {/* Sept 24 2026: opening sentence matches Ivy's mockup copy word for
+          word ("This console is restricted..."); the rest is still ours --
+          it names what's genuinely still missing (self-signup, session
+          timeout) and points a locked-out admin at the real fix (Super
+          Admin reset), neither of which the mockup's shorter copy covers. */}
       <p className="text-xs text-ccc-muted mb-6">
-        Sign in with your own admin account. This still isn&apos;t backed
-        by a real account system yet — no self-signup, password reset, or
-        session timeout — just individual credentials in place of the old
-        shared passcode, until the User Account Module is ready.
+        This console is restricted to authorized CCC personnel. Sign in with
+        your institutional email and password — your access level is
+        determined by your admin account. This still isn&apos;t backed by a
+        full account system yet, so there&apos;s no self-signup or session
+        timeout, and a forgotten password needs a Super Admin to reset it
+        for you.
       </p>
 
       <form onSubmit={handleSubmit} style={{ textAlign: 'left' }}>
@@ -105,21 +128,39 @@ function AdminLoginForm() {
         </div>
         <div className="efield">
           <label>Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Your password"
-            autoComplete="current-password"
-            required
-          />
+          {/* Sept 24 2026: show/hide toggle -- no matching CSS class for this
+              in admin-theme.css, so the input is wrapped in a relative
+              container and the toggle is hand-styled to sit inside it. */}
+          <div style={{ position: 'relative' }}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Your password"
+              autoComplete="current-password"
+              required
+              style={{ paddingRight: 36 }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+          </div>
         </div>
 
-        {/* Sept 24 2026: both from the mockup, both disabled -- neither
-            remember-me nor password reset exists yet (see the copy above),
-            so these are placeholders for when the User Account Module
-            lands rather than live controls. */}
-        <div className="flex items-center justify-between mb-4">
+        {/* Sept 24 2026, updated same day: dropped "Forgot Password?" --
+            Super Admin password reset shipped, so it's no longer a dead
+            end, just not self-service (see the copy above). Keeping it
+            here as a disabled link would have implied a self-serve flow
+            that isn't coming. "Keep me signed in" is still a genuine gap
+            (remember-me isn't built), so it stays as a disabled
+            placeholder. */}
+        <div className="mb-4">
           <label
             className="flex items-center gap-1.5 text-[11px] text-ccc-muted"
             style={{ cursor: 'not-allowed' }}
@@ -128,24 +169,34 @@ function AdminLoginForm() {
             <input type="checkbox" disabled />
             Keep me signed in
           </label>
-          <span
-            className="text-[11px] font-semibold text-ccc-muted"
-            style={{ cursor: 'not-allowed' }}
-            title="Password reset isn't built yet -- contact whoever seeded your account."
-          >
-            Forgot Password?
-          </span>
         </div>
 
         {error && <p className="text-xs text-ccc-red mb-3">{error}</p>}
 
+        {/* Sept 24 2026: matches the uppercase/tracking-wide/bold treatment
+            every other primary button in the admin console already uses
+            (e.g. Add Admin Account's submit button) -- this one had drifted
+            to plain sentence-case semibold, which was the actual
+            inconsistency worth fixing, more than the color itself (kept
+            navy, not Ivy's mockup blue, so it still matches every other
+            button here). The disabled/loading state now greys out the way
+            Ivy's mockup's idle-button state does, instead of just dimming
+            the navy via opacity. */}
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-ccc-navy text-white text-sm font-semibold py-2.5 disabled:opacity-60"
+          className="w-full rounded-lg bg-ccc-navy text-white text-sm font-bold uppercase tracking-wide py-2.5 disabled:!bg-[#D5D9DF] disabled:!text-[#8A9199] disabled:cursor-not-allowed"
         >
-          {loading ? 'Signing in...' : 'Unlock Console'}
+          {loading ? 'Unlocking...' : 'Unlock Console'}
         </button>
+
+        {/* Sept 24 2026: restored now that sign-ins are actually written to
+            audit_log (see app/api/admin-login/route.js) -- this line was
+            deliberately left out of the earlier rebuild because it wasn't
+            true yet. */}
+        <p className="text-center text-[10.5px] text-ccc-muted mt-4">
+          Access is logged. Unauthorized use is prohibited.
+        </p>
       </form>
     </div>
   )

@@ -66,6 +66,64 @@ export async function listAdminAccounts() {
   return data || []
 }
 
+// Sept 24 2026: replaces scripts/seed-admin-account.mjs for day-to-day use
+// (that script still works as a break-glass fallback if the app itself is
+// ever unreachable) -- lets a Super Admin create Admin/Super Admin accounts
+// straight from the Admin Accounts panel instead of needing VS Code, repo
+// access, and .env.local. Deliberately create-only, not the seed script's
+// upsert: a Super Admin clicking "Add" on the account-creation form means
+// "this is a new account", so a pre-existing email is rejected with a clear
+// error rather than silently overwriting that person's real password.
+export async function createAdminAccount({ name, email, password, isSuperAdmin }) {
+  const normalizedEmail = (email || '').trim().toLowerCase()
+  const trimmedName = (name || '').trim()
+
+  if (!trimmedName) return { error: 'Full name is required.' }
+  if (!normalizedEmail) return { error: 'Email is required.' }
+  if (!password || password.length < 8) return { error: 'Password must be at least 8 characters.' }
+
+  const { data: existing, error: lookupError } = await supabase
+    .from('admin_accounts')
+    .select('email')
+    .eq('email', normalizedEmail)
+    .maybeSingle()
+  if (lookupError) return { error: lookupError.message }
+  if (existing) return { error: 'An admin account with that email already exists.' }
+
+  const password_hash = hashPassword(password)
+  const { data, error } = await supabase
+    .from('admin_accounts')
+    .insert([{ name: trimmedName, email: normalizedEmail, password_hash, is_super_admin: !!isSuperAdmin }])
+    .select('name, email, is_super_admin, created_at')
+    .single()
+
+  if (error) return { error: error.message }
+  return { account: data }
+}
+
+// Sept 24 2026: the other half of "no email infrastructure yet" -- an admin
+// who forgets their password can't reset it themselves (no email to send a
+// reset code to), so a Super Admin sets a new one for them directly instead,
+// the same way account creation itself works. The admin then needs to be
+// told the new password through some other channel, same as at creation.
+export async function resetAdminPassword(email, newPassword) {
+  const normalizedEmail = (email || '').trim().toLowerCase()
+  if (!normalizedEmail) return { error: 'Missing email.' }
+  if (!newPassword || newPassword.length < 8) return { error: 'Password must be at least 8 characters.' }
+
+  const password_hash = hashPassword(newPassword)
+  const { data, error } = await supabase
+    .from('admin_accounts')
+    .update({ password_hash })
+    .eq('email', normalizedEmail)
+    .select('name, email, is_super_admin')
+    .maybeSingle()
+
+  if (error) return { error: error.message }
+  if (!data) return { error: 'That admin account no longer exists.' }
+  return { account: data }
+}
+
 // Sept 22, 2026: delete-only for now (see app/api/admin-accounts/route.js's
 // DELETE handler for why invite/create is deliberately not built yet --
 // there's no email infrastructure to hang a real invite flow on). Two
