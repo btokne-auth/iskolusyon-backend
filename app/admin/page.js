@@ -1907,11 +1907,40 @@ function ResultsPanel() {
   const handleAdvanceDistribution = (id, distributionStatus) =>
     runPatch({ id, field: 'distribution_status', distributionStatus })
 
+  // Sept 24 2026, per Pau's live testing feedback: a filter for whether an
+  // applicant has an application_number, labeled by what that actually
+  // means rather than the raw column name. application_number is only ever
+  // assigned once every required document is on file (see
+  // maybeAssignApplicationNumber() in app/api/application/route.js) and
+  // never revoked, so "Documents Complete"/"Documents Incomplete" is an
+  // accurate, not just convenient, label for this.
+  const [docFilter, setDocFilter] = useState('all') // 'all' | 'complete' | 'incomplete'
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
-    if (!term) return rows
-    return rows.filter((r) => `${r.applicant_name || ''} ${r.applicant_email || ''} ${r.application_number || ''}`.toLowerCase().includes(term))
-  }, [rows, search])
+    let list = rows
+    if (docFilter === 'complete') list = list.filter((r) => !!r.application_number)
+    if (docFilter === 'incomplete') list = list.filter((r) => !r.application_number)
+    if (term) {
+      list = list.filter((r) =>
+        `${r.applicant_name || ''} ${r.applicant_email || ''} ${r.application_number || ''}`.toLowerCase().includes(term)
+      )
+    }
+    // "Needs action first" default ordering, per Pau's Sept 24 request --
+    // reuses getNextStepHint()'s own tone classification instead of
+    // inventing a second "needs action" definition that could drift out of
+    // sync with the colored hint banner each card already shows. 'go' means
+    // genuinely actionable right now (ready for exam entry, or ready to
+    // advance distribution status); 'wait'/'stop'/'done' need nothing from
+    // an admin at this moment. Alphabetical by name within each group.
+    const priority = { go: 0, wait: 1, stop: 2, done: 3 }
+    return [...list].sort((a, b) => {
+      const pa = priority[getNextStepHint(a).tone] ?? 1
+      const pb = priority[getNextStepHint(b).tone] ?? 1
+      if (pa !== pb) return pa - pb
+      return (a.applicant_name || '').localeCompare(b.applicant_name || '')
+    })
+  }, [rows, search, docFilter])
 
   return (
     <div>
@@ -1925,15 +1954,26 @@ function ResultsPanel() {
         </div>
       </div>
 
-      <div className="relative mb-5 max-w-md">
-        <IconSearch className="w-4 h-4 text-ccc-muted absolute left-3 top-1/2 -translate-y-1/2" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by applicant name, email, or application number..."
-          className="w-full rounded-lg border border-ccc-border bg-white pl-9 pr-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
-        />
+      <div className="flex flex-wrap items-center gap-2.5 mb-5">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
+          <IconSearch className="w-4 h-4 text-ccc-muted absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by applicant name, email, or application number..."
+            className="w-full rounded-lg border border-ccc-border bg-white pl-9 pr-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+          />
+        </div>
+        <select
+          value={docFilter}
+          onChange={(e) => setDocFilter(e.target.value)}
+          className="rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
+        >
+          <option value="all">All Applicants</option>
+          <option value="complete">Documents Complete</option>
+          <option value="incomplete">Documents Incomplete</option>
+        </select>
       </div>
 
       {error && (
@@ -1944,7 +1984,7 @@ function ResultsPanel() {
         <div className="text-center py-20 text-ccc-muted text-sm">Loading applicants...</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-ccc-muted text-sm">
-          {rows.length === 0 ? 'No applications on file yet.' : 'No applicants match your search.'}
+          {rows.length === 0 ? 'No applications on file yet.' : 'No applicants match your search and filter.'}
         </div>
       ) : (
         <div>
