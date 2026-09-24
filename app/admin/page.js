@@ -586,7 +586,6 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               {flaggedCount} flagged
             </span>
           )}
-          <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue">View</span>
         </div>
       </button>
 
@@ -1543,7 +1542,6 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <ScholarStatusBadge status={row.scholar_status || 'pending_exam'} />
-          <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue">View</span>
         </div>
       </button>
 
