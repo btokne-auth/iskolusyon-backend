@@ -100,17 +100,18 @@ function AdminLoginForm() {
       >
         Admin Console Access
       </h1>
-      {/* Sept 24 2026, updated same day once Super Admin password reset
-          shipped: "password reset" dropped from this list -- it exists now,
-          just not self-service (see the removed Forgot Password link
-          below and its replacement copy). Self-signup and session timeout
-          are still genuinely missing, so those stay named. */}
+      {/* Sept 24 2026: opening sentence matches Ivy's mockup copy word for
+          word ("This console is restricted..."); the rest is still ours --
+          it names what's genuinely still missing (self-signup, session
+          timeout) and points a locked-out admin at the real fix (Super
+          Admin reset), neither of which the mockup's shorter copy covers. */}
       <p className="text-xs text-ccc-muted mb-6">
-        Sign in with your own admin account. This still isn&apos;t backed
-        by a real account system yet — no self-signup or session timeout —
-        just individual credentials in place of the old shared passcode,
-        until the User Account Module is ready. Forgot your password? Ask
-        a Super Admin to reset it for you.
+        This console is restricted to authorized CCC personnel. Sign in with
+        your institutional email and password — your access level is
+        determined by your admin account. This still isn&apos;t backed by a
+        full account system yet, so there&apos;s no self-signup or session
+        timeout, and a forgotten password needs a Super Admin to reset it
+        for you.
       </p>
 
       <form onSubmit={handleSubmit} style={{ textAlign: 'left' }}>
@@ -172,13 +173,30 @@ function AdminLoginForm() {
 
         {error && <p className="text-xs text-ccc-red mb-3">{error}</p>}
 
+        {/* Sept 24 2026: matches the uppercase/tracking-wide/bold treatment
+            every other primary button in the admin console already uses
+            (e.g. Add Admin Account's submit button) -- this one had drifted
+            to plain sentence-case semibold, which was the actual
+            inconsistency worth fixing, more than the color itself (kept
+            navy, not Ivy's mockup blue, so it still matches every other
+            button here). The disabled/loading state now greys out the way
+            Ivy's mockup's idle-button state does, instead of just dimming
+            the navy via opacity. */}
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-ccc-navy text-white text-sm font-semibold py-2.5 disabled:opacity-60"
+          className="w-full rounded-lg bg-ccc-navy text-white text-sm font-bold uppercase tracking-wide py-2.5 disabled:!bg-[#D5D9DF] disabled:!text-[#8A9199] disabled:cursor-not-allowed"
         >
-          {loading ? 'Signing in...' : 'Unlock Console'}
+          {loading ? 'Unlocking...' : 'Unlock Console'}
         </button>
+
+        {/* Sept 24 2026: restored now that sign-ins are actually written to
+            audit_log (see app/api/admin-login/route.js) -- this line was
+            deliberately left out of the earlier rebuild because it wasn't
+            true yet. */}
+        <p className="text-center text-[10.5px] text-ccc-muted mt-4">
+          Access is logged. Unauthorized use is prohibited.
+        </p>
       </form>
     </div>
   )

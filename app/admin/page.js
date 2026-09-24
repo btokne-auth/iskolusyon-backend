@@ -3324,15 +3324,12 @@ function TimelineItem({ entry }) {
   const isWarn = entry.kind === 'warn'
   const { icon: CategoryIcon, className: categoryClass } = getCategoryStyle(entry.category)
   return (
-    <div className={`timeline-item${entry.read ? '' : ' unread'}`}>
+    <div className="timeline-item">
       <div className={`timeline-dot ${isWarn ? 'warn' : categoryClass}`}>
         {isWarn ? <IconAlert className="w-3.5 h-3.5" /> : <CategoryIcon className="w-3.5 h-3.5" />}
       </div>
       <div className="timeline-body min-w-0">
-        <h4>
-          {!entry.read && <span className="notif-unread-dot" style={{ marginRight: '6px', verticalAlign: 'middle' }} />}
-          {entry.action}
-        </h4>
+        <h4>{entry.action}</h4>
         <p>
           {entry.actor}
           {entry.category ? ` · ${entry.category}` : ''}
@@ -3348,14 +3345,11 @@ function ActivityLogCard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [markingAllRead, setMarkingAllRead] = useState(false)
 
   useEffect(() => {
     setLoading(true)
     const params = new URLSearchParams()
     if (categoryFilter !== 'all') params.set('category', categoryFilter)
-    if (statusFilter !== 'all') params.set('status', statusFilter)
     const qs = params.toString()
     fetch(`/api/audit-log${qs ? `?${qs}` : ''}`)
       .then((res) => res.json())
@@ -3365,44 +3359,28 @@ function ActivityLogCard() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [categoryFilter, statusFilter])
+  }, [categoryFilter])
 
-  const unreadCount = entries.filter((e) => !e.read).length
   const groupedEntries = useMemo(() => groupActivityByDate(entries), [entries])
-
-  const handleMarkAllRead = async () => {
-    setMarkingAllRead(true)
-    try {
-      const res = await fetch('/api/audit-log', { method: 'PATCH' })
-      const data = await res.json()
-      if (data.success) {
-        setEntries((prev) => prev.map((e) => ({ ...e, read: true })))
-      }
-    } catch {
-      // non-blocking -- switching filters re-fetches real state either way
-    } finally {
-      setMarkingAllRead(false)
-    }
-  }
 
   return (
     <div className="card">
-      {/* Sept 24 2026: the unread count moved out of the card title and
-          down next to "Mark all as read" -- previously it sat pinned to
-          the title's top-right corner while the individual unread dots
-          and the mark-all-read action lived in two other spots on the
-          card, so the same "unread" concept was represented three
-          different, disconnected ways. Now it's one line: count, then
-          the action that clears it. */}
-      <div className="card-title">Recent Activity Log &amp; Notifications</div>
+      {/* Sept 24 2026: dropped the unread-count badge and "Mark all as
+          read" entirely -- this was a single shared read/unread flag
+          across every admin (see the old audit-log route's own comment),
+          not a real per-admin notification system, and surfacing "50
+          unread" for something that isn't really tracking who's seen what
+          just read as a false notification count. This is a plain
+          chronological log now, same as it always functionally was. */}
+      <div className="card-title">Recent Activity Log</div>
 
       {/* The label/select styling for .mfield only applies inside
           .announce-form (that's how it's scoped in Ivy's original CSS --
           she built the filter row and the announcement composer as one
           shared markup block). This isn't a real <form> (nothing here
           submits), just reusing the class as a styling scope so the
-          dropdowns match the rest of the console instead of rendering as
-          bare unstyled native selects. */}
+          dropdown matches the rest of the console instead of rendering as
+          a bare unstyled native select. */}
       <div className="announce-form">
         <div className="activity-filter-row">
           <div className="mfield">
@@ -3420,29 +3398,6 @@ function ActivityLogCard() {
                 </option>
               ))}
             </select>
-          </div>
-          <div className="mfield">
-            <label>Status</label>
-            <select
-              className="filter-select-compact"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All</option>
-              <option value="unread">Unread</option>
-              <option value="read">Read</option>
-            </select>
-          </div>
-          <div className="mfield-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {unreadCount > 0 && <span className="tag">{unreadCount} unread</span>}
-            <button
-              type="button"
-              onClick={handleMarkAllRead}
-              disabled={markingAllRead || unreadCount === 0}
-              className="text-xs font-bold text-ccc-blue disabled:text-ccc-muted disabled:cursor-not-allowed hover:underline"
-            >
-              {markingAllRead ? 'Marking...' : 'Mark all as read'}
-            </button>
           </div>
         </div>
       </div>
