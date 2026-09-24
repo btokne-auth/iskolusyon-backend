@@ -2650,6 +2650,7 @@ function AdminAccountsPanel() {
   const [newRole, setNewRole] = useState('admin')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
 
   // Sept 24 2026: forgot-password handling, same reasoning as createAdmin-
   // Account above -- no email infra to send a reset code to, so a Super
@@ -2660,6 +2661,7 @@ function AdminAccountsPanel() {
   const [resetPassword, setResetPassword] = useState('')
   const [resetting, setResetting] = useState(false)
   const [resetError, setResetError] = useState('')
+  const [showResetPassword, setShowResetPassword] = useState(false)
 
   const loadAccounts = () => {
     setLoading(true)
@@ -2737,6 +2739,7 @@ function AdminAccountsPanel() {
   const startReset = (email) => {
     setResetError('')
     setResetPassword('')
+    setShowResetPassword(false)
     setResetTarget(email)
   }
 
@@ -2744,6 +2747,7 @@ function AdminAccountsPanel() {
     setResetTarget(null)
     setResetPassword('')
     setResetError('')
+    setShowResetPassword(false)
   }
 
   const handleResetSave = async (email) => {
@@ -2845,14 +2849,41 @@ function AdminAccountsPanel() {
           </div>
           <div className="efield">
             <label>Password</label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              minLength={8}
-              required
-            />
+            {/* Sept 24 2026: show/hide toggle, same pattern as the admin
+                login page and the reset-password field below -- no matching
+                CSS class for this in admin-theme.css, so the input is
+                wrapped in a relative container. */}
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showNewPassword ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                minLength={8}
+                required
+                style={{ paddingRight: 32 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword((v) => !v)}
+                className="text-ccc-muted hover:text-ccc-navy"
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  lineHeight: 1,
+                }}
+                title={showNewPassword ? 'Hide password' : 'Show password'}
+                tabIndex={-1}
+              >
+                {showNewPassword ? '🙈' : '👁'}
+              </button>
+            </div>
           </div>
           <button
             type="submit"
@@ -2938,15 +2969,38 @@ function AdminAccountsPanel() {
                   </div>
                   {isResetting && (
                     <div className="flex items-center gap-2.5 pl-[53px]">
-                      <input
-                        type="password"
-                        value={resetPassword}
-                        onChange={(e) => setResetPassword(e.target.value)}
-                        placeholder="New password (at least 8 characters)"
-                        minLength={8}
-                        autoFocus
-                        className="flex-1 rounded-lg border border-ccc-border px-3 py-2 text-xs"
-                      />
+                      <div className="flex-1" style={{ position: 'relative' }}>
+                        <input
+                          type={showResetPassword ? 'text' : 'password'}
+                          value={resetPassword}
+                          onChange={(e) => setResetPassword(e.target.value)}
+                          placeholder="New password (at least 8 characters)"
+                          minLength={8}
+                          autoFocus
+                          className="w-full rounded-lg border border-ccc-border px-3 py-2 text-xs"
+                          style={{ paddingRight: 30 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowResetPassword((v) => !v)}
+                          className="text-ccc-muted hover:text-ccc-navy"
+                          style={{
+                            position: 'absolute',
+                            right: 8,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            lineHeight: 1,
+                          }}
+                          title={showResetPassword ? 'Hide password' : 'Show password'}
+                          tabIndex={-1}
+                        >
+                          {showResetPassword ? '🙈' : '👁'}
+                        </button>
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleResetSave(acc.email)}
