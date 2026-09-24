@@ -1320,13 +1320,18 @@ function DashboardPanel({
 // nothing else on the page needs this data. See app/api/admin-results/route.js
 // and app/lib/matching.js for the Appendix D grounding behind every status.
 
+// Sept 24, 2026: className values switched from ad hoc Tailwind to the
+// shared .badge/.badge-* tokens from admin-theme.css (same ones the
+// Dashboard/Document review badges already use), part of the Applicant
+// Results panel's design-parity pass. badge-orange (gold) covers both
+// probationary statuses to match the gold treatment they had before.
 const SCHOLAR_STATUS_META = {
-  pending_exam: { label: 'Pending Exam', className: 'bg-blue-50 text-ccc-blue border-ccc-blue/30' },
-  passer: { label: 'Passer', className: 'bg-green-50 text-ccc-green border-ccc-green/30' },
-  waitlisted_probationary: { label: 'Waitlisted (Probationary)', className: 'bg-ccc-gold/10 text-ccc-navy border-ccc-gold/50' },
-  qualified_probationary: { label: 'Qualified (Probationary)', className: 'bg-ccc-gold/10 text-ccc-navy border-ccc-gold/50' },
-  disqualified: { label: 'Disqualified', className: 'bg-red-50 text-ccc-red border-ccc-red/30' },
-  forfeited: { label: 'Forfeited', className: 'bg-red-50 text-ccc-red border-ccc-red/30' },
+  pending_exam: { label: 'Pending Exam', className: 'badge-progress' },
+  passer: { label: 'Passer', className: 'badge-verified' },
+  waitlisted_probationary: { label: 'Waitlisted (Probationary)', className: 'badge-orange' },
+  qualified_probationary: { label: 'Qualified (Probationary)', className: 'badge-orange' },
+  disqualified: { label: 'Disqualified', className: 'badge-deficient' },
+  forfeited: { label: 'Forfeited', className: 'badge-deficient' },
 }
 
 // "What's next" hint -- Sept 21 follow-up. Scholarship Matching (Dashboard
@@ -1391,11 +1396,7 @@ const DISTRIBUTION_STATUS_STEPS = [
 
 function ScholarStatusBadge({ status }) {
   const meta = SCHOLAR_STATUS_META[status] || SCHOLAR_STATUS_META.pending_exam
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.className}`}>
-      {meta.label}
-    </span>
-  )
+  return <span className={`badge ${meta.className}`}>{meta.label}</span>
 }
 
 // One applicant's exam entry + scholar status + distribution status. Kept
@@ -1507,7 +1508,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
   }
 
   return (
-    <div className="rounded-2xl border border-ccc-border bg-white shadow-sm p-5 space-y-4">
+    <div className="card space-y-4">
       {pendingOverride && (
         <ConfirmActionModal
           eyebrow="Confirm Override"
@@ -1559,9 +1560,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
       {/* Exam Score Entry and Verification */}
       <div className="rounded-xl border border-ccc-border bg-ccc-off/40 p-3.5 space-y-2.5">
         <div>
-          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            Step 1 · Entrance Exam
-          </p>
+          <span className="modal-section-label" style={{ marginBottom: '4px' }}>Step 1 · Entrance Exam</span>
           <p className="text-[10.5px] text-ccc-muted">
             Nothing here is saved until you click Save &amp; Verify. Saving auto-sets Scholar Status below (Passed &rarr; Passer, Failed &rarr; Waitlisted, Absent &rarr; Forfeited).
           </p>
@@ -1649,9 +1648,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           unsaved edits, and a confirm prompt before any override fires. */}
       <div className="rounded-xl border border-ccc-orange/30 bg-orange-50/40 p-3.5 space-y-2.5">
         <div>
-          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            Step 2 · Manual Override
-          </p>
+          <span className="modal-section-label" style={{ marginBottom: '4px' }}>Step 2 · Manual Override</span>
           <p className="text-[10.5px] text-ccc-muted">
             Only for a real judgment call the exam result itself doesn&rsquo;t decide (Appendix D: a probationary contract, or a
             later disqualification/forfeiture reason). Fires immediately &mdash; independent of Step 1 above.
@@ -1699,10 +1696,8 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           (Appendix D: Registrar -> Medical or Admissions -> enrollment). The
           "statement" itself is the audit_log trail each button click writes. */}
       <div className="rounded-xl border border-ccc-border p-3.5 space-y-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-bold text-ccc-navy uppercase tracking-wide" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            Distribution Status
-          </p>
+        <div className="modal-section-label" style={{ marginBottom: '4px' }}>
+          <span>Distribution Status</span>
           {/* Clear button -- Sept 21, added after live testing found no way
               to reset a leftover distribution_status once Scholar Status no
               longer qualifies (e.g. an exam result got reset for retesting).
@@ -1846,14 +1841,14 @@ function ResultsPanel() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Applicant Results
-        </h1>
-        <p className="text-xs text-ccc-muted mt-0.5">
-          Individual applicant profile view for exam score entry, scholar status, and post-passing distribution
-          tracking. Only applicants who have submitted an application (and so have an eligibility profile) appear here.
-        </p>
+      <div className="portal-header">
+        <div>
+          <h1>Applicant Results</h1>
+          <p>
+            Individual applicant profile view for exam score entry, scholar status, and post-passing distribution
+            tracking. Only applicants who have submitted an application (and so have an eligibility profile) appear here.
+          </p>
+        </div>
       </div>
 
       <div className="relative mb-5 max-w-md">
@@ -1878,7 +1873,7 @@ function ResultsPanel() {
           {rows.length === 0 ? 'No applications on file yet.' : 'No applicants match your search.'}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div>
           {filtered.map((row) => (
             <ResultRow
               key={row.id}
