@@ -2641,6 +2641,16 @@ function AdminAccountsPanel() {
   const [removingEmail, setRemovingEmail] = useState(null)
   const [removeError, setRemoveError] = useState('')
 
+  // Sept 24 2026: real account creation, replacing scripts/seed-admin-
+  // account.mjs -- see app/api/admin-accounts/route.js's POST for why this
+  // is Super-Admin-sets-the-password-directly rather than an email invite.
+  const [newName, setNewName] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newRole, setNewRole] = useState('admin')
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
+
   const loadAccounts = () => {
     setLoading(true)
     fetch('/api/admin-accounts')
@@ -2682,6 +2692,38 @@ function AdminAccountsPanel() {
     }
   }
 
+  const handleCreate = async (e) => {
+    e.preventDefault()
+    setCreateError('')
+    setCreating(true)
+    try {
+      const res = await fetch('/api/admin-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newName,
+          email: newEmail,
+          password: newPassword,
+          isSuperAdmin: newRole === 'super_admin',
+        }),
+      })
+      const data = await res.json()
+      if (!data.success) {
+        setCreateError(data.error || 'Failed to create admin account.')
+        return
+      }
+      setAccounts((prev) => [...prev, data.account])
+      setNewName('')
+      setNewEmail('')
+      setNewPassword('')
+      setNewRole('admin')
+    } catch (err) {
+      setCreateError(err.message)
+    } finally {
+      setCreating(false)
+    }
+  }
+
   return (
     <div>
       {/* Sept 24 2026 reskin: header moved onto the shared .portal-header
@@ -2692,12 +2734,85 @@ function AdminAccountsPanel() {
       <div className="portal-header">
         <div>
           <h1>Admin Accounts</h1>
+          {/* Sept 24 2026: copy updated now that creation is real (see the
+              Add Admin Account card below) -- this used to say accounts
+              were only seeded via scripts/seed-admin-account.mjs, which is
+              no longer true for day-to-day use. Still no email invite --
+              Resend is sandbox-restricted to the developer's own inbox on
+              the free tier -- so the Super Admin sets the password
+              directly instead. */}
           <p>
-            Super admin only. Inviting a new admin isn&apos;t wired up yet (no real email delivery to send an
-            invite through) — new accounts are still seeded via <code>scripts/seed-admin-account.mjs</code>.
-            Removing an account is real and takes effect immediately.
+            Super admin only. Create an Admin or Super Admin account below by setting its password directly — there&apos;s
+            no email invite yet (no email provider set up that can reach an arbitrary CCC inbox), so whoever creates
+            the account should share the password with its owner through some other channel. Removing an account is
+            real and takes effect immediately.
           </p>
         </div>
+      </div>
+
+      {/* Sept 24 2026: the "Add Admin Account" form from Ivy's mockup,
+          wired up for real now instead of left out -- uses .add-admin-form
+          (already in admin-theme.css, unused until now) with its column
+          count widened by one via inline style for the Password field the
+          mockup's email-invite version didn't need. */}
+      <div className="card">
+        <div className="card-title">Add Admin Account</div>
+        {createError && (
+          <div className="mb-4 rounded-xl border border-ccc-red/40 bg-red-50 px-4 py-2.5 text-xs font-semibold text-ccc-red">
+            {createError}
+          </div>
+        )}
+        <form
+          className="add-admin-form"
+          style={{ gridTemplateColumns: '1.2fr 1.5fr 0.9fr 1fr auto' }}
+          onSubmit={handleCreate}
+        >
+          <div className="efield">
+            <label>Full Name</label>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="e.g. Grace Villanueva"
+              required
+            />
+          </div>
+          <div className="efield">
+            <label>Email</label>
+            <input
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="name@ccc.edu.ph"
+              required
+            />
+          </div>
+          <div className="efield">
+            <label>Role</label>
+            <select value={newRole} onChange={(e) => setNewRole(e.target.value)}>
+              <option value="admin">Admin</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+          </div>
+          <div className="efield">
+            <label>Password</label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              minLength={8}
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={creating}
+            className="text-xs font-bold uppercase tracking-wide text-white bg-ccc-navy px-4 py-2.5 rounded-lg disabled:opacity-60"
+          >
+            {creating ? 'Adding...' : 'Add Account'}
+          </button>
+        </form>
       </div>
 
       {removeError && (
@@ -2710,10 +2825,7 @@ function AdminAccountsPanel() {
           markup from Ivy's mockup CSS (already sitting unused in
           admin-theme.css under "SUPER ADMIN: ACCOUNTS") -- avatar-initials
           circle, name/email stack, a role-tag pill, and an icon-only delete
-          button instead of a text "Remove" link. The Add Admin Account form
-          from her mockup is deliberately left out: inviting isn't wired up
-          yet (no email delivery), so there's nothing for it to submit to --
-          this is the CSS pass only, per Pau's note. */}
+          button instead of a text "Remove" link. */}
       <div className="card" style={{ marginBottom: 0 }}>
         <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>Current Accounts</span>
