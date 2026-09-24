@@ -2,6 +2,13 @@
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import SiteHeader from '../../components/SiteHeader'
+// Sept 24 2026 reskin: this page never imported the shared admin theme or
+// carried the .admin-portal wrapper class, so it was pure ad hoc Tailwind
+// while every other admin page already reads from admin-theme.css. Needed
+// both together -- the theme's CSS variables (--navy, --muted, --border,
+// etc.) are declared inside the .admin-portal selector itself, so a shared
+// class like .efield does nothing without the wrapper class present too.
+import '../../admin-theme.css'
 
 function AdminLoginForm() {
   const router = useRouter()
@@ -38,7 +45,14 @@ function AdminLoginForm() {
 
   return (
     <div className="w-full max-w-sm mx-auto px-4 pt-16">
-      <div className="rounded-2xl border border-ccc-border bg-white shadow-sm p-6">
+      {/* Sept 24 2026: swapped the hand-rolled box for .card (same white
+          surface, border, radius and shadow every other admin panel uses)
+          and the two fields onto .efield (the label+input pattern already
+          used in Application Cycle Settings) instead of one-off Tailwind
+          per input. Heading kept as plain Tailwind -- .card-title is sized
+          for a section label inside a card, not a page heading, so it
+          would read too small here. */}
+      <div className="card">
         <h1
           className="text-lg font-extrabold text-ccc-navy mb-1"
           style={{ fontFamily: 'var(--font-montserrat)' }}
@@ -52,37 +66,31 @@ function AdminLoginForm() {
           shared passcode, until the User Account Module is ready.
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-widest text-ccc-muted block mb-1">
-              Email
-            </label>
+        <form onSubmit={handleSubmit}>
+          <div className="efield">
+            <label>Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@ccc.edu.ph"
               autoComplete="username"
-              className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
               required
             />
           </div>
-          <div>
-            <label className="text-[11px] font-bold uppercase tracking-widest text-ccc-muted block mb-1">
-              Password
-            </label>
+          <div className="efield">
+            <label>Password</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Your password"
               autoComplete="current-password"
-              className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
               required
             />
           </div>
 
-          {error && <p className="text-xs text-ccc-red">{error}</p>}
+          {error && <p className="text-xs text-ccc-red mb-3">{error}</p>}
 
           <button
             type="submit"
@@ -99,7 +107,7 @@ function AdminLoginForm() {
 
 export default function AdminLoginPage() {
   return (
-    <main className="min-h-screen bg-ccc-off text-ccc-text">
+    <main className="admin-portal min-h-screen bg-ccc-off text-ccc-text">
       <SiteHeader topbarLabel="Iskolusyon Admin Console" portalBadge="Admin Sign-in" />
       <Suspense fallback={null}>
         <AdminLoginForm />
