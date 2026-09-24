@@ -1,6 +1,7 @@
 'use client'
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import SiteHeader from '../../components/SiteHeader'
 // Sept 24 2026 reskin: this page never imported the shared admin theme or
 // carried the .admin-portal wrapper class, so it was pure ad hoc Tailwind
 // while every other admin page already reads from admin-theme.css. Needed
@@ -10,10 +11,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import '../../admin-theme.css'
 
 // Sept 24 2026: rebuilt to match Ivy's "REVISED-3" mockup for this screen --
-// a full-bleed dark backdrop with a centered card, no header/logo bar at
-// all (this is its own standalone screen, not embedded in the normal site
-// chrome the way the rest of the admin console is). SiteHeader dropped
-// entirely for that reason, on this page only.
+// a full-bleed dark backdrop with a centered card, no public nav or footer
+// links (this is its own standalone screen, not embedded in the normal
+// site chrome the way the rest of the admin console is). Pau asked
+// afterward for a slim branding bar top and bottom, for orientation and
+// brand consistency, without pulling in anything applicant-facing -- see
+// SiteHeader usage below (logos + college name only, no nav links, no
+// Sign Up button) and the one-line copyright footer at the bottom.
 function AdminLoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -149,13 +153,29 @@ function AdminLoginForm() {
 
 export default function AdminLoginPage() {
   return (
-    <main
-      className="admin-portal min-h-screen flex items-center justify-center px-4"
-      style={{ background: 'var(--ccc-navy)' }}
-    >
-      <Suspense fallback={null}>
-        <AdminLoginForm />
-      </Suspense>
+    <main className="admin-portal min-h-screen flex flex-col" style={{ background: 'var(--ccc-navy)' }}>
+      {/* SiteHeader has no public nav links or Sign Up/Log In buttons built
+          into it -- it only renders the logo cluster, college name, and an
+          optional badge -- so it's already the "slim branding bar" without
+          needing a separate trimmed-down component. */}
+      <SiteHeader topbarLabel="Iskolusyon Admin Console" portalBadge="Admin Sign-in" />
+
+      <div className="flex-1 flex items-center justify-center px-4 py-12">
+        <Suspense fallback={null}>
+          <AdminLoginForm />
+        </Suspense>
+      </div>
+
+      {/* One-line copyright bar instead of the full public WelcomeFooter --
+          that component's "Admission Requirements" / "FAQs" resource links
+          are for applicants browsing the public site and don't belong on a
+          staff-only login screen. This keeps just the universal part. */}
+      <div
+        className="text-center py-2.5 text-[10.5px] font-bold uppercase tracking-wide"
+        style={{ background: 'var(--ccc-blue)', color: 'rgba(255,255,255,.9)', fontFamily: 'var(--font-montserrat)', letterSpacing: '0.5px' }}
+      >
+        © 2026 Iskolusyon Scholarship Management System &nbsp;|&nbsp; Developed for the City College of Calamba
+      </div>
     </main>
   )
 }
