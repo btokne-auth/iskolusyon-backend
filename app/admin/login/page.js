@@ -1,7 +1,6 @@
 'use client'
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import SiteHeader from '../../components/SiteHeader'
 // Sept 24 2026 reskin: this page never imported the shared admin theme or
 // carried the .admin-portal wrapper class, so it was pure ad hoc Tailwind
 // while every other admin page already reads from admin-theme.css. Needed
@@ -10,6 +9,11 @@ import SiteHeader from '../../components/SiteHeader'
 // class like .efield does nothing without the wrapper class present too.
 import '../../admin-theme.css'
 
+// Sept 24 2026: rebuilt to match Ivy's "REVISED-3" mockup for this screen --
+// a full-bleed dark backdrop with a centered card, no header/logo bar at
+// all (this is its own standalone screen, not embedded in the normal site
+// chrome the way the rest of the admin console is). SiteHeader dropped
+// entirely for that reason, on this page only.
 function AdminLoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -44,71 +48,111 @@ function AdminLoginForm() {
   }
 
   return (
-    <div className="w-full max-w-sm mx-auto px-4 pt-16">
-      {/* Sept 24 2026: swapped the hand-rolled box for .card (same white
-          surface, border, radius and shadow every other admin panel uses)
-          and the two fields onto .efield (the label+input pattern already
-          used in Application Cycle Settings) instead of one-off Tailwind
-          per input. Heading kept as plain Tailwind -- .card-title is sized
-          for a section label inside a card, not a page heading, so it
-          would read too small here. */}
-      <div className="card">
-        <h1
-          className="text-lg font-extrabold text-ccc-navy mb-1"
-          style={{ fontFamily: 'var(--font-montserrat)' }}
-        >
-          Admin sign-in
-        </h1>
-        <p className="text-xs text-ccc-muted mb-5">
-          Sign in with your own admin account. This still isn&apos;t backed
-          by a real account system yet — no self-signup, password reset, or
-          session timeout — just individual credentials in place of the old
-          shared passcode, until the User Account Module is ready.
-        </p>
-
-        <form onSubmit={handleSubmit}>
-          <div className="efield">
-            <label>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@ccc.edu.ph"
-              autoComplete="username"
-              required
-            />
-          </div>
-          <div className="efield">
-            <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Your password"
-              autoComplete="current-password"
-              required
-            />
-          </div>
-
-          {error && <p className="text-xs text-ccc-red mb-3">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-ccc-navy text-white text-sm font-semibold py-2.5 disabled:opacity-60"
-          >
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
+    <div className="card" style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
+      {/* Lock icon circle from the mockup -- an emoji instead of an SVG since
+          no icon set is wired into this project; it's a decorative badge,
+          not a functional element, so it doesn't need to be pixel-exact. */}
+      <div
+        style={{
+          width: 60,
+          height: 60,
+          borderRadius: '50%',
+          background: 'rgba(224, 123, 57, 0.12)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          margin: '0 auto 18px',
+          fontSize: 26,
+        }}
+      >
+        🔒
       </div>
+
+      <h1
+        className="text-xl font-extrabold text-ccc-navy mb-2"
+        style={{ fontFamily: 'var(--font-montserrat)' }}
+      >
+        Admin Console Access
+      </h1>
+      {/* Sept 24 2026: kept the app's own accurate copy instead of the
+          mockup's shorter text -- this still names what isn't built yet
+          (self-signup, password reset, session timeout), which matters
+          because Forgot Password / Keep me signed in below are disabled
+          for exactly that reason. Swapping to the mockup's copy would have
+          dropped that disclosure. */}
+      <p className="text-xs text-ccc-muted mb-6">
+        Sign in with your own admin account. This still isn&apos;t backed
+        by a real account system yet — no self-signup, password reset, or
+        session timeout — just individual credentials in place of the old
+        shared passcode, until the User Account Module is ready.
+      </p>
+
+      <form onSubmit={handleSubmit} style={{ textAlign: 'left' }}>
+        <div className="efield">
+          <label>Institutional Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@ccc.edu.ph"
+            autoComplete="username"
+            required
+          />
+        </div>
+        <div className="efield">
+          <label>Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Your password"
+            autoComplete="current-password"
+            required
+          />
+        </div>
+
+        {/* Sept 24 2026: both from the mockup, both disabled -- neither
+            remember-me nor password reset exists yet (see the copy above),
+            so these are placeholders for when the User Account Module
+            lands rather than live controls. */}
+        <div className="flex items-center justify-between mb-4">
+          <label
+            className="flex items-center gap-1.5 text-[11px] text-ccc-muted"
+            style={{ cursor: 'not-allowed' }}
+            title="Not built yet -- every sign-in behaves the same way until the User Account Module lands."
+          >
+            <input type="checkbox" disabled />
+            Keep me signed in
+          </label>
+          <span
+            className="text-[11px] font-semibold text-ccc-muted"
+            style={{ cursor: 'not-allowed' }}
+            title="Password reset isn't built yet -- contact whoever seeded your account."
+          >
+            Forgot Password?
+          </span>
+        </div>
+
+        {error && <p className="text-xs text-ccc-red mb-3">{error}</p>}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-lg bg-ccc-navy text-white text-sm font-semibold py-2.5 disabled:opacity-60"
+        >
+          {loading ? 'Signing in...' : 'Unlock Console'}
+        </button>
+      </form>
     </div>
   )
 }
 
 export default function AdminLoginPage() {
   return (
-    <main className="admin-portal min-h-screen bg-ccc-off text-ccc-text">
-      <SiteHeader topbarLabel="Iskolusyon Admin Console" portalBadge="Admin Sign-in" />
+    <main
+      className="admin-portal min-h-screen flex items-center justify-center px-4"
+      style={{ background: 'var(--ccc-navy)' }}
+    >
       <Suspense fallback={null}>
         <AdminLoginForm />
       </Suspense>
