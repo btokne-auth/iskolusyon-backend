@@ -192,14 +192,17 @@ async function correctOrientation(worker, buffer) {
 // compute per upload and risks a false "improvement" that rotates an
 // already-fine document further from upright.
 const DESKEW_MAX_ANGLE = 25
-const DESKEW_STEP = 2 // degrees -- coarse pass, tuned for handheld-photo
-                       // tilt rather than hunting a precise angle
+const DESKEW_STEP = 5 // degrees -- widened from 2 on Sept 25, 2026: the original
+                       // 2-degree step meant 26 rotate+scan passes per upload,
+                       // which (combined with OCR itself) was still blowing past
+                       // Vercel's 60s ceiling even after cutting OCR to one pass.
+                       // 5 degrees is still just a coarse best-effort search either
+                       // way -- fewer, cheaper steps through the same +/-25 range.
 
-async function estimateSkewAngle(buffer) {
-  // Small, fast working copy -- precision doesn't matter for the score,
-  // only relative comparison between candidate angles.
   const small = await sharp(buffer)
-    .resize({ width: 400, withoutEnlargement: false })
+    .resize({ width: 200, withoutEnlargement: false }) // halved from 400 on Sept 25,
+    // 2026 -- the per-angle pixel-counting loop below is O(width x height), so this
+    // alone roughly quarters the cost of every one of the loop's iterations.
     .grayscale()
     .threshold(180) // rough binarization: text -> black (0), background -> white (255)
     .toBuffer()
