@@ -199,6 +199,7 @@ const DESKEW_STEP = 5 // degrees -- widened from 2 on Sept 25, 2026: the origina
                        // 5 degrees is still just a coarse best-effort search either
                        // way -- fewer, cheaper steps through the same +/-25 range.
 
+async function estimateSkewAngle(buffer) {
   const small = await sharp(buffer)
     .resize({ width: 200, withoutEnlargement: false }) // halved from 400 on Sept 25,
     // 2026 -- the per-angle pixel-counting loop below is O(width x height), so this
