@@ -245,17 +245,15 @@ async function estimateSkewAngle(buffer) {
 }
 
 async function correctSkew(buffer) {
-  try {
-    const angle = await estimateSkewAngle(buffer)
-    if (angle === 0) return buffer
-    return await sharp(buffer).rotate(angle, { background: '#ffffff' }).toBuffer()
-  } catch (e) {
-    // Best-effort improvement, not a required step -- if scoring fails for
-    // any reason, OCR the image as originally oriented rather than fail
-    // the whole upload over it.
-    console.error('Skew correction failed (non-blocking):', e)
-    return buffer
-  }
+  // Sept 25, 2026: temporarily disabled. Trisha Padilla's documents OCR'd
+  // fine before tonight; Princess Aragon's came back with 0% confidence /
+  // no text detected right after the deskew search was made coarser (2deg
+  // step -> 5deg, scoring image 400px -> 200px) to fit uploads under
+  // Vercel's 60s ceiling. A coarser angle search can pick a worse "best"
+  // angle than no correction at all -- skipping deskew entirely removes
+  // that risk and is cheaper than any version of the search. Revisit a
+  // properly-tuned deskew after tonight, not under time pressure.
+  return buffer
 }
 
 async function preprocessForOCR(buffer) {
