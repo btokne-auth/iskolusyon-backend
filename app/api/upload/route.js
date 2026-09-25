@@ -7,7 +7,7 @@
 export const maxDuration = 60
 
 import sharp from 'sharp'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import crypto from 'crypto'
 import { VALID_DOCUMENT_TYPES, AUTOFILL_SCOPED_TYPES } from '@/app/lib/documentTypes'
@@ -463,50 +463,6 @@ export async function POST(request) {
     hashSum.update(buffer)
     const fileHash = hashSum.digest('hex')
 
-    // Run text detection/OCR before upload so extraction failures don't
-    // corrupt a half-finished storage/DB write. A failure here still lets
-    // the document upload succeed — it just comes back with empty text.
-    //
-    // Skipped entirely for 'profilepic': a face photo is never meant to
-    // have OCR-readable text (same reasoning as the Sept 17 exemption in
-    // checkImageQuality above, which only covered the pre-upload contrast
-    // check, not this post-upload safety net) — running OCR on it just
-    // returns near-zero confidence/text every time, which the logic below
-    // would then flag as "needs review" on every single profile picture,
-    // real or not. Leaving extractionMethod at its 'none' default here
-    // means needsReview naturally comes out false for this type, the same
-    // way it already does for a genuine extraction failure.
-    let extractedText = ''
-    let extractionMethod = 'none'
-    let extractionConfidence = 0
-    if (documentType !== 'profilepic') {
-      try {
-        const result = await extractText(buffer, file.type)
-        extractedText = result.text
-        extractionMethod = result.method
-        extractionConfidence = result.confidence
-      } catch (ocrError) {
-        console.error('Text extraction failed:', ocrError)
-      }
-    }
-
-    // OCR reporting high confidence about almost no text is a meaningless
-    // (and misleading) combination — see MIN_OCR_TEXT_LENGTH above. Catch it
-    // before deciding needsReview, and zero the displayed confidence out so
-    // an admin never sees a contradictory "95% confident / no text detected"
-    // result.
-    const ocrFoundNothing = extractionMethod !== 'pdf-embedded-text'
-      && extractionMethod !== 'none'
-      && extractedText.trim().length < MIN_OCR_TEXT_LENGTH
-
-    if (ocrFoundNothing) {
-      extractionConfidence = 0
-    }
-
-    const needsReview = extractionMethod !== 'pdf-embedded-text'
-      && extractionMethod !== 'none'
-      && (ocrFoundNothing || extractionConfidence < LOW_CONFIDENCE_THRESHOLD)
-
     // Define unique file name for the storage bucket
     const safeName = file.name
     .normalize('NFKD')                 // splits accented chars from their marks
@@ -527,17 +483,28 @@ export async function POST(request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Save the file path, SHA-256 hash, and extracted text to your PostgreSQL table
+    // Sept 25, 2026: OCR (orientation + deskew + Tesseract) is what was
+    // pushing this route past Vercel's 60s Hobby-plan FUNCTION_INVOCATION_TIMEOUT
+    // -- a single phone photo can legitimately take longer than that to
+    // recognize, no matter how much the OCR pipeline itself gets trimmed.
+    // So the document row is saved with placeholder OCR fields right away,
+    // the applicant gets a success response immediately below, and OCR
+    // actually runs AFTER that response is sent (via after(), further
+    // down) -- it updates this same row once it finishes, however long
+    // that takes. The applicant never sees a timeout again. profilepic
+    // never ran OCR in the first place, so it's saved as already verified.
+    const isProfilePic = documentType === 'profilepic'
+
     const { error: dbError } = await supabase
       .from('documents')
       .insert([
         { 
           file_path: data.path, 
           sha256_hash: fileHash,
-          extracted_text: extractedText,
-          ocr_confidence: extractionConfidence,
-          needs_review: needsReview,
-          review_status: needsReview ? 'flagged' : 'verified',
+          extracted_text: '',
+          ocr_confidence: 0,
+          needs_review: false,
+          review_status: isProfilePic ? 'verified' : 'processing',
           applicant_name: applicantName,
           applicant_email: applicantEmail,
           applicant_user_id: applicantUserId,
@@ -549,55 +516,22 @@ export async function POST(request) {
       return NextResponse.json({ error: dbError.message }, { status: 500 })
     }
 
-        // Auto-Fill Text Extraction — runs only for document types we've scoped
-    // OCR-based field extraction for so far (PSA, Form 138).
-    try {
-      const { extractPSAFields, extractGradesFields } = require('@/app/lib/textExtraction')
-      let extraction = null
-
-      if (AUTOFILL_SCOPED_TYPES.includes(documentType)) {
-        if (documentType === 'birthcert') {
-          extraction = extractPSAFields(extractedText)
-        } else if (documentType === 'form138') {
-          extraction = extractGradesFields(extractedText)
-        }
+    // profilepic has nothing async left to do, so its audit-log entry can
+    // happen right away, same as before.
+    if (isProfilePic) {
+      try {
+        await supabase.from('audit_log').insert([
+          {
+            actor: 'System',
+            action: `Document auto-verified — ${applicantName} \u00b7 ${documentType} (0% confidence)`,
+            kind: 'done',
+            category: 'Documents',
+          },
+        ])
+      } catch (auditErr) {
+        console.error('Audit log insert failed (non-blocking):', auditErr)
       }
-
-      if (extraction) {
-        for (const [fieldName, value] of Object.entries(extraction.fields)) {
-          await supabase.from('extracted_fields').upsert({
-            file_path: data.path,
-            document_type: documentType,
-            field_name: fieldName,
-            extracted_value: value,
-            needs_review: extraction.needsReview,
-          })
-        }
-      }
-    } catch (extractionErr) {
-      // Same pattern as the audit log below — never block the upload response.
-      console.error('Auto-fill extraction failed (non-blocking):', extractionErr)
     }
-
-    // Global Audit Log entry — best-effort, never blocks the response the
-    // applicant is waiting on. Every upload becomes a timeline entry,
-    // matching the "Recent Activity Log" from the approved admin mockup.
-    try {
-      await supabase.from('audit_log').insert([
-        {
-          actor: 'System',
-          action: needsReview
-            ? `Document flagged for review — ${applicantName} \u00b7 ${documentType} (${Math.round(extractionConfidence)}% confidence)`
-            : `Document auto-verified — ${applicantName} \u00b7 ${documentType} (${Math.round(extractionConfidence)}% confidence)`,
-          kind: needsReview ? 'warn' : 'done',
-          category: 'Documents',
-        },
-      ])
-    } catch (auditErr) {
-      // Logging failure should never break the actual upload flow.
-      console.error('Audit log insert failed (non-blocking):', auditErr)
-    }
- 
 
     // Generate a secure signed URL valid for 1 hour (3600 seconds)
     const { data: signedUrlData, error: signError } = await supabase.storage
@@ -608,15 +542,111 @@ export async function POST(request) {
       return NextResponse.json({ error: signError.message }, { status: 500 })
     }
 
+    // Everything inside this after() runs once the response below has
+    // already been sent to the applicant's browser -- it cannot make the
+    // upload request take longer or fail from the applicant's side. Only
+    // scheduled for non-profilepic uploads, since profilepic never OCRs.
+    if (!isProfilePic) {
+      after(async () => {
+        let extractedText = ''
+        let extractionMethod = 'none'
+        let extractionConfidence = 0
+        try {
+          const result = await extractText(buffer, file.type)
+          extractedText = result.text
+          extractionMethod = result.method
+          extractionConfidence = result.confidence
+        } catch (ocrError) {
+          console.error('Text extraction failed:', ocrError)
+        }
+
+        // OCR reporting high confidence about almost no text is a
+        // meaningless (and misleading) combination — see MIN_OCR_TEXT_LENGTH
+        // above.
+        const ocrFoundNothing = extractionMethod !== 'pdf-embedded-text'
+          && extractionMethod !== 'none'
+          && extractedText.trim().length < MIN_OCR_TEXT_LENGTH
+
+        if (ocrFoundNothing) {
+          extractionConfidence = 0
+        }
+
+        const needsReview = extractionMethod !== 'pdf-embedded-text'
+          && extractionMethod !== 'none'
+          && (ocrFoundNothing || extractionConfidence < LOW_CONFIDENCE_THRESHOLD)
+
+        try {
+          await supabase
+            .from('documents')
+            .update({
+              extracted_text: extractedText,
+              ocr_confidence: extractionConfidence,
+              needs_review: needsReview,
+              review_status: needsReview ? 'flagged' : 'verified',
+            })
+            .eq('file_path', data.path)
+        } catch (updateErr) {
+          console.error('Post-OCR document update failed (non-blocking):', updateErr)
+        }
+
+        // Auto-Fill Text Extraction — runs only for document types we've
+        // scoped OCR-based field extraction for so far (PSA, Form 138).
+        try {
+          const { extractPSAFields, extractGradesFields } = require('@/app/lib/textExtraction')
+          let extraction = null
+
+          if (AUTOFILL_SCOPED_TYPES.includes(documentType)) {
+            if (documentType === 'birthcert') {
+              extraction = extractPSAFields(extractedText)
+            } else if (documentType === 'form138') {
+              extraction = extractGradesFields(extractedText)
+            }
+          }
+
+          if (extraction) {
+            for (const [fieldName, value] of Object.entries(extraction.fields)) {
+              await supabase.from('extracted_fields').upsert({
+                file_path: data.path,
+                document_type: documentType,
+                field_name: fieldName,
+                extracted_value: value,
+                needs_review: extraction.needsReview,
+              })
+            }
+          }
+        } catch (extractionErr) {
+          console.error('Auto-fill extraction failed (non-blocking):', extractionErr)
+        }
+
+        // Global Audit Log entry — best-effort, matches the "Recent
+        // Activity Log" from the approved admin mockup.
+        try {
+          await supabase.from('audit_log').insert([
+            {
+              actor: 'System',
+              action: needsReview
+                ? `Document flagged for review — ${applicantName} \u00b7 ${documentType} (${Math.round(extractionConfidence)}% confidence)`
+                : `Document auto-verified — ${applicantName} \u00b7 ${documentType} (${Math.round(extractionConfidence)}% confidence)`,
+              kind: needsReview ? 'warn' : 'done',
+              category: 'Documents',
+            },
+          ])
+        } catch (auditErr) {
+          // Logging failure should never break the actual upload flow.
+          console.error('Audit log insert failed (non-blocking):', auditErr)
+        }
+      })
+    }
+
     return NextResponse.json({
       success: true,
       filePath: data.path,
       publicUrl: signedUrlData.signedUrl, 
       sha256Hash: fileHash,
-      extractedText,
-      extractionMethod,
-      extractionConfidence,
-      needsReview,
+      extractedText: '',
+      extractionMethod: isProfilePic ? 'none' : 'pending',
+      extractionConfidence: 0,
+      needsReview: false,
       applicantName,
       applicantEmail,
       documentType
