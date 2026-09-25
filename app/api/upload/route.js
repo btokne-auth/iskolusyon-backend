@@ -278,22 +278,15 @@ async function preprocessForOCR(buffer) {
 // the single biggest lever we have on the "OCR falls apart on anything that
 // isn't a clean, born-digital PDF" problem, without adding new dependencies.
 async function ocrWithBestSegmentation(worker, buffer) {
-  // Loaded here (not as a top-level import) so this file's GET handler
-  // never pulls tesseract.js's module code into memory just to list
-  // documents — see the comment above extractText() for why that matters.
+  // Sept 25, 2026: temporarily reduced from two segmentation passes
+  // (PSM.AUTO + PSM.SINGLE_BLOCK) to one -- running Tesseract twice per
+  // upload was the single biggest cost pushing this route past Vercel's
+  // 60s Hobby-plan timeout ceiling. PSM.AUTO alone still handles the
+  // common cases; SINGLE_BLOCK is parked here, not removed for good.
   const { PSM } = await import('tesseract.js')
-  const candidates = [PSM.AUTO, PSM.SINGLE_BLOCK]
-  let best = null
-
-  for (const psm of candidates) {
-    await worker.setParameters({ tessedit_pageseg_mode: psm })
-    const { data } = await worker.recognize(buffer)
-    if (!best || data.confidence > best.confidence) {
-      best = { text: data.text, confidence: data.confidence }
-    }
-  }
-
-  return best
+  await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO })
+  const { data } = await worker.recognize(buffer)
+  return { text: data.text, confidence: data.confidence }
 }
 
 // Runs Tesseract OCR on a single image buffer using an already-started worker.
