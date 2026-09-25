@@ -7,6 +7,7 @@
 export const maxDuration = 60
 
 import sharp from 'sharp'
+import path from 'path'
 import { NextResponse, after } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import crypto from 'crypto'
@@ -18,6 +19,11 @@ import { getSystemSettings } from '@/app/lib/systemSettings'
 // ---------- Validation limits ----------
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
+
+// Sept 25, 2026: local copy of Tesseract's English language model, so OCR
+// reads it off disk instead of re-downloading it from a CDN on every single
+// upload -- see the comment where this gets used in extractText() below.
+const TESSDATA_PATH = path.join(process.cwd(), 'tessdata')
 
 // Below this many characters of embedded PDF text, we assume the PDF has no
 // real text layer (i.e. it's a scanned/photographed document) and fall back
@@ -245,15 +251,17 @@ async function estimateSkewAngle(buffer) {
 }
 
 async function correctSkew(buffer) {
-  // Sept 25, 2026: temporarily disabled. Trisha Padilla's documents OCR'd
-  // fine before tonight; Princess Aragon's came back with 0% confidence /
-  // no text detected right after the deskew search was made coarser (2deg
-  // step -> 5deg, scoring image 400px -> 200px) to fit uploads under
-  // Vercel's 60s ceiling. A coarser angle search can pick a worse "best"
-  // angle than no correction at all -- skipping deskew entirely removes
-  // that risk and is cheaper than any version of the search. Revisit a
-  // properly-tuned deskew after tonight, not under time pressure.
-  return buffer
+  try {
+    const angle = await estimateSkewAngle(buffer)
+    if (angle === 0) return buffer
+    return await sharp(buffer).rotate(angle, { background: '#ffffff' }).toBuffer()
+  } catch (e) {
+    // Best-effort improvement, not a required step -- if scoring fails for
+    // any reason, OCR the image as originally oriented rather than fail
+    // the whole upload over it.
+    console.error('Skew correction failed (non-blocking):', e)
+    return buffer
+  }
 }
 
 async function preprocessForOCR(buffer) {
@@ -319,7 +327,7 @@ async function ocrImageBuffer(worker, buffer) {
 async function extractText(buffer, mimeType) {
   if (mimeType.startsWith('image/')) {
     const { createWorker } = await import('tesseract.js')
-    const worker = await createWorker('eng')
+    const worker = await createWorker('eng', undefined, { langPath: TESSDATA_PATH, gzip: true, cacheMethod: 'none' })
     try {
       const { text, confidence } = await ocrImageBuffer(worker, buffer)
       return { text, method: 'ocr-image', confidence }
@@ -347,7 +355,7 @@ async function extractText(buffer, mimeType) {
       // No usable text layer found — treat as a scanned PDF and OCR each page.
       const screenshot = await parser.getScreenshot({ scale: 2 })
       const { createWorker } = await import('tesseract.js')
-      const worker = await createWorker('eng')
+      const worker = await createWorker('eng', undefined, { langPath: TESSDATA_PATH, gzip: true, cacheMethod: 'none' })
       try {
         let ocrText = ''
         let confidenceSum = 0
@@ -464,7 +472,7 @@ export async function POST(request) {
     // Define unique file name for the storage bucket
     const safeName = file.name
     .normalize('NFKD')                 // splits accented chars from their marks
-    .replace(/[\u0300-\u036f]/g, '')   // strips the accent marks
+    .replace(/[̀-ͯ]/g, '')   // strips the accent marks
     .replace(/[^\w.\-]+/g, '_')        // anything not a letter/number/./- becomes _
     .replace(/_+/g, '_')               // collapse repeated underscores
     const fileName = `${Date.now()}-${safeName}`
@@ -496,8 +504,8 @@ export async function POST(request) {
     const { error: dbError } = await supabase
       .from('documents')
       .insert([
-        { 
-          file_path: data.path, 
+        {
+          file_path: data.path,
           sha256_hash: fileHash,
           extracted_text: '',
           ocr_confidence: 0,
@@ -521,7 +529,7 @@ export async function POST(request) {
         await supabase.from('audit_log').insert([
           {
             actor: 'System',
-            action: `Document auto-verified — ${applicantName} \u00b7 ${documentType} (0% confidence)`,
+            action: `Document auto-verified — ${applicantName} · ${documentType} (0% confidence)`,
             kind: 'done',
             category: 'Documents',
           },
@@ -623,8 +631,8 @@ export async function POST(request) {
             {
               actor: 'System',
               action: needsReview
-                ? `Document flagged for review — ${applicantName} \u00b7 ${documentType} (${Math.round(extractionConfidence)}% confidence)`
-                : `Document auto-verified — ${applicantName} \u00b7 ${documentType} (${Math.round(extractionConfidence)}% confidence)`,
+                ? `Document flagged for review — ${applicantName} · ${documentType} (${Math.round(extractionConfidence)}% confidence)`
+                : `Document auto-verified — ${applicantName} · ${documentType} (${Math.round(extractionConfidence)}% confidence)`,
               kind: needsReview ? 'warn' : 'done',
               category: 'Documents',
             },
@@ -639,7 +647,7 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       filePath: data.path,
-      publicUrl: signedUrlData.signedUrl, 
+      publicUrl: signedUrlData.signedUrl,
       sha256Hash: fileHash,
       extractedText: '',
       extractionMethod: isProfilePic ? 'none' : 'pending',
