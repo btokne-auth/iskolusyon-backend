@@ -1,3 +1,11 @@
+// Vercel Hobby plan defaults serverless functions to a 10-second execution
+// limit, which OCR (Tesseract.js) routinely exceeds -- this was silently
+// killing every non-profilepic upload mid-request with no response ever
+// reaching the browser. Raises this route's limit to 60s, the max Hobby
+// allows. Added Sept 25, 2026 after birth cert / voter's ID uploads hung
+// indefinitely in testing.
+export const maxDuration = 60
+
 import sharp from 'sharp'
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
