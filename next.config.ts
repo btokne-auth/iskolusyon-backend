@@ -11,7 +11,22 @@ const nextConfig: NextConfig = {
   // close to Vercel's 60s timeout ceiling. This explicitly tells the
   // bundler to include it for the upload route.
   outputFileTracingIncludes: {
-    "/api/upload": ["./tessdata/**"],
+    // Sept 26, 2026: same class of problem as the tessdata fix above, found
+    // after switching to the legacy Tesseract engine (OEM.TESSERACT_ONLY)
+    // to cut OCR compute cost -- production immediately crashed with
+    // "ENOENT: no such file or directory, open
+    // '.../tesseract.js-core/tesseract-core-relaxedsimd.wasm'". The
+    // tesseract.js-core package's WASM engine files are read off disk at
+    // runtime (not required/imported directly, so the bundler's static
+    // trace never picks them up) -- same blind spot as eng.traineddata.gz.
+    // Likely the same root cause behind the *original* OCR timeout too:
+    // the default (LSTM) engine's WASM file probably wasn't reliably
+    // bundled either, and whatever fallback path that failure took (a
+    // slow/blocked network fetch, silently retried) is a better fit for
+    // "quietly eats the full 60s" than "recognize() is just this slow".
+    // Includes every core variant (~18MB total) rather than guessing which
+    // one the runtime's SIMD-support detection will pick.
+    "/api/upload": ["./tessdata/**", "./node_modules/tesseract.js-core/**"],
   },
 };
 
