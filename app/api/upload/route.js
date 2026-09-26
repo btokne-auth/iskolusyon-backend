@@ -305,11 +305,26 @@ async function ocrWithBestSegmentation(worker, buffer) {
 }
 
 // Runs Tesseract OCR on a single image buffer using an already-started worker.
+//
+// Sept 26, 2026: added step-by-step timing logs -- the 1200px resize + legacy
+// OEM engine change didn't get uploads under Vercel's 60s ceiling (still
+// timing out per production logs), and Vercel's Observability dashboard
+// Active CPU numbers don't seem to reflect this background after() step at
+// all (P95 1.1s shown, but we know from raw logs it's hitting the full 60s).
+// These console.log lines print straight to Vercel's runtime logs so the
+// actual per-step cost is visible directly, instead of trusting an
+// aggregate dashboard that appears to be undercounting this path.
 async function ocrImageBuffer(worker, buffer) {
+  const t0 = Date.now()
   const oriented = await correctOrientation(worker, buffer)
+  const t1 = Date.now()
   const deskewed = await correctSkew(oriented)
+  const t2 = Date.now()
   const cleaned = await preprocessForOCR(deskewed)
+  const t3 = Date.now()
   const { text, confidence } = await ocrWithBestSegmentation(worker, cleaned)
+  const t4 = Date.now()
+  console.log(`[OCR timing] orientation=${t1 - t0}ms deskew=${t2 - t1}ms preprocess=${t3 - t2}ms recognize=${t4 - t3}ms total=${t4 - t0}ms`)
   return { text: text.trim(), confidence }
 }
 
@@ -339,7 +354,9 @@ async function extractText(buffer, mimeType) {
     // which is the actual bottleneck on Vercel Hobby's throttled CPU. The
     // bundled eng.traineddata (~5MB, not the LSTM-only "fast" variant)
     // includes the legacy tables this mode needs.
+    const workerStart = Date.now()
     const worker = await createWorker('eng', OEM.TESSERACT_ONLY, { langPath: TESSDATA_PATH, gzip: true, cacheMethod: 'none' })
+    console.log(`[OCR timing] worker startup=${Date.now() - workerStart}ms`)
     try {
       const { text, confidence } = await ocrImageBuffer(worker, buffer)
       return { text, method: 'ocr-image', confidence }
