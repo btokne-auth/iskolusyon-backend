@@ -266,7 +266,12 @@ async function correctSkew(buffer) {
 
 async function preprocessForOCR(buffer) {
   return sharp(buffer)
-    .resize({ width: 2000, withoutEnlargement: false })  // upscale small/low-res photos
+    .resize({ width: 1200, withoutEnlargement: false })  // upscale small/low-res photos --
+    // dropped from 2000 on Sept 26, 2026: recognize() cost scales with pixel
+    // count, and 1200px is still comfortably above what Tesseract needs for
+    // clean, printed scholarship forms. One of two cheap compute-cost cuts
+    // (the other being the legacy OEM engine below) tried before reaching
+    // for the always-on-service option.
     .grayscale()
     .median(3)          // knocks out camera-sensor speckle/JPEG noise before
                          // contrast stretching amplifies it — cheap and only
@@ -326,8 +331,15 @@ async function ocrImageBuffer(worker, buffer) {
 // actually parses a file, keeps that crash from ever happening on GET.
 async function extractText(buffer, mimeType) {
   if (mimeType.startsWith('image/')) {
-    const { createWorker } = await import('tesseract.js')
-    const worker = await createWorker('eng', undefined, { langPath: TESSDATA_PATH, gzip: true, cacheMethod: 'none' })
+    const { createWorker, OEM } = await import('tesseract.js')
+    // OEM.LSTM_ONLY (tesseract.js's default) is the slower, more accurate
+    // neural engine. Switched to OEM.TESSERACT_ONLY (the legacy, non-neural
+    // engine) on Sept 26, 2026 -- clean, printed scholarship forms don't
+    // need the neural engine's accuracy, and legacy is meaningfully faster,
+    // which is the actual bottleneck on Vercel Hobby's throttled CPU. The
+    // bundled eng.traineddata (~5MB, not the LSTM-only "fast" variant)
+    // includes the legacy tables this mode needs.
+    const worker = await createWorker('eng', OEM.TESSERACT_ONLY, { langPath: TESSDATA_PATH, gzip: true, cacheMethod: 'none' })
     try {
       const { text, confidence } = await ocrImageBuffer(worker, buffer)
       return { text, method: 'ocr-image', confidence }
@@ -354,8 +366,9 @@ async function extractText(buffer, mimeType) {
 
       // No usable text layer found — treat as a scanned PDF and OCR each page.
       const screenshot = await parser.getScreenshot({ scale: 2 })
-      const { createWorker } = await import('tesseract.js')
-      const worker = await createWorker('eng', undefined, { langPath: TESSDATA_PATH, gzip: true, cacheMethod: 'none' })
+      const { createWorker, OEM } = await import('tesseract.js')
+      // Same legacy-engine switch as the image path above, same reason.
+      const worker = await createWorker('eng', OEM.TESSERACT_ONLY, { langPath: TESSDATA_PATH, gzip: true, cacheMethod: 'none' })
       try {
         let ocrText = ''
         let confidenceSum = 0
