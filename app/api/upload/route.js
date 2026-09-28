@@ -548,98 +548,40 @@ export async function POST(request) {
       return NextResponse.json({ error: signError.message }, { status: 500 })
     }
 
-    // Everything inside this after() runs once the response below has
-    // already been sent to the applicant's browser -- it cannot make the
-    // upload request take longer or fail from the applicant's side. Only
-    // scheduled for non-profilepic uploads, since profilepic never OCRs.
+    // Sept 2026: OCR no longer runs on Vercel. It kept hitting the 60s Hobby
+    // ceiling, and the native Tesseract/WASM files don't survive Vercel's
+    // serverless bundling reliably (see the unmerged ocr-perf-fix branch).
+    // It now runs in a separate always-on service, iskolusyon-ocr-worker
+    // (Render). This route saves the row as 'processing' (above), then just
+    // tells the worker there's work. The worker finds every 'processing' row
+    // in Supabase and writes the same results this block used to write:
+    // documents, extracted_fields and audit_log.
+    //
+    // Nothing waits on OCR. If the wake-up fails (worker asleep for too
+    // long, misconfigured, down), the row stays 'processing' and the worker
+    // picks it up the next time it wakes, since it also sweeps on startup.
     if (!isProfilePic) {
       after(async () => {
-        let extractedText = ''
-        let extractionMethod = 'none'
-        let extractionConfidence = 0
-        try {
-          const result = await extractText(buffer, file.type)
-          extractedText = result.text
-          extractionMethod = result.method
-          extractionConfidence = result.confidence
-        } catch (ocrError) {
-          console.error('Text extraction failed:', ocrError)
+        const workerUrl = process.env.OCR_WORKER_URL
+        const workerSecret = process.env.OCR_WORKER_SECRET
+        if (!workerUrl || !workerSecret) {
+          console.error('OCR worker not configured (OCR_WORKER_URL / OCR_WORKER_SECRET missing); document left in processing:', data.path)
+          return
         }
-
-        // OCR reporting high confidence about almost no text is a
-        // meaningless (and misleading) combination — see MIN_OCR_TEXT_LENGTH
-        // above.
-        const ocrFoundNothing = extractionMethod !== 'pdf-embedded-text'
-          && extractionMethod !== 'none'
-          && extractedText.trim().length < MIN_OCR_TEXT_LENGTH
-
-        if (ocrFoundNothing) {
-          extractionConfidence = 0
-        }
-
-        const needsReview = extractionMethod !== 'pdf-embedded-text'
-          && extractionMethod !== 'none'
-          && (ocrFoundNothing || extractionConfidence < LOW_CONFIDENCE_THRESHOLD)
-
         try {
-          await supabase
-            .from('documents')
-            .update({
-              extracted_text: extractedText,
-              ocr_confidence: extractionConfidence,
-              needs_review: needsReview,
-              review_status: needsReview ? 'flagged' : 'verified',
-            })
-            .eq('file_path', data.path)
-        } catch (updateErr) {
-          console.error('Post-OCR document update failed (non-blocking):', updateErr)
-        }
-
-        // Auto-Fill Text Extraction — runs only for document types we've
-        // scoped OCR-based field extraction for so far (PSA, Form 138).
-        try {
-          const { extractPSAFields, extractGradesFields } = require('@/app/lib/textExtraction')
-          let extraction = null
-
-          if (AUTOFILL_SCOPED_TYPES.includes(documentType)) {
-            if (documentType === 'birthcert') {
-              extraction = extractPSAFields(extractedText)
-            } else if (documentType === 'form138') {
-              extraction = extractGradesFields(extractedText)
-            }
+          const res = await fetch(`${workerUrl.replace(/\/+$/, '')}/wake`, {
+            method: 'POST',
+            headers: { 'x-ocr-worker-secret': workerSecret },
+            // A sleeping free Render instance can take about a minute to
+            // wake; give up just before this route's own 60s limit. The
+            // worker still processes the row once it's up.
+            signal: AbortSignal.timeout(55000),
+          })
+          if (!res.ok) {
+            console.error(`OCR worker wake-up returned ${res.status}; document left in processing:`, data.path)
           }
-
-          if (extraction) {
-            for (const [fieldName, value] of Object.entries(extraction.fields)) {
-              await supabase.from('extracted_fields').upsert({
-                file_path: data.path,
-                document_type: documentType,
-                field_name: fieldName,
-                extracted_value: value,
-                needs_review: extraction.needsReview,
-              })
-            }
-          }
-        } catch (extractionErr) {
-          console.error('Auto-fill extraction failed (non-blocking):', extractionErr)
-        }
-
-        // Global Audit Log entry — best-effort, matches the "Recent
-        // Activity Log" from the approved admin mockup.
-        try {
-          await supabase.from('audit_log').insert([
-            {
-              actor: 'System',
-              action: needsReview
-                ? `Document flagged for review — ${applicantName} · ${documentType} (${Math.round(extractionConfidence)}% confidence)`
-                : `Document auto-verified — ${applicantName} · ${documentType} (${Math.round(extractionConfidence)}% confidence)`,
-              kind: needsReview ? 'warn' : 'done',
-              category: 'Documents',
-            },
-          ])
-        } catch (auditErr) {
-          // Logging failure should never break the actual upload flow.
-          console.error('Audit log insert failed (non-blocking):', auditErr)
+        } catch (wakeErr) {
+          console.error('OCR worker wake-up failed (worker will catch up on next wake):', wakeErr.message)
         }
       })
     }
