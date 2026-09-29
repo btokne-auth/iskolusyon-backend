@@ -171,7 +171,7 @@ export default function HistoryPage() {
             Log in to view your history
           </h1>
           <p className="text-sm text-ccc-muted mb-5">
-            Your application history is tied to your account now — log in to see it.
+            Your application history is tied to your account now. Log in to see it.
           </p>
           <Link
             href="/login"

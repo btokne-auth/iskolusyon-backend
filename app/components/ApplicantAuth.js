@@ -269,7 +269,7 @@ function AuthSide({ mode, step }) {
         {mode === 'login'
           ? 'Sign in to continue your scholarship application, check your status, and manage your submitted documents.'
           : mode === 'forgot'
-          ? 'No worries — we’ll help you find your account and get back in.'
+          ? 'No worries, we’ll help you find your account and get back in.'
           : 'Create your account to apply, track, and manage your City College of Calamba scholarship application.'}
       </p>
       {(mode === 'signup' || mode === 'login' || mode === 'forgot') && step > 0 && (
@@ -878,7 +878,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
             <div className="rounded-lg border border-ccc-border bg-ccc-off p-4 mb-4 text-[13px] text-ccc-text leading-relaxed max-h-56 overflow-y-auto space-y-2">
               <p>
                 In line with the Data Privacy Act of 2012 (RA 10173), City College of Calamba collects the personal, academic,
-                financial, and health information you submit through this portal solely to process your scholarship application —
+                financial, and health information you submit through this portal solely to process your scholarship application,
                 including verifying your identity, evaluating your eligibility, and communicating updates about your application status.
               </p>
               <p>

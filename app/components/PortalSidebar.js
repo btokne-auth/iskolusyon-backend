@@ -108,7 +108,7 @@ export default function PortalSidebar({
               style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
             />
           ) : (
-            <span className="avatar-initials">{avatarInitials || '—'}</span>
+            <span className="avatar-initials">{avatarInitials || '?'}</span>
           )}
         </div>
 

@@ -123,7 +123,7 @@ async function checkImageQuality(buffer, documentType) {
     return {
       passed: false,
       reason: 'low_contrast',
-      message: 'This photo appears blank, extremely blurry, or washed out by glare — no readable detail could be detected. Please retake it on a flat surface, with even lighting and no glare, holding the camera steady.'
+      message: 'This photo appears blank, extremely blurry, or washed out by glare, so no readable detail could be detected. Please retake it on a flat surface, with even lighting and no glare, holding the camera steady.'
     }
   }
 
