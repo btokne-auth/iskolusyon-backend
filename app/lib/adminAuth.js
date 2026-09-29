@@ -123,3 +123,43 @@ export async function verifyAdminCookieValue(cookieValue) {
   const full = await verifyAdminCookieFull(cookieValue)
   return full ? full.name : null
 }
+
+// ---------- First sign-in on a temporary password (Sept 29, 2026) ----------
+//
+// An admin who signs in with a temporary password does NOT get the normal
+// admin cookie. They get this short-lived cookie instead, which only
+// allows one thing: choosing their own password at /admin/change-password.
+// Its payload has no name (`n`), so verifyAdminCookieFull() rejects it and
+// it can never open the admin console or any admin API.
+
+export const ADMIN_PWCHANGE_COOKIE_NAME = 'iskolusyon_admin_pwchange'
+const PWCHANGE_MAX_AGE_SECONDS = 60 * 15 // 15 minutes
+
+export async function createPasswordChangeCookieValue(email, name) {
+  const secret = getSecret()
+  const encodedPayload = toBase64Url(JSON.stringify({ t: 'pwchange', e: email, d: name }))
+  const signature = await hmacHex(encodedPayload, secret)
+  return { value: `${encodedPayload}.${signature}`, maxAge: PWCHANGE_MAX_AGE_SECONDS }
+}
+
+// Returns { email, name } or null.
+export async function verifyPasswordChangeCookie(cookieValue) {
+  if (!cookieValue || !cookieValue.includes('.')) return null
+  const [encodedPayload, signature] = cookieValue.split('.')
+  if (!encodedPayload || !signature) return null
+  try {
+    const secret = getSecret()
+    const expected = await hmacHex(encodedPayload, secret)
+    if (expected.length !== signature.length) return null
+    let mismatch = 0
+    for (let i = 0; i < expected.length; i++) {
+      mismatch |= expected.charCodeAt(i) ^ signature.charCodeAt(i)
+    }
+    if (mismatch !== 0) return null
+    const payload = JSON.parse(fromBase64Url(encodedPayload))
+    if (!payload || payload.t !== 'pwchange' || typeof payload.e !== 'string') return null
+    return { email: payload.e, name: typeof payload.d === 'string' ? payload.d : '' }
+  } catch {
+    return null
+  }
+}

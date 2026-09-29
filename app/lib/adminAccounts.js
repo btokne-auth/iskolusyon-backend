@@ -1,10 +1,16 @@
 // ---------- Per-admin accounts (replaces the shared passcode) ----------
 //
-// Still a placeholder ahead of a real User Account Module (no invite-by-
-// email, no forgot-password, no session timeout — matches the PR #2
-// mockup's *look* of individual sign-in without building the parts that
-// need a real backend). Each admin has their own row in Supabase's
-// `admin_accounts` table: name, email, password_hash, is_super_admin.
+// Each admin has their own row in Supabase's `admin_accounts` table: name,
+// email, password_hash, is_super_admin, plus (Sept 29, 2026)
+// must_change_password and temp_password_expires_at for the invite flow.
+//
+// Invite flow (Sept 29, 2026, MCL-style, agreed with Pau; Ivy's progress-
+// table comment allowed either this or a setup link): a Super Admin
+// re-enters their own password, then invites a new admin by name, email
+// and role. The system generates a temporary password, emails it, and
+// the new admin must choose their own password on first sign-in. A
+// temporary password stops working after 7 days. A Super Admin "reset"
+// works the same way (new temporary password, emailed).
 //
 // `is_super_admin` was added Sept 18, 2026 alongside the admin portal
 // rebuild, to back admin.html's Super-Admin-only nav items (Admin
@@ -17,10 +23,25 @@
 // `crypto` module, so it must only be imported from normal Node runtime
 // code (API routes), never from middleware.js (Edge runtime).
 
-import { scryptSync, randomBytes, timingSafeEqual } from 'crypto'
+import { scryptSync, randomBytes, randomInt, timingSafeEqual } from 'crypto'
 import { supabase } from '@/app/supabaseClient'
 
 const KEY_LENGTH = 64
+export const TEMP_PASSWORD_DAYS = 7
+export const MIN_PASSWORD_LENGTH = 8
+
+// 12 characters from an alphabet without look-alikes (no 0/O, 1/l/I), so
+// it can be read off an email or a screen and typed without mistakes.
+const TEMP_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+export function generateTempPassword() {
+  let out = ''
+  for (let i = 0; i < 12; i++) out += TEMP_ALPHABET[randomInt(TEMP_ALPHABET.length)]
+  return out
+}
+
+function tempExpiryIso() {
+  return new Date(Date.now() + TEMP_PASSWORD_DAYS * 24 * 60 * 60 * 1000).toISOString()
+}
 
 export function hashPassword(password) {
   const salt = randomBytes(16).toString('hex')
@@ -37,50 +58,72 @@ export function verifyPassword(password, storedHash) {
   return timingSafeEqual(hashBuffer, candidateBuffer)
 }
 
-// Returns { name, email, isSuperAdmin } on success, or null if the
-// email/password don't match a row in admin_accounts.
+// Returns { name, email, isSuperAdmin, mustChangePassword, tempExpired } on
+// success, or null if the email/password don't match a row in
+// admin_accounts. Callers decide what a temporary/expired password means
+// (the login route sends the admin to set a new password; the Super Admin
+// re-confirm check only needs the password to match).
 export async function verifyAdminCredentials(email, password) {
   const normalizedEmail = (email || '').trim().toLowerCase()
   if (!normalizedEmail || !password) return null
 
   const { data, error } = await supabase
     .from('admin_accounts')
-    .select('name, email, password_hash, is_super_admin')
+    .select('name, email, password_hash, is_super_admin, must_change_password, temp_password_expires_at')
     .eq('email', normalizedEmail)
     .maybeSingle()
 
   if (error || !data) return null
   if (!verifyPassword(password, data.password_hash)) return null
 
-  return { name: data.name, email: data.email, isSuperAdmin: !!data.is_super_admin }
+  const mustChangePassword = !!data.must_change_password
+  const tempExpired =
+    mustChangePassword &&
+    !!data.temp_password_expires_at &&
+    new Date(data.temp_password_expires_at).getTime() < Date.now()
+
+  return {
+    name: data.name,
+    email: data.email,
+    isSuperAdmin: !!data.is_super_admin,
+    mustChangePassword,
+    tempExpired,
+  }
+}
+
+// Used for the "re-enter your password" check before a Super Admin
+// invites, resets or removes an admin.
+export async function confirmOwnPassword(email, password) {
+  const account = await verifyAdminCredentials(email, password)
+  return !!account && !account.mustChangePassword
 }
 
 // Read-only list for the Admin Accounts panel — never returns password_hash.
 export async function listAdminAccounts() {
   const { data, error } = await supabase
     .from('admin_accounts')
-    .select('name, email, is_super_admin, created_at')
+    .select('name, email, is_super_admin, created_at, must_change_password, temp_password_expires_at')
     .order('created_at', { ascending: true })
 
   if (error) throw new Error(error.message)
   return data || []
 }
 
-// Sept 24 2026: replaces scripts/seed-admin-account.mjs for day-to-day use
-// (that script still works as a break-glass fallback if the app itself is
-// ever unreachable) -- lets a Super Admin create Admin/Super Admin accounts
-// straight from the Admin Accounts panel instead of needing VS Code, repo
-// access, and .env.local. Deliberately create-only, not the seed script's
-// upsert: a Super Admin clicking "Add" on the account-creation form means
-// "this is a new account", so a pre-existing email is rejected with a clear
-// error rather than silently overwriting that person's real password.
-export async function createAdminAccount({ name, email, password, isSuperAdmin }) {
+// Sept 24 2026: replaced scripts/seed-admin-account.mjs for day-to-day use
+// (the script still works as a break-glass fallback). Create-only, not an
+// upsert: a pre-existing email is rejected rather than silently
+// overwriting that person's real password.
+//
+// Sept 29 2026: now an invite. The system generates the temporary
+// password (the Super Admin never types one), and the account must set
+// its own password on first sign-in. Returns the plain temporary password
+// once so the route can email it; it is never stored in plain text.
+export async function inviteAdminAccount({ name, email, isSuperAdmin }) {
   const normalizedEmail = (email || '').trim().toLowerCase()
   const trimmedName = (name || '').trim()
 
   if (!trimmedName) return { error: 'Full name is required.' }
   if (!normalizedEmail) return { error: 'Email is required.' }
-  if (!password || password.length < 8) return { error: 'Password must be at least 8 characters.' }
 
   const { data: existing, error: lookupError } = await supabase
     .from('admin_accounts')
@@ -90,44 +133,86 @@ export async function createAdminAccount({ name, email, password, isSuperAdmin }
   if (lookupError) return { error: lookupError.message }
   if (existing) return { error: 'An admin account with that email already exists.' }
 
-  const password_hash = hashPassword(password)
+  const tempPassword = generateTempPassword()
   const { data, error } = await supabase
     .from('admin_accounts')
-    .insert([{ name: trimmedName, email: normalizedEmail, password_hash, is_super_admin: !!isSuperAdmin }])
-    .select('name, email, is_super_admin, created_at')
+    .insert([
+      {
+        name: trimmedName,
+        email: normalizedEmail,
+        password_hash: hashPassword(tempPassword),
+        is_super_admin: !!isSuperAdmin,
+        must_change_password: true,
+        temp_password_expires_at: tempExpiryIso(),
+      },
+    ])
+    .select('name, email, is_super_admin, created_at, must_change_password, temp_password_expires_at')
     .single()
 
   if (error) return { error: error.message }
-  return { account: data }
+  return { account: data, tempPassword }
 }
 
-// Sept 24 2026: the other half of "no email infrastructure yet" -- an admin
-// who forgets their password can't reset it themselves (no email to send a
-// reset code to), so a Super Admin sets a new one for them directly instead,
-// the same way account creation itself works. The admin then needs to be
-// told the new password through some other channel, same as at creation.
-export async function resetAdminPassword(email, newPassword) {
+// Sept 24 2026, reworked Sept 29 2026: a Super Admin "reset" now issues a
+// fresh temporary password (emailed), and the admin sets their own on
+// next sign-in, same as a new invite.
+export async function resetAdminToTempPassword(email) {
   const normalizedEmail = (email || '').trim().toLowerCase()
   if (!normalizedEmail) return { error: 'Missing email.' }
-  if (!newPassword || newPassword.length < 8) return { error: 'Password must be at least 8 characters.' }
 
-  const password_hash = hashPassword(newPassword)
+  const tempPassword = generateTempPassword()
   const { data, error } = await supabase
     .from('admin_accounts')
-    .update({ password_hash })
+    .update({
+      password_hash: hashPassword(tempPassword),
+      must_change_password: true,
+      temp_password_expires_at: tempExpiryIso(),
+    })
     .eq('email', normalizedEmail)
-    .select('name, email, is_super_admin')
+    .select('name, email, is_super_admin, created_at, must_change_password, temp_password_expires_at')
     .maybeSingle()
 
   if (error) return { error: error.message }
   if (!data) return { error: 'That admin account no longer exists.' }
-  return { account: data }
+  return { account: data, tempPassword }
 }
 
-// Sept 22, 2026: delete-only for now (see app/api/admin-accounts/route.js's
-// DELETE handler for why invite/create is deliberately not built yet --
-// there's no email infrastructure to hang a real invite flow on). Two
-// guards live here rather than only in the route so any future caller gets
+// First sign-in after an invite or reset: the admin replaces their
+// temporary password with their own. Only allowed while the account is
+// still flagged must_change_password and the temporary password hasn't
+// expired.
+export async function setOwnPasswordFromTemp(email, newPassword) {
+  const normalizedEmail = (email || '').trim().toLowerCase()
+  if (!normalizedEmail) return { error: 'Missing email.' }
+  if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
+    return { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` }
+  }
+
+  const { data: account, error: lookupError } = await supabase
+    .from('admin_accounts')
+    .select('name, email, password_hash, is_super_admin, must_change_password, temp_password_expires_at')
+    .eq('email', normalizedEmail)
+    .maybeSingle()
+  if (lookupError) return { error: lookupError.message }
+  if (!account) return { error: 'That admin account no longer exists.' }
+  if (!account.must_change_password) return { error: 'This account already has its own password. Please sign in.' }
+  if (account.temp_password_expires_at && new Date(account.temp_password_expires_at).getTime() < Date.now()) {
+    return { error: 'Your temporary password has expired. Ask a Super Admin to send you a new one.' }
+  }
+  if (verifyPassword(newPassword, account.password_hash)) {
+    return { error: 'Please choose a password different from your temporary one.' }
+  }
+
+  const { error } = await supabase
+    .from('admin_accounts')
+    .update({ password_hash: hashPassword(newPassword), must_change_password: false, temp_password_expires_at: null })
+    .eq('email', normalizedEmail)
+  if (error) return { error: error.message }
+
+  return { account: { name: account.name, email: account.email, isSuperAdmin: !!account.is_super_admin } }
+}
+
+// Sept 22, 2026: removal. Two guards live here rather than only in the route so any future caller gets
 // them too: never let the roster go to zero Super Admins (the console
 // would have no way back in), and the route layers a "not deleting your
 // own signed-in account" check on top using the cookie's email.

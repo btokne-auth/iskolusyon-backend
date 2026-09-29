@@ -8,7 +8,10 @@ import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 export async function middleware(request) {
   const { pathname } = request.nextUrl
 
-  if (pathname.startsWith('/admin/login')) {
+  // /admin/change-password is where an admin on a temporary password picks
+  // their own; it has no admin session yet, so it's open like the login
+  // page (its API only works with the short-lived password-change cookie).
+  if (pathname.startsWith('/admin/login') || pathname.startsWith('/admin/change-password')) {
     return NextResponse.next()
   }
 
