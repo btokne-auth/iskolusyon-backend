@@ -63,6 +63,11 @@ function AdminLoginForm() {
         setError(data.error || 'Login failed.')
         return
       }
+      // Sept 29 2026: signed in with a temporary password (invite or reset).
+      if (data.mustChangePassword) {
+        router.push('/admin/change-password')
+        return
+      }
       const next = searchParams.get('next') || '/admin'
       router.push(next)
       router.refresh()
@@ -105,13 +110,12 @@ function AdminLoginForm() {
           it names what's genuinely still missing (self-signup, session
           timeout) and points a locked-out admin at the real fix (Super
           Admin reset), neither of which the mockup's shorter copy covers. */}
+      {/* Sept 29 2026: copy updated for the invite flow (and no em dash). */}
       <p className="text-xs text-ccc-muted mb-6">
         This console is restricted to authorized CCC personnel. Sign in with
-        your institutional email and password — your access level is
-        determined by your admin account. This still isn&apos;t backed by a
-        full account system yet, so there&apos;s no self-signup or session
-        timeout, and a forgotten password needs a Super Admin to reset it
-        for you.
+        your institutional email and password. If you were just invited, use
+        the temporary password from your email; you&apos;ll choose your own
+        right after. Forgot your password? Ask a Super Admin to reset it.
       </p>
 
       <form onSubmit={handleSubmit} style={{ textAlign: 'left' }}>

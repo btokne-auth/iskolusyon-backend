@@ -390,7 +390,7 @@ function ConfidenceMeter({ value }) {
   )
 }
 
-function CopyHashButton({ hash }) {
+function CopyHashButton({ hash, label = 'Copy hash' }) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     try {
@@ -409,7 +409,7 @@ function CopyHashButton({ hash }) {
       title={hash}
     >
       {copied ? <IconCheck className="w-3 h-3 text-ccc-green" /> : <IconCopy className="w-3 h-3" />}
-      {copied ? 'Copied' : 'Copy hash'}
+      {copied ? 'Copied' : label}
     </button>
   )
 }
@@ -2773,30 +2773,27 @@ function AdminAccountsPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [myEmail, setMyEmail] = useState('')
-  const [removingEmail, setRemovingEmail] = useState(null)
-  const [removeError, setRemoveError] = useState('')
 
-  // Sept 24 2026: real account creation, replacing scripts/seed-admin-
-  // account.mjs -- see app/api/admin-accounts/route.js's POST for why this
-  // is Super-Admin-sets-the-password-directly rather than an email invite.
+  // Sept 29 2026: invite flow. Behavior follows Ivy's admin.html (Invite
+  // button, no password field, "re-enter your password" pop-up before
+  // Invite and Remove, extended here to Reset too). The system generates a
+  // temporary password and emails it; the new admin chooses their own on
+  // first sign-in (see app/api/admin-accounts/route.js).
   const [newName, setNewName] = useState('')
   const [newEmail, setNewEmail] = useState('')
-  const [newPassword, setNewPassword] = useState('')
   const [newRole, setNewRole] = useState('admin')
-  const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState('')
-  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [formError, setFormError] = useState('')
 
-  // Sept 24 2026: forgot-password handling, same reasoning as createAdmin-
-  // Account above -- no email infra to send a reset code to, so a Super
-  // Admin sets the new password directly. `resetTarget` is the email of
-  // whichever row currently has its inline reset form open (only one at a
-  // time).
-  const [resetTarget, setResetTarget] = useState(null)
-  const [resetPassword, setResetPassword] = useState('')
-  const [resetting, setResetting] = useState(false)
-  const [resetError, setResetError] = useState('')
-  const [showResetPassword, setShowResetPassword] = useState(false)
+  // The pending action waiting for the Super Admin's password:
+  // { type: 'invite' | 'reset' | 'remove', account?, title, desc }
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [confirmError, setConfirmError] = useState('')
+  const [confirmBusy, setConfirmBusy] = useState(false)
+
+  // Result banner after an invite or reset: { tone: 'done' | 'warn', text, tempPassword? }
+  const [notice, setNotice] = useState(null)
 
   const loadAccounts = () => {
     setLoading(true)
@@ -2820,141 +2817,193 @@ function AdminAccountsPanel() {
       .catch(() => {})
   }, [])
 
-  const handleRemove = async (acc) => {
-    if (!window.confirm(`Remove ${acc.name} (${acc.email}) from Admin Accounts? This can't be undone.`)) return
-    setRemoveError('')
-    setRemovingEmail(acc.email)
-    try {
-      const res = await fetch(`/api/admin-accounts?email=${encodeURIComponent(acc.email)}`, { method: 'DELETE' })
-      const data = await res.json()
-      if (!data.success) {
-        setRemoveError(data.error || 'Failed to remove admin account.')
-        return
-      }
-      setAccounts((prev) => prev.filter((a) => a.email !== acc.email))
-    } catch (err) {
-      setRemoveError(err.message)
-    } finally {
-      setRemovingEmail(null)
-    }
+  const openConfirm = (action) => {
+    setConfirmPassword('')
+    setShowConfirmPassword(false)
+    setConfirmError('')
+    setConfirmAction(action)
   }
 
-  const handleCreate = async (e) => {
+  const closeConfirm = () => {
+    if (confirmBusy) return
+    setConfirmAction(null)
+    setConfirmPassword('')
+    setConfirmError('')
+  }
+
+  const requestInvite = (e) => {
     e.preventDefault()
-    setCreateError('')
-    setCreating(true)
-    try {
-      const res = await fetch('/api/admin-accounts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newName,
-          email: newEmail,
-          password: newPassword,
-          isSuperAdmin: newRole === 'super_admin',
-        }),
-      })
-      const data = await res.json()
-      if (!data.success) {
-        setCreateError(data.error || 'Failed to create admin account.')
-        return
-      }
-      setAccounts((prev) => [...prev, data.account])
-      setNewName('')
-      setNewEmail('')
-      setNewPassword('')
-      setNewRole('admin')
-    } catch (err) {
-      setCreateError(err.message)
-    } finally {
-      setCreating(false)
-    }
-  }
-
-  const startReset = (email) => {
-    setResetError('')
-    setResetPassword('')
-    setShowResetPassword(false)
-    setResetTarget(email)
-  }
-
-  const cancelReset = () => {
-    setResetTarget(null)
-    setResetPassword('')
-    setResetError('')
-    setShowResetPassword(false)
-  }
-
-  const handleResetSave = async (email) => {
-    setResetError('')
-    if (!resetPassword || resetPassword.length < 8) {
-      setResetError('Password must be at least 8 characters.')
+    setFormError('')
+    setNotice(null)
+    if (!newName.trim() || !newEmail.trim()) {
+      setFormError('Please enter a full name and email.')
       return
     }
-    setResetting(true)
+    openConfirm({
+      type: 'invite',
+      title: 'Confirm Invite',
+      desc: `Re-enter your password to invite ${newName.trim()} (${newEmail.trim()}) as ${
+        newRole === 'super_admin' ? 'a Super Admin' : 'an Admin'
+      }.`,
+    })
+  }
+
+  const requestReset = (acc) => {
+    setNotice(null)
+    openConfirm({
+      type: 'reset',
+      account: acc,
+      title: 'Reset Password',
+      desc: `Re-enter your password to email ${acc.name} a new temporary password. Their current password will stop working.`,
+    })
+  }
+
+  const requestRemove = (acc) => {
+    setNotice(null)
+    openConfirm({
+      type: 'remove',
+      account: acc,
+      title: 'Remove Admin',
+      desc: `Re-enter your password to remove ${acc.name} (${acc.email}). This can\u2019t be undone.`,
+    })
+  }
+
+  const describeTempResult = (data, name) => {
+    if (data.emailSent) {
+      return { tone: 'done', text: `Email sent to ${name} with a temporary password. They\u2019ll choose their own when they first sign in.` }
+    }
+    return {
+      tone: 'warn',
+      text: `The account is ready, but the email couldn\u2019t be sent. Share this temporary password with ${name} directly. It won\u2019t be shown again.`,
+      tempPassword: data.tempPassword,
+    }
+  }
+
+  const submitConfirm = async (e) => {
+    e.preventDefault()
+    if (!confirmAction) return
+    if (!confirmPassword) {
+      setConfirmError('Please enter your password.')
+      return
+    }
+    setConfirmError('')
+    setConfirmBusy(true)
     try {
-      const res = await fetch('/api/admin-accounts', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password: resetPassword }),
-      })
+      let res
+      if (confirmAction.type === 'invite') {
+        res = await fetch('/api/admin-accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: newName,
+            email: newEmail,
+            isSuperAdmin: newRole === 'super_admin',
+            confirmPassword,
+          }),
+        })
+      } else if (confirmAction.type === 'reset') {
+        res = await fetch('/api/admin-accounts', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: confirmAction.account.email, confirmPassword }),
+        })
+      } else {
+        res = await fetch('/api/admin-accounts', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: confirmAction.account.email, confirmPassword }),
+        })
+      }
       const data = await res.json()
-      if (!data.success) {
-        setResetError(data.error || 'Failed to reset password.')
+
+      // Wrong password: stay in the pop-up so they can retry.
+      if (res.status === 403) {
+        setConfirmError(data.error || 'Incorrect password. Please try again.')
         return
       }
-      setResetTarget(null)
-      setResetPassword('')
+
+      const action = confirmAction
+      setConfirmAction(null)
+      setConfirmPassword('')
+
+      if (!data.success) {
+        if (action.type === 'invite') setFormError(data.error || 'Could not invite this admin.')
+        else setNotice({ tone: 'warn', text: data.error || 'Something went wrong.' })
+        return
+      }
+
+      if (action.type === 'invite') {
+        setAccounts((prev) => [...prev, data.account])
+        setNotice(describeTempResult(data, data.account.name))
+        setNewName('')
+        setNewEmail('')
+        setNewRole('admin')
+      } else if (action.type === 'reset') {
+        setAccounts((prev) => prev.map((a) => (a.email === data.account.email ? { ...a, ...data.account } : a)))
+        setNotice(describeTempResult(data, data.account.name))
+      } else {
+        setAccounts((prev) => prev.filter((a) => a.email !== action.account.email))
+        setNotice({ tone: 'done', text: `${action.account.name} was removed.` })
+      }
     } catch (err) {
-      setResetError(err.message)
+      setConfirmError(err.message)
     } finally {
-      setResetting(false)
+      setConfirmBusy(false)
     }
+  }
+
+  const pendingState = (acc) => {
+    if (!acc.must_change_password) return null
+    const expired = acc.temp_password_expires_at && new Date(acc.temp_password_expires_at).getTime() < Date.now()
+    return expired ? 'expired' : 'pending'
   }
 
   return (
     <div>
-      {/* Sept 24 2026 reskin: header moved onto the shared .portal-header
-          class (matches Applicant Results / Statistics) instead of a
-          hand-rolled h1/p pair; the account list moved into .card so it
-          reads as the same "card" surface as every other panel rather than
-          a plain bordered box. No logic or API calls touched. */}
       <div className="portal-header">
         <div>
           <h1>Admin Accounts</h1>
-          {/* Sept 24 2026: copy updated now that creation is real (see the
-              Add Admin Account card below) -- this used to say accounts
-              were only seeded via scripts/seed-admin-account.mjs, which is
-              no longer true for day-to-day use. Still no email invite --
-              Resend is sandbox-restricted to the developer's own inbox on
-              the free tier -- so the Super Admin sets the password
-              directly instead. */}
           <p>
-            Super admin only. Create an Admin or Super Admin account below by setting its password directly — there&apos;s
-            no email invite yet (no email provider set up that can reach an arbitrary CCC inbox), so whoever creates
-            the account should share the password with its owner through some other channel. Removing an account is
-            real and takes effect immediately.
+            Super admin only. Invite an Admin or Super Admin below. They&apos;ll get an email with a temporary
+            password and choose their own when they first sign in. Inviting, resetting and removing accounts all
+            ask for your password first.
           </p>
         </div>
       </div>
 
-      {/* Sept 24 2026: the "Add Admin Account" form from Ivy's mockup,
-          wired up for real now instead of left out -- uses .add-admin-form
-          (already in admin-theme.css, unused until now) with its column
-          count widened by one via inline style for the Password field the
-          mockup's email-invite version didn't need. */}
+      {notice && (
+        <div
+          className={`mb-4 rounded-xl border px-4 py-3 text-xs font-semibold ${
+            notice.tone === 'done'
+              ? 'border-ccc-green/40 bg-green-50 text-ccc-green'
+              : 'border-ccc-orange/50 bg-orange-50 text-ccc-orange'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span>{notice.text}</span>
+            <button type="button" onClick={() => setNotice(null)} className="text-ccc-muted hover:text-ccc-text" aria-label="Dismiss">
+              ✕
+            </button>
+          </div>
+          {notice.tempPassword && (
+            <div className="mt-2 flex items-center gap-2">
+              <code className="rounded-md border border-ccc-border bg-white px-3 py-1.5 text-sm font-bold tracking-wider text-ccc-text">
+                {notice.tempPassword}
+              </code>
+              <CopyHashButton hash={notice.tempPassword} label="Copy" />
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="card">
         <div className="card-title">Add Admin Account</div>
-        {createError && (
+        {formError && (
           <div className="mb-4 rounded-xl border border-ccc-red/40 bg-red-50 px-4 py-2.5 text-xs font-semibold text-ccc-red">
-            {createError}
+            {formError}
           </div>
         )}
-        <form
-          className="add-admin-form"
-          style={{ gridTemplateColumns: '1.2fr 1.5fr 0.9fr 1fr auto' }}
-          onSubmit={handleCreate}
-        >
+        <form className="add-admin-form" onSubmit={requestInvite}>
           <div className="efield">
             <label>Full Name</label>
             <input
@@ -2982,54 +3031,15 @@ function AdminAccountsPanel() {
               <option value="super_admin">Super Admin</option>
             </select>
           </div>
-          <div className="efield">
-            <label>Password</label>
-            {/* Sept 24 2026: show/hide toggle, same pattern as the admin
-                login page and the reset-password field below -- no matching
-                CSS class for this in admin-theme.css, so the input is
-                wrapped in a relative container. */}
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showNewPassword ? 'text' : 'password'}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="At least 8 characters"
-                minLength={8}
-                required
-                style={{ paddingRight: 32 }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowNewPassword((v) => !v)}
-                aria-label={showNewPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
-                tabIndex={-1}
-              >
-                {showNewPassword ? <EyeOffIcon /> : <EyeIcon />}
-              </button>
-            </div>
-          </div>
           <button
             type="submit"
-            disabled={creating}
-            className="text-xs font-bold uppercase tracking-wide text-white bg-ccc-navy px-4 py-2.5 rounded-lg disabled:opacity-60"
+            className="text-xs font-bold uppercase tracking-wide text-white bg-ccc-navy px-4 py-2.5 rounded-lg"
           >
-            {creating ? 'Adding...' : 'Add Account'}
+            Invite
           </button>
         </form>
       </div>
 
-      {removeError && (
-        <div className="mb-4 rounded-xl border border-ccc-red/40 bg-red-50 px-4 py-2.5 text-xs font-semibold text-ccc-red">
-          {removeError}
-        </div>
-      )}
-
-      {/* Sept 24 2026: swapped the plain table for the .admin-list/.admin-row
-          markup from Ivy's mockup CSS (already sitting unused in
-          admin-theme.css under "SUPER ADMIN: ACCOUNTS") -- avatar-initials
-          circle, name/email stack, a role-tag pill, and an icon-only delete
-          button instead of a text "Remove" link. */}
       <div className="card" style={{ marginBottom: 0 }}>
         <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>Current Accounts</span>
@@ -3049,13 +3059,9 @@ function AdminAccountsPanel() {
           <div className="admin-list">
             {accounts.map((acc) => {
               const isSelf = acc.email.toLowerCase() === myEmail
-              const isResetting = resetTarget === acc.email
+              const pending = pendingState(acc)
               return (
-                <div
-                  key={acc.email}
-                  className="admin-row"
-                  style={isResetting ? { flexDirection: 'column', alignItems: 'stretch', gap: '10px' } : undefined}
-                >
+                <div key={acc.email} className="admin-row">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '13px', width: '100%' }}>
                     <div className="aa-avatar">{getInitials(acc.name)}</div>
                     <div className="aa-info">
@@ -3065,81 +3071,91 @@ function AdminAccountsPanel() {
                       </div>
                       <div className="aa-email">{acc.email}</div>
                     </div>
+                    {pending && (
+                      <span
+                        className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                          pending === 'expired'
+                            ? 'border-ccc-red/40 bg-red-50 text-ccc-red'
+                            : 'border-ccc-orange/50 bg-orange-50 text-ccc-orange'
+                        }`}
+                        title={
+                          pending === 'expired'
+                            ? 'Their temporary password expired. Use Reset to send a new one.'
+                            : 'Invited. Waiting for them to sign in and choose their own password.'
+                        }
+                      >
+                        {pending === 'expired' ? 'Invite expired' : 'Pending setup'}
+                      </span>
+                    )}
                     <span className={`role-tag ${acc.is_super_admin ? 'super' : 'admin'}`}>
                       {acc.is_super_admin ? 'Super Admin' : 'Admin'}
                     </span>
-                    {/* Sept 24 2026: forgot-password action -- no matching CSS
-                        class in admin-theme.css for this variant, so it's
-                        hand-styled with Tailwind to match .admin-row-del's
-                        footprint (same size/padding) but blue instead of red
-                        so the two actions read as distinct at a glance. */}
                     <button
                       type="button"
-                      onClick={() => (isResetting ? cancelReset() : startReset(acc.email))}
-                      className="flex items-center justify-center w-8 h-8 rounded-lg text-sm text-ccc-blue hover:bg-blue-50 transition-colors"
-                      title={isResetting ? 'Cancel password reset' : "Reset this admin's password"}
+                      onClick={() => requestReset(acc)}
+                      disabled={isSelf}
+                      className="flex items-center justify-center w-8 h-8 rounded-lg text-sm text-ccc-blue hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      title={isSelf ? "You can't reset your own password here." : 'Email a new temporary password'}
                     >
-                      {isResetting ? '✕' : '🔑'}
+                      🔑
                     </button>
                     <button
                       type="button"
                       className={`admin-row-del${isSelf ? ' is-disabled' : ''}`}
-                      onClick={() => handleRemove(acc)}
-                      disabled={isSelf || removingEmail === acc.email}
+                      onClick={() => requestRemove(acc)}
+                      disabled={isSelf}
                       title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
                     >
-                      {removingEmail === acc.email ? '…' : '🗑'}
+                      🗑
                     </button>
                   </div>
-                  {isResetting && (
-                    <div className="flex items-center gap-2.5 pl-[53px]">
-                      <div className="flex-1" style={{ position: 'relative' }}>
-                        <input
-                          type={showResetPassword ? 'text' : 'password'}
-                          value={resetPassword}
-                          onChange={(e) => setResetPassword(e.target.value)}
-                          placeholder="New password (at least 8 characters)"
-                          minLength={8}
-                          autoFocus
-                          className="w-full rounded-lg border border-ccc-border px-3 py-2 text-xs"
-                          style={{ paddingRight: 30 }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowResetPassword((v) => !v)}
-                          aria-label={showResetPassword ? 'Hide password' : 'Show password'}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
-                          tabIndex={-1}
-                        >
-                          {showResetPassword ? <EyeOffIcon /> : <EyeIcon />}
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleResetSave(acc.email)}
-                        disabled={resetting}
-                        className="text-xs font-bold uppercase tracking-wide text-white bg-ccc-navy px-3 py-2 rounded-lg disabled:opacity-60"
-                      >
-                        {resetting ? 'Saving...' : 'Save'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelReset}
-                        className="text-xs font-bold uppercase tracking-wide text-ccc-muted px-3 py-2 rounded-lg hover:bg-ccc-off"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                  {isResetting && resetError && (
-                    <p className="text-xs font-semibold text-ccc-red pl-[53px]">{resetError}</p>
-                  )}
                 </div>
               )
             })}
           </div>
         )}
       </div>
+
+      {/* Password confirm pop-up, ported from Ivy's admin.html
+          (#adminActionPasswordOverlay). */}
+      {confirmAction && (
+        <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && closeConfirm()}>
+          <form className="confirm-box has-password" role="dialog" aria-modal="true" onSubmit={submitConfirm}>
+            <div className="confirm-icon">&#128274;</div>
+            <h3>{confirmAction.title}</h3>
+            <p>{confirmAction.desc}</p>
+            <div className="gate-field" style={{ position: 'relative' }}>
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Your password"
+                autoComplete="current-password"
+                autoFocus
+                style={{ paddingRight: 36 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword((v) => !v)}
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
+                tabIndex={-1}
+              >
+                {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+            {confirmError && <p className="confirm-password-error show">{confirmError}</p>}
+            <div className="confirm-actions">
+              <button type="button" className="mbtn mbtn-ghost" onClick={closeConfirm} disabled={confirmBusy}>
+                Cancel
+              </button>
+              <button type="submit" className="mbtn mbtn-primary" disabled={confirmBusy}>
+                {confirmBusy ? 'Working...' : 'Confirm'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

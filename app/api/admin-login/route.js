@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
-import { ADMIN_COOKIE_NAME, createAdminCookieValue } from '@/app/lib/adminAuth'
+import {
+  ADMIN_COOKIE_NAME,
+  ADMIN_PWCHANGE_COOKIE_NAME,
+  createAdminCookieValue,
+  createPasswordChangeCookieValue,
+} from '@/app/lib/adminAuth'
 import { verifyAdminCredentials } from '@/app/lib/adminAccounts'
 import { supabase } from '@/app/supabaseClient'
 
@@ -33,6 +38,28 @@ export async function POST(request) {
         console.error('Audit log insert failed (non-blocking):', auditErr)
       }
       return NextResponse.json({ error: 'Incorrect email or password.' }, { status: 401 })
+    }
+
+    // Sept 29 2026: temporary password (new invite or Super Admin reset).
+    // No console access yet: the admin gets a short-lived cookie that only
+    // lets them choose their own password at /admin/change-password.
+    if (account.mustChangePassword) {
+      if (account.tempExpired) {
+        return NextResponse.json(
+          { error: 'Your temporary password has expired. Ask a Super Admin to send you a new one.' },
+          { status: 401 }
+        )
+      }
+      const pending = await createPasswordChangeCookieValue(account.email, account.name)
+      const res = NextResponse.json({ success: true, mustChangePassword: true })
+      res.cookies.set(ADMIN_PWCHANGE_COOKIE_NAME, pending.value, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+        maxAge: pending.maxAge,
+      })
+      return res
     }
 
     const { value, maxAge } = await createAdminCookieValue(account.name, account.isSuperAdmin, account.email)
