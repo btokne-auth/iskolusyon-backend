@@ -865,6 +865,39 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected, di
 // Both buttons are .mbtn.mbtn-primary in spec (applicant.html's
 // Save-as-Draft is NOT a secondary/ghost button — both are solid blue;
 // confirmed against every instance of .form-actions in the mockup).
+// Auto-fill (Sept 29): which extracted_fields value goes into which
+// Personal Information input, per document. Keeps Ivy's applicant.html
+// behavior contract (birth certificate -> name, birth date, birth place,
+// sex; voter's ID -> address, precinct) with real OCR values instead of her
+// hardcoded DOC_EXTRACTED_DATA. Citizenship and religion are on the same
+// card and the same certificate, so they're filled too.
+const AUTOFILL_FIELD_MAP = {
+  birthcert: {
+    first_name: 'firstName',
+    middle_name: 'middleName',
+    last_name: 'lastName',
+    suffix: 'suffix',
+    date_of_birth: 'dateOfBirth',
+    place_of_birth: 'placeOfBirth',
+    sex: 'sex',
+    citizenship: 'citizenship',
+    religion: 'religion',
+  },
+  voterid: {
+    address: 'address',
+    voter_precinct: 'voterPrecinct',
+  },
+}
+const AUTOFILL_DOC_LABEL = { birthcert: 'Birth Certificate', voterid: "Voter's ID" }
+const AUTOFILL_POLL_MS = 4000
+const AUTOFILL_MAX_WAIT_MS = 150000 // the worker can take ~1.5 min to wake up
+
+function AutofillNote({ note }) {
+  if (!note) return null
+  const color = { info: 'var(--muted)', done: 'var(--green)', warn: 'var(--gold)' }[note.tone] || 'var(--muted)'
+  return <p className="field-note" style={{ color, marginTop: '8px' }}>{note.text}</p>
+}
+
 // A status note placed in the same row as the buttons (.form-actions is a
 // flex row). Vertically centered with no top margin so it lines up with
 // the buttons instead of nudging them.
@@ -1917,6 +1950,73 @@ function PortalApp({ accountSession, onLogout }) {
   // uploadDocument() call as Step 2, but reports through a compact
   // per-field status instead of the shared status/qualityRejection state
   // (three of these can be in flight independently across cards 1-3).
+  // ---- Auto-fill from uploaded documents (Sept 29) ----
+  // personalInfoRef mirrors the latest form values so the watcher below can
+  // tell which inputs are still empty when the OCR result arrives, even
+  // though it was started from an older render.
+  const personalInfoRef = useRef(personalInfo)
+  useEffect(() => { personalInfoRef.current = personalInfo }, [personalInfo])
+  const [autofillNotes, setAutofillNotes] = useState({}) // { birthcert: { tone, text }, voterid: ... }
+  const autofillRunRef = useRef({}) // latest upload per doc type; an older poll stops if replaced
+  const setAutofillNote = (docType, note) => setAutofillNotes((n) => ({ ...n, [docType]: note }))
+
+  const watchAutofill = async (docType, filePath) => {
+    const map = AUTOFILL_FIELD_MAP[docType]
+    if (!map || !filePath) return
+    autofillRunRef.current[docType] = filePath
+    setAutofillNote(docType, { tone: 'info', text: 'Reading your document to fill in the fields above. This can take up to a minute.' })
+
+    const startedAt = Date.now()
+    while (Date.now() - startedAt < AUTOFILL_MAX_WAIT_MS) {
+      await new Promise((r) => setTimeout(r, AUTOFILL_POLL_MS))
+      if (autofillRunRef.current[docType] !== filePath) return // a newer upload took over
+      let data
+      try {
+        const res = await fetch(`/api/extracted-fields?file=${encodeURIComponent(filePath)}`)
+        if (!res.ok) { setAutofillNote(docType, null); return }
+        data = await res.json()
+      } catch {
+        continue // brief connection drop; try again on the next tick
+      }
+      if (data.status === 'processing') continue
+
+      const fields = data.fields || {}
+      const current = personalInfoRef.current
+      const toFill = {}
+      let readCount = 0
+      for (const [fieldName, formKey] of Object.entries(map)) {
+        const value = fields[fieldName]
+        if (!value) continue
+        readCount++
+        if (!String(current[formKey] ?? '').trim()) toFill[formKey] = value
+      }
+
+      const fillKeys = Object.keys(toFill)
+      if (fillKeys.length) {
+        // Re-check emptiness at write time too, in case the applicant typed
+        // into a field in the last few milliseconds.
+        setPersonalInfo((p) => {
+          const next = { ...p }
+          for (const k of fillKeys) if (!String(p[k] ?? '').trim()) next[k] = toFill[k]
+          return next
+        })
+      }
+
+      const label = AUTOFILL_DOC_LABEL[docType]
+      if (fillKeys.length) {
+        setAutofillNote(docType, { tone: 'done', text: `Filled in ${fillKeys.length} empty field${fillKeys.length === 1 ? '' : 's'} from your ${label}. Please check them, then save.` })
+      } else if (readCount) {
+        setAutofillNote(docType, { tone: 'info', text: `Your ${label} was read. The fields above were already filled in, so nothing was changed.` })
+      } else {
+        setAutofillNote(docType, { tone: 'warn', text: `We couldn't read the details from your ${label}. Please fill in the fields above manually.` })
+      }
+      return
+    }
+    if (autofillRunRef.current[docType] === filePath) {
+      setAutofillNote(docType, { tone: 'warn', text: 'Reading your document is taking longer than usual. You can fill in the fields above manually.' })
+    }
+  }
+
   const handleInlineUpload = async (docType, uploadFile, setInlineStatus, setInlineRejection) => {
     if (!uploadFile || !applicantName.trim()) return
     setInlineStatus('uploading')
@@ -1925,6 +2025,7 @@ function PortalApp({ accountSession, onLogout }) {
       const data = await uploadDocument(docType, uploadFile)
       setInlineStatus(data.needsReview ? 'flagged' : 'done')
       fetchHistory()
+      if (AUTOFILL_FIELD_MAP[docType] && data.filePath) watchAutofill(docType, data.filePath)
     } catch (err) {
       if (err.rejected) {
         // A specific, actionable quality-precheck rejection (too small,
@@ -2457,6 +2558,7 @@ function PortalApp({ accountSession, onLogout }) {
                     onFileSelected={(f) => handleInlineUpload('birthcert', f, setBirthCertStatus, setBirthCertRejection)}
                   />
                   {birthCertRejection && <QualityRejectionAlert message={birthCertRejection} />}
+                  <AutofillNote note={autofillNotes.birthcert} />
                 </div>
               </div>
 
@@ -2500,6 +2602,7 @@ function PortalApp({ accountSession, onLogout }) {
                     onFileSelected={(f) => handleInlineUpload('voterid', f, setVoterIdStatus, setVoterIdRejection)}
                   />
                   {voterIdRejection && <QualityRejectionAlert message={voterIdRejection} />}
+                  <AutofillNote note={autofillNotes.voterid} />
                 </div>
               </div>
 
