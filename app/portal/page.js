@@ -47,21 +47,6 @@ function IconExternal(props) {
     </svg>
   )
 }
-function IconEye(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z" />
-      <circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-function IconEyeOff(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18M10.6 10.6a3 3 0 004.24 4.24M9.36 5.11A10.6 10.6 0 0112 5c6 0 9.5 7 9.5 7a13.6 13.6 0 01-3.13 3.94M6.6 6.6C4.16 8.2 2.5 10.5 2.5 12c0 0 3.5 7 9.5 7 1.13 0 2.19-.19 3.17-.53" />
-    </svg>
-  )
-}
 function IconCopy(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
@@ -286,49 +271,11 @@ function ExtractedTextField({ text, method, processing }) {
   )
 }
 
-// Password-style hash field: masked by default, toggle to reveal, click to copy.
-function HashField({ hash, dim = false }) {
-  const [revealed, setRevealed] = useState(false)
-  const [copied, setCopied] = useState(false)
-
-  const masked = '•'.repeat(28)
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(hash)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch (e) {
-      // clipboard unavailable — silently ignore
-    }
-  }
-
-  return (
-    <div className={`flex items-center gap-1.5 rounded-lg border ${dim ? 'border-ccc-border bg-ccc-off' : 'border-ccc-border bg-white'} pl-3 pr-1.5 py-1.5`}>
-      <span className={`flex-1 min-w-0 font-mono text-[11px] tracking-tight ${dim ? 'text-ccc-muted' : 'text-ccc-blue'} ${revealed ? 'truncate' : ''}`}>
-        {revealed ? hash : masked}
-      </span>
-      <button
-        type="button"
-        onClick={() => setRevealed((v) => !v)}
-        className="shrink-0 p-1.5 rounded-md text-ccc-muted hover:text-ccc-navy hover:bg-ccc-off transition-colors"
-        aria-label={revealed ? 'Hide hash' : 'Reveal hash'}
-        title={revealed ? 'Hide hash' : 'Reveal hash'}
-      >
-        {revealed ? <IconEyeOff className="w-3.5 h-3.5" /> : <IconEye className="w-3.5 h-3.5" />}
-      </button>
-      <button
-        type="button"
-        onClick={copy}
-        className="shrink-0 p-1.5 rounded-md text-ccc-muted hover:text-ccc-navy hover:bg-ccc-off transition-colors"
-        aria-label="Copy hash"
-        title="Copy hash"
-      >
-        {copied ? <IconCheck className="w-3.5 h-3.5 text-ccc-green" /> : <IconCopy className="w-3.5 h-3.5" />}
-      </button>
-    </div>
-  )
-}
+// Sept 29: the applicant-side HashField (masked SHA-256 with reveal/copy)
+// was removed. The hash meant nothing to applicants, a revealed hash
+// overflowed the Recent uploads panel, and Ivy's applicant.html spec never
+// shows it. Every upload is still hashed and stored server-side, and admins
+// still see it (Copy hash in the admin applicant window).
 
 // Small status pill used on the current result panel and in the history list —
 // the visible surface of the Deficiency Alert flow. A document is either
@@ -918,15 +865,19 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected, di
 // Both buttons are .mbtn.mbtn-primary in spec (applicant.html's
 // Save-as-Draft is NOT a secondary/ghost button — both are solid blue;
 // confirmed against every instance of .form-actions in the mockup).
+// A status note placed in the same row as the buttons (.form-actions is a
+// flex row). Vertically centered with no top margin so it lines up with
+// the buttons instead of nudging them.
+const INLINE_NOTE_STYLE = (color) => ({ color, marginTop: 0, alignSelf: 'center' })
+
 function SectionFormActions({ saveState, sectionState, error, disabled, submitDisabled, submitLabel, onSaveDraft, onSubmit }) {
   return (
     <div>
+      {/* The missing-fields error can be a multi-line list, so it stays
+          above the buttons. The short status notes below sit to the RIGHT
+          of the buttons in the same row (Sept 29), so the buttons no
+          longer move when a note appears or disappears. */}
       {error && <p className="save-note" style={{ color: 'var(--red)', whiteSpace: 'pre-line' }}>{error}</p>}
-      {saveState === 'saved' && <p className="save-note" style={{ color: 'var(--green)' }}>Progress saved &#x2713;</p>}
-      {saveState === 'error' && <p className="save-note" style={{ color: 'var(--red)' }}>Couldn&rsquo;t save &mdash; try again</p>}
-      {saveState === 'offline' && <p className="save-note" style={{ color: 'var(--gold)' }}>No connection &mdash; saved on this device, will sync automatically</p>}
-      {sectionState === 'submitted' && <p className="save-note" style={{ color: 'var(--green)' }}>Submitted &#x2713;</p>}
-      {sectionState === 'error' && <p className="save-note" style={{ color: 'var(--red)' }}>Couldn&rsquo;t submit &mdash; try again</p>}
       <div className="form-actions">
         <button type="button" onClick={onSaveDraft} disabled={disabled || saveState === 'saving'} className="mbtn mbtn-primary">
           {saveState === 'saving' ? 'Saving…' : 'Save as Draft'}
@@ -939,6 +890,11 @@ function SectionFormActions({ saveState, sectionState, error, disabled, submitDi
         >
           {sectionState === 'submitting' ? 'Submitting…' : sectionState === 'submitted' ? 'Submitted ✓' : submitLabel || 'Submit Section'}
         </button>
+        {saveState === 'saved' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--green)')}>Progress saved &#x2713;</span>}
+        {saveState === 'error' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--red)')}>Couldn&rsquo;t save, please try again.</span>}
+        {saveState === 'offline' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--gold)')}>No connection. Saved on this device, will sync automatically.</span>}
+        {sectionState === 'submitted' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--green)')}>Submitted &#x2713;</span>}
+        {sectionState === 'error' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--red)')}>Couldn&rsquo;t submit, please try again.</span>}
       </div>
     </div>
   )
@@ -1913,7 +1869,7 @@ function PortalApp({ accountSession, onLogout }) {
     if (!file || !documentType || !applicantName.trim()) return
 
     setLoading(true)
-    setStatus('Scanning document, running OCR, and generating SHA-256 hash...')
+    setStatus('Uploading your document securely...')
     setQualityRejection(null)
 
     try {
@@ -3053,11 +3009,10 @@ function PortalApp({ accountSession, onLogout }) {
                 />
                 {supportDocRejection && <QualityRejectionAlert message={supportDocRejection} />}
 
+                {/* Sept 29: the note used to sit to the LEFT of the button, so
+                    the button jumped sideways when it appeared. It's now to
+                    the right, so the button never moves. */}
                 <div className="form-actions">
-                  <div className="save-note">
-                    {rescheduleSaveState === 'saved' && <span style={{ color: 'var(--green)' }}>Request submitted &#x2713;</span>}
-                    {rescheduleSaveState === 'error' && <span style={{ color: 'var(--red)' }}>Couldn&rsquo;t submit &mdash; try again</span>}
-                  </div>
                   <button
                     type="button"
                     onClick={submitReschedule}
@@ -3066,6 +3021,8 @@ function PortalApp({ accountSession, onLogout }) {
                   >
                     {rescheduleSaveState === 'saving' ? 'Submitting…' : 'Submit Request'}
                   </button>
+                  {rescheduleSaveState === 'saved' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--green)')}>Request submitted &#x2713;</span>}
+                  {rescheduleSaveState === 'error' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--red)')}>Couldn&rsquo;t submit, please try again.</span>}
                 </div>
               </div>
 
@@ -3327,16 +3284,6 @@ function PortalApp({ accountSession, onLogout }) {
                 {details && (
                   <div className="bg-ccc-off border border-ccc-border rounded-2xl p-6 space-y-5">
                     <div className="space-y-1.5">
-                      <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">Storage path</span>
-                      <span className="text-ccc-text font-mono text-xs bg-white p-3 rounded-lg block break-all border border-ccc-border">
-                        {details.filePath}
-                      </span>
-                    </div>
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">SHA-256 integrity hash</span>
-                      <HashField hash={details.sha256Hash} />
-                    </div>
-                    <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">Detected text</span>
                         <ReviewStatusBadge needsReview={details.needsReview} reviewStatus={details.reviewStatus} />
@@ -3464,9 +3411,6 @@ function PortalApp({ accountSession, onLogout }) {
                         >
                           <IconExternal className="w-4 h-4" />
                         </a>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <HashField hash={doc.sha256_hash} dim />
                       </div>
                       <ReviewStatusBadge needsReview={doc.needs_review} reviewStatus={doc.review_status} />
                       <ExtractedTextField text={doc.extracted_text} method={doc.extraction_method} processing={doc.review_status === 'processing'} />
