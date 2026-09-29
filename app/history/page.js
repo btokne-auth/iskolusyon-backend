@@ -57,6 +57,13 @@ function IconExternal(props) {
     </svg>
   )
 }
+function IconClock(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
 function IconCheck(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
@@ -73,17 +80,27 @@ function IconAlertTriangle(props) {
   )
 }
 
-function StatusBadge({ needsReview }) {
+// Sept 29: same fix as the portal's ReviewStatusBadge. A new upload waits
+// in review_status 'processing' until the OCR worker reads it.
+function StatusBadge({ needsReview, reviewStatus }) {
+  if (reviewStatus === 'processing') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-blue/40 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-blue shrink-0 whitespace-nowrap">
+        <IconClock className="w-3 h-3" />
+        Processing
+      </span>
+    )
+  }
   if (needsReview) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-orange/50 bg-orange-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-orange shrink-0">
+      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-orange/50 bg-orange-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-orange shrink-0 whitespace-nowrap">
         <IconAlertTriangle className="w-3 h-3" />
         Needs review
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-ccc-green/40 bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-green shrink-0">
+    <span className="inline-flex items-center gap-1 rounded-full border border-ccc-green/40 bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-green shrink-0 whitespace-nowrap">
       <IconCheck className="w-3 h-3" />
       Verified
     </span>
@@ -212,7 +229,7 @@ export default function HistoryPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <StatusBadge needsReview={doc.needs_review} />
+                  <StatusBadge needsReview={doc.needs_review} reviewStatus={doc.review_status} />
                   {doc.publicUrl && (
                     <a
                       href={doc.publicUrl}

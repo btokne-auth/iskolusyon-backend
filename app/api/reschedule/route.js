@@ -33,27 +33,37 @@ import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/app
 const ALLOWED_REQUEST_TYPES = ['Reschedule Examination (Absence)', 'Other Concern']
 
 // GET /api/reschedule?name=Juan+Dela+Cruz
-// Returns this applicant's past requests, newest first. Now scoped by the
-// real applicant_user_id when the caller is logged in (re-keyed Sept 19,
-// same pattern as /api/upload) — name is kept as a required param and as
-// the fallback match for legacy rows with no applicant_user_id, since the
-// account may have uploaded requests before this column existed.
+// Returns this applicant's past requests, newest first.
+//
+// Sept 29 security fix: this used to (a) return anyone's requests to a
+// logged-out caller by typed name, and (b) even when logged in, OR-match
+// on the `name` from the URL, so an applicant could type someone else's
+// name and read their requests. Now it requires a real applicant session
+// and ignores the `name` param entirely (still accepted so the portal's
+// existing call doesn't break). Legacy rows with no applicant_user_id are
+// matched by the applicant's OWN name from their applications row, the
+// same fallback /api/upload uses.
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const name = (searchParams.get('name') || '').trim()
-
-    if (!name) {
-      return NextResponse.json({ error: 'Missing name' }, { status: 400 })
-    }
-
     const applicantCookie = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
     const applicantSession = await verifyApplicantCookieValue(applicantCookie)
 
+    if (!applicantSession) {
+      return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
+    }
+
+    const { data: ownApplication } = await supabase
+      .from('applications')
+      .select('applicant_name')
+      .eq('applicant_user_id', applicantSession.id)
+      .maybeSingle()
+
+    const ownName = ownApplication?.applicant_name?.trim()
+
     let query = supabase.from('reschedule_requests').select('*')
-    query = applicantSession
-      ? query.or(`applicant_user_id.eq.${applicantSession.id},applicant_name.ilike.${name}`)
-      : query.ilike('applicant_name', name)
+    query = ownName
+      ? query.or(`applicant_user_id.eq.${applicantSession.id},applicant_name.ilike."${ownName.replace(/"/g, '')}"`)
+      : query.eq('applicant_user_id', applicantSession.id)
 
     const { data, error } = await query.order('created_at', { ascending: false })
 
@@ -90,12 +100,18 @@ export async function POST(request) {
     const applicantCookie = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
     const applicantSession = await verifyApplicantCookieValue(applicantCookie)
 
+    // Sept 29: same fix as GET. The portal is login-only, so a request
+    // with no session can only come from outside the app.
+    if (!applicantSession) {
+      return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
+    }
+
     const { data, error } = await supabase
       .from('reschedule_requests')
       .insert([{
         applicant_name: applicantName,
         applicant_email: applicantEmail || null,
-        applicant_user_id: applicantSession?.id || null,
+        applicant_user_id: applicantSession.id,
         request_type: requestType,
         details,
         status: 'submitted',
