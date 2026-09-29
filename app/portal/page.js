@@ -341,7 +341,7 @@ function HashField({ hash, dim = false }) {
 function ReviewStatusBadge({ needsReview, reviewStatus }) {
   if (reviewStatus === 'processing') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-blue/40 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-blue">
+      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-blue/40 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-blue shrink-0 whitespace-nowrap">
         <IconClock className="w-3 h-3" />
         Processing
       </span>
@@ -349,14 +349,14 @@ function ReviewStatusBadge({ needsReview, reviewStatus }) {
   }
   if (needsReview) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-orange/50 bg-orange-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-orange">
+      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-orange/50 bg-orange-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-orange shrink-0 whitespace-nowrap">
         <IconAlertTriangle className="w-3 h-3" />
         Needs review
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-ccc-green/40 bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-green">
+    <span className="inline-flex items-center gap-1 rounded-full border border-ccc-green/40 bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-green shrink-0 whitespace-nowrap">
       <IconCheck className="w-3 h-3" />
       Verified
     </span>
