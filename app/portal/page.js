@@ -231,7 +231,7 @@ function mapDbRowToAcademicInfo(row) {
 }
 
 // Shows the OCR/text-detection result in a scrollable box, with a copy button.
-function ExtractedTextField({ text, method }) {
+function ExtractedTextField({ text, method, processing }) {
   const [copied, setCopied] = useState(false)
 
   const methodLabel = {
@@ -248,6 +248,14 @@ function ExtractedTextField({ text, method }) {
     } catch (e) {
       // clipboard unavailable — silently ignore
     }
+  }
+
+  if (!text && processing) {
+    return (
+      <div className="rounded-lg border border-ccc-border bg-ccc-off px-3 py-3 text-xs text-ccc-muted italic">
+        Reading your document. This can take up to a minute. Refresh this page to see the detected text.
+      </div>
+    )
   }
 
   if (!text) {
@@ -326,7 +334,19 @@ function HashField({ hash, dim = false }) {
 // the visible surface of the Deficiency Alert flow. A document is either
 // confidently verified, or flagged so a human (applicant re-upload / admin
 // review) makes the call instead of the system silently trusting garbled OCR.
-function ReviewStatusBadge({ needsReview }) {
+// Sept 29: a fresh upload sits in review_status 'processing' (with
+// needs_review false and no text yet) until the OCR worker on Render picks
+// it up, which can take up to ~1.5 min if the worker was asleep. Checking
+// needs_review alone showed "Verified" during that window.
+function ReviewStatusBadge({ needsReview, reviewStatus }) {
+  if (reviewStatus === 'processing') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-blue/40 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-blue">
+        <IconClock className="w-3 h-3" />
+        Processing
+      </span>
+    )
+  }
   if (needsReview) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-ccc-orange/50 bg-orange-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-orange">
@@ -1356,6 +1376,8 @@ function PortalApp({ accountSession, onLogout }) {
     return latest
   })()
   const flaggedCount = latestDocsByType.filter((doc) => doc.needs_review).length
+  // Sept 29: still waiting on the OCR worker, so neither verified nor flagged yet.
+  const processingCount = latestDocsByType.filter((doc) => doc.review_status === 'processing' && !doc.needs_review).length
 
   // Same required-field bar as submitSection('financial')'s own missing-
   // fields check further down — kept in sync by hand since that check
@@ -1897,9 +1919,11 @@ function PortalApp({ accountSession, onLogout }) {
     try {
       const data = await uploadDocument(documentType, file)
       setStatus(
-        data.needsReview
-          ? 'Document uploaded, but flagged for review.'
-          : 'Document uploaded and verified successfully.'
+        data.reviewStatus === 'processing'
+          ? 'Document uploaded. We are reading it now, this can take up to a minute.'
+          : data.needsReview
+            ? 'Document uploaded, but flagged for review.'
+            : 'Document uploaded and verified successfully.'
       )
       setDetails(data)
       fetchHistory()
@@ -2142,7 +2166,7 @@ function PortalApp({ accountSession, onLogout }) {
                       <div className="stat-value stat-locked">No documents yet</div>
                     ) : (
                       <div className="stat-value">
-                        {latestDocsByType.length - flaggedCount} verified{flaggedCount > 0 ? `, ${flaggedCount} needs review` : ''}
+                        {latestDocsByType.length - flaggedCount - processingCount} verified{processingCount > 0 ? `, ${processingCount} processing` : ''}{flaggedCount > 0 ? `, ${flaggedCount} needs review` : ''}
                       </div>
                     )}
                     <div className="stat-note">View and manage your uploaded documents.</div>
@@ -3284,9 +3308,11 @@ function PortalApp({ accountSession, onLogout }) {
                           : 'bg-green-50 border border-ccc-green/40 text-ccc-green')
                       : 'bg-ccc-off border border-ccc-border text-ccc-text'
                   }`}>
-                    {details && (details.needsReview
-                      ? <IconAlertTriangle className="w-5 h-5 text-ccc-orange shrink-0" />
-                      : <IconCheck className="w-5 h-5 text-ccc-green shrink-0" />)}
+                    {details && (details.reviewStatus === 'processing'
+                      ? <IconClock className="w-5 h-5 text-ccc-blue shrink-0" />
+                      : details.needsReview
+                        ? <IconAlertTriangle className="w-5 h-5 text-ccc-orange shrink-0" />
+                        : <IconCheck className="w-5 h-5 text-ccc-green shrink-0" />)}
                     <span>{status}</span>
                   </div>
                 )}
@@ -3313,9 +3339,9 @@ function PortalApp({ accountSession, onLogout }) {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">Detected text</span>
-                        <ReviewStatusBadge needsReview={details.needsReview} />
+                        <ReviewStatusBadge needsReview={details.needsReview} reviewStatus={details.reviewStatus} />
                       </div>
-                      <ExtractedTextField text={details.extractedText} method={details.extractionMethod} />
+                      <ExtractedTextField text={details.extractedText} method={details.extractionMethod} processing={details.reviewStatus === 'processing'} />
                     </div>
                     <a
                       href={details.publicUrl}
@@ -3442,8 +3468,8 @@ function PortalApp({ accountSession, onLogout }) {
                       <div className="flex items-center justify-between">
                         <HashField hash={doc.sha256_hash} dim />
                       </div>
-                      <ReviewStatusBadge needsReview={doc.needs_review} />
-                      <ExtractedTextField text={doc.extracted_text} method={doc.extraction_method} />
+                      <ReviewStatusBadge needsReview={doc.needs_review} reviewStatus={doc.review_status} />
+                      <ExtractedTextField text={doc.extracted_text} method={doc.extraction_method} processing={doc.review_status === 'processing'} />
                     </div>
                   ))}
                 </div>

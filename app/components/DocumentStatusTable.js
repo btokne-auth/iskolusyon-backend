@@ -24,6 +24,13 @@ function IconCheck(props) {
     </svg>
   )
 }
+function IconClock(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
 function IconCircle(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
@@ -62,6 +69,16 @@ function findLatestForType(docs, typeValue) {
 // "not yet uploaded", which spec's badge set has no equivalent for since
 // its mockup table only ever lists documents that already exist.
 function StatusBadge({ state }) {
+  // Sept 29: new uploads wait in review_status 'processing' until the OCR
+  // worker reads them; they used to show as Verified during that time.
+  if (state === 'processing') {
+    return (
+      <span className="badge badge-progress">
+        <IconClock className="w-3 h-3" />
+        Processing
+      </span>
+    )
+  }
   if (state === 'verified') {
     return (
       <span className="badge badge-verified">
@@ -103,7 +120,7 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
   const verifiedCount = groups.reduce(
     (n, g) => n + g.options.filter((opt) => {
       const doc = findLatestForType(docs, opt.value)
-      return doc && !doc.needs_review
+      return doc && !doc.needs_review && doc.review_status !== 'processing'
     }).length,
     0
   )
@@ -146,7 +163,11 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
             <tbody>
               {group.options.map((opt) => {
                 const doc = findLatestForType(docs, opt.value)
-                const state = !doc ? 'not_uploaded' : (doc.needs_review ? 'needs_review' : 'verified')
+                const state = !doc
+                  ? 'not_uploaded'
+                  : doc.review_status === 'processing'
+                    ? 'processing'
+                    : (doc.needs_review ? 'needs_review' : 'verified')
                 const submittedNote = doc && doc.created_at
                   ? `Submitted ${new Date(doc.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`
                   : null
@@ -157,10 +178,12 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
                     <td>
                       {state === 'needs_review'
                         ? 'Low OCR confidence — please check and re-upload if needed'
-                        : submittedNote || '—'}
+                        : state === 'processing'
+                          ? 'Reading your document. Refresh in a minute to see the result.'
+                          : submittedNote || '—'}
                     </td>
                     <td>
-                      {state !== 'verified' ? (
+                      {state !== 'verified' && state !== 'processing' ? (
                         <button type="button" className="reupload-link" onClick={() => onReupload(opt.value)}>
                           {state === 'not_uploaded' ? 'Upload' : 'Re-upload'}
                         </button>

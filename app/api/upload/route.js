@@ -595,6 +595,7 @@ export async function POST(request) {
       extractionMethod: isProfilePic ? 'none' : 'pending',
       extractionConfidence: 0,
       needsReview: false,
+      reviewStatus: isProfilePic ? 'verified' : 'processing',
       applicantName,
       applicantEmail,
       documentType
@@ -622,6 +623,15 @@ export async function GET(request) {
     const adminName = await verifyAdminCookieValue(adminCookie)
     const applicantCookie = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
     const applicantSession = adminName ? null : await verifyApplicantCookieValue(applicantCookie)
+
+    // Sept 29 security fix: with neither session, this used to fall
+    // through with an unfiltered query and hand back every applicant's
+    // documents (extracted text + fresh signed download URLs) to anyone.
+    // All three callers above always have a session, so refusing here
+    // only blocks logged-out requests.
+    if (!adminName && !applicantSession) {
+      return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
+    }
 
     let query = supabase.from('documents').select('*')
 
