@@ -94,7 +94,7 @@ const STEPS = [
           <ul className="w-guide-steps">
             <li><span className="w-gs-num">1</span><span>Click the <strong>Sign Up</strong> button on the navigation bar or homepage.</span></li>
             <li><span className="w-gs-num">2</span><span>A <strong>Data Privacy Consent</strong> screen will appear. Read it carefully and click <strong>I Agree</strong> to proceed.</span></li>
-            <li><span className="w-gs-num">3</span><span>Fill in the registration form with your <strong>personal information</strong> (full name, date of birth, address, contact number, etc.). Ensure all details are accurate and correct — these will be used for your scholarship application.</span></li>
+            <li><span className="w-gs-num">3</span><span>Fill in the registration form with your <strong>personal information</strong> (full name, date of birth, address, contact number, etc.). Ensure all details are accurate and correct, as these will be used for your scholarship application.</span></li>
             <li><span className="w-gs-num">4</span><span>Enter your <strong>email address</strong> and create a secure <strong>password</strong>.</span></li>
             <li><span className="w-gs-num">5</span><span>Click <strong>Send Verification Code</strong>. A one-time code will be sent to your registered email address.</span></li>
             <li><span className="w-gs-num">6</span><span>Enter the verification code in the provided field and click <strong>Verify &amp; Create Account</strong>. Your account will be created upon successful verification.</span></li>
@@ -159,7 +159,7 @@ const STEPS = [
         <ul className="w-guide-steps">
           <li><span className="w-gs-num">1</span><span>After document verification is complete, you will receive a <strong>qualification status notification</strong> via email and in your portal dashboard.</span></li>
           <li><span className="w-gs-num">2</span><span>Log in to your account and go to <strong>My Application &gt; Qualification Status</strong>.</span></li>
-          <li><span className="w-gs-num">3</span><span>Your qualification result will be displayed — either <strong>Qualified</strong>, <strong>Conditionally Qualified</strong>, or <strong>Not Qualified</strong>.</span></li>
+          <li><span className="w-gs-num">3</span><span>Your qualification result will be displayed: <strong>Qualified</strong>, <strong>Conditionally Qualified</strong>, or <strong>Not Qualified</strong>.</span></li>
           <li><span className="w-gs-num">4</span><span>If conditionally qualified, follow the instructions to submit any missing or corrected documents.</span></li>
           <li><span className="w-gs-num">5</span><span>If qualified, you will be scheduled for the scholarship qualifying exam. Proceed to Step 5.</span></li>
         </ul>
@@ -498,8 +498,8 @@ export default function WelcomePage() {
         <div className="w-how-inner">
           <div className="w-how-title">How to Apply</div>
           <div className="w-how-sub">
-            Follow these steps to complete your scholarship application &nbsp;&mdash;&nbsp;{' '}
-            <span style={{ color: 'var(--w-blue)', fontWeight: 600 }}>click any step</span> to see the detailed guide
+            Follow these steps to complete your scholarship application.{' '}
+            <span style={{ color: 'var(--w-blue)', fontWeight: 600 }}>Click any step</span> to see the detailed guide.
           </div>
           <div className="w-steps-map">
             {STEPS.map((step, i) => (
@@ -543,7 +543,7 @@ export default function WelcomePage() {
       <div className="w-content-wrap">
         <section className="w-bya-section" id="before-you-apply">
           <div className="w-bya-heading">Before You Apply</div>
-          <div className="w-bya-sub">Everything you need to check before starting your application &nbsp;&mdash;&nbsp; click each section to expand</div>
+          <div className="w-bya-sub">Everything you need to check before starting your application. Click each section to expand.</div>
 
           <div className="w-bya-accordion">
             {/* 01 Programs Offered */}
@@ -702,7 +702,7 @@ export default function WelcomePage() {
       {/* ── LOCATION MAP ── */}
       <section style={{ width: '100%', lineHeight: 0, position: 'relative', display: 'block' }}>
         <iframe
-          title="City College of Calamba — Calamba City, Laguna"
+          title="City College of Calamba, Calamba City, Laguna"
           src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d965.0069!2d121.1675199!3d14.2120907!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33bd622b2e539df1%3A0x9102ac773e8a0b99!2sCity%20College%20of%20Calamba!5e0!3m2!1sen!2sph!4v1717000000000!5m2!1sen!2sph"
           width="100%"
           height="480"
@@ -720,7 +720,7 @@ export default function WelcomePage() {
         >
           <IconPin style={{ width: 16, height: 16, color: 'var(--ccc-blue)' }} />
           <span style={{ fontFamily: 'var(--font-montserrat)', fontSize: '.75rem', fontWeight: 700, color: 'var(--ccc-navy)', letterSpacing: '.4px' }}>
-            City College of Calamba &nbsp;&mdash;&nbsp; Brgy. Real, Calamba City, Laguna 4027
+            City College of Calamba &nbsp;&middot;&nbsp; Brgy. Real, Calamba City, Laguna 4027
           </span>
         </div>
       </section>

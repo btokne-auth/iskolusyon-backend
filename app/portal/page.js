@@ -323,7 +323,7 @@ function DeficiencyAlert({ confidence, onReupload }) {
           <p className="text-sm font-bold text-ccc-orange">Document flagged for review</p>
           <p className="text-xs text-ccc-text/80 leading-relaxed">
             The document uploaded successfully, but text detection confidence was low
-            {typeof confidence === 'number' ? ` (${Math.round(confidence)}%)` : ''} — the
+            {typeof confidence === 'number' ? ` (${Math.round(confidence)}%)` : ''}, so the
             detected text above may be incomplete or inaccurate. This usually happens with
             blurry photos, glare, or an angled shot. It's been marked <strong>needs review</strong> so
             an admin can check it before it's used for verification. You can continue, or
@@ -392,7 +392,7 @@ function buildActivityLog({ myDocs, personalSubmittedAt, academicSubmittedAt, he
     const label = getDocTypeLabel(doc.document_type)
     events.push(
       doc.needs_review
-        ? { date: doc.created_at, dot: 'warn', title: `Deficiency flagged on ${label}`, body: 'Needs your attention — see Documents & Status above.' }
+        ? { date: doc.created_at, dot: 'warn', title: `Deficiency flagged on ${label}`, body: 'Needs your attention. See Documents & Status above.' }
         : { date: doc.created_at, dot: 'done', title: `${label} uploaded`, body: 'Received and on file.' }
     )
   })
@@ -405,7 +405,7 @@ function buildActivityLog({ myDocs, personalSubmittedAt, academicSubmittedAt, he
   ]
   sectionEvents.forEach(({ at, title }) => {
     if (!at) return
-    events.push({ date: at, dot: 'done', title, body: 'Section checkpoint reached — you can still edit and re-submit any time.' })
+    events.push({ date: at, dot: 'done', title, body: 'Section checkpoint reached. You can still edit and re-submit any time.' })
   })
 
   if (submittedAt) {
@@ -428,7 +428,7 @@ function buildActivityLog({ myDocs, personalSubmittedAt, academicSubmittedAt, he
     } else if (myDocs.length === 0) {
       events.push({ date: null, dot: null, title: 'Awaiting document uploads', body: 'Upload at least one document, then submit your application below.' })
     } else {
-      events.push({ date: null, dot: null, title: 'Ready to submit', body: 'All profile sections are checkpointed — submit your application below when ready.' })
+      events.push({ date: null, dot: null, title: 'Ready to submit', body: 'All profile sections are checkpointed. Submit your application below when ready.' })
     }
   }
 
@@ -437,7 +437,7 @@ function buildActivityLog({ myDocs, personalSubmittedAt, academicSubmittedAt, he
 
 function ActivityLog({ events }) {
   if (events.length === 0) {
-    return <p className="topic-card-intro" style={{ marginTop: 0 }}>Nothing on file yet — upload a document or fill in a profile section to start your activity log.</p>
+    return <p className="topic-card-intro" style={{ marginTop: 0 }}>Nothing on file yet. Upload a document or fill in a profile section to start your activity log.</p>
   }
   return (
     <div className="timeline">
@@ -832,11 +832,11 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected, di
         {status === 'uploading' && <div className="u-sub" style={{ color: 'var(--ccc-blue)' }}>Uploading&hellip;</div>}
         {status === 'done' && <div className="u-filename">Uploaded &#x2713;</div>}
         {status === 'flagged' && <div className="u-sub" style={{ color: 'var(--gold)' }}>Uploaded, flagged for review</div>}
-        {status === 'rejected' && <div className="u-sub" style={{ color: 'var(--red)' }}>Photo rejected &mdash; see details below</div>}
-        {status === 'error' && <div className="u-sub" style={{ color: 'var(--red)' }}>Upload failed &mdash; try again</div>}
+        {status === 'rejected' && <div className="u-sub" style={{ color: 'var(--red)' }}>Photo rejected. See details below.</div>}
+        {status === 'error' && <div className="u-sub" style={{ color: 'var(--red)' }}>Upload failed. Please try again.</div>}
         {status === 'queued' && (
           <div className="u-sub" style={{ color: 'var(--gold)' }}>
-            No connection &mdash; saved on this device, will upload automatically once you&rsquo;re back online
+            No connection. Saved on this device, will upload automatically once you&rsquo;re back online.
           </div>
         )}
       </div>
@@ -1098,8 +1098,15 @@ function PortalApp({ accountSession, onLogout }) {
   // "Applicant name" field above in sync as First/Middle/Last Name change.
   useEffect(() => {
     if (!accountSession) return
-    const derived = [personalInfo.firstName, personalInfo.lastName].filter((v) => v && v.trim()).join(' ').trim()
-    if (derived && derived !== applicantName) {
+    // Sept 29: only follow the form once BOTH names are filled in. While one
+    // is blank (being retyped, or cleared), keep the last full name, so an
+    // upload made in that moment isn't filed under just "Aragon" and shown
+    // as a separate applicant on the admin side.
+    const first = personalInfo.firstName.trim()
+    const last = personalInfo.lastName.trim()
+    if (!first || !last) return
+    const derived = `${first} ${last}`
+    if (derived !== applicantName) {
       setApplicantName(derived)
       setDraftFound(null)
       setDraftDismissed(false)
@@ -1527,7 +1534,7 @@ function PortalApp({ accountSession, onLogout }) {
       setTimeout(() => setState('idle'), 1800)
     } catch (err) {
       console.error('Submit section failed:', err)
-      setSectionErrors((e) => ({ ...e, [section]: 'Could not submit this section — try again.' }))
+      setSectionErrors((e) => ({ ...e, [section]: 'Could not submit this section. Please try again.' }))
       setState('error')
       setTimeout(() => setState('idle'), 3000)
     }
@@ -1934,7 +1941,7 @@ function PortalApp({ accountSession, onLogout }) {
         await queueUpload({ docType: documentType, file, applicantName: applicantName.trim(), applicantEmail: applicantEmail.trim() })
         setQueuedUploadCount((c) => c + 1)
         setDetails(null)
-        setStatus('No connection right now — this file is saved on your device and will upload automatically once you\u2019re back online.')
+        setStatus('No connection right now. This file is saved on your device and will upload automatically once you\u2019re back online.')
         setFile(null)
         setDocumentType('')
       } else {
@@ -2061,8 +2068,8 @@ function PortalApp({ accountSession, onLogout }) {
       {isOffline && (
         <div className="w-full bg-red-50 border-b border-red-200 text-center py-2.5 px-4">
           <p className="text-xs font-semibold text-red-700">
-            You&rsquo;re currently offline. Anything you type or upload is being saved on this device &mdash;
-            keep this tab open, or reopen it once you have a signal, and it will finish saving automatically.
+            You&rsquo;re currently offline. Anything you type or upload is being saved on this device.
+            Keep this tab open, or reopen it once you have a signal, and it will finish saving automatically.
           </p>
         </div>
       )}
@@ -2078,7 +2085,7 @@ function PortalApp({ accountSession, onLogout }) {
       {!isOffline && queuedUploadCount === 0 && justSynced && (
         <div className="w-full bg-green-50 border-b border-ccc-green/30 text-center py-2 px-4">
           <p className="text-xs font-semibold text-ccc-green">
-            You&rsquo;re back online &mdash; everything saved on this device has finished uploading.
+            You&rsquo;re back online. Everything saved on this device has finished uploading.
           </p>
         </div>
       )}
@@ -2229,12 +2236,14 @@ function PortalApp({ accountSession, onLogout }) {
                     <div className="stat-note">View and manage your uploaded documents.</div>
                   </div>
 
-                  {/* Locked — genuinely blocked on Ivy's modules, not built anywhere */}
+                  {/* Locked cards. Sept 29: the notes used to say these were blocked on
+                      Ivy's modules (stale, and not something applicants should
+                      see). Making them real is a separate task. */}
                   <div className="stat-card locked">
                     <div className="stat-lock-badge">&#128274;</div>
                     <div className="stat-label">Exam Schedule</div>
                     <div className="stat-value stat-locked">Locked</div>
-                    <div className="stat-note">Blocked on Ivy&rsquo;s Applicant Information &amp; Results Module (exam score entry) &mdash; not built.</div>
+                    <div className="stat-note">Available once exam schedules are posted.</div>
                   </div>
 
                   <div className="stat-card locked">
@@ -2248,7 +2257,7 @@ function PortalApp({ accountSession, onLogout }) {
                     <div className="stat-lock-badge">&#128274;</div>
                     <div className="stat-label">Admission</div>
                     <div className="stat-value stat-locked">Locked</div>
-                    <div className="stat-note">Blocked on Ivy&rsquo;s Scholarship Matching &amp; Filtering Module &mdash; not built.</div>
+                    <div className="stat-note">Available once your application has been evaluated.</div>
                   </div>
                 </div>
 
@@ -2274,7 +2283,7 @@ function PortalApp({ accountSession, onLogout }) {
                               'Completed.'
                             ) : (
                               <>
-                                Currently ongoing &mdash;{' '}
+                                Currently ongoing ,{' '}
                                 <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('personal') }}>
                                   continue &rarr;
                                 </a>
@@ -2294,7 +2303,7 @@ function PortalApp({ accountSession, onLogout }) {
                               'Completed.'
                             ) : (
                               <>
-                                {personalDone ? 'Currently ongoing' : 'Not yet started'} &mdash;{' '}
+                                {personalDone ? 'Currently ongoing' : 'Not yet started'} ,{' '}
                                 <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('academic') }}>
                                   {personalDone ? 'continue' : 'complete now'} &rarr;
                                 </a>
@@ -2314,7 +2323,7 @@ function PortalApp({ accountSession, onLogout }) {
                               'Completed.'
                             ) : (
                               <>
-                                {academicDone ? 'Currently ongoing' : 'Not yet started'} &mdash;{' '}
+                                {academicDone ? 'Currently ongoing' : 'Not yet started'} ,{' '}
                                 <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('financial') }}>
                                   {academicDone ? 'continue' : 'complete now'} &rarr;
                                 </a>
@@ -2334,7 +2343,7 @@ function PortalApp({ accountSession, onLogout }) {
                               'Completed.'
                             ) : (
                               <>
-                                {familyDone ? 'Currently ongoing' : 'Not yet started'} &mdash;{' '}
+                                {familyDone ? 'Currently ongoing' : 'Not yet started'} ,{' '}
                                 <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('health') }}>
                                   {familyDone ? 'continue' : 'complete now'} &rarr;
                                 </a>
@@ -2383,17 +2392,17 @@ function PortalApp({ accountSession, onLogout }) {
                   <span>
                     {messagesFilter === 'all' && (
                       <>
-                        Showing everything received &mdash; <b>Announcements</b> sent to all applicants (and posted on the guest page), plus <b>Messages</b> sent to you individually or to your applicant category.
+                        Showing everything received: <b>Announcements</b> sent to all applicants (and posted on the guest page), plus <b>Messages</b> sent to you individually or to your applicant category.
                       </>
                     )}
                     {messagesFilter === 'announcement' && (
                       <>
-                        Showing <b>Announcements</b> only &mdash; these are sent to all applicants and also posted on the guest (public) page.
+                        Showing <b>Announcements</b> only. These are sent to all applicants and also posted on the guest (public) page.
                       </>
                     )}
                     {messagesFilter === 'message' && (
                       <>
-                        Showing <b>Messages</b> only &mdash; these are private, sent to you individually or to your applicant category, and never shown on the guest page.
+                        Showing <b>Messages</b> only. These are private, sent to you individually or to your applicant category, and never shown on the guest page.
                       </>
                     )}
                   </span>
@@ -2630,7 +2639,7 @@ function PortalApp({ accountSession, onLogout }) {
                   </span>{' '}
                   <span className="tag">Optional</span>
                 </div>
-                <p className="topic-card-intro">List any organization/s you are or were part of. This section is optional &mdash; leave it blank if not applicable.</p>
+                <p className="topic-card-intro">List any organization/s you are or were part of. This section is optional, so leave it blank if not applicable.</p>
                 <OrganizationsTable
                   rows={personalInfo.organizations}
                   onChangeRow={updateOrgRow}
@@ -2712,12 +2721,12 @@ function PortalApp({ accountSession, onLogout }) {
               )}
 
               {!requiredPersonalInfoComplete && applicantName.trim() && (
-                <p className="text-[11px] text-ccc-muted -mt-2">
-                  Fill in the required fields and upload your Profile Picture, Birth Certificate, and Voter&rsquo;s ID above &mdash; this section saves independently of the others.
+                <p className="text-[11px] text-ccc-muted leading-snug">
+                  Fill in the required fields and upload your Profile Picture, Birth Certificate, and Voter&rsquo;s ID above. This section saves independently of the others.
                 </p>
               )}
               {personalSubmittedAt && (
-                <p className="text-[11px] text-ccc-muted -mt-2">
+                <p className="text-[11px] text-ccc-muted leading-snug">
                   Submitted {new Date(personalSubmittedAt).toLocaleString()}. You can still edit and re-submit this section any time.
                 </p>
               )}
@@ -2862,8 +2871,8 @@ function PortalApp({ accountSession, onLogout }) {
               </div>
 
               {(!requiredAcademicInfoComplete || !requiredAcademicUploadsComplete) && applicantName.trim() && !academicSubmittedAt && (
-                <p className="text-[11px] text-ccc-muted -mt-2">
-                  Applying As, Term Applying In, both Priority Programs, the Primary/Elementary row, and the Grades (Form 138) upload are required (plus GWA, Units Passed, and the failing-grade question if applying as a Transferee) &mdash; this section saves independently of the others.
+                <p className="text-[11px] text-ccc-muted leading-snug">
+                  Applying As, Term Applying In, both Priority Programs, the Primary/Elementary row, and the Grades (Form 138) upload are required (plus GWA, Units Passed, and the failing-grade question if applying as a Transferee). This section saves independently of the others.
                 </p>
               )}
               {academicSubmittedAt && (
@@ -2878,7 +2887,7 @@ function PortalApp({ accountSession, onLogout }) {
                 error={sectionErrors.academic}
                 disabled={!applicantName.trim() || !!academicSubmittedAt}
                 submitDisabled={!!academicSubmittedAt}
-                submitLabel={academicSubmittedAt ? 'Submitted — Locked' : 'Submit Section'}
+                submitLabel={academicSubmittedAt ? 'Submitted (Locked)' : 'Submit Section'}
                 onSaveDraft={() => saveProgress(2)}
                 onSubmit={() => submitSection('academic')}
               />
@@ -3055,7 +3064,7 @@ function PortalApp({ accountSession, onLogout }) {
               )}
 
               {financialSubmittedAt && (
-                <p className="text-[11px] text-ccc-muted -mt-2">
+                <p className="text-[11px] text-ccc-muted leading-snug">
                   Submitted {new Date(financialSubmittedAt).toLocaleString()}. You can still edit and re-submit this section any time.
                 </p>
               )}
@@ -3080,9 +3089,8 @@ function PortalApp({ accountSession, onLogout }) {
                 <p className="portal-eyebrow">Admission &middot; Application</p>
                 <h1>Appeals &amp; Rescheduling</h1>
                 <p>
-                  Request to reschedule your exam if you&rsquo;ll be absent. (Appeals for retakes/
-                  re-applications aren&rsquo;t handled here yet &mdash; that item&rsquo;s ownership is still
-                  unresolved between modules.)
+                  Request to reschedule your exam if you&rsquo;ll be absent. (Appeals for retakes or
+                  re-applications aren&rsquo;t handled here yet.)
                 </p>
               </div>
 
@@ -3186,7 +3194,7 @@ function PortalApp({ accountSession, onLogout }) {
               </div>
 
               {healthSubmittedAt && (
-                <p className="text-[11px] text-ccc-muted -mt-2">
+                <p className="text-[11px] text-ccc-muted leading-snug">
                   Submitted {new Date(healthSubmittedAt).toLocaleString()}. You can still edit and re-submit this section any time.
                 </p>
               )}
@@ -3410,7 +3418,7 @@ function PortalApp({ accountSession, onLogout }) {
                 <div className="card-title">Submit Application</div>
                 {submitted ? (
                   <p style={{ fontSize: '12.75px', color: 'var(--green)', fontWeight: 700 }}>
-                    &#x2713; Application submitted for review &mdash; {applicantName.trim()}, your documents are on file. This panel will keep tracking their status.
+                    &#x2713; Application submitted for review. {applicantName.trim()}, your documents are on file. This panel will keep tracking their status.
                   </p>
                 ) : (
                   <>

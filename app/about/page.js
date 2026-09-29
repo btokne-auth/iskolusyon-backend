@@ -50,7 +50,7 @@ const FAQS = [
   },
   {
     q: 'What happens if a document is flagged "Needs Review"?',
-    a: 'It means text detection wasn\u2019t fully confident reading your file \u2014 usually from a blurry photo, glare, or an angled shot. Your document is still saved, but you can re-upload a clearer copy any time to avoid delays.',
+    a: 'It means text detection wasn\u2019t fully confident reading your file, usually from a blurry photo, glare, or an angled shot. Your document is still saved, but you can re-upload a clearer copy any time to avoid delays.',
   },
   {
     q: 'Who do I contact if I have a problem?',

@@ -177,10 +177,10 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
                     <td><StatusBadge state={state} /></td>
                     <td>
                       {state === 'needs_review'
-                        ? 'Low OCR confidence — please check and re-upload if needed'
+                        ? 'Low OCR confidence. Please check and re-upload if needed.'
                         : state === 'processing'
                           ? 'Reading your document. Refresh in a minute to see the result.'
-                          : submittedNote || '—'}
+                          : submittedNote || ''}
                     </td>
                     <td>
                       {state !== 'verified' && state !== 'processing' ? (
@@ -188,7 +188,7 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
                           {state === 'not_uploaded' ? 'Upload' : 'Re-upload'}
                         </button>
                       ) : (
-                        '—'
+                        ''
                       )}
                     </td>
                   </tr>
