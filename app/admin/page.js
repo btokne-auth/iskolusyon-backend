@@ -32,6 +32,13 @@ function IconCheck(props) {
     </svg>
   )
 }
+function IconClock(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
 function IconAlertTriangle(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
@@ -337,7 +344,18 @@ function RetryableImage({ src, alt, className }) {
 
 // ---------- Small building blocks (Dashboard panel) ----------
 
-function ReviewStatusBadge({ needsReview }) {
+// Sept 29: same fix as the applicant portal. A new upload sits in
+// review_status 'processing' until the OCR worker on Render reads it, and
+// used to show as Verified here during that time.
+function ReviewStatusBadge({ needsReview, reviewStatus }) {
+  if (reviewStatus === 'processing') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-blue/40 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-blue">
+        <IconClock className="w-3 h-3" />
+        Processing
+      </span>
+    )
+  }
   if (needsReview) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-ccc-orange/50 bg-orange-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-orange">
@@ -402,6 +420,7 @@ function DocumentReviewCard({ doc, onOverride, overriding }) {
   const image = isImageFile(doc.file_path)
   const pdf = isPdfFile(doc.file_path)
   const isBusy = overriding === doc.file_path
+  const isProcessing = doc.review_status === 'processing'
 
   return (
     <div
@@ -441,7 +460,7 @@ function DocumentReviewCard({ doc, onOverride, overriding }) {
               </p>
               <p className="text-[11px] text-ccc-muted truncate">{getCleanFileName(doc.file_path)}</p>
             </div>
-            <ReviewStatusBadge needsReview={doc.needs_review} />
+            <ReviewStatusBadge needsReview={doc.needs_review} reviewStatus={doc.review_status} />
           </div>
 
           <div className="space-y-1">
@@ -456,7 +475,11 @@ function DocumentReviewCard({ doc, onOverride, overriding }) {
               Detected text
             </span>
             <div className="max-h-28 overflow-y-auto rounded-lg bg-ccc-off border border-ccc-border p-2 text-xs text-ccc-text whitespace-pre-wrap">
-              {doc.extracted_text || <span className="italic text-ccc-muted">No text extracted</span>}
+              {doc.extracted_text || (
+                <span className="italic text-ccc-muted">
+                  {isProcessing ? 'Still being read by OCR. Refresh in a minute.' : 'No text extracted'}
+                </span>
+              )}
             </div>
           </div>
 
@@ -481,7 +504,7 @@ function DocumentReviewCard({ doc, onOverride, overriding }) {
               </span>
               <button
                 type="button"
-                disabled={isBusy || !doc.needs_review}
+                disabled={isBusy || isProcessing || !doc.needs_review}
                 onClick={() => onOverride(doc, 'verify')}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-ccc-green/50 text-ccc-green bg-green-50 hover:bg-green-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
@@ -489,7 +512,7 @@ function DocumentReviewCard({ doc, onOverride, overriding }) {
               </button>
               <button
                 type="button"
-                disabled={isBusy || doc.needs_review}
+                disabled={isBusy || isProcessing || doc.needs_review}
                 onClick={() => onOverride(doc, 'flag')}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-ccc-orange/50 text-ccc-orange bg-orange-50 hover:bg-orange-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
@@ -630,7 +653,9 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
   const [detailError, setDetailError] = useState('')
   const [activeCat, setActiveCat] = useState(PROFILE_CATEGORIES[0].key)
   const flaggedCount = docs.filter((d) => d.needs_review).length
-  const verifiedCount = docs.filter((d) => !d.needs_review).length
+  // Sept 29: documents still waiting on the OCR worker are neither.
+  const processingCount = docs.filter((d) => d.review_status === 'processing' && !d.needs_review).length
+  const verifiedCount = docs.filter((d) => !d.needs_review && d.review_status !== 'processing').length
   const sectionsDone = PROFILE_SECTIONS.filter((s) => !!eligibilityRow?.[s.key]).length
   const profilePct = Math.round((sectionsDone / PROFILE_SECTIONS.length) * 100)
 
@@ -775,7 +800,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               <div className="mini-summary ms-docs">
                 <div className="ms-label">Documents</div>
                 <div className="ms-value">
-                  {verifiedCount} Verified · {flaggedCount} Pending Review
+                  {verifiedCount} Verified{processingCount > 0 ? ` · ${processingCount} Processing` : ''} · {flaggedCount} Pending Review
                 </div>
               </div>
             </div>
