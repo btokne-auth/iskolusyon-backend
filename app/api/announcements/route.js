@@ -16,13 +16,24 @@ import { ADMIN_COOKIE_NAME, verifyAdminCookieFull } from '@/app/lib/adminAuth'
 const VALID_CATEGORIES = new Set(['General', 'Exam', 'Deficiency', 'Result', 'Others'])
 const VALID_ELIGIBILITY_CATEGORIES = new Set(['qualified', 'waitlisted', 'not_qualified', 'pending_exam', 'incomplete'])
 
-export async function GET() {
+export async function GET(request) {
   try {
-    const { data, error } = await supabase
+    // Sept 30 2026: this used to hand EVERY row to anyone who asked, private
+    // messages included (the public home page just hid them in the browser).
+    // Now only a signed-in admin gets everything; anyone else, including
+    // signed-in applicants, gets the public announcements only. Applicants
+    // read their own private messages through /api/portal-messages.
+    const cookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value
+    const session = await verifyAdminCookieFull(cookie)
+
+    let query = supabase
       .from('announcements')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(50)
+    if (!session) query = query.eq('type', 'announcement')
+
+    const { data, error } = await query
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ success: true, announcements: data })

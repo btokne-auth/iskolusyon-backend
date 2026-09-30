@@ -37,7 +37,7 @@ export async function PATCH(request) {
       await supabase.from('audit_log').insert([
         {
           actor: session.name,
-          action: `Updated Application Cycle Settings (Applications ${settings.applications_open ? 'Open' : 'Closed'}, Document Uploads ${settings.document_uploads_enabled ? 'Enabled' : 'Disabled'})`,
+          action: `Updated Application Cycle Settings (Applications ${settings.applications_open ? 'Open' : 'Closed'}, Document Uploads ${settings.document_uploads_enabled ? 'Enabled' : 'Disabled'}, Exam Results ${settings.exam_results_visible ? 'Visible' : 'Hidden'})`,
           kind: 'done',
           category: 'System',
         },

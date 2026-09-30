@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
+import { resultsVisible } from '@/app/lib/resultVisibility'
 
 // Applicant-facing read side of the Communications feature (see
 // app/api/announcements/route.js for the admin side, and docs/migrations/
@@ -65,7 +66,12 @@ export async function GET(request) {
       .limit(50)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ success: true, posts: data })
+
+    // Sept 30 2026: result messages (Send Result to Applicant) only show
+    // while "Exam Results Visible to Applicants" is on.
+    const visible = await resultsVisible()
+    const posts = visible ? data : (data || []).filter((post) => post.category !== 'Result')
+    return NextResponse.json({ success: true, posts })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
