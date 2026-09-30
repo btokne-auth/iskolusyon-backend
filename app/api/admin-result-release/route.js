@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { RELEASABLE_STATUSES, buildResultDraft, sendResultEmail } from '@/app/lib/resultNotices'
+import { resultsVisible } from '@/app/lib/resultVisibility'
 
 // Sept 30 2026, item 5 ("Real-time Result Notifications"): an admin releases
 // an applicant's result. One applicant at a time, on purpose: there is no
@@ -63,6 +64,7 @@ export async function GET(request) {
 
     return NextResponse.json({
       success: true,
+      resultsVisible: await resultsVisible(),
       status: app.scholar_status,
       to: app.applicant_email || '',
       emailOptIn: !!app.email_updates_opt_in,
@@ -106,6 +108,15 @@ export async function POST(request) {
 
     if (!RELEASABLE_STATUSES.has(app.scholar_status)) {
       return NextResponse.json({ error: 'There is no result to send yet. Record the exam result first.' }, { status: 400 })
+    }
+
+    // Sept 30 2026: nothing goes out while results are hidden from
+    // applicants, or the message would sit invisible in their portal.
+    if (!(await resultsVisible())) {
+      return NextResponse.json(
+        { error: 'Turn on "Exam Results Visible to Applicants" in System & Activity first.', resultsHidden: true },
+        { status: 409 }
+      )
     }
 
     // Same result already sent: only go ahead when the admin confirmed it.

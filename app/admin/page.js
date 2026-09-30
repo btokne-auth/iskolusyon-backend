@@ -1750,13 +1750,18 @@ function ResultNoticeBox({ row, onSent }) {
                   </div>
                 </div>
               </div>
+              {!draft.resultsVisible && (
+                <p style={{ color: 'var(--red, #b91c1c)' }}>
+                  Exam results are hidden from applicants right now. Turn on &ldquo;Exam Results Visible to Applicants&rdquo; in System &amp; Activity first.
+                </p>
+              )}
               {needsResend && (
                 <p>This applicant was already sent this same result. Send it again?</p>
               )}
               {error && <p style={{ color: 'var(--red, #b91c1c)' }}>{error}</p>}
               <div className="confirm-inline-actions">
                 <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={sending} onClick={closeBox}>Cancel</button>
-                <button type="button" className="mbtn mbtn-primary mbtn-sm" disabled={sending || !subject.trim() || !message.trim()}
+                <button type="button" className="mbtn mbtn-primary mbtn-sm" disabled={sending || !draft.resultsVisible || !subject.trim() || !message.trim()}
                   onClick={() => send(needsResend)}>
                   {sending ? 'Sending...' : needsResend ? 'Yes, send again' : 'Send'}
                 </button>
@@ -3495,8 +3500,8 @@ function CycleSettingsCard() {
         <div className="toggle-row-info">
           <h4>Exam Results Visible to Applicants</h4>
           <p>
-            When on, qualifying exam results are shown on applicants&rsquo; dashboards once released. Saved here, but
-            not enforced anywhere yet &mdash; the Applicant Results panel doesn&rsquo;t check this setting.
+            When on, an applicant sees their result on their dashboard and in Messages once an admin has sent it to
+            them from Applicant Results. When off, all results are hidden from applicants and results cannot be sent.
           </p>
         </div>
         <label className="switch">

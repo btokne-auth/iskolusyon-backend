@@ -976,6 +976,16 @@ function LogoutConfirmModal({ open, onCancel, onConfirm }) {
 // login/signup has its own dedicated route (app/login/page.js), a
 // logged-out visitor here gets redirected to /login instead — this route
 // (/portal) is applicant-account-only from here on.
+// Sept 30 2026: what the dashboard's Admission card says once a result has
+// been released to the applicant. Details are in the result message itself.
+const ADMISSION_RESULT_TEXT = {
+  passer: { label: 'Passed', note: 'Check Messages for your medical exam and pre-registration steps.' },
+  waitlisted_probationary: { label: 'Waitlisted', note: 'You are on the waiting list. Check Messages for details.' },
+  qualified_probationary: { label: 'Qualified (Probationary)', note: 'Check Messages for how to sign your probationary contract.' },
+  forfeited: { label: 'Forfeited', note: 'Check Messages for what to do next.' },
+  disqualified: { label: 'Not Qualified', note: 'Check Messages for details.' },
+}
+
 export default function PortalPage() {
   const router = useRouter()
   const [accountSession, setAccountSession] = useState(undefined) // undefined = checking, null = logged out, object = logged in
@@ -1057,6 +1067,10 @@ function PortalApp({ accountSession, onLogout }) {
   // from both the initial GET on load and whatever save/submit response
   // comes back, same as every other *SubmittedAt state above.
   const [applicationNumber, setApplicationNumber] = useState(null)
+  // Sept 30 2026: the applicant's released result, if any. /api/application
+  // only includes scholar_status once "Exam Results Visible to Applicants"
+  // is on AND an admin has sent this applicant their result.
+  const [releasedStatus, setReleasedStatus] = useState(null)
   const [personalSectionState, setPersonalSectionState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'submitting' | 'submitted' | 'error'
   const [academicSectionState, setAcademicSectionState] = useState('idle')
   const [healthSectionState, setHealthSectionState] = useState('idle')
@@ -1639,6 +1653,7 @@ function PortalApp({ accountSession, onLogout }) {
         setHealthSubmittedAt(data.application.health_submitted_at || null)
         setFinancialSubmittedAt(data.application.fam_financial_submitted_at || null)
         setApplicationNumber(data.application.application_number || null)
+        setReleasedStatus(data.application.scholar_status || null)
         // Keeps `applicantName` in sync with whatever this row is actually
         // saved under, so every save/submit for the rest of this session
         // targets the exact same row instead of depending on the name
@@ -2253,12 +2268,23 @@ function PortalApp({ accountSession, onLogout }) {
                     <div className="stat-note">Unlocks once you&rsquo;ve passed the applicant examination.</div>
                   </div>
 
-                  <div className="stat-card locked">
-                    <div className="stat-lock-badge">&#128274;</div>
-                    <div className="stat-label">Admission</div>
-                    <div className="stat-value stat-locked">Locked</div>
-                    <div className="stat-note">Available once your application has been evaluated.</div>
-                  </div>
+                  {/* Admission -- Sept 30 2026: unlocks with the applicant's
+                      result once it has been released to them (see
+                      releasedStatus above). Same card, just filled in. */}
+                  {releasedStatus && ADMISSION_RESULT_TEXT[releasedStatus] ? (
+                    <div className="stat-card unlocked-clickable" onClick={() => setActivePanel('messages')} role="button" tabIndex={0}>
+                      <div className="stat-label">Admission</div>
+                      <div className="stat-value">{ADMISSION_RESULT_TEXT[releasedStatus].label}</div>
+                      <div className="stat-note">{ADMISSION_RESULT_TEXT[releasedStatus].note}</div>
+                    </div>
+                  ) : (
+                    <div className="stat-card locked">
+                      <div className="stat-lock-badge">&#128274;</div>
+                      <div className="stat-label">Admission</div>
+                      <div className="stat-value stat-locked">Locked</div>
+                      <div className="stat-note">Available once your application has been evaluated.</div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="tab-connector">

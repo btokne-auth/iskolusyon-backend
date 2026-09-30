@@ -5,6 +5,7 @@ import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns, fami
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { computeEligibility } from '@/app/lib/matching'
 import { getSystemSettings } from '@/app/lib/systemSettings'
+import { resultsVisible, applicantSafeRow } from '@/app/lib/resultVisibility'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -94,6 +95,21 @@ async function findApplicationRows({ userId, email, name }) {
   }
 
   return Array.from(rowsById.values()).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+}
+
+// Sept 30 2026: a row belongs to the signed-in applicant if it is linked to
+// their account, or (for an older row saved before rows were linked) if it
+// carries their account email and no other account. Used by GET and POST so
+// neither ever reads or writes someone else's application.
+function ownsRow(row, session) {
+  if (!row || !session) return false
+  if (row.applicant_user_id) return row.applicant_user_id === session.id
+  return (row.applicant_email || '').trim().toLowerCase() === (session.email || '').trim().toLowerCase()
+}
+
+async function findOwnRows(session) {
+  const rows = await findApplicationRows({ userId: session.id, email: session.email })
+  return rows.filter((row) => ownsRow(row, session))
 }
 
 function mergeApplicationRows(rows) {
@@ -196,19 +212,19 @@ function computeEligibilityUpdate(mergedRow, uploadedTypes) {
 // combined so nothing already saved reads back as blank.
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const name = (searchParams.get('name') || '').trim()
-    const email = (searchParams.get('email') || '').trim()
-
+    // Sept 30 2026: this used to look an application up by whatever ?name=
+    // or ?email= was in the address, signed in or not, and return the whole
+    // row, so anyone could read any applicant's application by typing their
+    // name. Now it needs the applicant's own sign-in and only ever returns
+    // their own application; the ?name/?email the portal still sends are
+    // ignored.
     const cookieValue = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
     const session = await verifyApplicantCookieValue(cookieValue)
-    const userId = session?.id || null
-
-    if (!name && !email && !userId) {
-      return NextResponse.json({ error: 'Missing name or email' }, { status: 400 })
+    if (!session) {
+      return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
     }
 
-    const rows = await findApplicationRows({ userId, email, name })
+    const rows = await findOwnRows(session)
 
     if (rows.length === 0) {
       return NextResponse.json({ success: true, application: null })
@@ -220,7 +236,8 @@ export async function GET(request) {
       )
     }
 
-    return NextResponse.json({ success: true, application: mergeApplicationRows(rows) })
+    const visible = await resultsVisible()
+    return NextResponse.json({ success: true, application: applicantSafeRow(mergeApplicationRows(rows), visible) })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
@@ -242,9 +259,18 @@ export async function GET(request) {
 // applicant clicked a button or just moved to the next step.
 export async function POST(request) {
   try {
+    // Sept 30 2026: saving now needs the applicant's own sign-in too, and
+    // the email always comes from that sign-in rather than from the request,
+    // so a save can only ever land on the signed-in applicant's own row.
+    const cookieValue = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
+    const session = await verifyApplicantCookieValue(cookieValue)
+    if (!session) {
+      return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
+    }
+
     const body = await request.json()
     const applicantName = (body.applicantName || '').trim()
-    const applicantEmail = (body.applicantEmail || '').trim()
+    const applicantEmail = session.email.trim()
     const step = Number(body.step) || 1
     const action = ['submit', 'submit-section'].includes(body.action) ? body.action : 'save'
     const section = ['academic', 'personal', 'health', 'financial'].includes(body.section) ? body.section : null
@@ -286,9 +312,7 @@ export async function POST(request) {
     // Reading the session cookie here (same verified way
     // /api/applicant-session does) and stamping it on every save closes
     // that gap going forward.
-    const cookieValue = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
-    const session = await verifyApplicantCookieValue(cookieValue)
-    const applicantUserId = session?.id || null
+    const applicantUserId = session.id
 
     if (!applicantName) {
       return NextResponse.json({ error: 'Missing applicant name' }, { status: 400 })
@@ -304,7 +328,7 @@ export async function POST(request) {
     // the typed name and the row's saved name happen to differ.
     let existing
     try {
-      const rows = await findApplicationRows({ userId: applicantUserId, email: applicantEmail, name: applicantName })
+      const rows = await findOwnRows(session)
       existing = rows[0] || null
     } catch (findError) {
       return NextResponse.json({ error: findError.message }, { status: 500 })
@@ -368,7 +392,7 @@ export async function POST(request) {
         await sendSubmissionEmail(applicantName, data.applicant_email)
       }
 
-      return NextResponse.json({ success: true, application: data })
+      return NextResponse.json({ success: true, application: applicantSafeRow(data, await resultsVisible()) })
     }
 
     // No existing row — create one.
@@ -429,6 +453,14 @@ export async function POST(request) {
       if (raceFindError || !raceExisting) {
         return NextResponse.json({ error: raceFindError?.message || 'Save failed after a duplicate-name conflict' }, { status: 500 })
       }
+      // Sept 30 2026: the name belongs to someone else's application. Never
+      // write over it; the applicant has to sort it out with the office.
+      if (!ownsRow(raceExisting, session)) {
+        return NextResponse.json(
+          { error: 'An application under this name already exists. Please contact the Guidance Office.' },
+          { status: 409 }
+        )
+      }
 
       const updates = {
         applicant_name: applicantName || raceExisting.applicant_name,
@@ -478,7 +510,7 @@ export async function POST(request) {
       await sendSubmissionEmail(applicantName, data.applicant_email)
     }
 
-    return NextResponse.json({ success: true, application: data })
+    return NextResponse.json({ success: true, application: applicantSafeRow(data, await resultsVisible()) })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
