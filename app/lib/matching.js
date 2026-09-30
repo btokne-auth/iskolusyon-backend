@@ -67,7 +67,7 @@
 export const PROGRAM_PASSING_GRADES = {
   'Bachelor of Science in Accountancy': 80,
   'Bachelor of Science in Accounting Information System': 75,
-  'Bachelor of Science in Computer Science': 85,
+  'Bachelor of Science in Computer Science': 75, // Appendix J p. 96: printed 85% is crossed out by hand and corrected to 75% (confirmed from the paper copy, Sept 30 2026)
   'Bachelor of Science in Information Technology': 80,
   'Bachelor of Elementary Education': 80,
   'Bachelor of Secondary Education Major in English': 80,
