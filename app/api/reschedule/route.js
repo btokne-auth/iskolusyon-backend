@@ -2,14 +2,15 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 
-// Reschedule request endpoint — Appeals & Rescheduling panel, Rescheduling
-// half only. "Appeal for Retake/Re-application" is deliberately NOT an
-// option here: per the Sept 13-14 ROR revision that item was removed from
-// the Notifications Module entirely, and its ownership is still
-// unconfirmed (needs the adviser, not a coding decision) — see the
-// project notes. Only the two request types that are unambiguously under
-// the Notifications Module ("Rescheduling Request System for Absences")
-// are accepted.
+// Appeals & Rescheduling request endpoint (Notifications Module).
+//
+// Sept 30 2026: "Appeal (Retake / Re-application)" is now a request type.
+// It was left out after the Sept 13-14 ROR revision, but the progress table
+// row ("Appeals and Examination Rescheduling Request Form") and the
+// manuscript's Scope still include it, so Pau decided to build it. As with
+// reschedules, the decision itself happens in person at the office (client
+// interview, Appendix D); the system records the request and shows it to
+// admins.
 //
 // New table, not columns on `applications` — a reschedule request is its
 // own event (an applicant can plausibly submit more than one over time),
@@ -30,7 +31,7 @@ import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/app
 //   created_at timestamptz not null default now()
 // );
 
-const ALLOWED_REQUEST_TYPES = ['Reschedule Examination (Absence)', 'Other Concern']
+const ALLOWED_REQUEST_TYPES = ['Reschedule Examination (Absence)', 'Appeal (Retake / Re-application)', 'Other Concern']
 
 // GET /api/reschedule?name=Juan+Dela+Cruz
 // Returns this applicant's past requests, newest first.

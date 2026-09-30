@@ -983,11 +983,8 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
 // Stat cards, in the order/labelling Ivy's admin.html mockup uses, mapped
 // onto this app's own real automated eligibility_status values (see
 // app/lib/matching.js) rather than the fully-manual counts her mockup had.
-// "appealed" stays at a real, honest 0 -- the Appeal for Retake/
-// Re-application feature under the Notifications Module isn't built yet
-// (see ISKOLUSYON_HANDOFF.md; Pau confirmed Sept 22 the manuscript's
-// Chapter 1 Scope and Delimitations is authoritative over the Roles PDF's
-// omission, so this is going in, just not in this pass).
+// "appealed" counts applicants who filed an Appeal (Retake / Re-application)
+// request from Appeals & Rescheduling (Sept 30 2026).
 const DASHBOARD_STAT_CARDS = [
   {
     key: 'all',
@@ -1023,7 +1020,7 @@ const DASHBOARD_STAT_CARDS = [
     key: 'appealed',
     label: 'Appealed',
     className: 'stat-appealed',
-    note: 'Filed an appeal for reconsideration of their status. Not built yet.',
+    note: 'Filed an appeal for a retake or re-application. See Appeals & Reschedules.',
   },
 ]
 
@@ -1083,6 +1080,23 @@ function DashboardPanel({
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [programFilter, setProgramFilter] = useState('all')
+  // Sept 30 2026: real appeal count for the Appealed card (applicants with
+  // at least one Appeal request). Best effort: 0 if it can't load.
+  const [appealCount, setAppealCount] = useState(0)
+  useEffect(() => {
+    fetch('/api/admin-reschedule')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.success) return
+        const who = new Set(
+          (data.requests || [])
+            .filter((r) => (r.request_type || '').startsWith('Appeal'))
+            .map((r) => r.applicant_user_id || r.applicant_email || r.applicant_name)
+        )
+        setAppealCount(who.size)
+      })
+      .catch(() => {})
+  }, [])
   const [deptOpen, setDeptOpen] = useState(false)
   const [yearOpen, setYearOpen] = useState(false)
   // Click-to-sort for the two breakdown tables. null = mockup's default
@@ -1128,7 +1142,7 @@ function DashboardPanel({
     qualified: eligibilityCounts.qualified,
     not_qualified: eligibilityCounts.not_qualified,
     waitlisted: eligibilityCounts.waitlisted,
-    appealed: 0,
+    appealed: appealCount,
   }
 
   const programOptions = useMemo(() => {
@@ -2448,6 +2462,23 @@ function AnalyticsPanel() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // Sept 30 2026: appeals count (progress table "... Appeals, and Waitlisted
+  // Analytics"). Best effort, 0 if it can't load.
+  const [appealCount, setAppealCount] = useState(0)
+  useEffect(() => {
+    fetch('/api/admin-reschedule')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.success) return
+        const who = new Set(
+          (data.requests || [])
+            .filter((r) => (r.request_type || '').startsWith('Appeal'))
+            .map((r) => r.applicant_user_id || r.applicant_email || r.applicant_name)
+        )
+        setAppealCount(who.size)
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -2623,9 +2654,7 @@ function AnalyticsPanel() {
             ]}
           />
           <p className="text-[10px] text-ccc-muted pt-3 mt-1 border-t border-ccc-border">
-            &ldquo;Appeals&rdquo; analytics (per the Roles PDF) aren&rsquo;t charted separately -- the Appeal for
-            Retake/Re-application feature itself is still parked pending an ownership decision (see
-            ISKOLUSYON_HANDOFF.md §5), so there&rsquo;s no data to count yet.
+            Appeals filed (retake or re-application): <b>{appealCount}</b>. Details are in Appeals &amp; Reschedules.
           </p>
         </div>
       </div>
@@ -4115,10 +4144,10 @@ function ReschedulePanel() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Reschedule Requests
+          Appeals &amp; Reschedule Requests
         </h1>
         <p className="text-xs text-ccc-muted mt-0.5">
-          Absence and exam rescheduling requests sent by applicants from Appeals &amp; Rescheduling.
+          Exam rescheduling requests and appeals for a retake or re-application, sent by applicants from Appeals &amp; Rescheduling.
         </p>
       </div>
 
