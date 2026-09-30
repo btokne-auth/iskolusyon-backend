@@ -56,13 +56,17 @@ export async function GET(request) {
       .from('applications')
       .select('applicant_name')
       .eq('applicant_user_id', applicantSession.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
 
     const ownName = ownApplication?.applicant_name?.trim()
 
+    // Sept 30 2026: the name fallback only picks up older requests that were
+    // never linked to any account (same rule as /api/upload's GET).
     let query = supabase.from('reschedule_requests').select('*')
     query = ownName
-      ? query.or(`applicant_user_id.eq.${applicantSession.id},applicant_name.ilike."${ownName.replace(/"/g, '')}"`)
+      ? query.or(`applicant_user_id.eq.${applicantSession.id},and(applicant_user_id.is.null,applicant_name.ilike."${ownName.replace(/"/g, '')}")`)
       : query.eq('applicant_user_id', applicantSession.id)
 
     const { data, error } = await query.order('created_at', { ascending: false })

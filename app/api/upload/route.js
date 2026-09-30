@@ -411,13 +411,29 @@ export async function POST(request) {
     // the User Account Module exists — resolved from the session cookie,
     // not trusted from the form body, so it can't be spoofed to attach an
     // upload to someone else's account.
-    const applicantName = formData.get('applicantName')?.toString().trim() || null
-    const applicantEmail = formData.get('applicantEmail')?.toString().trim() || null
+    let applicantName = formData.get('applicantName')?.toString().trim() || null
+    let applicantEmail = formData.get('applicantEmail')?.toString().trim() || null
     const documentType = formData.get('documentType')?.toString().trim() || null
 
     const applicantCookie = request.cookies.get(APPLICANT_COOKIE_NAME)?.value
     const applicantSession = await verifyApplicantCookieValue(applicantCookie)
-    const applicantUserId = applicantSession?.id || null
+    // Sept 30 2026: uploads used to be accepted from anyone, signed in or
+    // not, filed under whatever name/email the form sent. Only the signed-in
+    // applicant can upload now, always under their own account and email,
+    // and under their own application's name when they already have one.
+    if (!applicantSession) {
+      return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
+    }
+    const applicantUserId = applicantSession.id
+    applicantEmail = applicantSession.email
+    const { data: ownApplicationRow } = await supabase
+      .from('applications')
+      .select('applicant_name')
+      .eq('applicant_user_id', applicantSession.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (ownApplicationRow?.applicant_name) applicantName = ownApplicationRow.applicant_name.trim()
 
     if (documentType && !VALID_DOCUMENT_TYPES.includes(documentType)) {
       return NextResponse.json(
@@ -646,11 +662,16 @@ export async function GET(request) {
         .from('applications')
         .select('applicant_name')
         .eq('applicant_user_id', applicantSession.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .maybeSingle()
 
-      const ownName = ownApplication?.applicant_name?.trim()
+      // Sept 30 2026: the name fallback only picks up older rows that were
+      // never linked to any account, so a different applicant who happens
+      // to share the name never shows up here.
+      const ownName = ownApplication?.applicant_name?.trim().replace(/"/g, '')
       query = ownName
-        ? query.or(`applicant_user_id.eq.${applicantSession.id},applicant_name.ilike.${ownName}`)
+        ? query.or(`applicant_user_id.eq.${applicantSession.id},and(applicant_user_id.is.null,applicant_name.ilike."${ownName}")`)
         : query.eq('applicant_user_id', applicantSession.id)
     }
 
