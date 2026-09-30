@@ -898,18 +898,26 @@ function AutofillNote({ note }) {
   return <p className="field-note" style={{ color, marginTop: '8px' }}>{note.text}</p>
 }
 
-// A status note placed in the same row as the buttons (.form-actions is a
-// flex row). Vertically centered with no top margin so it lines up with
-// the buttons instead of nudging them.
-const INLINE_NOTE_STYLE = (color) => ({ color, marginTop: 0, alignSelf: 'center' })
+
+// Sept 30 2026: short save/submit feedback now pops up as a toast in the
+// bottom-right corner (the toast from Ivy's admin.html mockup) instead of a
+// line of text squeezed next to the buttons. Each state already resets to
+// 'idle' after a few seconds, which is what makes the toast go away.
+function StatusToast({ tone, children }) {
+  if (!children) return null
+  return (
+    <div className="toast-stack" role="status" aria-live="polite">
+      <div className={`toast${tone === 'success' ? ' success' : tone === 'error' ? ' error' : ''}`}>{children}</div>
+    </div>
+  )
+}
 
 function SectionFormActions({ saveState, sectionState, error, disabled, submitDisabled, submitLabel, onSaveDraft, onSubmit }) {
   return (
     <div>
       {/* The missing-fields error can be a multi-line list, so it stays
-          above the buttons. The short status notes below sit to the RIGHT
-          of the buttons in the same row (Sept 29), so the buttons no
-          longer move when a note appears or disappears. */}
+          above the buttons. The short status notes are toasts (Sept 30),
+          so nothing appears or disappears next to the buttons. */}
       {error && <p className="save-note" style={{ color: 'var(--red)', whiteSpace: 'pre-line' }}>{error}</p>}
       <div className="form-actions">
         <button type="button" onClick={onSaveDraft} disabled={disabled || saveState === 'saving'} className="mbtn mbtn-primary">
@@ -923,12 +931,12 @@ function SectionFormActions({ saveState, sectionState, error, disabled, submitDi
         >
           {sectionState === 'submitting' ? 'Submitting…' : sectionState === 'submitted' ? 'Submitted ✓' : submitLabel || 'Submit Section'}
         </button>
-        {saveState === 'saved' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--green)')}>Progress saved &#x2713;</span>}
-        {saveState === 'error' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--red)')}>Couldn&rsquo;t save, please try again.</span>}
-        {saveState === 'offline' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--gold)')}>No connection. Saved on this device, will sync automatically.</span>}
-        {sectionState === 'submitted' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--green)')}>Submitted &#x2713;</span>}
-        {sectionState === 'error' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--red)')}>Couldn&rsquo;t submit, please try again.</span>}
       </div>
+      {saveState === 'saved' && <StatusToast tone="success">&#x2713; Progress saved</StatusToast>}
+      {saveState === 'error' && <StatusToast tone="error">Couldn&rsquo;t save, please try again.</StatusToast>}
+      {saveState === 'offline' && <StatusToast tone="info">No connection. Saved on this device, will sync automatically.</StatusToast>}
+      {sectionState === 'submitted' && <StatusToast tone="success">&#x2713; Section submitted</StatusToast>}
+      {sectionState === 'error' && <StatusToast tone="error">Couldn&rsquo;t submit, please try again.</StatusToast>}
     </div>
   )
 }
@@ -3158,8 +3166,8 @@ function PortalApp({ accountSession, onLogout }) {
                   >
                     {rescheduleSaveState === 'saving' ? 'Submitting…' : 'Submit Request'}
                   </button>
-                  {rescheduleSaveState === 'saved' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--green)')}>Request submitted &#x2713;</span>}
-                  {rescheduleSaveState === 'error' && <span className="save-note" style={INLINE_NOTE_STYLE('var(--red)')}>Couldn&rsquo;t submit, please try again.</span>}
+                  {rescheduleSaveState === 'saved' && <StatusToast tone="success">&#x2713; Request submitted</StatusToast>}
+                  {rescheduleSaveState === 'error' && <StatusToast tone="error">Couldn&rsquo;t submit, please try again.</StatusToast>}
                 </div>
               </div>
 
