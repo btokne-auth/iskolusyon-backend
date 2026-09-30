@@ -3489,9 +3489,112 @@ function SystemActivityPanel() {
   )
 }
 
+// ---------- Reschedule requests (Notifications Module, admin side) ----------
+
+// Read-only list of the requests applicants send from Appeals & Rescheduling.
+// Approve / deny comes later, so there are no action buttons yet.
+function ReschedulePanel() {
+  const [requests, setRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
+
+  useEffect(() => {
+    fetch('/api/admin-reschedule')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) setRequests(data.requests)
+        else setError(data.error || 'Failed to load reschedule requests.')
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const requestTypes = useMemo(() => [...new Set(requests.map((r) => r.request_type).filter(Boolean))], [requests])
+  const visible = typeFilter === 'all' ? requests : requests.filter((r) => r.request_type === typeFilter)
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          Reschedule Requests
+        </h1>
+        <p className="text-xs text-ccc-muted mt-0.5">
+          Requests applicants sent from Appeals &amp; Rescheduling, newest first. This list is view only for now.
+        </p>
+      </div>
+
+      <div className="card" style={{ marginBottom: 0 }}>
+        <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>All Requests</span>
+          {!loading && !error && (
+            <span className="badge badge-notsubmitted">
+              {visible.length} request{visible.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+
+        {requestTypes.length > 1 && (
+          <div className="announce-form">
+            <div className="activity-filter-row">
+              <div className="mfield">
+                <label>Show</label>
+                <select
+                  className="filter-select-compact"
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                >
+                  <option value="all">All</option>
+                  {requestTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {loading ? (
+          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        ) : error ? (
+          <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+        ) : visible.length === 0 ? (
+          <p className="text-sm text-ccc-muted text-center py-8">No reschedule requests yet.</p>
+        ) : (
+          <div className="admin-list">
+            {visible.map((r) => (
+              <div key={r.id} className="admin-row">
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '13px', width: '100%' }}>
+                  <div className="aa-avatar">{getInitials(r.applicant_name)}</div>
+                  <div className="aa-info" style={{ minWidth: 0, flex: 1 }}>
+                    <div className="aa-name">{r.applicant_name}</div>
+                    <div className="aa-email">
+                      {[r.application_number, r.applicant_email].filter(Boolean).join(' · ') || 'No contact details'}
+                    </div>
+                    <div className="text-xs font-bold text-ccc-navy mt-2">{r.request_type}</div>
+                    <p className="text-sm text-ccc-muted mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                      {r.details}
+                    </p>
+                    <div className="text-[11px] text-ccc-muted mt-2">Sent {formatWhen(r.created_at)}</div>
+                  </div>
+                  <span className="badge badge-pending shrink-0 whitespace-nowrap">
+                    {r.status === 'submitted' ? 'Awaiting review' : r.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ---------- Page shell ----------
 
-const VALID_PANELS = ['dashboard', 'communications', 'admins', 'system']
+const VALID_PANELS = ['dashboard', 'communications', 'reschedule', 'admins', 'system']
 
 function AdminPageInner() {
   const searchParams = useSearchParams()
@@ -3754,6 +3857,7 @@ function AdminPageInner() {
             />
           )}
           {activePanel === 'communications' && <CommunicationsPanel />}
+          {activePanel === 'reschedule' && <ReschedulePanel />}
           {activePanel === 'results' && <ResultsPanel />}
           {activePanel === 'analytics' && <AnalyticsPanel />}
           {activePanel === 'admins' && isSuperAdmin && <AdminAccountsPanel />}

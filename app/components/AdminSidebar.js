@@ -57,6 +57,14 @@ function IconAnnouncements() {
     </svg>
   )
 }
+function IconReschedule() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  )
+}
 function IconSuperAdmin() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -99,7 +107,13 @@ const NAV_GROUPS = [
   {
     section: 'Communications',
     labelIcon: <IconComms />,
-    items: [{ key: 'communications', label: 'Announcements', icon: <IconAnnouncements /> }],
+    items: [
+      { key: 'communications', label: 'Announcements', icon: <IconAnnouncements /> },
+      // Sept 30 2026: admin side of the applicants' Rescheduling Request
+      // form. Not in Ivy's admin.html (she has no such screen), so it has
+      // no mockup source; it reuses the console's existing list styling.
+      { key: 'reschedule', label: 'Reschedule Requests', icon: <IconReschedule /> },
+    ],
   },
   // Applicant Information & Results + Statistical Data & Reporting --
   // Ivy's former modules, built Sept 21 2026 (see ISKOLUSYON_HANDOFF.md §2,
