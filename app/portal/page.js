@@ -2441,7 +2441,7 @@ function PortalApp({ accountSession, onLogout }) {
                       <div className="message-dot">{m.type === 'message' ? '✉️' : '📣'}</div>
                       <div className="message-body">
                         <h4>{m.title}</h4>
-                        <p>{m.body}</p>
+                        <p style={{ whiteSpace: 'pre-line' }}>{m.body}</p>
                         <span className="message-date">
                           {m.created_at
                             ? new Date(m.created_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })

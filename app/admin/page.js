@@ -1666,7 +1666,7 @@ function ResultNoticeBox({ row, onSent }) {
         return
       }
       if (!res.ok || !data.success) throw new Error(data.error || 'Could not send.')
-      setNotice(data.emailNote || 'Sent.')
+      setNotice(data.emailNote || (data.emailSent ? "Sent to the applicant's portal and email." : "Sent to the applicant's portal."))
       closeBox()
       if (onSent) await onSent()
     } catch (err) {

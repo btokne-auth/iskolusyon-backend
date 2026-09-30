@@ -27,7 +27,7 @@ export const RELEASABLE_STATUSES = new Set([
 ])
 
 const OFFICE_LINE = 'For questions, you may email admissions@ccc.edu.ph.'
-const WATCH_LINE = 'Please also watch the CCC Official Facebook Page and the Messages tab of this portal for updates.'
+const WATCH_LINE = 'Please also watch the CCC Official Facebook Page and the Messages tab of the Iskolusyon portal for updates.'
 
 export function buildResultDraft({ status, name, program }) {
   const who = (name || 'Applicant').trim()

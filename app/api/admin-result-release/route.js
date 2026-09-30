@@ -18,6 +18,14 @@ import { RELEASABLE_STATUSES, buildResultDraft, sendResultEmail } from '@/app/li
 // GET  ?id=<application id>  -> the draft subject/message the admin can edit
 // POST { id, subject, message, resend? }
 
+const STATUS_LABELS = {
+  passer: 'Passer',
+  waitlisted_probationary: 'Waitlisted (Probationary)',
+  qualified_probationary: 'Qualified (Probationary)',
+  forfeited: 'Forfeited',
+  disqualified: 'Disqualified',
+}
+
 async function loadApplication(id) {
   const { data, error } = await supabase
     .from('applications')
@@ -161,7 +169,7 @@ export async function POST(request) {
       await supabase.from('audit_log').insert([
         {
           actor: adminName,
-          action: `${resend ? 'Re-sent' : 'Released'} result to ${app.applicant_name || 'applicant'}: ${app.scholar_status} (portal message sent, ${emailSent ? 'email sent' : 'no email'})`,
+          action: `${resend ? 'Re-sent' : 'Released'} result to ${app.applicant_name || 'applicant'}: ${STATUS_LABELS[app.scholar_status] || app.scholar_status} (portal message sent, ${emailSent ? 'email sent' : 'no email'})`,
           kind: emailNote && app.email_updates_opt_in && !emailSent ? 'warn' : 'done',
           category: 'Results',
         },
