@@ -3,13 +3,21 @@ import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieFull } from '@/app/lib/adminAuth'
 
 // Sept 22 2026: category and read/unread filters added, matching the
-// System & Activity panel's Show/Status dropdowns. Still admin-visible
-// only (no cookie check was here before either -- this route has never
-// been reachable from outside the admin console's own UI, so leaving GET
-// open matches the existing posture; PATCH below is gated since it's a
-// write).
+// System & Activity panel's Show/Status dropdowns.
+//
+// Sept 30 2026 security fix: GET used to have no sign-in check at all, so
+// anyone could read the activity log (admin names, emails and actions) by
+// opening /api/audit-log while logged out. The middleware only covers
+// /admin pages, not /api routes. It now needs a signed-in Super Admin, the
+// same rule as the System & Activity panel that is its only caller (and as
+// /api/system-settings).
 export async function GET(request) {
   try {
+    const cookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value
+    const session = await verifyAdminCookieFull(cookie)
+    if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
+    if (!session.isSuperAdmin) return NextResponse.json({ error: 'Super Admin access required.' }, { status: 403 })
+
     const { searchParams } = new URL(request.url)
     const category = searchParams.get('category')
     const status = searchParams.get('status') // 'unread' | 'read' | null (= all)
