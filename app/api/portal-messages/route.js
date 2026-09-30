@@ -38,7 +38,7 @@ export async function GET(request) {
     // to target them by yet.
     const { data: rows, error: appError } = await supabase
       .from('applications')
-      .select('id, eligibility_status, eligibility_override')
+      .select('id, eligibility_status, eligibility_override, scholar_status')
       .eq('applicant_user_id', session.id)
       .order('updated_at', { ascending: false })
       .limit(1)
@@ -69,8 +69,11 @@ export async function GET(request) {
 
     // Sept 30 2026: result messages (Send Result to Applicant) only show
     // while "Exam Results Visible to Applicants" is on.
+    // Also hidden while this applicant's result is reset to Pending Exam (for
+    // example a retest), so an old "Passed" message doesn't stay on screen.
     const visible = await resultsVisible()
-    const posts = visible ? data : (data || []).filter((post) => post.category !== 'Result')
+    const decided = !!myApplication?.scholar_status && myApplication.scholar_status !== 'pending_exam'
+    const posts = visible && decided ? data : (data || []).filter((post) => post.category !== 'Result')
     return NextResponse.json({ success: true, posts })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
