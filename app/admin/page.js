@@ -1600,7 +1600,176 @@ function ConfirmActionModal({ eyebrow = 'Confirm', title, message, onConfirm, on
   )
 }
 
-function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution, busy }) {
+
+// ---------- Result notice (Sept 30 2026, item 5) ----------
+// Admin-triggered release of one applicant's result: a private portal
+// message always, plus an email only if the applicant opted in. Follows Ivy's
+// admin.html confirm-and-edit step (Email / Subject / Message, each with an
+// Edit toggle). Nothing is sent until the admin clicks "Send".
+function ResultNoticeBox({ row, onSent }) {
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [draft, setDraft] = useState(null)
+  const [subject, setSubject] = useState('')
+  const [message, setMessage] = useState('')
+  const [editSubject, setEditSubject] = useState(false)
+  const [editMessage, setEditMessage] = useState(false)
+  const [needsResend, setNeedsResend] = useState(false)
+
+  const releasable = ['passer', 'waitlisted_probationary', 'qualified_probationary', 'forfeited', 'disqualified'].includes(row.scholar_status)
+  const sameStatusSent = row.result_notified_status && row.result_notified_status === row.scholar_status
+
+  const openBox = async () => {
+    setOpen(true)
+    setLoading(true)
+    setError('')
+    setNotice('')
+    setNeedsResend(false)
+    setEditSubject(false)
+    setEditMessage(false)
+    try {
+      const res = await fetch('/api/admin-result-release?id=' + encodeURIComponent(row.id))
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Could not prepare the message.')
+      setDraft(data)
+      setSubject(data.subject)
+      setMessage(data.message)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const closeBox = () => {
+    setOpen(false)
+    setDraft(null)
+    setError('')
+    setNeedsResend(false)
+  }
+
+  const send = async (resend) => {
+    setSending(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin-result-release', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row.id, subject, message, resend: !!resend }),
+      })
+      const data = await res.json()
+      if (res.status === 409 && data.alreadySent) {
+        setNeedsResend(true)
+        return
+      }
+      if (!res.ok || !data.success) throw new Error(data.error || 'Could not send.')
+      setNotice(data.emailNote || 'Sent.')
+      closeBox()
+      if (onSent) await onSent()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const fmt = (iso) => {
+    try { return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) } catch { return iso }
+  }
+
+  return (
+    <div className="rounded-xl border border-ccc-border p-3.5 space-y-2.5">
+      <div className="modal-section-label" style={{ marginBottom: '4px' }}>
+        <span>Send Result to Applicant</span>
+        {releasable && !open && (
+          <button type="button" className="section-edit-btn" onClick={openBox}>
+            {row.result_notified_at ? 'Send again' : 'Notify applicant'}
+          </button>
+        )}
+      </div>
+
+      {row.result_notified_at ? (
+        <p className="text-[11px] text-ccc-muted">
+          Last sent: {SCHOLAR_STATUS_META[row.result_notified_status]?.label || row.result_notified_status}, {fmt(row.result_notified_at)}
+          {row.result_notified_by ? ' by ' + row.result_notified_by : ''}
+          {row.result_email_sent ? ' (portal message and email)' : ' (portal message only)'}
+          {row.result_notified_status && row.result_notified_status !== row.scholar_status ? '. The status has changed since then.' : '.'}
+        </p>
+      ) : (
+        <p className="text-[11px] text-ccc-muted">
+          {releasable ? 'Not sent yet.' : 'Nothing to send yet. Record the exam result first.'}
+        </p>
+      )}
+      {notice && <p className="text-[11px] text-ccc-green">{notice}</p>}
+
+      {open && (
+        <div className="confirm-inline show">
+          {loading ? (
+            <p>Preparing the message...</p>
+          ) : !draft ? (
+            <>
+              <p style={{ color: 'var(--red, #b91c1c)' }}>{error}</p>
+              <div className="confirm-inline-actions">
+                <button type="button" className="mbtn mbtn-ghost mbtn-sm" onClick={closeBox}>Close</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p>
+                This sends a private message to the applicant&apos;s portal
+                {draft.emailOptIn ? ' and an email.' : '. This applicant did not opt in to email, so only the portal message will be sent.'}
+              </p>
+              <div className="email-fields">
+                <div className="email-field-row">
+                  <label>Email</label>
+                  <div className="email-field-input-wrap">
+                    <input className="email-field-input" type="text" value={draft.to || '(no email on file)'} disabled readOnly />
+                  </div>
+                </div>
+                <div className="email-field-row">
+                  <label>Subject</label>
+                  <div className="email-field-input-wrap">
+                    <input className="email-field-input" type="text" value={subject} maxLength={150}
+                      disabled={!editSubject} onChange={(e) => setSubject(e.target.value)} />
+                    <button type="button" className="mbtn mbtn-ghost mbtn-sm email-field-edit-btn" onClick={() => setEditSubject((v) => !v)}>
+                      {editSubject ? 'Done' : 'Edit'}
+                    </button>
+                  </div>
+                </div>
+                <div className="email-field-row">
+                  <label>Message</label>
+                  <div className="email-field-input-wrap">
+                    <textarea className="email-field-input" rows={8} value={message} maxLength={4000}
+                      disabled={!editMessage} onChange={(e) => setMessage(e.target.value)} />
+                    <button type="button" className="mbtn mbtn-ghost mbtn-sm email-field-edit-btn" onClick={() => setEditMessage((v) => !v)}>
+                      {editMessage ? 'Done' : 'Edit'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {needsResend && (
+                <p>This applicant was already sent this same result. Send it again?</p>
+              )}
+              {error && <p style={{ color: 'var(--red, #b91c1c)' }}>{error}</p>}
+              <div className="confirm-inline-actions">
+                <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={sending} onClick={closeBox}>Cancel</button>
+                <button type="button" className="mbtn mbtn-primary mbtn-sm" disabled={sending || !subject.trim() || !message.trim()}
+                  onClick={() => send(needsResend)}>
+                  {sending ? 'Sending...' : needsResend ? 'Yes, send again' : 'Send'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution, onReload, busy }) {
   const [examScore, setExamScore] = useState(row.exam_score ?? '')
   const [examResult, setExamResult] = useState(row.exam_result || '')
   const [examDate, setExamDate] = useState(row.exam_date || '')
@@ -1908,6 +2077,8 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         )}
       </div>
 
+      <ResultNoticeBox row={row} onSent={onReload} />
+
       {/* Distribution Status Tracking and Statement of Subsequent Actions --
           only meaningful once a passer/qualified-probationary status exists
           (Appendix D: Registrar -> Medical or Admissions -> enrollment). The
@@ -2000,8 +2171,8 @@ function ResultsPanel() {
   // once -- this merges them client-side by `id` (the shared primary key
   // both endpoints already select) rather than making the admin flip
   // between Dashboard and here to piece the sequence together themselves.
-  const load = async () => {
-    setLoading(true)
+  const load = async (silent) => {
+    if (!silent) setLoading(true)
     setError('')
     try {
       const [resultsRes, eligRes] = await Promise.all([
@@ -2142,6 +2313,7 @@ function ResultsPanel() {
               onSaveExam={handleSaveExam}
               onSetScholarStatus={handleSetScholarStatus}
               onAdvanceDistribution={handleAdvanceDistribution}
+              onReload={() => load(true)}
               busy={busy}
             />
           ))}
