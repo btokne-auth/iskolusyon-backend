@@ -73,7 +73,8 @@ export async function GET(request) {
     // example a retest), so an old "Passed" message doesn't stay on screen.
     const visible = await resultsVisible()
     const decided = !!myApplication?.scholar_status && myApplication.scholar_status !== 'pending_exam'
-    const posts = visible && decided ? data : (data || []).filter((post) => post.category !== 'Result')
+    // Endorsement notices follow the same rule as results (Sept 30 2026).
+    const posts = visible && decided ? data : (data || []).filter((post) => post.category !== 'Result' && post.category !== 'Endorsement')
     return NextResponse.json({ success: true, posts })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })

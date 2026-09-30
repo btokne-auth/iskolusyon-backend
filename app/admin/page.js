@@ -983,11 +983,8 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
 // Stat cards, in the order/labelling Ivy's admin.html mockup uses, mapped
 // onto this app's own real automated eligibility_status values (see
 // app/lib/matching.js) rather than the fully-manual counts her mockup had.
-// "appealed" stays at a real, honest 0 -- the Appeal for Retake/
-// Re-application feature under the Notifications Module isn't built yet
-// (see ISKOLUSYON_HANDOFF.md; Pau confirmed Sept 22 the manuscript's
-// Chapter 1 Scope and Delimitations is authoritative over the Roles PDF's
-// omission, so this is going in, just not in this pass).
+// "appealed" counts applicants who filed an Appeal (Retake / Re-application)
+// request from Appeals & Rescheduling (Sept 30 2026).
 const DASHBOARD_STAT_CARDS = [
   {
     key: 'all',
@@ -1023,7 +1020,7 @@ const DASHBOARD_STAT_CARDS = [
     key: 'appealed',
     label: 'Appealed',
     className: 'stat-appealed',
-    note: 'Filed an appeal for reconsideration of their status. Not built yet.',
+    note: 'Filed an appeal for a retake or re-application. See Appeals & Reschedules.',
   },
 ]
 
@@ -1083,6 +1080,23 @@ function DashboardPanel({
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [programFilter, setProgramFilter] = useState('all')
+  // Sept 30 2026: real appeal count for the Appealed card (applicants with
+  // at least one Appeal request). Best effort: 0 if it can't load.
+  const [appealCount, setAppealCount] = useState(0)
+  useEffect(() => {
+    fetch('/api/admin-reschedule')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.success) return
+        const who = new Set(
+          (data.requests || [])
+            .filter((r) => (r.request_type || '').startsWith('Appeal'))
+            .map((r) => r.applicant_user_id || r.applicant_email || r.applicant_name)
+        )
+        setAppealCount(who.size)
+      })
+      .catch(() => {})
+  }, [])
   const [deptOpen, setDeptOpen] = useState(false)
   const [yearOpen, setYearOpen] = useState(false)
   // Click-to-sort for the two breakdown tables. null = mockup's default
@@ -1128,7 +1142,7 @@ function DashboardPanel({
     qualified: eligibilityCounts.qualified,
     not_qualified: eligibilityCounts.not_qualified,
     waitlisted: eligibilityCounts.waitlisted,
-    appealed: 0,
+    appealed: appealCount,
   }
 
   const programOptions = useMemo(() => {
@@ -1532,6 +1546,9 @@ function NextStepHint({ row }) {
   )
 }
 
+// Distribution steps that have an applicant notice (Sept 30 2026).
+const ENDORSEMENT_NOTICE_STEPS = ['endorsed_registrar', 'endorsed_medical', 'endorsed_admissions', 'enrollment_complete']
+
 const DISTRIBUTION_STATUS_STEPS = [
   ['pending_endorsement', 'Pending Endorsement'],
   ['endorsed_registrar', 'Endorsed to Registrar'],
@@ -1606,7 +1623,38 @@ function ConfirmActionModal({ eyebrow = 'Confirm', title, message, onConfirm, on
 // message always, plus an email only if the applicant opted in. Follows Ivy's
 // admin.html confirm-and-edit step (Email / Subject / Message, each with an
 // Edit toggle). Nothing is sent until the admin clicks "Send".
-function ResultNoticeBox({ row, onSent }) {
+function ResultNoticeBox({ row, onSent, kind = 'result' }) {
+  // Sept 30 2026: the same box also sends endorsement notices (kind
+  // 'endorsement', progress table row "Real-time Result Notifications
+  // (Pass/Fail/Endorsement)"), driven by Distribution Status instead of
+  // Scholar Status.
+  const cfg = kind === 'endorsement'
+    ? {
+        api: '/api/admin-endorsement-notice',
+        title: 'Send Endorsement Notice to Applicant',
+        current: row.distribution_status,
+        releasable: ENDORSEMENT_NOTICE_STEPS.includes(row.distribution_status) && !!row.result_notified_at,
+        notReady: !row.result_notified_at
+          ? 'Send the applicant their result first.'
+          : 'Nothing to send yet. Move the applicant to an endorsement step above first.',
+        lastStatus: row.endorsement_notified_status,
+        lastAt: row.endorsement_notified_at,
+        lastBy: row.endorsement_notified_by,
+        lastEmail: row.endorsement_email_sent,
+        label: (v) => DISTRIBUTION_STATUS_STEPS.find(([k]) => k === v)?.[1] || v,
+      }
+    : {
+        api: '/api/admin-result-release',
+        title: 'Send Result to Applicant',
+        current: row.scholar_status,
+        releasable: ['passer', 'waitlisted_probationary', 'qualified_probationary', 'forfeited', 'disqualified'].includes(row.scholar_status),
+        notReady: 'Nothing to send yet. Record the exam result first.',
+        lastStatus: row.result_notified_status,
+        lastAt: row.result_notified_at,
+        lastBy: row.result_notified_by,
+        lastEmail: row.result_email_sent,
+        label: (v) => SCHOLAR_STATUS_META[v]?.label || v,
+      }
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
@@ -1619,8 +1667,7 @@ function ResultNoticeBox({ row, onSent }) {
   const [editMessage, setEditMessage] = useState(false)
   const [needsResend, setNeedsResend] = useState(false)
 
-  const releasable = ['passer', 'waitlisted_probationary', 'qualified_probationary', 'forfeited', 'disqualified'].includes(row.scholar_status)
-  const sameStatusSent = row.result_notified_status && row.result_notified_status === row.scholar_status
+  const releasable = cfg.releasable
 
   const openBox = async () => {
     setOpen(true)
@@ -1631,7 +1678,7 @@ function ResultNoticeBox({ row, onSent }) {
     setEditSubject(false)
     setEditMessage(false)
     try {
-      const res = await fetch('/api/admin-result-release?id=' + encodeURIComponent(row.id))
+      const res = await fetch(cfg.api + '?id=' + encodeURIComponent(row.id))
       const data = await res.json()
       if (!res.ok || !data.success) throw new Error(data.error || 'Could not prepare the message.')
       setDraft(data)
@@ -1655,7 +1702,7 @@ function ResultNoticeBox({ row, onSent }) {
     setSending(true)
     setError('')
     try {
-      const res = await fetch('/api/admin-result-release', {
+      const res = await fetch(cfg.api, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: row.id, subject, message, resend: !!resend }),
@@ -1683,24 +1730,24 @@ function ResultNoticeBox({ row, onSent }) {
   return (
     <div className="rounded-xl border border-ccc-border p-3.5 space-y-2.5">
       <div className="modal-section-label" style={{ marginBottom: '4px' }}>
-        <span>Send Result to Applicant</span>
+        <span>{cfg.title}</span>
         {releasable && !open && (
           <button type="button" className="section-edit-btn" onClick={openBox}>
-            {row.result_notified_at ? 'Send again' : 'Notify applicant'}
+            {cfg.lastAt ? 'Send again' : 'Notify applicant'}
           </button>
         )}
       </div>
 
-      {row.result_notified_at ? (
+      {cfg.lastAt ? (
         <p className="text-[11px] text-ccc-muted">
-          Last sent: {SCHOLAR_STATUS_META[row.result_notified_status]?.label || row.result_notified_status}, {fmt(row.result_notified_at)}
-          {row.result_notified_by ? ' by ' + row.result_notified_by : ''}
-          {row.result_email_sent ? ' (portal message and email)' : ' (portal message only)'}
-          {row.result_notified_status && row.result_notified_status !== row.scholar_status ? '. The status has changed since then.' : '.'}
+          Last sent: {cfg.label(cfg.lastStatus)}, {fmt(cfg.lastAt)}
+          {cfg.lastBy ? ' by ' + cfg.lastBy : ''}
+          {cfg.lastEmail ? ' (portal message and email)' : ' (portal message only)'}
+          {cfg.lastStatus && cfg.lastStatus !== cfg.current ? '. The status has changed since then.' : '.'}
         </p>
       ) : (
         <p className="text-[11px] text-ccc-muted">
-          {releasable ? 'Not sent yet.' : 'Nothing to send yet. Record the exam result first.'}
+          {releasable ? 'Not sent yet.' : cfg.notReady}
         </p>
       )}
       {notice && <p className="text-[11px] text-ccc-green">{notice}</p>}
@@ -2153,6 +2200,8 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           </p>
         )}
       </div>
+
+      {canDistribute && <ResultNoticeBox row={row} onSent={onReload} kind="endorsement" />}
           </div>
         </div>
       </div>
@@ -2413,6 +2462,23 @@ function AnalyticsPanel() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // Sept 30 2026: appeals count (progress table "... Appeals, and Waitlisted
+  // Analytics"). Best effort, 0 if it can't load.
+  const [appealCount, setAppealCount] = useState(0)
+  useEffect(() => {
+    fetch('/api/admin-reschedule')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.success) return
+        const who = new Set(
+          (data.requests || [])
+            .filter((r) => (r.request_type || '').startsWith('Appeal'))
+            .map((r) => r.applicant_user_id || r.applicant_email || r.applicant_name)
+        )
+        setAppealCount(who.size)
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -2588,9 +2654,7 @@ function AnalyticsPanel() {
             ]}
           />
           <p className="text-[10px] text-ccc-muted pt-3 mt-1 border-t border-ccc-border">
-            &ldquo;Appeals&rdquo; analytics (per the Roles PDF) aren&rsquo;t charted separately -- the Appeal for
-            Retake/Re-application feature itself is still parked pending an ownership decision (see
-            ISKOLUSYON_HANDOFF.md §5), so there&rsquo;s no data to count yet.
+            Appeals filed (retake or re-application): <b>{appealCount}</b>. Details are in Appeals &amp; Reschedules.
           </p>
         </div>
       </div>
@@ -4080,10 +4144,10 @@ function ReschedulePanel() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Reschedule Requests
+          Appeals &amp; Reschedule Requests
         </h1>
         <p className="text-xs text-ccc-muted mt-0.5">
-          Absence and exam rescheduling requests sent by applicants from Appeals &amp; Rescheduling.
+          Exam rescheduling requests and appeals for a retake or re-application, sent by applicants from Appeals &amp; Rescheduling.
         </p>
       </div>
 

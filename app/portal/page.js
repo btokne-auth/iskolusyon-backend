@@ -3138,17 +3138,16 @@ function PortalApp({ accountSession, onLogout }) {
             </div>
           )}
 
-          {/* ══════════ APPEALS & RESCHEDULING (Rescheduling half built — the
-              Appeal-for-Retake half is deliberately left out; see
-              app/api/reschedule/route.js header comment for why) ══════════ */}
+          {/* ══════════ APPEALS & RESCHEDULING (Sept 30 2026: appeals added,
+              see app/api/reschedule/route.js) ══════════ */}
           {activePanel === 'appeals' && (
             <div>
               <div className="portal-header">
                 <p className="portal-eyebrow">Admission &middot; Application</p>
                 <h1>Appeals &amp; Rescheduling</h1>
                 <p>
-                  Request to reschedule your exam if you&rsquo;ll be absent. (Appeals for retakes or
-                  re-applications aren&rsquo;t handled here yet.)
+                  Request to reschedule your exam if you&rsquo;ll be absent, or appeal for a retake or
+                  re-application. The Guidance Office reviews every request and will contact you.
                 </p>
               </div>
 
@@ -3159,7 +3158,7 @@ function PortalApp({ accountSession, onLogout }) {
                     label="Request Type"
                     value={rescheduleType}
                     onChange={setRescheduleType}
-                    options={['Reschedule Examination (Absence)', 'Other Concern']}
+                    options={['Reschedule Examination (Absence)', 'Appeal (Retake / Re-application)', 'Other Concern']}
                     full
                   />
                   <TextAreaField

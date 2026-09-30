@@ -85,6 +85,58 @@ export function buildResultDraft({ status, name, program }) {
   }
 }
 
+// Sept 30 2026: endorsement notices, sent as an applicant moves through
+// Distribution Status (Appendix D: Registrar, Medical, Admissions, then
+// enrollment; Appendix J steps 6 and 7). Starting text only, editable by the
+// admin, and still needs the client's approval. Like the disqualified
+// result notice, none of these ever mention medical or drug-test findings.
+export const ENDORSEMENT_STEPS = new Set(['endorsed_registrar', 'endorsed_medical', 'endorsed_admissions', 'enrollment_complete'])
+
+export function buildEndorsementDraft({ step, name }) {
+  const who = (name || 'Applicant').trim()
+  const closing = `${WATCH_LINE} ${OFFICE_LINE}`
+  switch (step) {
+    case 'endorsed_registrar':
+      return {
+        subject: 'CCC Scholarship: Endorsed to the Office of the College Registrar',
+        message: [
+          `Good day, ${who}. You have been endorsed to the Office of the College Registrar.`,
+          'Please fill out the pre-registration link and submit the requirements of the Office of the College Registrar within the given deadline. Unjustified delays may cause your slot to be given to the next qualified candidate on the waiting list.',
+          closing,
+        ].join('\n\n'),
+      }
+    case 'endorsed_medical':
+      return {
+        subject: 'CCC Scholarship: Endorsed for Medical Examination',
+        message: [
+          `Good day, ${who}. You have been endorsed to CCC Health Services for your medical examination.`,
+          'Please follow the instructions and schedule given by CCC Health Services.',
+          closing,
+        ].join('\n\n'),
+      }
+    case 'endorsed_admissions':
+      return {
+        subject: 'CCC Scholarship: Endorsed to the Admissions Office',
+        message: [
+          `Good day, ${who}. You have been endorsed to the Admissions Office for the next step of your enrollment.`,
+          'Please follow the instructions of the Admissions Office within the given deadline.',
+          closing,
+        ].join('\n\n'),
+      }
+    case 'enrollment_complete':
+      return {
+        subject: 'CCC Scholarship: Enrollment Complete',
+        message: [
+          `Congratulations, ${who}! Your enrollment as a CCC scholar is complete.`,
+          'Welcome to City College of Calamba.',
+          closing,
+        ].join('\n\n'),
+      }
+    default:
+      return null
+  }
+}
+
 function escapeHtml(text) {
   return String(text)
     .replace(/&/g, '&amp;')
