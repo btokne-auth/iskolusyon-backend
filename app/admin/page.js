@@ -3679,7 +3679,7 @@ function ExamSchedulesPanel() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
-  const [form, setForm] = useState({ batchLabel: '', examDate: '', examTime: '', venue: '', notes: '' })
+  const [form, setForm] = useState({ batchLabel: '', examDate: '', startTime: '', endTime: '', venue: '', notes: '' })
   const [openId, setOpenId] = useState(null)
   const [sendBox, setSendBox] = useState(null) // { scheduleId, subject, message, editSubject, editMessage, needsResend }
 
@@ -3720,12 +3720,35 @@ function ExamSchedulesPanel() {
 
   const createBatch = async (e) => {
     e.preventDefault()
-    const { res, json } = await post({ action: 'create', ...form })
+    // Time pickers give "HH:MM" (24-hour); the batch stores readable text
+    // like "8:00 AM to 12:00 PM".
+    const to12h = (hhmm) => {
+      if (!hhmm) return ''
+      const [h, m] = hhmm.split(':').map(Number)
+      return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+    }
+    if (form.endTime && !form.startTime) {
+      setError('Pick a start time too, or clear the end time.')
+      return
+    }
+    if (form.startTime && form.endTime && form.endTime <= form.startTime) {
+      setError('The end time has to be after the start time.')
+      return
+    }
+    const examTime = form.startTime ? to12h(form.startTime) + (form.endTime ? ' to ' + to12h(form.endTime) : '') : ''
+    const { res, json } = await post({
+      action: 'create',
+      batchLabel: form.batchLabel,
+      examDate: form.examDate,
+      examTime,
+      venue: form.venue,
+      notes: form.notes,
+    })
     if (!res.ok || !json.success) {
       setError(json.error || 'Could not create the batch.')
       return
     }
-    setForm({ batchLabel: '', examDate: '', examTime: '', venue: '', notes: '' })
+    setForm({ batchLabel: '', examDate: '', startTime: '', endTime: '', venue: '', notes: '' })
     setNotice(`Batch created with ${json.added} applicant${json.added === 1 ? '' : 's'}.`)
     setOpenId(json.scheduleId)
     await load()
@@ -3829,9 +3852,14 @@ function ExamSchedulesPanel() {
               onChange={(e) => setForm((f) => ({ ...f, examDate: e.target.value }))} />
           </div>
           <div className="email-field-row">
-            <label>Time (optional)</label>
-            <input className="email-field-input" value={form.examTime} maxLength={40} placeholder="e.g. 8:00 AM to 12:00 NN"
-              onChange={(e) => setForm((f) => ({ ...f, examTime: e.target.value }))} />
+            <label>Start time (optional)</label>
+            <input className="email-field-input" type="time" value={form.startTime}
+              onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} />
+          </div>
+          <div className="email-field-row">
+            <label>End time (optional)</label>
+            <input className="email-field-input" type="time" value={form.endTime}
+              onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} />
           </div>
           <div className="email-field-row">
             <label>Venue (optional)</label>

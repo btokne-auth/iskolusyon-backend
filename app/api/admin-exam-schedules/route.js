@@ -150,6 +150,12 @@ export async function POST(request) {
       const examDate = (body.examDate || '').toString()
       if (!batchLabel) return NextResponse.json({ error: 'Give the batch a name (up to 80 characters).' }, { status: 400 })
       if (!/^\d{4}-\d{2}-\d{2}$/.test(examDate)) return NextResponse.json({ error: 'Pick the exam date.' }, { status: 400 })
+      // Sept 30 2026: the admin screen now uses time pickers; this also
+      // rejects free text sent some other way.
+      const TIME = '(1[0-2]|[1-9]):[0-5]\\d (AM|PM)'
+      if (examTime && !new RegExp(`^${TIME}( to ${TIME})?$`).test(examTime)) {
+        return NextResponse.json({ error: 'Pick the exam time with the time picker.' }, { status: 400 })
+      }
       if (examTime === null || venue === null || notes === null) {
         return NextResponse.json({ error: 'Time, venue or notes is too long.' }, { status: 400 })
       }
