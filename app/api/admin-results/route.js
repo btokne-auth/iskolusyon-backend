@@ -30,7 +30,8 @@ export async function GET(request) {
         'exam_score, exam_result, exam_date, exam_verified_by, exam_verified_at, ' +
         'scholar_status, scholar_status_reason, scholar_status_set_by, scholar_status_set_at, ' +
         'distribution_status, distribution_status_updated_by, distribution_status_updated_at, ' +
-        'result_notified_status, result_notified_at, result_notified_by, result_email_sent, email_updates_opt_in, updated_at'
+        'result_notified_status, result_notified_at, result_notified_by, result_email_sent, email_updates_opt_in, ' +
+        'endorsement_notified_status, endorsement_notified_at, endorsement_notified_by, endorsement_email_sent, updated_at'
       )
       .order('updated_at', { ascending: false })
 

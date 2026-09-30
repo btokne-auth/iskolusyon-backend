@@ -32,6 +32,8 @@ const INTERNAL_FIELDS = [
   'distribution_status_updated_at',
   'result_notified_by',
   'result_email_sent',
+  'endorsement_notified_by',
+  'endorsement_email_sent',
 ]
 
 // Hidden until the result is visible and released.
@@ -43,6 +45,8 @@ const RESULT_FIELDS = [
   'distribution_status',
   'result_notified_status',
   'result_notified_at',
+  'endorsement_notified_status',
+  'endorsement_notified_at',
 ]
 
 // Returns a copy of an applications row that is safe to hand to the
