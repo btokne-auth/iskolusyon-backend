@@ -3489,9 +3489,189 @@ function SystemActivityPanel() {
   )
 }
 
+// ---------- Reschedule requests (Notifications Module, admin side) ----------
+
+// Read-only list of the requests applicants send from Appeals & Rescheduling.
+// Approve / deny comes later, so there are no action buttons yet.
+//
+// Ivy's admin.html has no reschedule screen, so this borrows the look of her
+// "All Applicants" card (search + filter bar above an applicant-table with the
+// avatar / name / id cell) to sit naturally next to the Dashboard.
+function ReschedulePanel() {
+  const [requests, setRequests] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [newestFirst, setNewestFirst] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/admin-reschedule')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) setRequests(data.requests)
+        else setError(data.error || 'Failed to load reschedule requests.')
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const requestTypes = useMemo(() => [...new Set(requests.map((r) => r.request_type).filter(Boolean))], [requests])
+
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const rows = requests.filter((r) => {
+      if (typeFilter !== 'all' && r.request_type !== typeFilter) return false
+      if (!q) return true
+      return [r.applicant_name, r.applicant_email, r.application_number, r.request_type, r.details]
+        .filter(Boolean)
+        .some((v) => v.toLowerCase().includes(q))
+    })
+    rows.sort((a, b) => {
+      const diff = new Date(a.created_at) - new Date(b.created_at)
+      return newestFirst ? -diff : diff
+    })
+    return rows
+  }, [requests, search, typeFilter, newestFirst])
+
+  const filtersActive = search.trim() !== '' || typeFilter !== 'all'
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          Reschedule Requests
+        </h1>
+        <p className="text-xs text-ccc-muted mt-0.5">
+          Absence and exam rescheduling requests sent by applicants from Appeals &amp; Rescheduling.
+        </p>
+      </div>
+
+      <div className="card" style={{ marginBottom: 0 }}>
+        <div className="card-title">
+          All Requests
+          {!loading && !error && (
+            <span className="tag" style={{ marginLeft: '10px' }}>
+              {visible.length} request{visible.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+
+        <div className="reviewer-note">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 16v-4M12 8h.01" />
+          </svg>
+          <span>
+            This list is <b>view only</b> for now. Approving or declining a request will be added later, so please
+            follow up with the applicant directly in the meantime.
+          </span>
+        </div>
+
+        <div className="filter-bar">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, application number, email or details..."
+          />
+          {requestTypes.length > 1 && (
+            <>
+              <span className="filter-divider"></span>
+              <span className="filter-bar-label">Type</span>
+              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                <option value="all">All types</option>
+                {requestTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+          {filtersActive && (
+            <button
+              type="button"
+              className="filter-clear"
+              onClick={() => {
+                setSearch('')
+                setTypeFilter('all')
+              }}
+            >
+              &times; Clear filters
+            </button>
+          )}
+        </div>
+
+        {loading ? (
+          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        ) : error ? (
+          <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+        ) : requests.length === 0 ? (
+          <p className="text-sm text-ccc-muted text-center py-8">No reschedule requests yet.</p>
+        ) : visible.length === 0 ? (
+          <p className="text-sm text-ccc-muted text-center py-8">No requests match your search or filter.</p>
+        ) : (
+          <table className="applicant-table">
+            <thead>
+              <tr>
+                <th style={{ width: '26%' }}>Applicant</th>
+                <th>Request</th>
+                <th
+                  className="sortable-th"
+                  style={{ width: '17%' }}
+                  onClick={() => setNewestFirst((v) => !v)}
+                  title="Sort by date sent"
+                >
+                  <span className="sort-header-inner">
+                    Sent
+                    <svg className={`sort-icon active${newestFirst ? '' : ' asc'}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 16l-6-6h12z" />
+                    </svg>
+                  </span>
+                </th>
+                <th style={{ width: '14%' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <div className="app-name-cell">
+                      <div className="app-avatar">{getInitials(r.applicant_name)}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="nm">{r.applicant_name}</div>
+                        <div className="id" style={{ overflowWrap: 'anywhere' }}>
+                          {[r.application_number, r.applicant_email].filter(Boolean).join(' · ') || 'No contact details'}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="text-xs font-bold text-ccc-navy">{r.request_type}</div>
+                    <div className="text-xs text-ccc-muted mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                      {r.details}
+                    </div>
+                  </td>
+                  <td className="text-xs text-ccc-muted whitespace-nowrap">{formatWhen(r.created_at)}</td>
+                  <td>
+                    <span className="badge badge-pending whitespace-nowrap">
+                      {r.status === 'submitted' ? 'Awaiting review' : r.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ---------- Page shell ----------
 
-const VALID_PANELS = ['dashboard', 'communications', 'admins', 'system']
+const VALID_PANELS = ['dashboard', 'communications', 'reschedule', 'admins', 'system']
 
 function AdminPageInner() {
   const searchParams = useSearchParams()
@@ -3754,6 +3934,7 @@ function AdminPageInner() {
             />
           )}
           {activePanel === 'communications' && <CommunicationsPanel />}
+          {activePanel === 'reschedule' && <ReschedulePanel />}
           {activePanel === 'results' && <ResultsPanel />}
           {activePanel === 'analytics' && <AnalyticsPanel />}
           {activePanel === 'admins' && isSuperAdmin && <AdminAccountsPanel />}
