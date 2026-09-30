@@ -7,6 +7,21 @@ import {
 } from '@/app/lib/adminAuth'
 import { verifyAdminCredentials } from '@/app/lib/adminAccounts'
 import { supabase } from '@/app/supabaseClient'
+import {
+  MINUTE,
+  getClientIp,
+  normalizeKey,
+  checkLimit,
+  recordAttempt,
+  clearAttempts,
+  waitMessage,
+} from '@/app/lib/rateLimit'
+
+// Sept 30 2026: 5 failed sign-ins per email per 15 minutes, and 20 per
+// network address (higher, because a whole campus can share one address).
+const EMAIL_MAX_FAILS = 5
+const IP_MAX_FAILS = 20
+const WINDOW_MS = 15 * MINUTE
 
 export async function POST(request) {
   try {
@@ -16,13 +31,41 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Please enter your email and password.' }, { status: 400 })
     }
 
+    const emailKey = `admin-login:email:${normalizeKey(email)}`
+    const ipKey = `admin-login:ip:${getClientIp(request)}`
+
+    const emailCheck = await checkLimit(emailKey, EMAIL_MAX_FAILS, WINDOW_MS)
+    const ipCheck = await checkLimit(ipKey, IP_MAX_FAILS, WINDOW_MS)
+    if (emailCheck.blocked || ipCheck.blocked) {
+      const retryAfterSec = Math.max(emailCheck.retryAfterSec || 0, ipCheck.retryAfterSec || 0)
+      return NextResponse.json(
+        { error: waitMessage(retryAfterSec) },
+        { status: 429, headers: { 'Retry-After': String(retryAfterSec) } }
+      )
+    }
+
     const account = await verifyAdminCredentials(email, password)
     if (!account) {
-      // Sept 24 2026: logs the attempt, deliberately the simple version --
-      // no rate-limiting or lockout yet (that's real brute-force
-      // protection, scoped for later once actual brute-force testing
-      // happens). This just gives a Super Admin visibility: if the same
-      // email keeps showing up here, that's worth a look. Non-blocking,
+      await recordAttempt(emailKey)
+      await recordAttempt(ipKey)
+      // This failure is the one that reaches the limit: log the lockout once.
+      if (emailCheck.count + 1 === EMAIL_MAX_FAILS) {
+        try {
+          await supabase.from('audit_log').insert([
+            {
+              actor: normalizeKey(email) || 'Unknown',
+              action: `Sign-in locked for ${WINDOW_MS / MINUTE} minutes after ${EMAIL_MAX_FAILS} failed attempts`,
+              kind: 'warn',
+              category: 'System',
+            },
+          ])
+        } catch (auditErr) {
+          console.error('Audit log insert failed (non-blocking):', auditErr)
+        }
+      }
+      // Sept 24 2026: logs the attempt so a Super Admin has visibility: if
+      // the same email keeps showing up here, that's worth a look. (Sept 30
+      // 2026: the lockout above now blocks the guessing itself.) Non-blocking,
       // same as every other audit_log write -- a logging hiccup should
       // never be the reason a real login fails.
       try {
@@ -39,6 +82,9 @@ export async function POST(request) {
       }
       return NextResponse.json({ error: 'Incorrect email or password.' }, { status: 401 })
     }
+
+    // Correct password: forget this email's earlier failures.
+    await clearAttempts(emailKey)
 
     // Sept 29 2026: temporary password (new invite or Super Admin reset).
     // No console access yet: the admin gets a short-lived cookie that only
