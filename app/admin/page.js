@@ -3666,6 +3666,341 @@ function SystemActivityPanel() {
   )
 }
 
+// ---------- Exam schedules (Notifications Module, Sept 30 2026) ----------
+// Progress table row "Exam Schedule Alerts". An admin creates a batch (date,
+// time, venue); it fills itself with the next applicants in submission order
+// (first 100 = first batch, per the client interview). The admin can remove
+// people, then send: a private portal message to everyone in the batch plus
+// an email to those who opted in. Same confirm-and-edit step as sending a
+// result (Ivy's admin.html status email flow).
+function ExamSchedulesPanel() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [form, setForm] = useState({ batchLabel: '', examDate: '', examTime: '', venue: '', notes: '' })
+  const [openId, setOpenId] = useState(null)
+  const [sendBox, setSendBox] = useState(null) // { scheduleId, subject, message, editSubject, editMessage, needsResend }
+
+  const load = async () => {
+    setError('')
+    try {
+      const res = await fetch('/api/admin-exam-schedules')
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error || 'Failed to load exam schedules.')
+      setData(json)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  const post = async (payload) => {
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      const res = await fetch('/api/admin-exam-schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      return { res, json }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const createBatch = async (e) => {
+    e.preventDefault()
+    const { res, json } = await post({ action: 'create', ...form })
+    if (!res.ok || !json.success) {
+      setError(json.error || 'Could not create the batch.')
+      return
+    }
+    setForm({ batchLabel: '', examDate: '', examTime: '', venue: '', notes: '' })
+    setNotice(`Batch created with ${json.added} applicant${json.added === 1 ? '' : 's'}.`)
+    setOpenId(json.scheduleId)
+    await load()
+  }
+
+  const simpleAction = async (payload, doneText) => {
+    const { res, json } = await post(payload)
+    if (!res.ok || !json.success) {
+      setError(json.error || 'Something went wrong.')
+      return
+    }
+    setNotice(typeof doneText === 'function' ? doneText(json) : doneText)
+    await load()
+  }
+
+  const openSend = async (scheduleId) => {
+    setError('')
+    setNotice('')
+    try {
+      const res = await fetch('/api/admin-exam-schedules?draft=' + encodeURIComponent(scheduleId))
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error || 'Could not prepare the message.')
+      setSendBox({ scheduleId, subject: json.subject, message: json.message, editSubject: false, editMessage: false, needsResend: false })
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const send = async () => {
+    const { res, json } = await post({
+      action: 'send',
+      scheduleId: sendBox.scheduleId,
+      subject: sendBox.subject,
+      message: sendBox.message,
+      resend: sendBox.needsResend,
+    })
+    if (res.status === 409 && json.alreadySent) {
+      setSendBox((b) => ({ ...b, needsResend: true }))
+      return
+    }
+    if (!res.ok || !json.success) {
+      setError(json.error || 'Could not send.')
+      return
+    }
+    setSendBox(null)
+    setNotice(json.note)
+    await load()
+  }
+
+  const fmtDate = (iso) => {
+    try {
+      return new Date(`${iso}T00:00:00+08:00`).toLocaleDateString('en-PH', { dateStyle: 'medium', timeZone: 'Asia/Manila' })
+    } catch {
+      return iso
+    }
+  }
+  const fmtDateTime = (iso) => {
+    try {
+      return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+    } catch {
+      return iso
+    }
+  }
+
+  const schedules = data?.schedules || []
+
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          Exam Schedules
+        </h1>
+        <p className="text-xs text-ccc-muted mt-0.5">
+          Create an entrance exam batch and send the schedule to its applicants. Batches fill with the next applicants in
+          submission order, up to {data?.batchSize || 100} per batch. Someone removed from a batch goes back to the waiting
+          list and is picked first for the next batch.
+        </p>
+      </div>
+
+      {error && <p className="text-sm text-ccc-red mb-3">{error}</p>}
+      {notice && <p className="text-sm text-ccc-green mb-3">{notice}</p>}
+
+      <div className="card">
+        <div className="card-title">
+          New Exam Batch
+          {data && (
+            <span className="tag" style={{ marginLeft: '10px' }}>
+              {data.waitingCount} applicant{data.waitingCount === 1 ? '' : 's'} waiting for a schedule
+            </span>
+          )}
+        </div>
+        <form onSubmit={createBatch} className="email-fields" style={{ marginBottom: 0 }}>
+          <div className="email-field-row">
+            <label>Batch name</label>
+            <input className="email-field-input" value={form.batchLabel} maxLength={80} placeholder="e.g. Batch 1"
+              onChange={(e) => setForm((f) => ({ ...f, batchLabel: e.target.value }))} />
+          </div>
+          <div className="email-field-row">
+            <label>Exam date</label>
+            <input className="email-field-input" type="date" value={form.examDate}
+              onChange={(e) => setForm((f) => ({ ...f, examDate: e.target.value }))} />
+          </div>
+          <div className="email-field-row">
+            <label>Time (optional)</label>
+            <input className="email-field-input" value={form.examTime} maxLength={40} placeholder="e.g. 8:00 AM to 12:00 NN"
+              onChange={(e) => setForm((f) => ({ ...f, examTime: e.target.value }))} />
+          </div>
+          <div className="email-field-row">
+            <label>Venue (optional)</label>
+            <input className="email-field-input" value={form.venue} maxLength={150} placeholder="e.g. CCC Main Campus, Room 101"
+              onChange={(e) => setForm((f) => ({ ...f, venue: e.target.value }))} />
+          </div>
+          <div className="email-field-row">
+            <label>Notes for applicants (optional)</label>
+            <textarea className="email-field-input" rows={3} value={form.notes} maxLength={1000} placeholder="e.g. what to bring"
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+          </div>
+          <div className="confirm-inline-actions" style={{ marginBottom: '8px' }}>
+            <button type="submit" className="mbtn mbtn-primary mbtn-sm" disabled={busy || !form.batchLabel.trim() || !form.examDate}>
+              {busy ? 'Working...' : 'Create batch'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="card" style={{ marginBottom: 0 }}>
+        <div className="card-title">
+          Batches
+          {!loading && (
+            <span className="tag" style={{ marginLeft: '10px' }}>
+              {schedules.length} batch{schedules.length === 1 ? '' : 'es'}
+            </span>
+          )}
+        </div>
+
+        {loading ? (
+          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        ) : schedules.length === 0 ? (
+          <p className="text-sm text-ccc-muted text-center py-8">No exam batches yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {schedules.map((s) => {
+              const isOpen = openId === s.id
+              const optedIn = s.applicants.filter((a) => a.email_updates_opt_in).length
+              return (
+                <div key={s.id} className="rounded-xl border border-ccc-border p-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-bold text-ccc-navy">{s.batch_label}</p>
+                      <p className="text-[11px] text-ccc-muted">
+                        {fmtDate(s.exam_date)}
+                        {s.exam_time ? `, ${s.exam_time}` : ''}
+                        {s.venue ? `, ${s.venue}` : ''}
+                      </p>
+                      <p className="text-[11px] text-ccc-muted">
+                        {s.applicants.length} applicant{s.applicants.length === 1 ? '' : 's'} ({optedIn} opted in to email)
+                        {s.sent_at ? `. Sent ${fmtDateTime(s.sent_at)}${s.sent_by ? ' by ' + s.sent_by : ''}.` : '. Not sent yet.'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" className="mbtn mbtn-ghost mbtn-sm" onClick={() => setOpenId(isOpen ? null : s.id)}>
+                        {isOpen ? 'Hide applicants' : 'View applicants'}
+                      </button>
+                      {!s.sent_at && s.applicants.length < (data?.batchSize || 100) && data?.waitingCount > 0 && (
+                        <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={busy}
+                          onClick={() => simpleAction({ action: 'fill', scheduleId: s.id }, (j) => `Added ${j.added} applicant${j.added === 1 ? '' : 's'}.`)}>
+                          Fill up to {data?.batchSize || 100}
+                        </button>
+                      )}
+                      {!s.sent_at && (
+                        <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={busy}
+                          onClick={() => {
+                            if (window.confirm(`Delete ${s.batch_label}? Its applicants go back to the waiting list.`)) {
+                              simpleAction({ action: 'delete', scheduleId: s.id }, 'Batch deleted.')
+                            }
+                          }}>
+                          Delete
+                        </button>
+                      )}
+                      <button type="button" className="mbtn mbtn-primary mbtn-sm" disabled={busy || s.applicants.length === 0}
+                        onClick={() => openSend(s.id)}>
+                        {s.sent_at ? 'Send again' : 'Send schedule'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {sendBox && sendBox.scheduleId === s.id && (
+                    <div className="confirm-inline show" style={{ marginTop: '12px' }}>
+                      <p>
+                        This sends a private message to all {s.applicants.length} applicant{s.applicants.length === 1 ? '' : 's'} in this
+                        batch, and an email to the {optedIn} who opted in.
+                      </p>
+                      <div className="email-fields">
+                        <div className="email-field-row">
+                          <label>Subject</label>
+                          <div className="email-field-input-wrap">
+                            <input className="email-field-input" value={sendBox.subject} maxLength={150} disabled={!sendBox.editSubject}
+                              onChange={(e) => setSendBox((b) => ({ ...b, subject: e.target.value }))} />
+                            <button type="button" className="mbtn mbtn-ghost mbtn-sm email-field-edit-btn"
+                              onClick={() => setSendBox((b) => ({ ...b, editSubject: !b.editSubject }))}>
+                              {sendBox.editSubject ? 'Done' : 'Edit'}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="email-field-row">
+                          <label>Message</label>
+                          <div className="email-field-input-wrap">
+                            <textarea className="email-field-input" rows={9} value={sendBox.message} maxLength={4000} disabled={!sendBox.editMessage}
+                              onChange={(e) => setSendBox((b) => ({ ...b, message: e.target.value }))} />
+                            <button type="button" className="mbtn mbtn-ghost mbtn-sm email-field-edit-btn"
+                              onClick={() => setSendBox((b) => ({ ...b, editMessage: !b.editMessage }))}>
+                              {sendBox.editMessage ? 'Done' : 'Edit'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      {!s.sent_at && <p>After sending, the applicants in this batch can no longer be changed.</p>}
+                      {sendBox.needsResend && <p>This batch was already sent. Send it again to everyone in it?</p>}
+                      <div className="confirm-inline-actions">
+                        <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={busy} onClick={() => setSendBox(null)}>Cancel</button>
+                        <button type="button" className="mbtn mbtn-primary mbtn-sm" disabled={busy || !sendBox.subject.trim() || !sendBox.message.trim()} onClick={send}>
+                          {busy ? 'Sending...' : sendBox.needsResend ? 'Yes, send again' : 'Send'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {isOpen && (
+                    s.applicants.length === 0 ? (
+                      <p className="text-[11px] text-ccc-muted mt-3">No applicants in this batch.</p>
+                    ) : (
+                      <table className="applicant-table" style={{ marginTop: '12px' }}>
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Applicant</th>
+                            <th>Application No.</th>
+                            <th>Email updates</th>
+                            {!s.sent_at && <th></th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {s.applicants.map((a, i) => (
+                            <tr key={a.id}>
+                              <td>{i + 1}</td>
+                              <td>
+                                <div className="font-bold">{a.applicant_name || '(no name)'}</div>
+                                <div className="text-[11px] text-ccc-muted">{a.applicant_email}</div>
+                              </td>
+                              <td>{a.application_number || '-'}</td>
+                              <td>{a.email_updates_opt_in ? 'Yes' : 'No'}</td>
+                              {!s.sent_at && (
+                                <td>
+                                  <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={busy}
+                                    onClick={() => simpleAction({ action: 'remove', scheduleId: s.id, applicationId: a.id }, 'Applicant removed from the batch.')}>
+                                    Remove
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ---------- Reschedule requests (Notifications Module, admin side) ----------
 
 // Read-only list of the requests applicants send from Appeals & Rescheduling.
@@ -4112,6 +4447,7 @@ function AdminPageInner() {
           )}
           {activePanel === 'communications' && <CommunicationsPanel />}
           {activePanel === 'reschedule' && <ReschedulePanel />}
+          {activePanel === 'exams' && <ExamSchedulesPanel />}
           {activePanel === 'results' && <ResultsPanel />}
           {activePanel === 'analytics' && <AnalyticsPanel />}
           {activePanel === 'admins' && isSuperAdmin && <AdminAccountsPanel />}
