@@ -240,7 +240,29 @@ export async function GET(request) {
     }
 
     const visible = await resultsVisible()
-    return NextResponse.json({ success: true, application: applicantSafeRow(mergeApplicationRows(rows), visible) })
+    const application = applicantSafeRow(mergeApplicationRows(rows), visible)
+
+    // Sept 30 2026: Exam Schedule Alerts. The applicant sees their exam
+    // schedule only once an admin has sent it (sent_at set).
+    delete application.exam_schedule_id
+    const scheduleId = rows.map((r) => r.exam_schedule_id).find(Boolean)
+    if (scheduleId) {
+      const { data: schedule } = await supabase
+        .from('exam_schedules')
+        .select('batch_label, exam_date, exam_time, venue, sent_at')
+        .eq('id', scheduleId)
+        .maybeSingle()
+      if (schedule?.sent_at) {
+        application.exam_schedule = {
+          batch_label: schedule.batch_label,
+          exam_date: schedule.exam_date,
+          exam_time: schedule.exam_time,
+          venue: schedule.venue,
+        }
+      }
+    }
+
+    return NextResponse.json({ success: true, application })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }

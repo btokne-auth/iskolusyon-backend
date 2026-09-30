@@ -53,7 +53,10 @@ export function applicantSafeRow(row, visible) {
   if (!row) return row
   const safe = { ...row }
   for (const key of INTERNAL_FIELDS) delete safe[key]
-  const released = visible && !!row.result_notified_at && !!row.result_notified_status
+  // Sept 30 2026: if an admin later resets the exam result (back to Pending
+  // Exam, e.g. for a retest), the old released result is hidden again.
+  const stillDecided = !!row.scholar_status && row.scholar_status !== 'pending_exam'
+  const released = visible && stillDecided && !!row.result_notified_at && !!row.result_notified_status
   if (released) {
     safe.scholar_status = row.result_notified_status
   } else {

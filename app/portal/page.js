@@ -1079,6 +1079,8 @@ function PortalApp({ accountSession, onLogout }) {
   // only includes scholar_status once "Exam Results Visible to Applicants"
   // is on AND an admin has sent this applicant their result.
   const [releasedStatus, setReleasedStatus] = useState(null)
+  // Sept 30 2026: the applicant's exam schedule, once an admin has sent it.
+  const [examSchedule, setExamSchedule] = useState(null)
   const [personalSectionState, setPersonalSectionState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'submitting' | 'submitted' | 'error'
   const [academicSectionState, setAcademicSectionState] = useState('idle')
   const [healthSectionState, setHealthSectionState] = useState('idle')
@@ -1662,6 +1664,7 @@ function PortalApp({ accountSession, onLogout }) {
         setFinancialSubmittedAt(data.application.fam_financial_submitted_at || null)
         setApplicationNumber(data.application.application_number || null)
         setReleasedStatus(data.application.scholar_status || null)
+        setExamSchedule(data.application.exam_schedule || null)
         // Keeps `applicantName` in sync with whatever this row is actually
         // saved under, so every save/submit for the rest of this session
         // targets the exact same row instead of depending on the name
@@ -2262,12 +2265,33 @@ function PortalApp({ accountSession, onLogout }) {
                   {/* Locked cards. Sept 29: the notes used to say these were blocked on
                       Ivy's modules (stale, and not something applicants should
                       see). Making them real is a separate task. */}
-                  <div className="stat-card locked">
-                    <div className="stat-lock-badge">&#128274;</div>
-                    <div className="stat-label">Exam Schedule</div>
-                    <div className="stat-value stat-locked">Locked</div>
-                    <div className="stat-note">Available once exam schedules are posted.</div>
-                  </div>
+                  {/* Exam Schedule -- Sept 30 2026: unlocks once an admin has
+                      sent this applicant's exam batch (Exam Schedules panel).
+                      Same card, just filled in. */}
+                  {examSchedule ? (
+                    <div className="stat-card unlocked-clickable" onClick={() => setActivePanel('messages')} role="button" tabIndex={0}>
+                      <div className="stat-label">Exam Schedule</div>
+                      <div className="stat-value">
+                        {(() => {
+                          try {
+                            return new Date(`${examSchedule.exam_date}T00:00:00+08:00`).toLocaleDateString('en-PH', { dateStyle: 'medium', timeZone: 'Asia/Manila' })
+                          } catch {
+                            return examSchedule.exam_date
+                          }
+                        })()}
+                      </div>
+                      <div className="stat-note">
+                        {[examSchedule.exam_time, examSchedule.venue].filter(Boolean).join(', ') || examSchedule.batch_label}. Details are in Messages.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="stat-card locked">
+                      <div className="stat-lock-badge">&#128274;</div>
+                      <div className="stat-label">Exam Schedule</div>
+                      <div className="stat-value stat-locked">Locked</div>
+                      <div className="stat-note">Available once exam schedules are posted.</div>
+                    </div>
+                  )}
 
                   <div className="stat-card locked">
                     <div className="stat-lock-badge">&#128274;</div>

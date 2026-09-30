@@ -113,6 +113,8 @@ const NAV_GROUPS = [
       // form. Not in Ivy's admin.html (she has no such screen), so it has
       // no mockup source; it reuses the console's existing list styling.
       { key: 'reschedule', label: 'Reschedule Requests', icon: <IconReschedule /> },
+      // Sept 30 2026: Exam Schedule Alerts (Notifications Module).
+      { key: 'exams', label: 'Exam Schedules', icon: <IconReschedule /> },
     ],
   },
   // Applicant Information & Results + Statistical Data & Reporting --
