@@ -179,7 +179,7 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
                       {state === 'needs_review'
                         ? 'Low OCR confidence. Please check and re-upload if needed.'
                         : state === 'processing'
-                          ? 'Reading your document. Refresh in a minute to see the result.'
+                          ? 'Reading your document. This updates by itself in about a minute.'
                           : submittedNote || ''}
                     </td>
                     <td>

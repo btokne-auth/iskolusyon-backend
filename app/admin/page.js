@@ -627,25 +627,67 @@ function EligibilitySection({ row, onOverride, overriding }) {
   )
 }
 
-// ---------- Toast (Oct 1 2026) ----------
-// Same bottom-right toast as the applicant portal (Ivy's admin.html toast
-// style), so short "saved / sent" feedback looks the same on both sides.
-// Fades on its own after a few seconds. NOT used for the Admin Accounts
-// notice that shows a temporary password: that one has to stay on screen
-// until the admin copies it and dismisses it.
-function AdminToast({ message, tone = 'success', onDone, ms = 3500 }) {
+// ---------- Action pop-up (Oct 1 2026) ----------
+// Pau's request: after an admin action (save, send, invite, recompute, set a
+// status, verify a document...), show a pop-up instead of a corner toast so
+// it isn't overlooked. Same look as the applicant portal's pop-up (Ivy's
+// confirm-box), with OK locked for 5 seconds. The name stays AdminToast so
+// every place that already used the toast now gets the pop-up.
+// NOT used for the Admin Accounts notice that shows a temporary password:
+// that one stays on the page until the admin copies it and dismisses it.
+const ADMIN_NOTICE_LOCK_SECONDS = 5
+
+function AdminToast({ message, tone = 'success', onDone }) {
+  const [secondsLeft, setSecondsLeft] = useState(ADMIN_NOTICE_LOCK_SECONDS)
   useEffect(() => {
     if (!message) return undefined
-    const t = setTimeout(() => onDone && onDone(), ms)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setSecondsLeft(ADMIN_NOTICE_LOCK_SECONDS)
+    const t = setInterval(() => setSecondsLeft((v) => (v > 0 ? v - 1 : 0)), 1000)
+    return () => clearInterval(t)
   }, [message])
+  const locked = secondsLeft > 0
+  useEffect(() => {
+    if (!message) return undefined
+    const onKey = (e) => e.key === 'Escape' && !locked && onDone && onDone()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [message, locked, onDone])
   if (!message) return null
+  const isError = tone === 'error'
+  const text = String(message).replace(/^\u2713\s*/, '')
   return (
-    <div className="toast-stack" role="status" aria-live="polite">
-      <div className={`toast${tone === 'success' ? ' success' : tone === 'error' ? ' error' : ''}`}>{message}</div>
+    <div className="confirm-overlay open" style={{ zIndex: 2000 }} onClick={(e) => e.target === e.currentTarget && !locked && onDone && onDone()}>
+      <div className="confirm-box" role="alertdialog" aria-modal="true" aria-live="polite" style={{ maxWidth: 420 }}>
+        <div className="confirm-icon" style={isError ? undefined : { background: '#E3F4EA', color: '#1E8E5A' }}>
+          {isError ? '!' : '\u2713'}
+        </div>
+        <h3>{isError ? 'Something went wrong' : 'Done'}</h3>
+        <p style={{ whiteSpace: 'pre-line' }}>{text}</p>
+        <div className="confirm-actions">
+          <button type="button" className="mbtn mbtn-primary" onClick={() => onDone && onDone()} disabled={locked}>
+            {locked ? `OK (${secondsLeft})` : 'OK'}
+          </button>
+        </div>
+      </div>
     </div>
   )
+}
+
+// For handlers that have no pop-up of their own (Dashboard status and
+// document actions, Applicant Results, Announcements): fire an event that
+// the one AdminNoticeHost on the page shows.
+function showAdminNotice(text, tone = 'success') {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('admin-notice', { detail: { text, tone } }))
+}
+
+function AdminNoticeHost() {
+  const [notice, setNotice] = useState(null)
+  useEffect(() => {
+    const onNotice = (e) => setNotice(e.detail)
+    window.addEventListener('admin-notice', onNotice)
+    return () => window.removeEventListener('admin-notice', onNotice)
+  }, [])
+  return <AdminToast message={notice?.text || ''} tone={notice?.tone} onDone={() => setNotice(null)} />
 }
 
 // ---------- Locked Applications for Review (Oct 1 2026, Ivy's row) ----------
@@ -2180,7 +2222,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         type="button"
         onClick={openModal}
         disabled={opening}
-        className={`w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors mb-4${lockedByOther ? ' opacity-60' : ''}`}
+        className={`w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors${lockedByOther ? ' opacity-60' : ''}`}
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
@@ -2355,8 +2397,8 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
             {examSuggestion.suggested && (
               <>
                 {' '}Score of {examScore} suggests{' '}
-                <strong>{examSuggestion.suggested === 'passed' ? 'Passed' : 'Failed'}</strong> &mdash; this doesn&rsquo;t
-                auto-fill Result, pick it above to confirm.
+                <strong>{examSuggestion.suggested === 'passed' ? 'Passed' : 'Failed'}</strong>. This doesn&rsquo;t
+                auto-fill Result, so pick it above to confirm.
               </>
             )}
           </p>
@@ -2384,12 +2426,12 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           <span className="modal-section-label" style={{ marginBottom: '4px' }}>Step 2 · Manual Override</span>
           <p className="text-[10.5px] text-ccc-muted">
             Only for a real judgment call the exam result itself doesn&rsquo;t decide (Appendix D: a probationary contract, or a
-            later disqualification/forfeiture reason). Fires immediately &mdash; independent of Step 1 above.
+            later disqualification/forfeiture reason). Fires immediately, independent of Step 1 above.
           </p>
         </div>
         {hasUnsavedExamChanges && (
           <div className="rounded-lg border border-ccc-orange/50 bg-orange-100 px-3 py-2 text-[11px] font-semibold text-ccc-orange">
-            You have unsaved changes in the Entrance Exam section above. Clicking a button below will NOT save those &mdash;
+            You have unsaved changes in the Entrance Exam section above. Clicking a button below will NOT save those, so
             save Step 1 first if you meant to record an exam result.
           </div>
         )}
@@ -2460,7 +2502,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         {!canDistribute ? (
           !hasStaleDistribution && (
             <p className="text-[11px] text-ccc-muted">
-              Not applicable yet -- becomes available once this applicant is a Passer or Qualified (Probationary).
+              Not applicable yet. Becomes available once this applicant is a Passer or Qualified (Probationary).
             </p>
           )
         ) : (
@@ -2560,7 +2602,20 @@ function ResultsPanel() {
         setError(data.error || 'Update failed.')
         return
       }
-      await load()
+      // Oct 1 2026: quiet reload, so the applicant's window stays open behind
+      // the pop-up instead of the list flashing to "Loading..." and closing it.
+      await load(true)
+      const name = rows.find((r) => r.id === payload.id)?.applicant_name || 'the applicant'
+      if (payload.field === 'exam') {
+        showAdminNotice(`Exam result saved and verified for ${name}. Scholar Status was updated to match.`)
+      } else if (payload.field === 'scholar_status') {
+        showAdminNotice(`${name}'s Scholar Status was set to ${SCHOLAR_STATUS_OVERRIDE_LABELS[payload.scholarStatus] || payload.scholarStatus}.`)
+      } else if (payload.field === 'distribution_status') {
+        const step = DISTRIBUTION_STATUS_STEPS.find(([k]) => k === payload.distributionStatus)?.[1]
+        showAdminNotice(
+          step ? `${name}'s Distribution Status was set to ${step}.` : `${name}'s Distribution Status was cleared.`
+        )
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -2622,41 +2677,61 @@ function ResultsPanel() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2.5 mb-5">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
-          <IconSearch className="w-4 h-4 text-ccc-muted absolute left-3 top-1/2 -translate-y-1/2" />
+      {/* Oct 1 2026 reskin: same card + filter bar as the Dashboard's All
+          Applicants card, so the two lists look and behave alike. Rows and
+          the pop-up are unchanged. */}
+      <div className="card">
+        <div className="card-title">
+          All Applicants
+          {!loading && (
+            <span className="tag">
+              {filtered.length} applicant{filtered.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+
+        <div className="filter-bar">
           <input
-            type="text"
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by applicant name, email, or application number..."
-            className="w-full rounded-lg border border-ccc-border bg-white pl-9 pr-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
           />
+          <select className="program-filter-select" value={docFilter} onChange={(e) => setDocFilter(e.target.value)}>
+            <option value="all">All documents</option>
+            <option value="complete">Documents Complete</option>
+            <option value="incomplete">Documents Incomplete</option>
+          </select>
+          {(search.trim() !== '' || docFilter !== 'all') && (
+            <>
+              <div className="filter-divider" />
+              <button
+                type="button"
+                className="filter-clear"
+                onClick={() => {
+                  setSearch('')
+                  setDocFilter('all')
+                }}
+              >
+                &times; Clear filters
+              </button>
+            </>
+          )}
         </div>
-        <select
-          value={docFilter}
-          onChange={(e) => setDocFilter(e.target.value)}
-          className="rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
-        >
-          <option value="all">All Applicants</option>
-          <option value="complete">Documents Complete</option>
-          <option value="incomplete">Documents Incomplete</option>
-        </select>
-      </div>
 
-      {error && (
-        <div className="mb-4 p-3 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
-      )}
+        {error && (
+          <div className="mb-4 p-3 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
+        )}
 
-      {loading ? (
-        <div className="text-center py-20 text-ccc-muted text-sm">Loading applicants...</div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-ccc-muted text-sm">
-          {rows.length === 0 ? 'No applications on file yet.' : 'No applicants match your search and filter.'}
-        </div>
-      ) : (
-        <div>
-          {filtered.map((row) => (
+        {loading ? (
+          <div className="text-center py-20 text-ccc-muted text-sm">Loading applicants...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-20 text-ccc-muted text-sm">
+            {rows.length === 0 ? 'No applications on file yet.' : 'No applicants match your search and filter.'}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filtered.map((row) => (
             <ResultRow
               key={row.id}
               row={row}
@@ -2666,10 +2741,11 @@ function ResultsPanel() {
               onReload={() => load(true)}
               busy={busy}
               lockInfo={locks[row.id]}
-            />
-          ))}
-        </div>
-      )}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -3068,8 +3144,14 @@ function CommunicationsPanel() {
         setPostError(data.error || 'Failed to post.')
         return
       }
+      const postedType = commType
       resetForm()
       await load()
+      showAdminNotice(
+        postedType === 'message'
+          ? 'Message sent. It now shows in the applicant\u2019s Messages.'
+          : 'Announcement posted. Applicants can see it now, and it shows on the guest page.'
+      )
     } catch (err) {
       setPostError(err.message)
     } finally {
@@ -3087,6 +3169,7 @@ function CommunicationsPanel() {
         return
       }
       setItems((prev) => prev.filter((i) => i.id !== id))
+      showAdminNotice('Deleted. Applicants no longer see it.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -3512,7 +3595,7 @@ function AdminAccountsPanel() {
       {/* Oct 1 2026: plain success/failure notices are toasts; a notice
           carrying a temporary password stays here until dismissed. */}
       {notice && !notice.tempPassword && (
-        <AdminToast message={notice.text} tone={notice.tone === 'done' ? 'success' : 'error'} onDone={() => setNotice(null)} ms={5000} />
+        <AdminToast message={notice.text} tone={notice.tone === 'done' ? 'success' : 'error'} onDone={() => setNotice(null)} />
       )}
       {notice && notice.tempPassword && (
         <div
@@ -3882,7 +3965,7 @@ function CycleSettingsCard() {
       </div>
 
       <div className="flex items-center justify-end gap-3 mt-4">
-        <AdminToast message={savedNote ? '\u2713 Settings saved' : ''} onDone={() => setSavedNote(false)} />
+        <AdminToast message={savedNote ? 'Settings saved. The applicant pages follow the new settings right away.' : ''} onDone={() => setSavedNote(false)} />
         <button
           type="button"
           className="mbtn mbtn-secondary"
@@ -3899,27 +3982,39 @@ function CycleSettingsCard() {
   )
 }
 
+// Oct 1 2026 redesign (Pau's request): the log now updates by itself (every
+// 15 seconds, right after any admin action's pop-up, and when the tab comes
+// back into focus), with a Refresh button and an "Updated ..." line. The
+// category filter is a row of chips instead of a full-width dropdown, and
+// each entry shows the action, then a category chip, who did it, and the
+// time on the right.
+function relativeTime(date) {
+  const diff = Math.max(0, Date.now() - new Date(date).getTime())
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return 'just now'
+  if (min < 60) return `${min} min ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr} hr${hr === 1 ? '' : 's'} ago`
+  return new Date(date).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
+}
+
 function TimelineItem({ entry }) {
-  // Sept 24 2026: kind === 'warn' (an account removed, a password reset --
-  // things worth a second look) still always wins and shows the red alert
-  // dot, same as before. Everything else now gets its category's own
-  // icon/tint instead of one green checkmark for every kind of event, so
-  // "reserved for status" (warn/red) and "identity" (category) don't mix --
-  // same rule as the rest of the console's data visuals.
   const isWarn = entry.kind === 'warn'
   const { icon: CategoryIcon, className: categoryClass } = getCategoryStyle(entry.category)
   return (
-    <div className="timeline-item">
+    <div className={`alog-item${isWarn ? ' is-warn' : ''}`}>
       <div className={`timeline-dot ${isWarn ? 'warn' : categoryClass}`}>
         {isWarn ? <IconAlert className="w-3.5 h-3.5" /> : <CategoryIcon className="w-3.5 h-3.5" />}
       </div>
-      <div className="timeline-body min-w-0">
-        <h4>{entry.action}</h4>
-        <p>
-          {entry.actor}
-          {entry.category ? ` · ${entry.category}` : ''}
-        </p>
-        <span className="timeline-date">{formatWhen(entry.created_at)}</span>
+      <div className="alog-main">
+        <div className="alog-action">{entry.action}</div>
+        <div className="alog-meta">
+          {entry.category && <span className={`alog-cat ${categoryClass}`}>{entry.category}</span>}
+          <span>{entry.actor || 'System'}</span>
+        </div>
+      </div>
+      <div className="alog-time" title={new Date(entry.created_at).toLocaleString('en-PH')}>
+        {relativeTime(entry.created_at)}
       </div>
     </div>
   )
@@ -3928,63 +4023,89 @@ function TimelineItem({ entry }) {
 function ActivityLogCard() {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [updatedAt, setUpdatedAt] = useState(null)
+  const [, setTick] = useState(0)
+  const filterRef = useRef(categoryFilter)
+  filterRef.current = categoryFilter
+
+  const load = async ({ quiet = false } = {}) => {
+    if (quiet) setRefreshing(true)
+    else setLoading(true)
+    const want = filterRef.current
+    try {
+      const params = new URLSearchParams()
+      if (want !== 'all') params.set('category', want)
+      const qs = params.toString()
+      const res = await fetch(`/api/audit-log${qs ? `?${qs}` : ''}`)
+      const data = await res.json()
+      if (want !== filterRef.current) return // the filter changed meanwhile
+      if (data.success) {
+        setEntries(data.entries)
+        setError(null)
+        setUpdatedAt(Date.now())
+      } else if (!quiet) setError(data.error || 'Failed to load audit log.')
+    } catch (err) {
+      if (!quiet) setError(err.message)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
 
   useEffect(() => {
-    setLoading(true)
-    const params = new URLSearchParams()
-    if (categoryFilter !== 'all') params.set('category', categoryFilter)
-    const qs = params.toString()
-    fetch(`/api/audit-log${qs ? `?${qs}` : ''}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setEntries(data.entries)
-        else setError(data.error || 'Failed to load audit log.')
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryFilter])
+
+  useEffect(() => {
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible') load({ quiet: true })
+    }, 15000)
+    const onFocus = () => load({ quiet: true })
+    const onNotice = () => setTimeout(() => load({ quiet: true }), 600)
+    const clock = setInterval(() => setTick((t) => t + 1), 30000)
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('admin-notice', onNotice)
+    return () => {
+      clearInterval(poll)
+      clearInterval(clock)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('admin-notice', onNotice)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const groupedEntries = useMemo(() => groupActivityByDate(entries), [entries])
 
   return (
     <div className="card">
-      {/* Sept 24 2026: dropped the unread-count badge and "Mark all as
-          read" entirely -- this was a single shared read/unread flag
-          across every admin (see the old audit-log route's own comment),
-          not a real per-admin notification system, and surfacing "50
-          unread" for something that isn't really tracking who's seen what
-          just read as a false notification count. This is a plain
-          chronological log now, same as it always functionally was. */}
-      <div className="card-title">Recent Activity Log</div>
+      <div className="card-title">
+        Recent Activity Log
+        <span className="alog-live">
+          <span className="alog-live-dot" />
+          {refreshing ? 'Updating...' : updatedAt ? `Updated ${relativeTime(updatedAt)}` : 'Live'}
+          <button type="button" className="alog-refresh" onClick={() => load({ quiet: true })} disabled={refreshing}>
+            Refresh
+          </button>
+        </span>
+      </div>
 
-      {/* The label/select styling for .mfield only applies inside
-          .announce-form (that's how it's scoped in Ivy's original CSS --
-          she built the filter row and the announcement composer as one
-          shared markup block). This isn't a real <form> (nothing here
-          submits), just reusing the class as a styling scope so the
-          dropdown matches the rest of the console instead of rendering as
-          a bare unstyled native select. */}
-      <div className="announce-form">
-        <div className="activity-filter-row">
-          <div className="mfield">
-            <label>Show</label>
-            <select
-              id="activityFeedSelect"
-              className="filter-select-compact"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-            >
-              <option value="all">All</option>
-              {ACTIVITY_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+      <div className="alog-chips" role="tablist" aria-label="Filter activity by category">
+        {['all', ...ACTIVITY_CATEGORIES].map((c) => (
+          <button
+            key={c}
+            type="button"
+            role="tab"
+            aria-selected={categoryFilter === c}
+            className={`alog-chip${categoryFilter === c ? ' active' : ''}`}
+            onClick={() => setCategoryFilter(c)}
+          >
+            {c === 'all' ? 'All' : c}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -3994,20 +4115,19 @@ function ActivityLogCard() {
       ) : entries.length === 0 ? (
         <p className="text-sm text-ccc-muted text-center py-8">No activity recorded yet.</p>
       ) : (
-        // Sept 24 2026: entries grouped into "Today / Yesterday / <date>"
-        // sections (groupActivityByDate) instead of one continuous list --
-        // 50+ entries with no section breaks read as a single undifferen-
-        // tiated block; a date header every so often gives the eye a place
-        // to land and re-orient while scanning.
-        <div className="timeline">
+        <div className="alog">
           {groupedEntries.map((group) => (
-            <div key={group.label}>
-              <div className="activity-date-heading">{group.label}</div>
+            <div key={group.label} className="alog-group">
+              <div className="activity-date-heading">
+                {group.label}
+                <span className="alog-count">{group.items.length}</span>
+              </div>
               {group.items.map((entry) => (
                 <TimelineItem key={entry.id} entry={entry} />
               ))}
             </div>
           ))}
+          <p className="alog-foot">Showing the latest {entries.length} entries.</p>
         </div>
       )}
     </div>
@@ -4196,7 +4316,7 @@ function ExamSchedulesPanel() {
       </div>
 
       {error && <p className="text-sm text-ccc-red mb-3">{error}</p>}
-      <AdminToast message={notice} onDone={() => setNotice('')} ms={5000} />
+      <AdminToast message={notice} onDone={() => setNotice('')} />
 
       <div className="card">
         <div className="card-title">
@@ -4679,7 +4799,7 @@ function ReschedulePanel() {
           onClose={closeReview}
         />
       )}
-      <AdminToast message={toast?.text || ''} tone={toast?.tone} onDone={() => setToast(null)} ms={toast?.tone === 'error' ? 6000 : 3500} />
+      <AdminToast message={toast?.text || ''} tone={toast?.tone} onDone={() => setToast(null)} />
     </div>
   )
 }
@@ -4934,6 +5054,11 @@ function AdminPageInner() {
         return
       }
       await fetchDocs()
+      showAdminNotice(
+        action === 'verify'
+          ? `${doc.applicant_name ? `${doc.applicant_name}'s ` : ''}document was marked as verified.`
+          : `${doc.applicant_name ? `${doc.applicant_name}'s ` : ''}document was flagged for review.`
+      )
     } catch (err) {
       setOverrideError(
         isNetworkError(err)
@@ -4960,6 +5085,11 @@ function AdminPageInner() {
         return
       }
       await fetchEligibility()
+      showAdminNotice(
+        override
+          ? `Application status set to ${ELIGIBILITY_META[override]?.label || override}. The Dashboard cards are updated.`
+          : 'Manual status cleared. The application status is back to what the system computed.'
+      )
     } catch (err) {
       setEligibilityError(
         isNetworkError(err)
@@ -4982,6 +5112,9 @@ function AdminPageInner() {
         return
       }
       await fetchEligibility()
+      showAdminNotice(
+        `Recomputed eligibility for ${data.total ?? 'all'} applicant${data.total === 1 ? '' : 's'}${typeof data.updated === 'number' ? `. ${data.updated} changed.` : '.'}`
+      )
     } catch (err) {
       setEligibilityError(
         isNetworkError(err)
@@ -4997,6 +5130,7 @@ function AdminPageInner() {
 
   return (
     <main className="admin-portal">
+      <AdminNoticeHost />
       <SiteHeader
         topbarLabel="Iskolusyon Admin Console"
         topbarRight={

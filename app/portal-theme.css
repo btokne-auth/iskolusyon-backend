@@ -314,3 +314,70 @@
 .applicant-portal .toast.error{background:var(--ccc-red, #b91c1c)}
 @keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @media (max-width:600px){.applicant-portal .toast-stack{left:1rem;right:1rem;bottom:1rem}.applicant-portal .toast{max-width:none}}
+
+/* ── Oct 1 2026 redesign: Past Requests, Messages, Application History ── */
+/* Past Requests: plain cards; the outcome is spelled out in a tinted box. */
+.applicant-portal .preq-list{display:flex;flex-direction:column;gap:12px}
+.applicant-portal .preq{border:1px solid var(--border);border-radius:10px;padding:15px 16px;background:#fff}
+.applicant-portal .preq-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.applicant-portal .preq-type{font-family:'Montserrat',sans-serif;font-weight:800;font-size:13px;color:var(--navy)}
+.applicant-portal .preq-meta{font-size:11px;color:var(--muted);margin-top:3px}
+.applicant-portal .preq-status{flex-shrink:0;font-family:'Montserrat',sans-serif;font-weight:800;font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;padding:5px 11px;border-radius:999px}
+.applicant-portal .preq-status.st-ok{background:#E6F4EC;color:#1B6B3A}
+.applicant-portal .preq-status.st-no{background:#FBE7E7;color:#902020}
+.applicant-portal .preq-status.st-wait{background:#FFF8DC;color:#7A5C00}
+.applicant-portal .preq-details{font-size:12.5px;color:var(--text);margin-top:10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.applicant-portal .preq-doc{display:inline-block;font-size:11px;color:var(--muted);margin-top:6px}
+.applicant-portal .preq-doc.has-doc{color:var(--ccc-blue);font-weight:600}
+.applicant-portal .preq-outcome{display:flex;gap:10px;align-items:flex-start;margin-top:12px;border-radius:8px;padding:10px 12px}
+.applicant-portal .preq-outcome.st-ok{background:#F1F9F4}
+.applicant-portal .preq-outcome.st-no{background:#FDF3F3}
+.applicant-portal .preq-outcome.st-wait{background:#FFFBEA}
+.applicant-portal .preq-outcome-icon{width:24px;height:24px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff}
+.applicant-portal .st-ok .preq-outcome-icon{background:#1B6B3A}
+.applicant-portal .st-no .preq-outcome-icon{background:#C0392B}
+.applicant-portal .st-wait .preq-outcome-icon{background:#FFE9A8;font-size:12px}
+.applicant-portal .preq-outcome-title{font-family:'Montserrat',sans-serif;font-weight:700;font-size:12.3px;color:var(--text);padding-top:3px}
+.applicant-portal .preq-outcome-note{font-size:12px;color:var(--muted);margin-top:3px;white-space:pre-line;overflow-wrap:anywhere}
+
+/* Messages: plain cards with a type icon on the left. */
+.applicant-portal .pmsg-list{display:flex;flex-direction:column;gap:10px}
+.applicant-portal .pmsg{display:flex;gap:13px;border:1px solid var(--border);border-radius:10px;padding:14px 16px;background:#fff}
+.applicant-portal .pmsg.is-new{background:#FAFCFF;border-color:#D6E2FA}
+.applicant-portal .pmsg-icon{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px}
+.applicant-portal .pmsg-icon.is-message{background:#EEF3FD;color:var(--ccc-blue)}
+.applicant-portal .pmsg-icon.is-announcement{background:#F3ECD9}
+.applicant-portal .pmsg-main{flex:1;min-width:0}
+.applicant-portal .pmsg-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.applicant-portal .pmsg-title{font-family:'Montserrat',sans-serif;font-weight:800;font-size:13.2px;color:var(--navy);display:flex;align-items:center;gap:7px}
+.applicant-portal .pmsg-new-dot{width:8px;height:8px;border-radius:50%;background:var(--ccc-blue);flex-shrink:0}
+.applicant-portal .pmsg-date{font-size:10.8px;color:var(--muted);white-space:nowrap}
+.applicant-portal .pmsg-sub{font-size:10.8px;color:var(--muted);margin-top:2px;font-weight:600}
+.applicant-portal .pmsg-body{font-size:12.5px;color:var(--text);margin-top:8px;white-space:pre-line;overflow-wrap:anywhere;line-height:1.55}
+
+/* Application History & Activity Log: grouped by day, newest first. */
+.applicant-portal .plog{display:flex;flex-direction:column}
+.applicant-portal .plog-day{font-family:'Montserrat',sans-serif;font-weight:800;font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);padding:12px 0 6px;border-bottom:1px solid var(--border)}
+.applicant-portal .plog-group:first-child .plog-day{padding-top:0}
+.applicant-portal .plog-item{display:flex;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+.applicant-portal .plog-group:last-of-type .plog-item:last-child{border-bottom:none}
+.applicant-portal .plog-icon{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;background:#EEF3FD;color:var(--ccc-blue)}
+.applicant-portal .plog-done .plog-icon,.applicant-portal .plog-section .plog-icon{background:#E6F4EC;color:#1B6B3A}
+.applicant-portal .plog-submit .plog-icon{background:#1B6B3A;color:#fff}
+.applicant-portal .plog-warn .plog-icon{background:#FBE7E7;color:#C0392B}
+.applicant-portal .plog-next .plog-icon{background:#FFF8DC;color:#7A5C00}
+.applicant-portal .plog-main{flex:1;min-width:0}
+.applicant-portal .plog-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.applicant-portal .plog-title{font-family:'Montserrat',sans-serif;font-weight:700;font-size:12.5px;color:var(--text)}
+.applicant-portal .plog-note{font-size:11.3px;color:var(--muted);margin-top:2px}
+.applicant-portal .plog-time{font-size:11px;color:var(--muted);white-space:nowrap;padding-top:2px}
+.applicant-portal .plog-pill{font-family:'Montserrat',sans-serif;font-weight:700;font-size:9.8px;padding:2px 8px;border-radius:999px}
+.applicant-portal .plog-pill.is-good{background:#E6F4EC;color:#1B6B3A}
+.applicant-portal .plog-pill.is-info{background:#EEF3FD;color:var(--ccc-blue)}
+.applicant-portal .plog-pill.is-warn{background:#FBE7E7;color:#902020}
+.applicant-portal .plog-more{all:unset;cursor:pointer;margin-top:12px;align-self:center;font-family:'Montserrat',sans-serif;font-weight:700;font-size:11.5px;color:var(--ccc-blue);padding:7px 16px;border:1.5px solid var(--border);border-radius:999px}
+.applicant-portal .plog-more:hover{background:#EEF3FD;border-color:var(--ccc-blue)}
+@media(max-width:640px){
+  .applicant-portal .pmsg-top{flex-direction:column;gap:2px}
+  .applicant-portal .preq-head{flex-direction:column}
+}
