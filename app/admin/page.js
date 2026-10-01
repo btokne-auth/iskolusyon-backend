@@ -4398,8 +4398,10 @@ function ExamSchedulesPanel() {
 
 // ---------- Reschedule requests (Notifications Module, admin side) ----------
 
-// Read-only list of the requests applicants send from Appeals & Rescheduling.
-// Approve / deny comes later, so there are no action buttons yet.
+// The requests applicants send from Appeals & Rescheduling. Oct 1 2026: the
+// admin records the office's decision (Approve / Decline + optional note);
+// the applicant sees it in their portal and it goes to the Activity Log.
+// CCC still reviews requests in person; this records the outcome.
 //
 // Ivy's admin.html has no reschedule screen, so this borrows the look of her
 // "All Applicants" card (search + filter bar above an applicant-table with the
@@ -4411,6 +4413,44 @@ function ReschedulePanel() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [newestFirst, setNewestFirst] = useState(true)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [deciding, setDeciding] = useState(null) // { id, decision }
+  const [decisionNote, setDecisionNote] = useState('')
+  const [decisionSaving, setDecisionSaving] = useState(false)
+  const [toast, setToast] = useState(null) // { text, tone }
+
+  const startDecision = (id, decision) => {
+    setDeciding({ id, decision })
+    setDecisionNote('')
+  }
+
+  const saveDecision = async () => {
+    if (!deciding || decisionSaving) return
+    setDecisionSaving(true)
+    try {
+      const res = await fetch('/api/admin-reschedule', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deciding.id, decision: deciding.decision, note: decisionNote }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) {
+        setToast({ text: data.error || 'Could not save the decision.', tone: 'error' })
+        return
+      }
+      setRequests((prev) => prev.map((r) => (r.id === deciding.id ? { ...r, ...data.request } : r)))
+      setToast({
+        text: `\u2713 Request ${data.request.status === 'approved' ? 'approved' : 'declined'}.${data.notified ? ' The applicant was notified in their portal.' : ''}`,
+        tone: 'success',
+      })
+      setDeciding(null)
+      setDecisionNote('')
+    } catch (err) {
+      setToast({ text: err.message || 'Could not save the decision.', tone: 'error' })
+    } finally {
+      setDecisionSaving(false)
+    }
+  }
 
   useEffect(() => {
     fetch('/api/admin-reschedule')
@@ -4429,6 +4469,7 @@ function ReschedulePanel() {
     const q = search.trim().toLowerCase()
     const rows = requests.filter((r) => {
       if (typeFilter !== 'all' && r.request_type !== typeFilter) return false
+      if (statusFilter !== 'all' && r.status !== statusFilter) return false
       if (!q) return true
       return [r.applicant_name, r.applicant_email, r.application_number, r.request_type, r.details]
         .filter(Boolean)
@@ -4439,9 +4480,10 @@ function ReschedulePanel() {
       return newestFirst ? -diff : diff
     })
     return rows
-  }, [requests, search, typeFilter, newestFirst])
+  }, [requests, search, typeFilter, statusFilter, newestFirst])
 
-  const filtersActive = search.trim() !== '' || typeFilter !== 'all'
+  const filtersActive = search.trim() !== '' || typeFilter !== 'all' || statusFilter !== 'all'
+  const awaitingCount = requests.filter((r) => r.status === 'submitted').length
 
   return (
     <div>
@@ -4470,8 +4512,16 @@ function ReschedulePanel() {
             <path d="M12 16v-4M12 8h.01" />
           </svg>
           <span>
-            This list is <b>view only</b> for now. Approving or declining a request will be added later, so please
-            follow up with the applicant directly in the meantime.
+            Review each request with the applicant (in person at the Guidance Office or by email), then record the
+            decision here. The applicant sees it in their portal, and the decision can't be changed once saved.
+            {awaitingCount > 0 && (
+              <>
+                {' '}
+                <b>
+                  {awaitingCount} request{awaitingCount === 1 ? '' : 's'} awaiting review.
+                </b>
+              </>
+            )}
           </span>
         </div>
 
@@ -4496,6 +4546,14 @@ function ReschedulePanel() {
               </select>
             </>
           )}
+          <span className="filter-divider"></span>
+          <span className="filter-bar-label">Status</span>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="all">All</option>
+            <option value="submitted">Awaiting review</option>
+            <option value="approved">Approved</option>
+            <option value="declined">Declined</option>
+          </select>
           {filtersActive && (
             <button
               type="button"
@@ -4503,6 +4561,7 @@ function ReschedulePanel() {
               onClick={() => {
                 setSearch('')
                 setTypeFilter('all')
+                setStatusFilter('all')
               }}
             >
               &times; Clear filters
@@ -4537,7 +4596,7 @@ function ReschedulePanel() {
                     </svg>
                   </span>
                 </th>
-                <th style={{ width: '14%' }}>Status</th>
+                <th style={{ width: '22%' }}>Decision</th>
               </tr>
             </thead>
             <tbody>
@@ -4569,15 +4628,103 @@ function ReschedulePanel() {
                   </td>
                   <td className="text-xs text-ccc-muted whitespace-nowrap">{formatWhen(r.created_at)}</td>
                   <td>
-                    <span className="badge badge-pending whitespace-nowrap">
-                      {r.status === 'submitted' ? 'Awaiting review' : r.status}
-                    </span>
+                    <RequestDecisionCell
+                      request={r}
+                      deciding={deciding && deciding.id === r.id ? deciding.decision : null}
+                      note={decisionNote}
+                      saving={decisionSaving}
+                      onStart={(decision) => startDecision(r.id, decision)}
+                      onNote={setDecisionNote}
+                      onCancel={() => setDeciding(null)}
+                      onSave={saveDecision}
+                    />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+      </div>
+      <AdminToast message={toast?.text || ''} tone={toast?.tone} onDone={() => setToast(null)} ms={toast?.tone === 'error' ? 6000 : 3500} />
+    </div>
+  )
+}
+
+// Decision cell for one request: the status badge, then either the
+// Approve / Decline buttons (awaiting review), the confirm box with an
+// optional note, or who decided and when.
+function RequestDecisionCell({ request: r, deciding, note, saving, onStart, onNote, onCancel, onSave }) {
+  const isReschedule = /reschedule/i.test(r.request_type || '')
+  const isAppeal = /appeal/i.test(r.request_type || '')
+
+  if (r.status === 'approved' || r.status === 'declined') {
+    return (
+      <div>
+        <span className={`badge whitespace-nowrap ${r.status === 'approved' ? 'badge-verified' : 'badge-deficient'}`}>
+          {r.status === 'approved' ? 'Approved' : 'Declined'}
+        </span>
+        <div className="text-[11px] text-ccc-muted mt-1.5">
+          {r.decided_by ? `by ${r.decided_by}` : ''}
+          {r.decided_at ? `${r.decided_by ? ', ' : ''}${formatWhen(r.decided_at)}` : ''}
+        </div>
+        {r.decision_note && (
+          <div className="text-[11px] text-ccc-navy mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+            Note: {r.decision_note}
+          </div>
+        )}
+        {r.status === 'approved' && isReschedule && (
+          <div className="text-[11px] text-ccc-muted mt-1">Next: add them to a new batch in Exam Schedules.</div>
+        )}
+        {r.status === 'approved' && isAppeal && (
+          <div className="text-[11px] text-ccc-muted mt-1">Next: update their status in Applicant Results.</div>
+        )}
+      </div>
+    )
+  }
+
+  if (deciding) {
+    const approving = deciding === 'approved'
+    return (
+      <div>
+        <div className="text-xs font-bold text-ccc-navy">{approving ? 'Approve this request?' : 'Decline this request?'}</div>
+        <textarea
+          value={note}
+          onChange={(e) => onNote(e.target.value)}
+          maxLength={500}
+          rows={3}
+          placeholder={approving ? 'Note to the applicant (optional), e.g. new exam date' : 'Reason for the applicant (optional)'}
+          className="w-full mt-1.5 text-xs border border-ccc-border rounded-md p-1.5"
+          disabled={saving}
+        />
+        <div className="text-[10.5px] text-ccc-muted mt-1">The applicant sees this note in their portal. Leave out private details.</div>
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          <button
+            type="button"
+            className={approving ? 'mbtn mbtn-primary mbtn-sm' : 'mbtn mbtn-danger mbtn-sm'}
+            style={{ whiteSpace: 'nowrap' }}
+            onClick={onSave}
+            disabled={saving}
+          >
+            {saving ? 'Saving...' : approving ? 'Approve' : 'Decline'}
+          </button>
+          <button type="button" className="mbtn mbtn-ghost mbtn-sm" style={{ whiteSpace: 'nowrap' }} onClick={onCancel} disabled={saving}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <span className="badge badge-pending whitespace-nowrap">Awaiting review</span>
+      <div className="flex flex-wrap gap-1.5 mt-2">
+        <button type="button" className="mbtn mbtn-primary mbtn-sm" onClick={() => onStart('approved')}>
+          Approve
+        </button>
+        <button type="button" className="mbtn mbtn-danger mbtn-sm" onClick={() => onStart('declined')}>
+          Decline
+        </button>
       </div>
     </div>
   )

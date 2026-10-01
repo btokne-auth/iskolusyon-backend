@@ -33,6 +33,13 @@ import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/app
 
 const ALLOWED_REQUEST_TYPES = ['Reschedule Examination (Absence)', 'Appeal (Retake / Re-application)', 'Other Concern']
 
+// Oct 1 2026: CCC's Scholar Guidelines (Appendix J, p. 97, V.g): an applicant
+// who can't attend the exam "must notify the Guidance Office and request
+// rescheduling with a valid reason and supporting documents." So a
+// reschedule request needs a supporting document. The guidelines don't say
+// this for appeals or other concerns, so those stay optional.
+const DOCUMENT_REQUIRED_TYPES = new Set(['Reschedule Examination (Absence)'])
+
 // GET /api/reschedule?name=Juan+Dela+Cruz
 // Returns this applicant's past requests, newest first.
 //
@@ -76,7 +83,10 @@ export async function GET(request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, requests: data || [] })
+    // Oct 1 2026: the applicant sees the decision and note, not which admin
+    // made it.
+    const requests = (data || []).map(({ decided_by, ...rest }) => rest)
+    return NextResponse.json({ success: true, requests })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
@@ -114,7 +124,8 @@ export async function POST(request) {
     // Oct 1 2026: attach this applicant's newest Supporting Document that was
     // uploaded after their previous request and isn't attached to one yet
     // (Appendix J V.g), so an old file from an earlier concern is never
-    // reused. Optional: a request without one still goes through.
+    // reused. Required for reschedules (see DOCUMENT_REQUIRED_TYPES above),
+    // optional for the other types.
     let supportingDocumentPath = null
     try {
       const [{ data: docs }, { data: used }] = await Promise.all([
@@ -136,6 +147,17 @@ export async function POST(request) {
         (docs || []).find((d) => !usedPaths.has(d.file_path) && (!lastRequestAt || d.created_at > lastRequestAt))?.file_path || null
     } catch (attachErr) {
       console.error('Finding the supporting document failed (continuing without):', attachErr)
+    }
+
+    if (DOCUMENT_REQUIRED_TYPES.has(requestType) && !supportingDocumentPath) {
+      return NextResponse.json(
+        {
+          error:
+            'Please upload a supporting document first (for example, a medical certificate). CCC requires one for exam rescheduling. A file attached to an earlier request can\'t be reused.',
+          needsDocument: true,
+        },
+        { status: 400 }
+      )
     }
 
     const row = {
