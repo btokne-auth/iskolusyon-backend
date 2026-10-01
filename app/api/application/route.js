@@ -37,7 +37,7 @@ async function sendSubmissionEmail(applicantName, applicantEmail) {
         <p>Hi ${applicantName},</p>
         <p>We've received your scholarship application. Our team will review your
         submitted documents and get back to you with any updates.</p>
-        <p>— City College of Calamba, Iskolusyon Scholarship System</p>
+        <p>City College of Calamba, Iskolusyon Scholarship System</p>
       `,
     })
   } catch (err) {

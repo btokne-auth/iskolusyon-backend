@@ -298,7 +298,7 @@ function RetryableImage({ src, alt, className }) {
     return (
       <div ref={containerRef} className="flex flex-col items-center gap-2 text-ccc-muted py-10">
         <IconAlertTriangle className="w-8 h-8 text-ccc-orange" />
-        <span className="text-xs text-center px-4">Couldn&rsquo;t load this preview &mdash; likely a slow or dropped connection.</span>
+        <span className="text-xs text-center px-4">Couldn&rsquo;t load this preview. The connection may be slow or dropped.</span>
         <button
           type="button"
           onClick={() => {
@@ -572,7 +572,7 @@ function EligibilitySection({ row, onOverride, overriding }) {
   if (!row) {
     return (
       <div className="rounded-xl border border-ccc-border bg-ccc-off px-4 py-3 text-xs text-ccc-muted">
-        No application profile on file yet for this applicant — eligibility can&rsquo;t be evaluated until one exists.
+        No application profile on file yet for this applicant, so eligibility can&rsquo;t be evaluated until one exists.
       </div>
     )
   }
@@ -1168,7 +1168,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                   </div>
                   <div className="efield">
                     <label>Email Address</label>
-                    <input value={detail?.applicant_email || email || '—'} disabled readOnly />
+                    <input value={detail?.applicant_email || email || 'Not on file'} disabled readOnly />
                   </div>
                   <div className="efield">
                     <label>Contact Number</label>
@@ -1587,7 +1587,7 @@ function DashboardPanel({
           type="button"
           onClick={onRecomputeEligibility}
           disabled={recomputing}
-          title="Recomputes eligibility for every applicant from their current data — needed for anyone who fully submitted before this feature existed, since a locked application never triggers a new save on its own."
+          title="Recomputes eligibility for every applicant from their current data. Needed for anyone who fully submitted before this feature existed, since a locked application never triggers a new save on its own."
           className="mbtn mbtn-ghost mbtn-sm"
         >
           {recomputing ? 'Recomputing…' : 'Recompute all'}
@@ -1716,7 +1716,7 @@ function DashboardPanel({
             <span className="dept-divider-arrow">&#9662;</span>
           </div>
           <p className="dept-helper-text">
-            &ldquo;Department&rdquo; isn&rsquo;t a field this system collects — grouped by the same
+            &ldquo;Department&rdquo; isn&rsquo;t a field this system collects, so this is grouped by the same
             program-to-department mapping as the approved mockup, applied to each applicant&rsquo;s Program (Course)
             choices.
           </p>
@@ -1730,7 +1730,7 @@ function DashboardPanel({
                     <th
                       className={`bd-count bd-count-sortable${deptSortDesc ? ' bd-sorted' : ''}`}
                       onClick={() => setDeptSortDesc((v) => !v)}
-                      title={deptSortDesc ? 'Sorted highest first within each department — click to reset' : 'Click to sort each department by Qualified, highest first'}
+                      title={deptSortDesc ? 'Sorted highest first within each department. Click to reset' : 'Click to sort each department by Qualified, highest first'}
                     >
                       Qualified {deptSortDesc ? '▼' : ''}
                     </th>
@@ -1762,7 +1762,7 @@ function DashboardPanel({
             <span className="dept-divider-arrow">&#9662;</span>
           </div>
           <p className="dept-helper-text">
-            No literal &ldquo;Year Level&rdquo; field exists yet — grouped by Applying As, the closest real proxy.
+            No literal &ldquo;Year Level&rdquo; field exists yet, so this is grouped by Applying As, the closest real proxy.
           </p>
           <div className={`dept-section-body${yearOpen ? '' : ' collapsed'}`}>
             <div className="breakdown-table-wrap">
@@ -1775,7 +1775,7 @@ function DashboardPanel({
                         key={yl.label}
                         className={`bd-count bd-count-sortable${yearSortKey === yl.value ? ' bd-sorted' : ''}`}
                         onClick={() => setYearSortKey((v) => (v === yl.value ? null : yl.value))}
-                        title={yearSortKey === yl.value ? 'Sorted highest first — click to reset' : `Click to sort all programs by ${yl.label}, highest first`}
+                        title={yearSortKey === yl.value ? 'Sorted highest first. Click to reset' : `Click to sort all programs by ${yl.label}, highest first`}
                       >
                         {yl.label} {yearSortKey === yl.value ? '▼' : ''}
                       </th>
@@ -3214,7 +3214,7 @@ function CommunicationsPanel() {
                     </>
                   ) : (
                     <>
-                      <b>Messages</b> are private and never shown on the guest/public page — send to a specific
+                      <b>Messages</b> are private and never shown on the guest/public page. Send to a specific
                       applicant or a category of applicants.
                     </>
                   )}
@@ -4142,7 +4142,7 @@ function SystemActivityPanel() {
           System &amp; Activity
         </h1>
         <p className="text-xs text-ccc-muted mt-0.5">
-          Application cycle controls, and a running, auto-recorded timeline of system activity — document uploads,
+          Application cycle controls, and a running, auto-recorded timeline of system activity: document uploads,
           manual overrides, and announcement posts.
         </p>
       </div>
@@ -5062,7 +5062,7 @@ function AdminPageInner() {
     } catch (err) {
       setOverrideError(
         isNetworkError(err)
-          ? 'No connection right now — this change did not go through. Try again once you\u2019re back online.'
+          ? 'No connection right now, so this change did not go through. Try again once you\u2019re back online.'
           : err.message
       )
     } finally {
@@ -5093,7 +5093,7 @@ function AdminPageInner() {
     } catch (err) {
       setEligibilityError(
         isNetworkError(err)
-          ? 'No connection right now — this change did not go through. Try again once you’re back online.'
+          ? 'No connection right now, so this change did not go through. Try again once you’re back online.'
           : err.message
       )
     } finally {
@@ -5118,7 +5118,7 @@ function AdminPageInner() {
     } catch (err) {
       setEligibilityError(
         isNetworkError(err)
-          ? 'No connection right now — this change did not go through. Try again once you’re back online.'
+          ? 'No connection right now, so this change did not go through. Try again once you’re back online.'
           : err.message
       )
     } finally {
@@ -5161,7 +5161,7 @@ function AdminPageInner() {
         <div className="w-full bg-red-50 border-b border-red-200 text-center py-2.5 px-4">
           <p className="text-xs font-semibold text-red-700">
             You&rsquo;re currently offline. Document previews, saves, and overrides won&rsquo;t go through until
-            your connection returns &mdash; this page will pick back up automatically once it does.
+            your connection returns. This page will pick back up automatically once it does.
           </p>
         </div>
       )}
@@ -5169,7 +5169,7 @@ function AdminPageInner() {
       {!isOffline && justReconnected && (
         <div className="w-full bg-green-50 border-b border-ccc-green/30 text-center py-2 px-4">
           <p className="text-xs font-semibold text-ccc-green">
-            You&rsquo;re back online &mdash; refreshing the latest data now.
+            You&rsquo;re back online. Refreshing the latest data now.
           </p>
         </div>
       )}

@@ -129,7 +129,7 @@ export function computeEligibility(row, uploadedTypes) {
   let residencyOk
   if (!row.personal_info_submitted_at) {
     residencyOk = null
-    reasons.push('Personal Information not yet submitted — residency not evaluated.')
+    reasons.push('Personal Information not yet submitted, so residency was not evaluated.')
   } else if (looksLikeCalambaAddress(row.address)) {
     residencyOk = true
   } else {
@@ -141,7 +141,7 @@ export function computeEligibility(row, uploadedTypes) {
   let voterOk
   if (!row.personal_info_submitted_at) {
     voterOk = null
-    reasons.push('Personal Information not yet submitted — voter registration not evaluated.')
+    reasons.push('Personal Information not yet submitted, so voter registration was not evaluated.')
   } else if (types.has('voterid') || types.has('parentid')) {
     voterOk = true
   } else {
@@ -155,7 +155,7 @@ export function computeEligibility(row, uploadedTypes) {
     transfereeOk = true // rule doesn't apply to freshmen / Old Curriculum-ALS applicants
   } else if (!row.academic_submitted_at) {
     transfereeOk = null
-    reasons.push('Educational Background not yet submitted — transferee standing not evaluated.')
+    reasons.push('Educational Background not yet submitted, so transferee standing was not evaluated.')
   } else {
     const gwa = row.transferee_gwa
     const units = row.transferee_units_passed
@@ -169,7 +169,7 @@ export function computeEligibility(row, uploadedTypes) {
       const noFailOk = failingGrade === 'No'
       transfereeOk = gwaOk && unitsOk && noFailOk
       if (!gwaOk) reasons.push(`Transferee GWA of ${gwa} doesn't meet the 2.25-or-better requirement.`)
-      if (!unitsOk) reasons.push(`Transferee has passed ${units} units — Appendix J requires at least 26.`)
+      if (!unitsOk) reasons.push(`Transferee has passed ${units} units. Appendix J requires at least 26.`)
       if (!noFailOk) reasons.push('Transferee reported a failing grade in a previous semester (Appendix J disqualifies this).')
     }
   }
@@ -182,7 +182,7 @@ export function computeEligibility(row, uploadedTypes) {
     status = 'incomplete'
   } else {
     status = 'pending_exam'
-    reasons.push('Passes every rule this system can currently check — final admission still depends on entrance exam results, which the Applicant Information & Results module does not yet record.')
+    reasons.push('Passes every rule this system can currently check. Final admission still depends on the entrance exam result.')
   }
 
   return { status, reasons }

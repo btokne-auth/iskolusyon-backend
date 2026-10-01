@@ -218,7 +218,7 @@ export const PROFILE_CATEGORIES = [
   },
 ]
 
-const EMPTY_VALUE = '—'
+const EMPTY_VALUE = 'Not provided'
 
 // Formats one field's raw DB value for read-only display. Booleans, arrays
 // (organizations / siblings) and plain scalars each need their own
@@ -230,7 +230,7 @@ export function formatFieldValue(row, field) {
     const list = Array.isArray(value) ? value : []
     if (list.length === 0) return EMPTY_VALUE
     return list
-      .map((o) => [o.name, o.position, o.nature, o.year].filter(Boolean).join(' — '))
+      .map((o) => [o.name, o.position, o.nature, o.year].filter(Boolean).join(' · '))
       .filter(Boolean)
       .join('; ')
   }
@@ -238,7 +238,7 @@ export function formatFieldValue(row, field) {
     const list = Array.isArray(value) ? value : []
     if (list.length === 0) return EMPTY_VALUE
     return list
-      .map((s) => [s.name, s.education, s.civilStatus].filter(Boolean).join(' — '))
+      .map((s) => [s.name, s.education, s.civilStatus].filter(Boolean).join(' · '))
       .filter(Boolean)
       .join('; ')
   }

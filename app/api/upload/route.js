@@ -1,13 +1,9 @@
-// Vercel Hobby plan defaults serverless functions to a 10-second execution
-// limit, which OCR (Tesseract.js) routinely exceeds -- this was silently
-// killing every non-profilepic upload mid-request with no response ever
-// reaching the browser. Raises this route's limit to 60s, the max Hobby
-// allows. Added Sept 25, 2026 after birth cert / voter's ID uploads hung
-// indefinitely in testing.
+// Raises this route's limit to 60s, the max Vercel Hobby allows. Uploads
+// return right away, but the after() step below waits up to 55s for the
+// OCR worker on Render to wake, and that runs within this same limit.
 export const maxDuration = 60
 
 import sharp from 'sharp'
-import path from 'path'
 import { NextResponse, after } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import crypto from 'crypto'
@@ -19,46 +15,6 @@ import { getSystemSettings } from '@/app/lib/systemSettings'
 // ---------- Validation limits ----------
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
-
-// Sept 25, 2026: local copy of Tesseract's English language model, so OCR
-// reads it off disk instead of re-downloading it from a CDN on every single
-// upload -- see the comment where this gets used in extractText() below.
-const TESSDATA_PATH = path.join(process.cwd(), 'tessdata')
-
-// Below this many characters of embedded PDF text, we assume the PDF has no
-// real text layer (i.e. it's a scanned/photographed document) and fall back
-// to rasterizing pages + running OCR on them instead.
-const MIN_DIGITAL_TEXT_LENGTH = 40
-
-// Below this mean OCR confidence (0-100, from Tesseract), we flag the
-// document as needing manual review / re-upload instead of trusting the
-// detected text outright. This is the threshold that feeds the
-// "Deficiency Alerts" / "Re-upload Requests" flow described in the module
-// scope — low-confidence OCR isn't hidden, it's surfaced as an actionable
-// status instead of silently returning garbled text.
-const LOW_CONFIDENCE_THRESHOLD = 60
-
-// Tesseract can report a deceptively high confidence score even when it
-// detected essentially no real text — e.g. a page rotated too far for it to
-// segment into text lines at all. That score is meaningless when it's
-// attached to almost nothing, so below this many characters we treat OCR as
-// having found nothing, flag it for review regardless of the confidence
-// number, and zero that number out rather than show a contradictory
-// "95% confident, no text detected" result.
-const MIN_OCR_TEXT_LENGTH = 3
-
-// pdf-parse's own page-joiner default ("-- 1 of 3 --") gets silently baked
-// into its params object the first time it parses a page, even though we
-// never pass a pageJoiner option ourselves. That means a fully-scanned,
-// zero-text PDF still comes back from getText() with a few of these
-// separator lines glued together — which is easily >= MIN_DIGITAL_TEXT_LENGTH
-// even though not one of those characters came from the document itself.
-// Strip them before we ever measure "how much real text is here".
-const PDF_PAGE_SEPARATOR = /--\s*\d+\s+of\s+\d+\s*--/g
-
-function stripPdfPageSeparators(text) {
-  return text.replace(PDF_PAGE_SEPARATOR, '').trim()
-}
 
 // ---------- Image-quality precheck ----------
 // Runs BEFORE OCR, on raw image uploads only (JPG/PNG straight from a phone
@@ -89,7 +45,7 @@ const MIN_IMAGE_DIMENSION = 300
 // photos in this project ran well above this; deliberately conservative so
 // this only catches the extreme cases and doesn't reject legitimate but
 // low-contrast documents. Named and isolated the same way as
-// LOW_CONFIDENCE_THRESHOLD above — a single tunable constant, not a scattered
+// a single tunable constant, not a scattered
 // magic number, meant to be revisited against a larger sample set.
 const MIN_CONTRAST_STDEV = 10
 
@@ -130,255 +86,10 @@ async function checkImageQuality(buffer, documentType) {
   return { passed: true }
 }
 
-// ---------- OCR / text extraction helpers ----------
-
-// Detects whether a page is sideways or upside-down (a 90/180/270-degree
-// misorientation — the kind you get from a phone photo taken in the wrong
-// orientation, or an image whose EXIF rotation got stripped somewhere along
-// the way) and rotates it upright before recognition runs.
-//
-// IMPORTANT LIMITATION: this only corrects cardinal, 90-degree-increment
-// misorientation. It does NOT fix continuous skew — a photo taken at a
-// slight or moderate tilt, like a document photographed at an angle rather
-// than dead-on. True deskewing needs the actual skew angle measured off the
-// text lines themselves (e.g. via a Hough-transform line-angle detector),
-// which is a meaningfully bigger feature than this capstone's OCR module
-// scope covers. A badly-skewed document that this step can't fix is still
-// caught downstream by the empty-text safety net below instead of silently
-// passing.
-//
-// Also unverified end-to-end in this environment (Tesseract's OSD needs
-// network access to fetch its own data, which isn't available in this
-// sandbox) — test it against a genuinely sideways photo after deploying.
-// If the correction rotates the image the wrong way, the fix is flipping
-// the sign: change `360 - degrees` below to just `degrees`.
-async function correctOrientation(worker, buffer) {
-  try {
-    const { data } = await worker.detect(buffer)
-    const degrees = data?.orientation_degrees ?? 0
-    const confidence = data?.orientation_confidence ?? 0
-
-    // Only act on a confident, cardinal reading — acting on a low-confidence
-    // guess for an already-upright document would do more harm than good.
-    if (confidence > 5 && [90, 180, 270].includes(degrees)) {
-      return await sharp(buffer).rotate(360 - degrees).toBuffer()
-    }
-  } catch (e) {
-    // Orientation detection is a best-effort improvement, not a required
-    // step — if it fails (e.g. OSD data unavailable), fall through and OCR
-    // the image as-is rather than failing the whole upload over it.
-    console.error('Orientation detection failed:', e)
-  }
-  return buffer
-}
-
-// ---------- Deskew (continuous-angle skew correction) ----------
-// correctOrientation() above only fixes 90/180/270-degree misorientation.
-// This handles the far more common real-world case: a document
-// photographed at a moderate tilt rather than fully sideways -- the exact
-// failure mode that made a legible Voter's Certification photo OCR as
-// completely empty during Sept 18 testing. Runs inside the same
-// ocrImageBuffer() every image document type already goes through, so
-// this benefits every type (Birth Cert, Voter's ID, Employment Cert,
-// etc.), not just the one that surfaced the bug.
-//
-// Approach: projection-profile skew detection, a classic dependency-free
-// technique (no OpenCV/native bindings needed). For a spread of candidate
-// rotation angles, rotate a small binarized copy of the image and score
-// how "line-like" the result is -- well-aligned text rows create sharp
-// peaks/troughs in row-by-row dark-pixel counts (a text line has many
-// dark pixels, the gap above/below it has few), so the angle whose
-// row-darkness profile has the highest variance is the best guess at the
-// document's true skew. Not perfect on sparse or non-text-heavy images,
-// but a meaningful improvement over applying no correction at all for
-// the common "photographed at a slight-to-moderate angle" case.
-//
-// Range is deliberately capped at +/-25 degrees: accidental handheld-
-// photo tilt rarely exceeds this, and searching wider both costs more
-// compute per upload and risks a false "improvement" that rotates an
-// already-fine document further from upright.
-const DESKEW_MAX_ANGLE = 25
-const DESKEW_STEP = 5 // degrees -- widened from 2 on Sept 25, 2026: the original
-                       // 2-degree step meant 26 rotate+scan passes per upload,
-                       // which (combined with OCR itself) was still blowing past
-                       // Vercel's 60s ceiling even after cutting OCR to one pass.
-                       // 5 degrees is still just a coarse best-effort search either
-                       // way -- fewer, cheaper steps through the same +/-25 range.
-
-async function estimateSkewAngle(buffer) {
-  const small = await sharp(buffer)
-    .resize({ width: 200, withoutEnlargement: false }) // halved from 400 on Sept 25,
-    // 2026 -- the per-angle pixel-counting loop below is O(width x height), so this
-    // alone roughly quarters the cost of every one of the loop's iterations.
-    .grayscale()
-    .threshold(180) // rough binarization: text -> black (0), background -> white (255)
-    .toBuffer()
-
-  let bestAngle = 0
-  let bestScore = -1
-
-  for (let angle = -DESKEW_MAX_ANGLE; angle <= DESKEW_MAX_ANGLE; angle += DESKEW_STEP) {
-    let rotated
-    try {
-      rotated = await sharp(small)
-        .rotate(angle, { background: '#ffffff' })
-        .raw()
-        .toBuffer({ resolveWithObject: true })
-    } catch (e) {
-      continue
-    }
-    const { data, info } = rotated
-    const { width, height, channels } = info
-    const rowSums = new Array(height)
-    for (let y = 0; y < height; y++) {
-      let sum = 0
-      const rowStart = y * width * channels
-      for (let x = 0; x < width; x++) {
-        if (data[rowStart + x * channels] < 128) sum++ // count dark (text) pixels
-      }
-      rowSums[y] = sum
-    }
-    const mean = rowSums.reduce((a, b) => a + b, 0) / rowSums.length
-    const variance = rowSums.reduce((a, b) => a + (b - mean) ** 2, 0) / rowSums.length
-
-    if (variance > bestScore) {
-      bestScore = variance
-      bestAngle = angle
-    }
-  }
-
-  return bestAngle
-}
-
-async function correctSkew(buffer) {
-  try {
-    const angle = await estimateSkewAngle(buffer)
-    if (angle === 0) return buffer
-    return await sharp(buffer).rotate(angle, { background: '#ffffff' }).toBuffer()
-  } catch (e) {
-    // Best-effort improvement, not a required step -- if scoring fails for
-    // any reason, OCR the image as originally oriented rather than fail
-    // the whole upload over it.
-    console.error('Skew correction failed (non-blocking):', e)
-    return buffer
-  }
-}
-
-async function preprocessForOCR(buffer) {
-  return sharp(buffer)
-    .resize({ width: 2000, withoutEnlargement: false })  // upscale small/low-res photos
-    .grayscale()
-    .median(3)          // knocks out camera-sensor speckle/JPEG noise before
-                         // contrast stretching amplifies it — cheap and only
-                         // helps on real photos, doesn't hurt clean scans
-    .normalize()
-    .sharpen()
-    .toBuffer()
-    // no .threshold() — let Tesseract binarize internally, it's better at it than a flat cutoff
-}
-
-// A single photographed/scanned page can defeat Tesseract's automatic page
-// segmentation in ways that are specific to that page's layout — e.g. two
-// logos side by side in a header get read as one interleaved line instead of
-// two separate ones. There's no single PSM that's safe for every scholarship
-// document (forms, letters, IDs, certificates all lay out differently), so
-// instead of guessing one, we run the two segmentation strategies that cover
-// most real documents — full-page auto layout, and single uniform block —
-// and keep whichever one Tesseract itself is more confident about. This is
-// the single biggest lever we have on the "OCR falls apart on anything that
-// isn't a clean, born-digital PDF" problem, without adding new dependencies.
-async function ocrWithBestSegmentation(worker, buffer) {
-  // Sept 25, 2026: temporarily reduced from two segmentation passes
-  // (PSM.AUTO + PSM.SINGLE_BLOCK) to one -- running Tesseract twice per
-  // upload was the single biggest cost pushing this route past Vercel's
-  // 60s Hobby-plan timeout ceiling. PSM.AUTO alone still handles the
-  // common cases; SINGLE_BLOCK is parked here, not removed for good.
-  const { PSM } = await import('tesseract.js')
-  await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO })
-  const { data } = await worker.recognize(buffer)
-  return { text: data.text, confidence: data.confidence }
-}
-
-// Runs Tesseract OCR on a single image buffer using an already-started worker.
-async function ocrImageBuffer(worker, buffer) {
-  const oriented = await correctOrientation(worker, buffer)
-  const deskewed = await correctSkew(oriented)
-  const cleaned = await preprocessForOCR(deskewed)
-  const { text, confidence } = await ocrWithBestSegmentation(worker, cleaned)
-  return { text: text.trim(), confidence }
-}
-
-// Decides how to pull text out of the uploaded file:
-// - images -> straight to Tesseract OCR
-// - PDFs   -> try the embedded text layer first (fast, exact); if the PDF
-//             turns out to be a scan with no real text layer, rasterize each
-//             page to an image and OCR those instead.
-//
-// pdf-parse and tesseract.js are dynamically imported below, inside this
-// function, instead of as top-level imports at the top of this file. Both
-// libraries pull in code that references browser-only globals (pdf-parse's
-// pdfjs-dist internals touch `DOMMatrix`, which doesn't exist in Node.js).
-// A top-level import runs that code the moment ANY route in this file is
-// hit — including the plain GET handler that just lists documents from
-// Supabase and never touches a PDF — which crashed every GET /api/upload
-// request in production with "ReferenceError: DOMMatrix is not defined"
-// (Sept 23, 2026). Importing dynamically, only on this code path that
-// actually parses a file, keeps that crash from ever happening on GET.
-async function extractText(buffer, mimeType) {
-  if (mimeType.startsWith('image/')) {
-    const { createWorker } = await import('tesseract.js')
-    const worker = await createWorker('eng', undefined, { langPath: TESSDATA_PATH, gzip: true, cacheMethod: 'none' })
-    try {
-      const { text, confidence } = await ocrImageBuffer(worker, buffer)
-      return { text, method: 'ocr-image', confidence }
-    } finally {
-      await worker.terminate()
-    }
-  }
-
-  if (mimeType === 'application/pdf') {
-    const { PDFParse } = await import('pdf-parse')
-    const parser = new PDFParse({ data: buffer })
-    try {
-      const result = await parser.getText()
-      // Strip pdf-parse's own "-- N of M --" page-separator boilerplate
-      // before deciding whether this PDF actually has a text layer — see
-      // the comment on PDF_PAGE_SEPARATOR above for why this matters.
-      const digitalText = stripPdfPageSeparators((result.text || '').trim())
-
-      if (digitalText.length >= MIN_DIGITAL_TEXT_LENGTH) {
-        // Born-digital text layer — exact, no OCR involved, so confidence
-        // is a non-issue (treated as maximum).
-        return { text: digitalText, method: 'pdf-embedded-text', confidence: 100 }
-      }
-
-      // No usable text layer found — treat as a scanned PDF and OCR each page.
-      const screenshot = await parser.getScreenshot({ scale: 2 })
-      const { createWorker } = await import('tesseract.js')
-      const worker = await createWorker('eng', undefined, { langPath: TESSDATA_PATH, gzip: true, cacheMethod: 'none' })
-      try {
-        let ocrText = ''
-        let confidenceSum = 0
-        for (const page of screenshot.pages) {
-          const result = await ocrImageBuffer(worker, page.data)
-          ocrText += result.text + '\n'
-          confidenceSum += result.confidence
-        }
-        return {
-          text: ocrText.trim(),
-          method: 'ocr-scanned-pdf',
-          confidence: confidenceSum / screenshot.pages.length
-        }
-      } finally {
-        await worker.terminate()
-      }
-    } finally {
-      await parser.destroy()
-    }
-  }
-
-  return { text: '', method: 'unsupported', confidence: 0 }
-}
+// Oct 1 2026: the OCR helpers that used to live here (orientation fix,
+// deskew, Tesseract and pdf-parse text extraction) were removed. Reading
+// documents now happens in the separate iskolusyon-ocr-worker on Render
+// (see the after() step in POST below).
 
 // VALID_DOCUMENT_TYPES moved to app/lib/documentTypes.js (Sept 16 Patch 2
 // port) — was its own fourth copy of this list, values-only. See that
@@ -545,7 +256,7 @@ export async function POST(request) {
         await supabase.from('audit_log').insert([
           {
             actor: 'System',
-            action: `Document auto-verified — ${applicantName} · ${documentType} (0% confidence)`,
+            action: `Document auto-verified: ${applicantName} · ${documentType}`,
             kind: 'done',
             category: 'Documents',
           },
