@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
+import { checkLock } from '@/app/lib/applicantLocks'
 
 // Scholarship Matching & Filtering — admin-facing read + manual override.
 //
@@ -63,6 +64,10 @@ export async function PATCH(request) {
     if (!id) {
       return NextResponse.json({ error: 'Missing application id.' }, { status: 400 })
     }
+
+    // Oct 1 2026: Locked Applications for Review.
+    const locked = await checkLock(request, id)
+    if (locked) return locked
     if (override !== null && !VALID_OVERRIDES.has(override)) {
       return NextResponse.json({ error: 'Unknown override value.' }, { status: 400 })
     }

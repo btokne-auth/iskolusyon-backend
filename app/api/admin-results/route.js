@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
+import { checkLock } from '@/app/lib/applicantLocks'
 import { deriveScholarStatus, SCHOLAR_STATUS_VALUES, DISTRIBUTION_STATUS_VALUES } from '@/app/lib/matching'
 
 // Applicant Information & Results Module -- admin-facing read + the three
@@ -65,6 +66,10 @@ export async function PATCH(request) {
     const body = await request.json()
     const { id, field } = body
     if (!id) return NextResponse.json({ error: 'Missing application id.' }, { status: 400 })
+
+    // Oct 1 2026: Locked Applications for Review.
+    const locked = await checkLock(request, id)
+    if (locked) return locked
 
     const { data: existing, error: fetchError } = await supabase
       .from('applications')

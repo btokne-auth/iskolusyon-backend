@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
+import { checkLock } from '@/app/lib/applicantLocks'
 import { ENDORSEMENT_STEPS, buildEndorsementDraft, sendResultEmail } from '@/app/lib/resultNotices'
 import { resultsVisible } from '@/app/lib/resultVisibility'
 
@@ -85,6 +86,10 @@ export async function POST(request) {
 
     const { id, subject, message, resend } = await request.json()
     if (!id) return NextResponse.json({ error: 'Missing application id.' }, { status: 400 })
+
+    // Oct 1 2026: Locked Applications for Review.
+    const locked = await checkLock(request, id)
+    if (locked) return locked
     const cleanSubject = (subject || '').trim()
     const cleanMessage = (message || '').trim()
     if (!cleanSubject || !cleanMessage) {
