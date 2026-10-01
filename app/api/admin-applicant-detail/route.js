@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
+import { EDITABLE_FIELDS, PRIVATE_LOG_FIELDS, cleanValue } from '@/app/lib/profileEditRules'
+import { computeEligibility } from '@/app/lib/matching'
 
 // Full per-applicant profile read, for the Dashboard applicant modal's
 // General Information grid + tabbed "Submitted Documents & Profile Data"
@@ -37,6 +39,127 @@ export async function GET(request) {
     }
 
     return NextResponse.json({ success: true, application: data })
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
+
+// ---------- Oct 1 2026: admin edit of submitted profile data ----------
+// Progress table rows "Applicant Profile Edit & Save Controls" and
+// "Applicant Detail with Personal Information View/Edit" (Ivy's rows).
+// PATCH { id, changes: { column: value, ... } }
+//   - any signed-in admin (Pau's decision),
+//   - only fields listed in app/lib/profileEditRules.js,
+//   - eligibility is recomputed, same as when the applicant saves,
+//   - the applicant gets a private portal message naming what changed,
+//   - every change goes to the Activity Log as old -> new (health details
+//     are logged as "changed" without their values).
+export async function PATCH(request) {
+  try {
+    const cookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value
+    const adminName = await verifyAdminCookieValue(cookie)
+    if (!adminName) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
+
+    const body = await request.json()
+    const { id, changes } = body || {}
+    if (!id) return NextResponse.json({ error: 'Missing id.' }, { status: 400 })
+    if (!changes || typeof changes !== 'object' || Array.isArray(changes)) {
+      return NextResponse.json({ error: 'Nothing to save.' }, { status: 400 })
+    }
+
+    const updates = {}
+    for (const [key, raw] of Object.entries(changes)) {
+      if (!EDITABLE_FIELDS.has(key)) {
+        return NextResponse.json({ error: `"${key}" cannot be edited here.` }, { status: 400 })
+      }
+      const cleaned = cleanValue(key, raw)
+      if (cleaned.error) return NextResponse.json({ error: cleaned.error }, { status: 400 })
+      updates[key] = cleaned.value
+    }
+
+    const { data: current, error: loadError } = await supabase.from('applications').select('*').eq('id', id).maybeSingle()
+    if (loadError) return NextResponse.json({ error: loadError.message }, { status: 500 })
+    if (!current) return NextResponse.json({ error: 'Applicant not found.' }, { status: 404 })
+
+    // Keep only real changes.
+    const same = (a, b) => (a === null || a === undefined || a === '' ? null : String(a)) === (b === null || b === undefined || b === '' ? null : String(b))
+    const changed = Object.keys(updates).filter((key) => !same(current[key], updates[key]))
+    if (changed.length === 0) return NextResponse.json({ success: true, changed: [], application: current })
+
+    const patch = {}
+    for (const key of changed) patch[key] = updates[key]
+
+    // Recompute eligibility with the applicant's own documents (account-
+    // linked, plus older rows never linked to any account).
+    const uploadedTypes = new Set()
+    const addTypes = async (builder) => {
+      const { data } = await builder
+      for (const d of data || []) uploadedTypes.add(d.document_type)
+    }
+    if (current.applicant_user_id) {
+      await addTypes(supabase.from('documents').select('document_type').eq('applicant_user_id', current.applicant_user_id))
+    }
+    if (current.applicant_email) {
+      await addTypes(supabase.from('documents').select('document_type').is('applicant_user_id', null).ilike('applicant_email', current.applicant_email))
+    }
+    const merged = { ...current, ...patch }
+    const { status, reasons } = computeEligibility(merged, uploadedTypes)
+    patch.eligibility_status = status
+    patch.eligibility_reasons = reasons
+    patch.updated_at = new Date().toISOString()
+
+    const { data: saved, error: saveError } = await supabase.from('applications').update(patch).eq('id', id).select().single()
+    if (saveError) return NextResponse.json({ error: saveError.message }, { status: 500 })
+
+    const labels = changed.map((key) => EDITABLE_FIELDS.get(key))
+    const short = (v) => {
+      if (v === null || v === undefined || v === '') return '(blank)'
+      const s = String(v)
+      return s.length > 60 ? `${s.slice(0, 57)}...` : s
+    }
+
+    // Applicant notice (portal only). Lists which fields changed, not values.
+    try {
+      await supabase.from('announcements').insert([
+        {
+          author: adminName,
+          title: 'Your application details were updated',
+          body:
+            `The Guidance Office updated the following in your application:\n\n${labels.map((l) => `- ${l}`).join('\n')}\n\n` +
+            'You can see the new details in your profile. If something looks wrong, please contact the Guidance Office or email admissions@ccc.edu.ph.',
+          category: 'Profile Update',
+          type: 'message',
+          target_type: 'specific',
+          target_application_id: current.id,
+          target_category: null,
+        },
+      ])
+    } catch (noticeErr) {
+      console.error('Profile update notice failed (non-blocking):', noticeErr)
+    }
+
+    // Activity Log: one line per save, old -> new per field.
+    try {
+      const details = changed
+        .map((key) =>
+          PRIVATE_LOG_FIELDS.has(key)
+            ? `${EDITABLE_FIELDS.get(key)} changed`
+            : `${EDITABLE_FIELDS.get(key)}: "${short(current[key])}" -> "${short(updates[key])}"`
+        )
+        .join('; ')
+      await supabase.from('audit_log').insert([
+        {
+          actor: adminName,
+          action: `Edited ${current.applicant_name || 'an applicant'}'s profile. ${details}`.slice(0, 1000),
+          kind: 'warn',
+          category: 'Documents',
+        },
+      ])
+    } catch (auditErr) {
+      console.error('Audit log insert failed (non-blocking):', auditErr)
+    }
+
+    return NextResponse.json({ success: true, changed: labels, application: saved || { ...current, ...patch } })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
