@@ -627,6 +627,27 @@ function EligibilitySection({ row, onOverride, overriding }) {
   )
 }
 
+// ---------- Toast (Oct 1 2026) ----------
+// Same bottom-right toast as the applicant portal (Ivy's admin.html toast
+// style), so short "saved / sent" feedback looks the same on both sides.
+// Fades on its own after a few seconds. NOT used for the Admin Accounts
+// notice that shows a temporary password: that one has to stay on screen
+// until the admin copies it and dismisses it.
+function AdminToast({ message, tone = 'success', onDone, ms = 3500 }) {
+  useEffect(() => {
+    if (!message) return undefined
+    const t = setTimeout(() => onDone && onDone(), ms)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message])
+  if (!message) return null
+  return (
+    <div className="toast-stack" role="status" aria-live="polite">
+      <div className={`toast${tone === 'success' ? ' success' : tone === 'error' ? ' error' : ''}`}>{message}</div>
+    </div>
+  )
+}
+
 // ---------- Locked Applications for Review (Oct 1 2026, Ivy's row) ----------
 // While one admin has an applicant open (Dashboard or Applicant Results),
 // other admins see that applicant greyed out with "Being reviewed by ..." and
@@ -894,7 +915,7 @@ function ProfileStackFields({ stack, detail, applicationId, onSaved }) {
         ))}
       </div>
       {error && <p className="text-[11px] text-ccc-red mt-1">{error}</p>}
-      {note && <p className="text-[11px] text-ccc-green mt-1">{note}</p>}
+      <AdminToast message={note} onDone={() => setNote('')} />
     </>
   )
 }
@@ -2016,7 +2037,7 @@ function ResultNoticeBox({ row, onSent, kind = 'result' }) {
           {releasable ? 'Not sent yet.' : cfg.notReady}
         </p>
       )}
-      {notice && <p className="text-[11px] text-ccc-green">{notice}</p>}
+      <AdminToast message={notice} onDone={() => setNotice('')} />
 
       {open && (
         <div className="confirm-inline show">
@@ -3488,7 +3509,12 @@ function AdminAccountsPanel() {
         </div>
       </div>
 
-      {notice && (
+      {/* Oct 1 2026: plain success/failure notices are toasts; a notice
+          carrying a temporary password stays here until dismissed. */}
+      {notice && !notice.tempPassword && (
+        <AdminToast message={notice.text} tone={notice.tone === 'done' ? 'success' : 'error'} onDone={() => setNotice(null)} ms={5000} />
+      )}
+      {notice && notice.tempPassword && (
         <div
           className={`mb-4 rounded-xl border px-4 py-3 text-xs font-semibold ${
             notice.tone === 'done'
@@ -3740,7 +3766,6 @@ function CycleSettingsCard() {
       setSettings(data.settings)
       setDraft(data.settings)
       setSavedNote(true)
-      setTimeout(() => setSavedNote(false), 2500)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -3857,7 +3882,7 @@ function CycleSettingsCard() {
       </div>
 
       <div className="flex items-center justify-end gap-3 mt-4">
-        {savedNote && <span className="text-xs font-bold text-ccc-green">Saved.</span>}
+        <AdminToast message={savedNote ? '\u2713 Settings saved' : ''} onDone={() => setSavedNote(false)} />
         <button
           type="button"
           className="mbtn mbtn-secondary"
@@ -4171,7 +4196,7 @@ function ExamSchedulesPanel() {
       </div>
 
       {error && <p className="text-sm text-ccc-red mb-3">{error}</p>}
-      {notice && <p className="text-sm text-ccc-green mb-3">{notice}</p>}
+      <AdminToast message={notice} onDone={() => setNotice('')} ms={5000} />
 
       <div className="card">
         <div className="card-title">
