@@ -653,10 +653,20 @@ function useApplicantLocks() {
       }
     }
     load()
-    const timer = setInterval(load, 15000)
+    // Oct 1 2026: every 5 seconds (was 15) so the "Being reviewed by" badge
+    // appears and clears quickly, plus right away when the admin comes back
+    // to this tab. Clicking an applicant always checks the lock live anyway.
+    const timer = setInterval(load, 5000)
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') load()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
     return () => {
       cancelled = true
       clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
     }
   }, [])
   return locks
