@@ -30,6 +30,13 @@ export async function PATCH(request) {
     if (patch.applicant_slots != null && (!Number.isFinite(Number(patch.applicant_slots)) || Number(patch.applicant_slots) < 0)) {
       return NextResponse.json({ error: 'Applicant slots must be a positive number.' }, { status: 400 })
     }
+    const isDate = (v) => v == null || v === '' || /^\d{4}-\d{2}-\d{2}$/.test(String(v))
+    if (!isDate(patch.acceptance_start_date) || !isDate(patch.acceptance_end_date)) {
+      return NextResponse.json({ error: 'Pick the acceptance dates with the date picker.' }, { status: 400 })
+    }
+    if (patch.acceptance_start_date && patch.acceptance_end_date && patch.acceptance_end_date < patch.acceptance_start_date) {
+      return NextResponse.json({ error: 'The acceptance end date has to be on or after the start date.' }, { status: 400 })
+    }
 
     const settings = await updateSystemSettings(patch, session.name)
 
@@ -37,7 +44,7 @@ export async function PATCH(request) {
       await supabase.from('audit_log').insert([
         {
           actor: session.name,
-          action: `Updated Application Cycle Settings (Applications ${settings.applications_open ? 'Open' : 'Closed'}, Document Uploads ${settings.document_uploads_enabled ? 'Enabled' : 'Disabled'}, Exam Results ${settings.exam_results_visible ? 'Visible' : 'Hidden'})`,
+          action: `Updated Application Cycle Settings (Applications ${settings.applications_open ? 'Open' : 'Closed'}, Document Uploads ${settings.document_uploads_enabled ? 'Enabled' : 'Disabled'}, Exam Results ${settings.exam_results_visible ? 'Visible' : 'Hidden'}${settings.acceptance_start_date || settings.acceptance_end_date ? `, Accepting ${settings.acceptance_start_date || 'any date'} to ${settings.acceptance_end_date || 'any date'}` : ''}${settings.applicant_slots != null ? `, ${settings.applicant_slots} slots` : ''})`,
           kind: 'done',
           category: 'System',
         },

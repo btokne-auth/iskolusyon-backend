@@ -4,7 +4,7 @@ import { Resend } from 'resend'
 import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns, familyInfoToColumns } from '@/app/lib/applicationColumns'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { computeEligibility } from '@/app/lib/matching'
-import { getSystemSettings } from '@/app/lib/systemSettings'
+import { getSystemSettings, submitBlockedReason } from '@/app/lib/systemSettings'
 import { resultsVisible, applicantSafeRow } from '@/app/lib/resultVisibility'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -305,15 +305,24 @@ export async function POST(request) {
     // ('save') or a section-level submit ('submit-section') for an
     // applicant who already started a draft is left alone, since closing
     // new applications shouldn't strand someone mid-draft.
+    // Oct 1 2026: also enforces the Acceptance Start/End dates and Applicant
+    // Slots (see submitBlockedReason in app/lib/systemSettings.js).
     if (action === 'submit') {
       try {
         const settings = await getSystemSettings()
-        if (!settings.applications_open) {
-          return NextResponse.json(
-            { error: 'Applications are currently closed. Please check back later.' },
-            { status: 403 }
-          )
-        }
+        const ownRows = await findOwnRows(session)
+        const blocked = await submitBlockedReason(settings, {
+          alreadySubmitted: ownRows.some((r) => r.status === 'submitted'),
+          countSubmitted: async () => {
+            const { count, error } = await supabase
+              .from('applications')
+              .select('id', { count: 'exact', head: true })
+              .eq('status', 'submitted')
+            if (error) throw new Error(error.message)
+            return count || 0
+          },
+        })
+        if (blocked) return NextResponse.json({ error: blocked }, { status: 403 })
       } catch (settingsErr) {
         console.error('Failed to read system settings (allowing submit):', settingsErr)
       }
