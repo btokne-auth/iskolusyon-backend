@@ -33,6 +33,13 @@ import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/app
 
 const ALLOWED_REQUEST_TYPES = ['Reschedule Examination (Absence)', 'Appeal (Retake / Re-application)', 'Other Concern']
 
+// Oct 1 2026: CCC's Scholar Guidelines (Appendix J, p. 97, V.g): an applicant
+// who can't attend the exam "must notify the Guidance Office and request
+// rescheduling with a valid reason and supporting documents." So a
+// reschedule request needs a supporting document. The guidelines don't say
+// this for appeals or other concerns, so those stay optional.
+const DOCUMENT_REQUIRED_TYPES = new Set(['Reschedule Examination (Absence)'])
+
 // GET /api/reschedule?name=Juan+Dela+Cruz
 // Returns this applicant's past requests, newest first.
 //
@@ -76,7 +83,10 @@ export async function GET(request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, requests: data || [] })
+    // Oct 1 2026: the applicant sees the decision and note, not which admin
+    // made it.
+    const requests = (data || []).map(({ decided_by, ...rest }) => rest)
+    return NextResponse.json({ success: true, requests })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
@@ -111,18 +121,62 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
     }
 
-    const { data, error } = await supabase
+    // Oct 1 2026: attach this applicant's newest Supporting Document that was
+    // uploaded after their previous request and isn't attached to one yet
+    // (Appendix J V.g), so an old file from an earlier concern is never
+    // reused. Required for reschedules (see DOCUMENT_REQUIRED_TYPES above),
+    // optional for the other types.
+    let supportingDocumentPath = null
+    try {
+      const [{ data: docs }, { data: used }] = await Promise.all([
+        supabase
+          .from('documents')
+          .select('file_path, created_at')
+          .eq('applicant_user_id', applicantSession.id)
+          .eq('document_type', 'supportdoc')
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('reschedule_requests')
+          .select('*')
+          .eq('applicant_user_id', applicantSession.id),
+      ])
+      const usedPaths = new Set((used || []).map((r) => r.supporting_document_path).filter(Boolean))
+      const lastRequestAt = (used || []).reduce((max, r) => (r.created_at > max ? r.created_at : max), '')
+      supportingDocumentPath =
+        (docs || []).find((d) => !usedPaths.has(d.file_path) && (!lastRequestAt || d.created_at > lastRequestAt))?.file_path || null
+    } catch (attachErr) {
+      console.error('Finding the supporting document failed (continuing without):', attachErr)
+    }
+
+    if (DOCUMENT_REQUIRED_TYPES.has(requestType) && !supportingDocumentPath) {
+      return NextResponse.json(
+        {
+          error:
+            'Please upload a supporting document first (for example, a medical certificate). CCC requires one for exam rescheduling. A file attached to an earlier request can\'t be reused.',
+          needsDocument: true,
+        },
+        { status: 400 }
+      )
+    }
+
+    const row = {
+      applicant_name: applicantName,
+      applicant_email: applicantSession.email || applicantEmail || null,
+      applicant_user_id: applicantSession.id,
+      request_type: requestType,
+      details,
+      status: 'submitted',
+    }
+    let { data, error } = await supabase
       .from('reschedule_requests')
-      .insert([{
-        applicant_name: applicantName,
-        applicant_email: applicantEmail || null,
-        applicant_user_id: applicantSession.id,
-        request_type: requestType,
-        details,
-        status: 'submitted',
-      }])
+      .insert([{ ...row, supporting_document_path: supportingDocumentPath }])
       .select()
       .single()
+    // If the migration hasn't been run yet, still save the request.
+    if (error && /supporting_document_path/.test(error.message || '')) {
+      ;({ data, error } = await supabase.from('reschedule_requests').insert([row]).select().single())
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

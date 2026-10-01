@@ -1315,6 +1315,7 @@ function PortalApp({ accountSession, onLogout }) {
   const [rescheduleSaveState, setRescheduleSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [rescheduleHistory, setRescheduleHistory] = useState([])
   const [supportDocStatus, setSupportDocStatus] = useState('idle')
+  const [rescheduleError, setRescheduleError] = useState('')
   const [supportDocRejection, setSupportDocRejection] = useState(null)
   // Messages panel — Sept 22 2026: wired to the real /api/portal-messages
   // feed now that the admin-side Communications panel can actually author
@@ -1359,6 +1360,17 @@ function PortalApp({ accountSession, onLogout }) {
   // Drives the "Uploaded" state on the three inline Personal Information
   // uploads (cards 1-3) so a returning applicant doesn't see them as empty.
   const hasUploaded = (type) => myDocs.some((doc) => doc.document_type === type)
+  // Oct 1 2026: a Supporting Document counts for the next request only if it
+  // was uploaded after their last request and isn't attached to one yet (same
+  // rule as /api/reschedule's POST), so an old file doesn't show as ready.
+  const lastRequestAt = rescheduleHistory.reduce((max, r) => (r.created_at > max ? r.created_at : max), '')
+  const attachedPaths = new Set(rescheduleHistory.map((r) => r.supporting_document_path).filter(Boolean))
+  const hasUnattachedSupportDoc = myDocs.some(
+    (doc) =>
+      doc.document_type === 'supportdoc' &&
+      !attachedPaths.has(doc.file_path) &&
+      (!lastRequestAt || new Date(doc.created_at) > new Date(lastRequestAt))
+  )
 
   // The persisted profile photo's signed URL, if one exists — GET
   // /api/upload now orders newest-first, so .find() here always picks the
@@ -1854,6 +1866,7 @@ function PortalApp({ accountSession, onLogout }) {
 
   const submitReschedule = async () => {
     if (!applicantName.trim() || !rescheduleType || !rescheduleDetails.trim()) return
+    setRescheduleError('')
     setRescheduleSaveState('saving')
     try {
       const res = await fetch('/api/reschedule', {
@@ -1867,10 +1880,18 @@ function PortalApp({ accountSession, onLogout }) {
         }),
       })
       const data = await res.json()
-      if (!res.ok || data.error) throw new Error(data.error || 'Submit failed')
+      if (!res.ok || data.error) {
+        // Show the server's reason (e.g. the missing supporting document)
+        // and keep what they typed.
+        setRescheduleError(data.error || 'Couldn\u2019t submit, please try again.')
+        setRescheduleSaveState('error')
+        setTimeout(() => setRescheduleSaveState('idle'), 6000)
+        return
+      }
       setRescheduleSaveState('saved')
       setRescheduleType('')
       setRescheduleDetails('')
+      setSupportDocStatus('idle')
       fetchRescheduleHistory()
       setTimeout(() => setRescheduleSaveState('idle'), 2500)
     } catch (err) {
@@ -3171,8 +3192,13 @@ function PortalApp({ accountSession, onLogout }) {
                 </div>
                 <InlineUploadRow
                   label="Supporting Document"
-                  sublabel="e.g. Medical certificate, affidavit, or proof of conflict"
-                  status={supportDocStatus === 'idle' && hasUploaded('supportdoc') ? 'done' : supportDocStatus}
+                  required={rescheduleType === 'Reschedule Examination (Absence)'}
+                  sublabel={
+                    rescheduleType === 'Reschedule Examination (Absence)'
+                      ? 'Required for exam rescheduling (e.g. medical certificate or proof of conflict). Upload it before you submit, and it will be attached to this request.'
+                      : 'e.g. Medical certificate, affidavit, or proof of conflict. Upload it before you submit, and it will be attached to this request.'
+                  }
+                  status={supportDocStatus === 'idle' && hasUnattachedSupportDoc ? 'done' : supportDocStatus}
                   onFileSelected={(f) => handleInlineUpload('supportdoc', f, setSupportDocStatus, setSupportDocRejection)}
                 />
                 {supportDocRejection && <QualityRejectionAlert message={supportDocRejection} />}
@@ -3190,7 +3216,9 @@ function PortalApp({ accountSession, onLogout }) {
                     {rescheduleSaveState === 'saving' ? 'Submitting…' : 'Submit Request'}
                   </button>
                   {rescheduleSaveState === 'saved' && <StatusToast tone="success">&#x2713; Request submitted</StatusToast>}
-                  {rescheduleSaveState === 'error' && <StatusToast tone="error">Couldn&rsquo;t submit, please try again.</StatusToast>}
+                  {rescheduleSaveState === 'error' && (
+                    <StatusToast tone="error">{rescheduleError || 'Couldn\u2019t submit, please try again.'}</StatusToast>
+                  )}
                 </div>
               </div>
 
@@ -3202,9 +3230,31 @@ function PortalApp({ accountSession, onLogout }) {
                       <div key={r.id} className="timeline-item">
                         <div className="timeline-dot">&#8230;</div>
                         <div className="timeline-body">
-                          <h4>{r.request_type} <span style={{ color: 'var(--blue)', fontWeight: 700, fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '.5px' }}>{r.status}</span></h4>
+                          <h4>
+                            {r.request_type}{' '}
+                            <span
+                              style={{
+                                color: r.status === 'approved' ? 'var(--green, #1E8E5A)' : r.status === 'declined' ? 'var(--red, #C0392B)' : 'var(--blue)',
+                                fontWeight: 700,
+                                fontSize: '10.5px',
+                                textTransform: 'uppercase',
+                                letterSpacing: '.5px',
+                              }}
+                            >
+                              {r.status === 'approved' ? 'Approved' : r.status === 'declined' ? 'Declined' : 'Awaiting review'}
+                            </span>
+                          </h4>
                           <p>{r.details}</p>
-                          <p>{new Date(r.created_at).toLocaleString()}</p>
+                          <p>{r.supporting_document_path ? '\u{1F4CE} Supporting document attached' : 'No supporting document attached'}</p>
+                          <p>Sent {new Date(r.created_at).toLocaleString()}</p>
+                          {(r.status === 'approved' || r.status === 'declined') && r.decided_at && (
+                            <p>Decided {new Date(r.decided_at).toLocaleString()}</p>
+                          )}
+                          {r.decision_note && (
+                            <p style={{ whiteSpace: 'pre-line' }}>
+                              <b>Note from the Guidance Office:</b> {r.decision_note}
+                            </p>
+                          )}
                         </div>
                       </div>
                     ))}

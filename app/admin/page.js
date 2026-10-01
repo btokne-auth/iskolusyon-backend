@@ -4398,8 +4398,10 @@ function ExamSchedulesPanel() {
 
 // ---------- Reschedule requests (Notifications Module, admin side) ----------
 
-// Read-only list of the requests applicants send from Appeals & Rescheduling.
-// Approve / deny comes later, so there are no action buttons yet.
+// The requests applicants send from Appeals & Rescheduling. Oct 1 2026: the
+// admin records the office's decision (Approve / Decline + optional note);
+// the applicant sees it in their portal and it goes to the Activity Log.
+// CCC still reviews requests in person; this records the outcome.
 //
 // Ivy's admin.html has no reschedule screen, so this borrows the look of her
 // "All Applicants" card (search + filter bar above an applicant-table with the
@@ -4411,6 +4413,58 @@ function ReschedulePanel() {
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [newestFirst, setNewestFirst] = useState(true)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [reviewingId, setReviewingId] = useState(null)
+  const [decisionNote, setDecisionNote] = useState('')
+  const [savingDecision, setSavingDecision] = useState(null) // 'approved' | 'declined' while saving
+  const [toast, setToast] = useState(null) // { text, tone }
+
+  const reviewing = reviewingId === null ? null : requests.find((r) => r.id === reviewingId) || null
+
+  const openReview = (id) => {
+    setReviewingId(id)
+    setDecisionNote('')
+  }
+  const closeReview = () => {
+    if (savingDecision) return
+    setReviewingId(null)
+    setDecisionNote('')
+  }
+
+  const saveDecision = async (decision) => {
+    if (!reviewing || savingDecision) return
+    setSavingDecision(decision)
+    try {
+      const res = await fetch('/api/admin-reschedule', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: reviewing.id, decision, note: decisionNote }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) {
+        setToast({ text: data.error || 'Could not save the decision.', tone: 'error' })
+        return
+      }
+      setRequests((prev) => prev.map((r) => (r.id === reviewing.id ? { ...r, ...data.request } : r)))
+      const approved = data.request.status === 'approved'
+      const next =
+        approved && /reschedule/i.test(reviewing.request_type || '')
+          ? ' Next: add them to a new batch in Exam Schedules.'
+          : approved && /appeal/i.test(reviewing.request_type || '')
+            ? ' Next: update their status in Applicant Results.'
+            : ''
+      setToast({
+        text: `\u2713 Request ${approved ? 'approved' : 'declined'}.${data.notified ? ' The applicant was notified in their portal.' : ''}${next}`,
+        tone: 'success',
+      })
+      setReviewingId(null)
+      setDecisionNote('')
+    } catch (err) {
+      setToast({ text: err.message || 'Could not save the decision.', tone: 'error' })
+    } finally {
+      setSavingDecision(null)
+    }
+  }
 
   useEffect(() => {
     fetch('/api/admin-reschedule')
@@ -4429,6 +4483,7 @@ function ReschedulePanel() {
     const q = search.trim().toLowerCase()
     const rows = requests.filter((r) => {
       if (typeFilter !== 'all' && r.request_type !== typeFilter) return false
+      if (statusFilter !== 'all' && r.status !== statusFilter) return false
       if (!q) return true
       return [r.applicant_name, r.applicant_email, r.application_number, r.request_type, r.details]
         .filter(Boolean)
@@ -4439,9 +4494,10 @@ function ReschedulePanel() {
       return newestFirst ? -diff : diff
     })
     return rows
-  }, [requests, search, typeFilter, newestFirst])
+  }, [requests, search, typeFilter, statusFilter, newestFirst])
 
-  const filtersActive = search.trim() !== '' || typeFilter !== 'all'
+  const filtersActive = search.trim() !== '' || typeFilter !== 'all' || statusFilter !== 'all'
+  const awaitingCount = requests.filter((r) => r.status === 'submitted').length
 
   return (
     <div>
@@ -4470,8 +4526,17 @@ function ReschedulePanel() {
             <path d="M12 16v-4M12 8h.01" />
           </svg>
           <span>
-            This list is <b>view only</b> for now. Approving or declining a request will be added later, so please
-            follow up with the applicant directly in the meantime.
+            Review each request with the applicant (in person at the Guidance Office or by email), then click the
+            request to record the decision. The applicant sees it in their portal, and a decision can't be changed once
+            saved.
+            {awaitingCount > 0 && (
+              <>
+                {' '}
+                <b>
+                  {awaitingCount} request{awaitingCount === 1 ? '' : 's'} awaiting review.
+                </b>
+              </>
+            )}
           </span>
         </div>
 
@@ -4496,6 +4561,14 @@ function ReschedulePanel() {
               </select>
             </>
           )}
+          <span className="filter-divider"></span>
+          <span className="filter-bar-label">Status</span>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="all">All</option>
+            <option value="submitted">Awaiting review</option>
+            <option value="approved">Approved</option>
+            <option value="declined">Declined</option>
+          </select>
           {filtersActive && (
             <button
               type="button"
@@ -4503,6 +4576,7 @@ function ReschedulePanel() {
               onClick={() => {
                 setSearch('')
                 setTypeFilter('all')
+                setStatusFilter('all')
               }}
             >
               &times; Clear filters
@@ -4537,12 +4611,24 @@ function ReschedulePanel() {
                     </svg>
                   </span>
                 </th>
-                <th style={{ width: '14%' }}>Status</th>
+                <th style={{ width: '15%' }}>Status</th>
               </tr>
             </thead>
             <tbody>
               {visible.map((r) => (
-                <tr key={r.id}>
+                <tr
+                  key={r.id}
+                  className="app-row"
+                  tabIndex={0}
+                  title={r.status === 'submitted' ? 'Click to review this request' : 'Click to view the decision'}
+                  onClick={() => openReview(r.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      openReview(r.id)
+                    }
+                  }}
+                >
                   <td>
                     <div className="app-name-cell">
                       <div className="app-avatar">{getInitials(r.applicant_name)}</div>
@@ -4559,17 +4645,158 @@ function ReschedulePanel() {
                     <div className="text-xs text-ccc-muted mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                       {r.details}
                     </div>
+                    {r.supporting_document_url ? (
+                      <a
+                        href={r.supporting_document_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-block text-xs font-bold text-ccc-blue underline mt-1.5"
+                      >
+                        &#128206; View supporting document
+                      </a>
+                    ) : (
+                      <div className="text-[11px] text-ccc-muted mt-1.5">No supporting document attached.</div>
+                    )}
                   </td>
                   <td className="text-xs text-ccc-muted whitespace-nowrap">{formatWhen(r.created_at)}</td>
                   <td>
-                    <span className="badge badge-pending whitespace-nowrap">
-                      {r.status === 'submitted' ? 'Awaiting review' : r.status}
-                    </span>
+                    <RequestStatusBadge status={r.status} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+      {reviewing && (
+        <RequestReviewDialog
+          request={reviewing}
+          note={decisionNote}
+          onNote={setDecisionNote}
+          saving={savingDecision}
+          onDecide={saveDecision}
+          onClose={closeReview}
+        />
+      )}
+      <AdminToast message={toast?.text || ''} tone={toast?.tone} onDone={() => setToast(null)} ms={toast?.tone === 'error' ? 6000 : 3500} />
+    </div>
+  )
+}
+
+// Status pill for one request. The whole row is clickable (same as the
+// Dashboard's All Applicants table) and opens the review pop-up.
+const REQUEST_STATUS_BADGE = {
+  submitted: { label: 'Awaiting review', cls: 'badge-pending' },
+  approved: { label: 'Approved', cls: 'badge-verified' },
+  declined: { label: 'Declined', cls: 'badge-deficient' },
+}
+
+function RequestStatusBadge({ status }) {
+  const badge = REQUEST_STATUS_BADGE[status] || REQUEST_STATUS_BADGE.submitted
+  return <span className={`badge whitespace-nowrap ${badge.cls}`}>{badge.label}</span>
+}
+
+// Review pop-up (same look as the Admin Accounts confirm pop-up, ported from
+// Ivy's admin.html). Awaiting requests: note + Decline / Approve. Decided
+// requests: read-only summary with the note and the next step.
+function RequestReviewDialog({ request: r, note, onNote, saving, onDecide, onClose }) {
+  const decided = r.status === 'approved' || r.status === 'declined'
+  const badge = REQUEST_STATUS_BADGE[r.status] || REQUEST_STATUS_BADGE.submitted
+  const isReschedule = /reschedule/i.test(r.request_type || '')
+  const isAppeal = /appeal/i.test(r.request_type || '')
+  const nextStep =
+    r.status === 'approved' && isReschedule
+      ? 'Add the applicant to a new batch in Exam Schedules.'
+      : r.status === 'approved' && isAppeal
+        ? 'Update the applicant\u2019s status in Applicant Results.'
+        : null
+
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const label = { fontSize: '10.5px', fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--navy)' }
+
+  return (
+    <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="confirm-box" role="dialog" aria-modal="true" aria-label="Review request" style={{ maxWidth: 520, textAlign: 'left' }}>
+        <div className="flex items-start justify-between gap-3">
+          <div style={{ minWidth: 0 }}>
+            <h3 style={{ marginBottom: 2 }}>{r.request_type}</h3>
+            <div className="text-xs text-ccc-muted" style={{ overflowWrap: 'anywhere' }}>
+              {[r.applicant_name, r.application_number].filter(Boolean).join(' \u00b7 ')} &middot; Sent {formatWhen(r.created_at)}
+            </div>
+          </div>
+          <span className={`badge whitespace-nowrap ${badge.cls}`}>{badge.label}</span>
+        </div>
+
+        <div className="mt-4" style={label}>Details</div>
+        <div className="text-[13px] text-ccc-text mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+          {r.details || 'No details given.'}
+        </div>
+        <div className="mt-2">
+          {r.supporting_document_url ? (
+            <a href={r.supporting_document_url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-ccc-blue underline">
+              &#128206; View supporting document
+            </a>
+          ) : (
+            <span className="text-xs text-ccc-muted">No supporting document attached.</span>
+          )}
+        </div>
+
+        {decided ? (
+          <>
+            <div className="mt-4" style={label}>Decision</div>
+            <div className="text-[13px] text-ccc-text mt-1">
+              {badge.label}
+              {r.decided_by ? ` by ${r.decided_by}` : ''}
+              {r.decided_at ? `, ${formatWhen(r.decided_at)}` : ''}
+            </div>
+            {r.decision_note && (
+              <div className="text-[13px] text-ccc-text mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                Note to applicant: {r.decision_note}
+              </div>
+            )}
+            {nextStep && <div className="text-xs text-ccc-muted mt-2">Next: {nextStep}</div>}
+            <div className="confirm-actions" style={{ marginTop: 22 }}>
+              <button type="button" className="mbtn mbtn-ghost" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <label className="block mt-4" style={label} htmlFor="request-decision-note">
+              Note to the applicant <span className="text-ccc-muted" style={{ textTransform: 'none', fontWeight: 600 }}>(optional)</span>
+            </label>
+            <textarea
+              id="request-decision-note"
+              value={note}
+              onChange={(e) => onNote(e.target.value)}
+              maxLength={500}
+              rows={3}
+              placeholder="e.g. Moved to the Oct 10 batch, or the reason for declining"
+              className="w-full mt-1.5 text-[13px] border border-ccc-border rounded-md p-2"
+              disabled={Boolean(saving)}
+            />
+            <div className="text-[11px] text-ccc-muted mt-1">
+              The applicant sees this in their portal. Leave out private details. A decision can&rsquo;t be changed once saved.
+            </div>
+            <div className="confirm-actions" style={{ marginTop: 20 }}>
+              <button type="button" className="mbtn mbtn-ghost" onClick={onClose} disabled={Boolean(saving)}>
+                Cancel
+              </button>
+              <button type="button" className="mbtn mbtn-danger" onClick={() => onDecide('declined')} disabled={Boolean(saving)}>
+                {saving === 'declined' ? 'Saving...' : 'Decline'}
+              </button>
+              <button type="button" className="mbtn mbtn-primary" onClick={() => onDecide('approved')} disabled={Boolean(saving)}>
+                {saving === 'approved' ? 'Saving...' : 'Approve'}
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>
