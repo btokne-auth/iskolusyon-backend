@@ -8,6 +8,7 @@ import { getDocTypeLabel } from '../lib/documentTypes'
 import { onConnectivityChange, isNetworkError } from '../lib/offlineSync'
 import { suggestExamResult } from '../lib/matching'
 import { PROFILE_CATEGORIES, formatFieldValue } from '../lib/applicantProfileSchema'
+import { EDITABLE_FIELDS, SELECT_OPTIONS, DATE_FIELDS, LONG_TEXT_FIELDS, isEditableStack } from '../lib/profileEditRules'
 
 // ---------- Icons (same style as the applicant page) ----------
 
@@ -646,7 +647,122 @@ const PROFILE_SECTIONS = [
   { key: 'health_submitted_at', label: 'Health & Wellness' },
 ]
 
-function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibilityRow, onEligibilityOverride, eligibilityOverriding }) {
+// Oct 1 2026: one stack of the "Submitted Documents & Profile Data" panel,
+// editable by any admin (progress table rows "Applicant Profile Edit & Save
+// Controls" / "Applicant Detail with Personal Information View/Edit", Ivy's
+// rows). Read-only until the admin clicks Edit; Save sends only the fields
+// that changed. The server logs old -> new and notifies the applicant.
+function ProfileStackFields({ stack, detail, applicationId, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [values, setValues] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [note, setNote] = useState('')
+  const canEdit = !!detail && !!applicationId && isEditableStack(stack)
+
+  const startEdit = () => {
+    const start = {}
+    for (const f of stack.fields) {
+      if (!EDITABLE_FIELDS.has(f.key)) continue
+      const v = detail?.[f.key]
+      start[f.key] = v === null || v === undefined ? '' : String(v)
+    }
+    setValues(start)
+    setError('')
+    setNote('')
+    setEditing(true)
+  }
+
+  const save = async () => {
+    const changes = {}
+    for (const [key, v] of Object.entries(values)) {
+      const before = detail?.[key] === null || detail?.[key] === undefined ? '' : String(detail[key])
+      if (v.trim() !== before.trim()) changes[key] = v
+    }
+    if (Object.keys(changes).length === 0) {
+      setEditing(false)
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin-applicant-detail', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: applicationId, changes }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.success) throw new Error(data.error || 'Could not save.')
+      setEditing(false)
+      setNote(data.changed?.length ? 'Saved. The applicant was notified in their portal.' : 'No changes to save.')
+      if (onSaved) onSaved(data.application)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const input = (field) => {
+    const editable = editing && EDITABLE_FIELDS.has(field.key)
+    if (!editable) return <input value={formatFieldValue(detail, field)} disabled readOnly />
+    const v = values[field.key] ?? ''
+    const set = (val) => setValues((prev) => ({ ...prev, [field.key]: val }))
+    const options = SELECT_OPTIONS[field.key]
+    if (options) {
+      return (
+        <select value={v} onChange={(e) => set(e.target.value)}>
+          <option value="">(blank)</option>
+          {options.map((o) => (
+            <option key={o} value={o}>{o}</option>
+          ))}
+          {v && !options.includes(v) && <option value={v}>{v}</option>}
+        </select>
+      )
+    }
+    if (DATE_FIELDS.has(field.key)) return <input type="date" value={v} onChange={(e) => set(e.target.value)} />
+    if (LONG_TEXT_FIELDS.has(field.key)) return <textarea rows={3} value={v} maxLength={2000} onChange={(e) => set(e.target.value)} />
+    return <input value={v} maxLength={200} onChange={(e) => set(e.target.value)} />
+  }
+
+  return (
+    <>
+      {canEdit && (
+        <div className="flex items-center justify-end gap-2" style={{ marginTop: '-6px', marginBottom: '6px' }}>
+          {editing ? (
+            <>
+              <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={saving} onClick={() => { setEditing(false); setError('') }}>
+                Cancel
+              </button>
+              <button type="button" className="mbtn mbtn-primary mbtn-sm" disabled={saving} onClick={save}>
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="section-edit-btn" onClick={startEdit}>Edit</button>
+          )}
+        </div>
+      )}
+      {editing && (
+        <p className="text-[11px] text-ccc-muted mb-2">
+          Edit only what the applicant asked to correct or what doesn&apos;t match their documents. Every change is logged and the applicant is notified.
+        </p>
+      )}
+      <div className="doc-cat-fields">
+        {stack.fields.map((field) => (
+          <div key={field.key} className="efield">
+            <label>{field.label}</label>
+            {input(field)}
+          </div>
+        ))}
+      </div>
+      {error && <p className="text-[11px] text-ccc-red mt-1">{error}</p>}
+      {note && <p className="text-[11px] text-ccc-green mt-1">{note}</p>}
+    </>
+  )
+}
+
+function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibilityRow, onEligibilityOverride, eligibilityOverriding, onProfileSaved }) {
   const [modalOpen, setModalOpen] = useState(false)
   const [detail, setDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -928,14 +1044,15 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                             {stack.label}
                           </div>
                           {stack.fields.length > 0 && (
-                            <div className="doc-cat-fields">
-                              {stack.fields.map((field) => (
-                                <div key={field.key} className="efield">
-                                  <label>{field.label}</label>
-                                  <input value={formatFieldValue(detail, field)} disabled readOnly />
-                                </div>
-                              ))}
-                            </div>
+                            <ProfileStackFields
+                              stack={stack}
+                              detail={detail}
+                              applicationId={eligibilityRow?.id}
+                              onSaved={(app) => {
+                                setDetail(app)
+                                if (onProfileSaved) onProfileSaved()
+                              }}
+                            />
                           )}
                           {stack.docTypes.length > 0 && (
                             stackDocs.length > 0 ? (
@@ -1076,6 +1193,7 @@ function DashboardPanel({
   eligibilityError,
   onRecomputeEligibility,
   recomputing,
+  onProfileSaved,
 }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -1368,6 +1486,7 @@ function DashboardPanel({
                 eligibilityRow={eligibilityByName.get((g.name || '').trim().toLowerCase())}
                 onEligibilityOverride={onEligibilityOverride}
                 eligibilityOverriding={eligibilityOverriding}
+                onProfileSaved={onProfileSaved}
               />
             ))}
           </div>
@@ -4535,6 +4654,7 @@ function AdminPageInner() {
               eligibilityError={eligibilityError}
               onRecomputeEligibility={handleRecomputeEligibility}
               recomputing={recomputing}
+              onProfileSaved={fetchEligibility}
             />
           )}
           {activePanel === 'communications' && <CommunicationsPanel />}
