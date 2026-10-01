@@ -62,7 +62,7 @@ export async function PATCH(request, { params }) {
       await supabase.from('audit_log').insert([
         {
           actor: adminName,
-          action: `Document ${change.label} — ${existing.applicant_name || 'Unknown applicant'} \u00b7 ${existing.document_type || 'document'}${note ? ` (note: ${note})` : ''}`,
+          action: `Document ${change.label}: ${existing.applicant_name || 'Unknown applicant'} \u00b7 ${existing.document_type || 'document'}${note ? ` (note: ${note})` : ''}`,
           kind: change.kind,
           category: 'Documents',
         },

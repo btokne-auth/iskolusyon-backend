@@ -174,7 +174,7 @@ export async function sendVerificationCode(accountId, email) {
         <p>Your verification code is:</p>
         <p style="font-size:28px;font-weight:800;letter-spacing:4px;">${code}</p>
         <p>This code expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can ignore this email.</p>
-        <p>— City College of Calamba, Iskolusyon Scholarship System</p>
+        <p>City College of Calamba, Iskolusyon Scholarship System</p>
       `,
     })
   } catch (err) {
@@ -182,7 +182,7 @@ export async function sendVerificationCode(accountId, email) {
       error:
         'Could not send the verification email right now (' +
         err.message +
-        '). Note: while this project is on Resend\'s free tier, verification emails only deliver to the developer\'s own registered inbox — not arbitrary applicant addresses.',
+        '). Please try again in a moment.',
     }
   }
 
@@ -356,8 +356,8 @@ export async function requestPasswordReset(email) {
         <p>Hi,</p>
         <p>We received a request to reset your Iskolusyon password. Your reset code is:</p>
         <p style="font-size:28px;font-weight:800;letter-spacing:4px;">${code}</p>
-        <p>This code expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can safely ignore this email — your password won't change.</p>
-        <p>— City College of Calamba, Iskolusyon Scholarship System</p>
+        <p>This code expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can safely ignore this email. Your password won't change.</p>
+        <p>City College of Calamba, Iskolusyon Scholarship System</p>
       `,
     })
   } catch (err) {
@@ -365,7 +365,7 @@ export async function requestPasswordReset(email) {
       error:
         'Could not send the reset email right now (' +
         err.message +
-        '). Note: while this project is on Resend\'s free tier, reset emails only deliver to the developer\'s own registered inbox — not arbitrary applicant addresses.',
+        '). Please try again in a moment.',
     }
   }
 
@@ -465,8 +465,8 @@ export async function sendLoginCode(accountId, email) {
         <p>Hi,</p>
         <p>Someone (hopefully you) is logging in to your Iskolusyon account. Your login code is:</p>
         <p style="font-size:28px;font-weight:800;letter-spacing:4px;">${code}</p>
-        <p>This code expires in ${OTP_TTL_MINUTES} minutes. If this wasn't you, your password may be compromised — reset it as soon as possible.</p>
-        <p>— City College of Calamba, Iskolusyon Scholarship System</p>
+        <p>This code expires in ${OTP_TTL_MINUTES} minutes. If this wasn't you, your password may be compromised, so reset it as soon as possible.</p>
+        <p>City College of Calamba, Iskolusyon Scholarship System</p>
       `,
     })
   } catch (err) {
@@ -474,7 +474,7 @@ export async function sendLoginCode(accountId, email) {
       error:
         'Could not send the login code right now (' +
         err.message +
-        '). Note: while this project is on Resend\'s free tier, login codes only deliver to the developer\'s own registered inbox — not arbitrary applicant addresses.',
+        '). Please try again in a moment.',
     }
   }
 

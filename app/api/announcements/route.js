@@ -119,8 +119,8 @@ export async function POST(request) {
           actor: session.name,
           action:
             type === 'message'
-              ? `Sent a message to ${targetLabel} — "${title.trim()}"`
-              : `Posted announcement — "${title.trim()}"`,
+              ? `Sent a message to ${targetLabel}: "${title.trim()}"`
+              : `Posted announcement: "${title.trim()}"`,
           kind: 'done',
           category: 'Communications',
         },
@@ -164,7 +164,7 @@ export async function DELETE(request) {
       await supabase.from('audit_log').insert([
         {
           actor: session.name,
-          action: `Removed ${existing.type === 'message' ? 'message' : 'announcement'} — "${existing.title}"`,
+          action: `Removed ${existing.type === 'message' ? 'message' : 'announcement'}: "${existing.title}"`,
           kind: 'warn',
           category: 'Communications',
         },
