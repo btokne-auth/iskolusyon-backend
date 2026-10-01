@@ -627,25 +627,67 @@ function EligibilitySection({ row, onOverride, overriding }) {
   )
 }
 
-// ---------- Toast (Oct 1 2026) ----------
-// Same bottom-right toast as the applicant portal (Ivy's admin.html toast
-// style), so short "saved / sent" feedback looks the same on both sides.
-// Fades on its own after a few seconds. NOT used for the Admin Accounts
-// notice that shows a temporary password: that one has to stay on screen
-// until the admin copies it and dismisses it.
-function AdminToast({ message, tone = 'success', onDone, ms = 3500 }) {
+// ---------- Action pop-up (Oct 1 2026) ----------
+// Pau's request: after an admin action (save, send, invite, recompute, set a
+// status, verify a document...), show a pop-up instead of a corner toast so
+// it isn't overlooked. Same look as the applicant portal's pop-up (Ivy's
+// confirm-box), with OK locked for 5 seconds. The name stays AdminToast so
+// every place that already used the toast now gets the pop-up.
+// NOT used for the Admin Accounts notice that shows a temporary password:
+// that one stays on the page until the admin copies it and dismisses it.
+const ADMIN_NOTICE_LOCK_SECONDS = 5
+
+function AdminToast({ message, tone = 'success', onDone }) {
+  const [secondsLeft, setSecondsLeft] = useState(ADMIN_NOTICE_LOCK_SECONDS)
   useEffect(() => {
     if (!message) return undefined
-    const t = setTimeout(() => onDone && onDone(), ms)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setSecondsLeft(ADMIN_NOTICE_LOCK_SECONDS)
+    const t = setInterval(() => setSecondsLeft((v) => (v > 0 ? v - 1 : 0)), 1000)
+    return () => clearInterval(t)
   }, [message])
+  const locked = secondsLeft > 0
+  useEffect(() => {
+    if (!message) return undefined
+    const onKey = (e) => e.key === 'Escape' && !locked && onDone && onDone()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [message, locked, onDone])
   if (!message) return null
+  const isError = tone === 'error'
+  const text = String(message).replace(/^\u2713\s*/, '')
   return (
-    <div className="toast-stack" role="status" aria-live="polite">
-      <div className={`toast${tone === 'success' ? ' success' : tone === 'error' ? ' error' : ''}`}>{message}</div>
+    <div className="confirm-overlay open" style={{ zIndex: 2000 }} onClick={(e) => e.target === e.currentTarget && !locked && onDone && onDone()}>
+      <div className="confirm-box" role="alertdialog" aria-modal="true" aria-live="polite" style={{ maxWidth: 420 }}>
+        <div className="confirm-icon" style={isError ? undefined : { background: '#E3F4EA', color: '#1E8E5A' }}>
+          {isError ? '!' : '\u2713'}
+        </div>
+        <h3>{isError ? 'Something went wrong' : 'Done'}</h3>
+        <p style={{ whiteSpace: 'pre-line' }}>{text}</p>
+        <div className="confirm-actions">
+          <button type="button" className="mbtn mbtn-primary" onClick={() => onDone && onDone()} disabled={locked}>
+            {locked ? `OK (${secondsLeft})` : 'OK'}
+          </button>
+        </div>
+      </div>
     </div>
   )
+}
+
+// For handlers that have no pop-up of their own (Dashboard status and
+// document actions, Applicant Results, Announcements): fire an event that
+// the one AdminNoticeHost on the page shows.
+function showAdminNotice(text, tone = 'success') {
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('admin-notice', { detail: { text, tone } }))
+}
+
+function AdminNoticeHost() {
+  const [notice, setNotice] = useState(null)
+  useEffect(() => {
+    const onNotice = (e) => setNotice(e.detail)
+    window.addEventListener('admin-notice', onNotice)
+    return () => window.removeEventListener('admin-notice', onNotice)
+  }, [])
+  return <AdminToast message={notice?.text || ''} tone={notice?.tone} onDone={() => setNotice(null)} />
 }
 
 // ---------- Locked Applications for Review (Oct 1 2026, Ivy's row) ----------
@@ -2560,7 +2602,20 @@ function ResultsPanel() {
         setError(data.error || 'Update failed.')
         return
       }
-      await load()
+      // Oct 1 2026: quiet reload, so the applicant's window stays open behind
+      // the pop-up instead of the list flashing to "Loading..." and closing it.
+      await load(true)
+      const name = rows.find((r) => r.id === payload.id)?.applicant_name || 'the applicant'
+      if (payload.field === 'exam') {
+        showAdminNotice(`Exam result saved and verified for ${name}. Scholar Status was updated to match.`)
+      } else if (payload.field === 'scholar_status') {
+        showAdminNotice(`${name}'s Scholar Status was set to ${SCHOLAR_STATUS_OVERRIDE_LABELS[payload.scholarStatus] || payload.scholarStatus}.`)
+      } else if (payload.field === 'distribution_status') {
+        const step = DISTRIBUTION_STATUS_STEPS.find(([k]) => k === payload.distributionStatus)?.[1]
+        showAdminNotice(
+          step ? `${name}'s Distribution Status was set to ${step}.` : `${name}'s Distribution Status was cleared.`
+        )
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -3089,8 +3144,14 @@ function CommunicationsPanel() {
         setPostError(data.error || 'Failed to post.')
         return
       }
+      const postedType = commType
       resetForm()
       await load()
+      showAdminNotice(
+        postedType === 'message'
+          ? 'Message sent. It now shows in the applicant\u2019s Messages.'
+          : 'Announcement posted. Applicants can see it now, and it shows on the guest page.'
+      )
     } catch (err) {
       setPostError(err.message)
     } finally {
@@ -3108,6 +3169,7 @@ function CommunicationsPanel() {
         return
       }
       setItems((prev) => prev.filter((i) => i.id !== id))
+      showAdminNotice('Deleted. Applicants no longer see it.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -3533,7 +3595,7 @@ function AdminAccountsPanel() {
       {/* Oct 1 2026: plain success/failure notices are toasts; a notice
           carrying a temporary password stays here until dismissed. */}
       {notice && !notice.tempPassword && (
-        <AdminToast message={notice.text} tone={notice.tone === 'done' ? 'success' : 'error'} onDone={() => setNotice(null)} ms={5000} />
+        <AdminToast message={notice.text} tone={notice.tone === 'done' ? 'success' : 'error'} onDone={() => setNotice(null)} />
       )}
       {notice && notice.tempPassword && (
         <div
@@ -3903,7 +3965,7 @@ function CycleSettingsCard() {
       </div>
 
       <div className="flex items-center justify-end gap-3 mt-4">
-        <AdminToast message={savedNote ? '\u2713 Settings saved' : ''} onDone={() => setSavedNote(false)} />
+        <AdminToast message={savedNote ? 'Settings saved. The applicant pages follow the new settings right away.' : ''} onDone={() => setSavedNote(false)} />
         <button
           type="button"
           className="mbtn mbtn-secondary"
@@ -4217,7 +4279,7 @@ function ExamSchedulesPanel() {
       </div>
 
       {error && <p className="text-sm text-ccc-red mb-3">{error}</p>}
-      <AdminToast message={notice} onDone={() => setNotice('')} ms={5000} />
+      <AdminToast message={notice} onDone={() => setNotice('')} />
 
       <div className="card">
         <div className="card-title">
@@ -4700,7 +4762,7 @@ function ReschedulePanel() {
           onClose={closeReview}
         />
       )}
-      <AdminToast message={toast?.text || ''} tone={toast?.tone} onDone={() => setToast(null)} ms={toast?.tone === 'error' ? 6000 : 3500} />
+      <AdminToast message={toast?.text || ''} tone={toast?.tone} onDone={() => setToast(null)} />
     </div>
   )
 }
@@ -4955,6 +5017,11 @@ function AdminPageInner() {
         return
       }
       await fetchDocs()
+      showAdminNotice(
+        action === 'verify'
+          ? `${doc.applicant_name ? `${doc.applicant_name}'s ` : ''}document was marked as verified.`
+          : `${doc.applicant_name ? `${doc.applicant_name}'s ` : ''}document was flagged for review.`
+      )
     } catch (err) {
       setOverrideError(
         isNetworkError(err)
@@ -4981,6 +5048,11 @@ function AdminPageInner() {
         return
       }
       await fetchEligibility()
+      showAdminNotice(
+        override
+          ? `Application status set to ${ELIGIBILITY_META[override]?.label || override}. The Dashboard cards are updated.`
+          : 'Manual status cleared. The application status is back to what the system computed.'
+      )
     } catch (err) {
       setEligibilityError(
         isNetworkError(err)
@@ -5003,6 +5075,9 @@ function AdminPageInner() {
         return
       }
       await fetchEligibility()
+      showAdminNotice(
+        `Recomputed eligibility for ${data.total ?? 'all'} applicant${data.total === 1 ? '' : 's'}${typeof data.updated === 'number' ? `. ${data.updated} changed.` : '.'}`
+      )
     } catch (err) {
       setEligibilityError(
         isNetworkError(err)
@@ -5018,6 +5093,7 @@ function AdminPageInner() {
 
   return (
     <main className="admin-portal">
+      <AdminNoticeHost />
       <SiteHeader
         topbarLabel="Iskolusyon Admin Console"
         topbarRight={
