@@ -3563,3 +3563,34 @@
 .admin-portal .toast.error{background:var(--ccc-red, #b91c1c)}
 @keyframes adminToastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @media (max-width:600px){.admin-portal .toast-stack{left:1rem;right:1rem;bottom:1rem}.admin-portal .toast{max-width:none}}
+
+/* ── Oct 1 2026: Recent Activity Log redesign ── */
+.admin-portal .alog-live{display:inline-flex;align-items:center;gap:8px;margin-left:auto;font-family:"Montserrat",sans-serif;font-weight:600;font-size:10.8px;color:var(--muted);text-transform:none;letter-spacing:0}
+.admin-portal .alog-live-dot{width:8px;height:8px;border-radius:50%;background:#1e8e5a;box-shadow:0 0 0 3px rgba(30,142,90,.18)}
+.admin-portal .alog-refresh{all:unset;cursor:pointer;font-weight:700;font-size:10.8px;color:var(--ccc-blue);padding:4px 10px;border:1.5px solid var(--border);border-radius:999px}
+.admin-portal .alog-refresh:hover{border-color:var(--ccc-blue);background:#eef3fd}
+.admin-portal .alog-refresh:disabled{opacity:.5;cursor:default}
+.admin-portal .alog-chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+.admin-portal .alog-chip{all:unset;cursor:pointer;font-family:"Montserrat",sans-serif;font-weight:700;font-size:11px;color:var(--muted);padding:6px 13px;border:1.5px solid var(--border);border-radius:999px;transition:all .15s}
+.admin-portal .alog-chip:hover{border-color:var(--ccc-blue);color:var(--ccc-blue)}
+.admin-portal .alog-chip.active{background:var(--ccc-blue);border-color:var(--ccc-blue);color:#fff}
+.admin-portal .alog{display:flex;flex-direction:column}
+.admin-portal .alog .activity-date-heading{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding:16px 0 7px}
+.admin-portal .alog-group:first-child .activity-date-heading{padding-top:2px}
+.admin-portal .alog-count{font-size:9.8px;font-weight:700;color:var(--muted);background:var(--off);border-radius:999px;padding:1px 7px}
+.admin-portal .alog-item{display:flex;align-items:center;gap:13px;padding:11px 8px;border-bottom:1px solid var(--border);border-radius:6px}
+.admin-portal .alog-item:hover{background:var(--off)}
+.admin-portal .alog-item .timeline-dot{width:32px;height:32px}
+.admin-portal .alog-item.is-warn{background:#fdf6f6}
+.admin-portal .alog-main{flex:1;min-width:0}
+.admin-portal .alog-action{font-size:12.6px;font-weight:600;color:var(--text);overflow-wrap:anywhere;line-height:1.45}
+.admin-portal .alog-meta{display:flex;align-items:center;gap:8px;margin-top:4px;font-size:11px;color:var(--muted)}
+.admin-portal .alog-cat{font-family:"Montserrat",sans-serif;font-weight:700;font-size:9.6px;letter-spacing:.3px;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:#eef3fd;color:var(--ccc-blue)}
+.admin-portal .alog-cat.cat-eligibility{background:#faf1dd;color:#8a6d1f}
+.admin-portal .alog-cat.cat-results{background:#e6f4ec;color:var(--green)}
+.admin-portal .alog-cat.cat-communications{background:#fdece1;color:#b4561c}
+.admin-portal .alog-cat.cat-admin{background:#e7ecf5;color:var(--navy)}
+.admin-portal .alog-cat.cat-system{background:#eef0f3;color:var(--muted)}
+.admin-portal .alog-time{flex-shrink:0;font-size:11px;color:var(--muted);white-space:nowrap}
+.admin-portal .alog-foot{text-align:center;font-size:11px;color:var(--muted);padding-top:12px}
+@media(max-width:640px){.admin-portal .alog-item{align-items:flex-start}.admin-portal .alog-live{margin-left:0;width:100%;margin-top:6px}}

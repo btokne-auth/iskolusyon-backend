@@ -392,8 +392,10 @@ function buildActivityLog({ myDocs, personalSubmittedAt, academicSubmittedAt, he
     const label = getDocTypeLabel(doc.document_type)
     events.push(
       doc.needs_review
-        ? { date: doc.created_at, dot: 'warn', title: `Deficiency flagged on ${label}`, body: 'Needs your attention. See Documents & Status above.' }
-        : { date: doc.created_at, dot: 'done', title: `${label} uploaded`, body: 'Received and on file.' }
+        ? { date: doc.created_at, dot: 'warn', title: `${label} needs review`, body: 'Needs your attention. See Document Verification Status above.', status: 'review' }
+        : doc.review_status === 'processing'
+          ? { date: doc.created_at, dot: 'info', title: `${label} uploaded`, body: 'We are reading it now. This updates by itself.', status: 'processing' }
+          : { date: doc.created_at, dot: 'done', title: `${label} uploaded`, body: 'Received and on file.', status: 'verified' }
     )
   })
 
@@ -405,51 +407,178 @@ function buildActivityLog({ myDocs, personalSubmittedAt, academicSubmittedAt, he
   ]
   sectionEvents.forEach(({ at, title }) => {
     if (!at) return
-    events.push({ date: at, dot: 'done', title, body: 'Section checkpoint reached. You can still edit and re-submit any time.' })
+    events.push({ date: at, dot: 'section', title, body: 'Saved and sent to the Guidance Office.' })
   })
 
   if (submittedAt) {
-    events.push({ date: submittedAt, dot: 'done', title: 'Application submitted for review', body: 'Your documents are on file and being tracked here.' })
+    events.push({ date: submittedAt, dot: 'submit', title: 'Application submitted for review', body: 'Your documents are on file and being tracked here.' })
   }
 
-  events.sort((a, b) => new Date(a.date) - new Date(b.date))
+  // Oct 1 2026: newest first, so the latest activity is what they see.
+  events.sort((a, b) => new Date(b.date) - new Date(a.date))
 
   // Trailing "what's next" entry, same role as spec's own undated last
   // timeline item — only shown while something is still outstanding.
   if (!submittedAt) {
     const missing = sectionEvents.filter((s) => !s.at).map((s) => s.title.replace(' submitted', ''))
     if (missing.length) {
-      events.push({
+      events.unshift({
         date: null,
         dot: null,
         title: 'Awaiting remaining profile sections',
         body: `Complete ${missing.join(', ')} to proceed.`,
       })
     } else if (myDocs.length === 0) {
-      events.push({ date: null, dot: null, title: 'Awaiting document uploads', body: 'Upload at least one document, then submit your application below.' })
+      events.unshift({ date: null, dot: null, title: 'Awaiting document uploads', body: 'Upload at least one document, then submit your application below.' })
     } else {
-      events.push({ date: null, dot: null, title: 'Ready to submit', body: 'All profile sections are checkpointed. Submit your application below when ready.' })
+      events.unshift({ date: null, dot: null, title: 'Ready to submit', body: 'All profile sections are checkpointed. Submit your application below when ready.' })
     }
   }
 
   return events
 }
 
+// Oct 1 2026 redesign (Pau's request): newest first, grouped by day, each
+// entry with an icon, its time, a short note and (for documents) a status
+// pill. The first 8 show by default so a long upload history doesn't bury
+// the page; "Show all" expands it.
+const LOG_ICON = { done: '\u2713', warn: '!', info: '\u2026', section: '\u2713', submit: '\u2605' }
+const LOG_STATUS = {
+  verified: { label: 'Verified', cls: 'is-good' },
+  processing: { label: 'Processing', cls: 'is-info' },
+  review: { label: 'Needs review', cls: 'is-warn' },
+}
+
+function portalDayLabel(date) {
+  const d = new Date(date)
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+  if (d.toDateString() === today.toDateString()) return 'Today'
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  return d.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })
+}
+
 function ActivityLog({ events }) {
+  const [showAll, setShowAll] = useState(false)
   if (events.length === 0) {
     return <p className="topic-card-intro" style={{ marginTop: 0 }}>Nothing on file yet. Upload a document or fill in a profile section to start your activity log.</p>
   }
+  const LIMIT = 8
+  const visible = showAll ? events : events.slice(0, LIMIT)
+  const groups = []
+  for (const ev of visible) {
+    const label = ev.date ? portalDayLabel(ev.date) : 'Next step'
+    const last = groups[groups.length - 1]
+    if (last && last.label === label) last.items.push(ev)
+    else groups.push({ label, items: [ev] })
+  }
   return (
-    <div className="timeline">
-      {events.map((ev, i) => (
-        <div key={i} className="timeline-item">
-          <div className={`timeline-dot${ev.dot ? ` ${ev.dot}` : ''}`}>{ev.dot ? '' : '…'}</div>
-          <div className="timeline-body">
-            <h4>{ev.title}</h4>
-            <p>{ev.date ? new Date(ev.date).toLocaleString() : ev.body}</p>
-          </div>
+    <div className="plog">
+      {groups.map((g) => (
+        <div key={g.label} className="plog-group">
+          <div className="plog-day">{g.label}</div>
+          {g.items.map((ev, i) => (
+            <div key={i} className={`plog-item plog-${ev.dot || 'next'}`}>
+              <div className="plog-icon">{LOG_ICON[ev.dot] || '\u2192'}</div>
+              <div className="plog-main">
+                <div className="plog-top">
+                  <span className="plog-title">{ev.title}</span>
+                  {ev.status && <span className={`plog-pill ${LOG_STATUS[ev.status].cls}`}>{LOG_STATUS[ev.status].label}</span>}
+                </div>
+                <div className="plog-note">{ev.body}</div>
+              </div>
+              {ev.date && (
+                <div className="plog-time" title={new Date(ev.date).toLocaleString('en-PH')}>
+                  {new Date(ev.date).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       ))}
+      {events.length > LIMIT && (
+        <button type="button" className="plog-more" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? 'Show less' : `Show all ${events.length} entries`}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ---------- Messages list (Oct 1 2026 redesign) ----------
+// Each item is its own plain card: an icon for its type, the title with a
+// small dot if it arrived in the last 2 days, the date on the right, a
+// "Message to you / Announcement · category" line, then the full body.
+
+function MessageCard({ m }) {
+  const isMessage = m.type === 'message'
+  const isNew = m.created_at && Date.now() - new Date(m.created_at).getTime() < 2 * 24 * 60 * 60 * 1000
+  return (
+    <div className={`pmsg${isNew ? ' is-new' : ''}`}>
+      <div className={`pmsg-icon ${isMessage ? 'is-message' : 'is-announcement'}`}>{isMessage ? '\u2709' : '\uD83D\uDCE3'}</div>
+      <div className="pmsg-main">
+        <div className="pmsg-top">
+          <h4 className="pmsg-title">
+            {isNew && <span className="pmsg-new-dot" aria-label="New" />}
+            {m.title}
+          </h4>
+          <span className="pmsg-date">
+            {m.created_at ? new Date(m.created_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : ''}
+          </span>
+        </div>
+        <div className="pmsg-sub">
+          {isMessage ? 'Message to you' : 'Announcement'}
+          {m.category ? ` \u00b7 ${m.category}` : ''}
+        </div>
+        <p className="pmsg-body">{m.body}</p>
+      </div>
+    </div>
+  )
+}
+
+// ---------- Past request card (Oct 1 2026 redesign) ----------
+// Plain card with the status pill at the top right, and the outcome spelled
+// out in a tinted box at the bottom ("Approved by the Guidance Office on ...",
+// plus the office's note), so it can't be overlooked.
+const REQUEST_STATUS_VIEW = {
+  submitted: { label: 'Awaiting review', cls: 'st-wait' },
+  approved: { label: 'Approved', cls: 'st-ok' },
+  declined: { label: 'Declined', cls: 'st-no' },
+}
+
+function PastRequestCard({ r }) {
+  const st = REQUEST_STATUS_VIEW[r.status] || REQUEST_STATUS_VIEW.submitted
+  const fmt = (d) => new Date(d).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+  const decided = r.status === 'approved' || r.status === 'declined'
+  return (
+    <div className="preq">
+      <div className="preq-head">
+        <div style={{ minWidth: 0 }}>
+          <div className="preq-type">{r.request_type}</div>
+          <div className="preq-meta">Sent {fmt(r.created_at)}</div>
+        </div>
+        <span className={`preq-status ${st.cls}`}>{st.label}</span>
+      </div>
+      <p className="preq-details">{r.details}</p>
+      <div className={`preq-doc${r.supporting_document_path ? ' has-doc' : ''}`}>
+        {r.supporting_document_path ? '\u{1F4CE} Supporting document attached' : 'No supporting document attached'}
+      </div>
+      <div className={`preq-outcome ${st.cls}`}>
+        <span className="preq-outcome-icon">{r.status === 'approved' ? '\u2713' : r.status === 'declined' ? '\u2715' : '\u23F3'}</span>
+        <div style={{ minWidth: 0 }}>
+          <div className="preq-outcome-title">
+            {decided
+              ? `${st.label} by the Guidance Office${r.decided_at ? ` on ${fmt(r.decided_at)}` : ''}`
+              : 'Waiting for the Guidance Office to review this'}
+          </div>
+          {decided && r.decision_note ? (
+            <div className="preq-outcome-note">&ldquo;{r.decision_note}&rdquo;</div>
+          ) : !decided ? (
+            <div className="preq-outcome-note">You&rsquo;ll get a message here once it&rsquo;s decided.</div>
+          ) : null}
+        </div>
+      </div>
     </div>
   )
 }
@@ -2723,21 +2852,13 @@ function PortalApp({ accountSession, onLogout }) {
                       </div>
                     )
                   }
-                  return filtered.map((m) => (
-                    <div key={m.id} className="message-item">
-                      <div className="message-dot">{m.type === 'message' ? '✉️' : '📣'}</div>
-                      <div className="message-body">
-                        <h4>{m.title}</h4>
-                        <p style={{ whiteSpace: 'pre-line' }}>{m.body}</p>
-                        <span className="message-date">
-                          {m.created_at
-                            ? new Date(m.created_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
-                            : ''}
-                          {m.category ? ` · ${m.category}` : ''}
-                        </span>
-                      </div>
+                  return (
+                    <div className="pmsg-list">
+                      {filtered.map((m) => (
+                        <MessageCard key={m.id} m={m} />
+                      ))}
                     </div>
-                  ))
+                  )
                 })()}
               </div>
             </div>
@@ -3433,38 +3554,9 @@ function PortalApp({ accountSession, onLogout }) {
               {rescheduleHistory.length > 0 && (
                 <div className="card">
                   <div className="card-title">Your Past Requests</div>
-                  <div className="timeline">
+                  <div className="preq-list">
                     {rescheduleHistory.map((r) => (
-                      <div key={r.id} className="timeline-item">
-                        <div className="timeline-dot">&#8230;</div>
-                        <div className="timeline-body">
-                          <h4>
-                            {r.request_type}{' '}
-                            <span
-                              style={{
-                                color: r.status === 'approved' ? 'var(--green, #1E8E5A)' : r.status === 'declined' ? 'var(--red, #C0392B)' : 'var(--blue)',
-                                fontWeight: 700,
-                                fontSize: '10.5px',
-                                textTransform: 'uppercase',
-                                letterSpacing: '.5px',
-                              }}
-                            >
-                              {r.status === 'approved' ? 'Approved' : r.status === 'declined' ? 'Declined' : 'Awaiting review'}
-                            </span>
-                          </h4>
-                          <p>{r.details}</p>
-                          <p>{r.supporting_document_path ? '\u{1F4CE} Supporting document attached' : 'No supporting document attached'}</p>
-                          <p>Sent {new Date(r.created_at).toLocaleString()}</p>
-                          {(r.status === 'approved' || r.status === 'declined') && r.decided_at && (
-                            <p>Decided {new Date(r.decided_at).toLocaleString()}</p>
-                          )}
-                          {r.decision_note && (
-                            <p style={{ whiteSpace: 'pre-line' }}>
-                              <b>Note from the Guidance Office:</b> {r.decision_note}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                      <PastRequestCard key={r.id} r={r} />
                     ))}
                   </div>
                 </div>

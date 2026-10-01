@@ -3982,27 +3982,39 @@ function CycleSettingsCard() {
   )
 }
 
+// Oct 1 2026 redesign (Pau's request): the log now updates by itself (every
+// 15 seconds, right after any admin action's pop-up, and when the tab comes
+// back into focus), with a Refresh button and an "Updated ..." line. The
+// category filter is a row of chips instead of a full-width dropdown, and
+// each entry shows the action, then a category chip, who did it, and the
+// time on the right.
+function relativeTime(date) {
+  const diff = Math.max(0, Date.now() - new Date(date).getTime())
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return 'just now'
+  if (min < 60) return `${min} min ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr} hr${hr === 1 ? '' : 's'} ago`
+  return new Date(date).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' })
+}
+
 function TimelineItem({ entry }) {
-  // Sept 24 2026: kind === 'warn' (an account removed, a password reset --
-  // things worth a second look) still always wins and shows the red alert
-  // dot, same as before. Everything else now gets its category's own
-  // icon/tint instead of one green checkmark for every kind of event, so
-  // "reserved for status" (warn/red) and "identity" (category) don't mix --
-  // same rule as the rest of the console's data visuals.
   const isWarn = entry.kind === 'warn'
   const { icon: CategoryIcon, className: categoryClass } = getCategoryStyle(entry.category)
   return (
-    <div className="timeline-item">
+    <div className={`alog-item${isWarn ? ' is-warn' : ''}`}>
       <div className={`timeline-dot ${isWarn ? 'warn' : categoryClass}`}>
         {isWarn ? <IconAlert className="w-3.5 h-3.5" /> : <CategoryIcon className="w-3.5 h-3.5" />}
       </div>
-      <div className="timeline-body min-w-0">
-        <h4>{entry.action}</h4>
-        <p>
-          {entry.actor}
-          {entry.category ? ` · ${entry.category}` : ''}
-        </p>
-        <span className="timeline-date">{formatWhen(entry.created_at)}</span>
+      <div className="alog-main">
+        <div className="alog-action">{entry.action}</div>
+        <div className="alog-meta">
+          {entry.category && <span className={`alog-cat ${categoryClass}`}>{entry.category}</span>}
+          <span>{entry.actor || 'System'}</span>
+        </div>
+      </div>
+      <div className="alog-time" title={new Date(entry.created_at).toLocaleString('en-PH')}>
+        {relativeTime(entry.created_at)}
       </div>
     </div>
   )
@@ -4011,63 +4023,89 @@ function TimelineItem({ entry }) {
 function ActivityLogCard() {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [updatedAt, setUpdatedAt] = useState(null)
+  const [, setTick] = useState(0)
+  const filterRef = useRef(categoryFilter)
+  filterRef.current = categoryFilter
+
+  const load = async ({ quiet = false } = {}) => {
+    if (quiet) setRefreshing(true)
+    else setLoading(true)
+    const want = filterRef.current
+    try {
+      const params = new URLSearchParams()
+      if (want !== 'all') params.set('category', want)
+      const qs = params.toString()
+      const res = await fetch(`/api/audit-log${qs ? `?${qs}` : ''}`)
+      const data = await res.json()
+      if (want !== filterRef.current) return // the filter changed meanwhile
+      if (data.success) {
+        setEntries(data.entries)
+        setError(null)
+        setUpdatedAt(Date.now())
+      } else if (!quiet) setError(data.error || 'Failed to load audit log.')
+    } catch (err) {
+      if (!quiet) setError(err.message)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
 
   useEffect(() => {
-    setLoading(true)
-    const params = new URLSearchParams()
-    if (categoryFilter !== 'all') params.set('category', categoryFilter)
-    const qs = params.toString()
-    fetch(`/api/audit-log${qs ? `?${qs}` : ''}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setEntries(data.entries)
-        else setError(data.error || 'Failed to load audit log.')
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryFilter])
+
+  useEffect(() => {
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible') load({ quiet: true })
+    }, 15000)
+    const onFocus = () => load({ quiet: true })
+    const onNotice = () => setTimeout(() => load({ quiet: true }), 600)
+    const clock = setInterval(() => setTick((t) => t + 1), 30000)
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('admin-notice', onNotice)
+    return () => {
+      clearInterval(poll)
+      clearInterval(clock)
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('admin-notice', onNotice)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const groupedEntries = useMemo(() => groupActivityByDate(entries), [entries])
 
   return (
     <div className="card">
-      {/* Sept 24 2026: dropped the unread-count badge and "Mark all as
-          read" entirely -- this was a single shared read/unread flag
-          across every admin (see the old audit-log route's own comment),
-          not a real per-admin notification system, and surfacing "50
-          unread" for something that isn't really tracking who's seen what
-          just read as a false notification count. This is a plain
-          chronological log now, same as it always functionally was. */}
-      <div className="card-title">Recent Activity Log</div>
+      <div className="card-title">
+        Recent Activity Log
+        <span className="alog-live">
+          <span className="alog-live-dot" />
+          {refreshing ? 'Updating...' : updatedAt ? `Updated ${relativeTime(updatedAt)}` : 'Live'}
+          <button type="button" className="alog-refresh" onClick={() => load({ quiet: true })} disabled={refreshing}>
+            Refresh
+          </button>
+        </span>
+      </div>
 
-      {/* The label/select styling for .mfield only applies inside
-          .announce-form (that's how it's scoped in Ivy's original CSS --
-          she built the filter row and the announcement composer as one
-          shared markup block). This isn't a real <form> (nothing here
-          submits), just reusing the class as a styling scope so the
-          dropdown matches the rest of the console instead of rendering as
-          a bare unstyled native select. */}
-      <div className="announce-form">
-        <div className="activity-filter-row">
-          <div className="mfield">
-            <label>Show</label>
-            <select
-              id="activityFeedSelect"
-              className="filter-select-compact"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-            >
-              <option value="all">All</option>
-              {ACTIVITY_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+      <div className="alog-chips" role="tablist" aria-label="Filter activity by category">
+        {['all', ...ACTIVITY_CATEGORIES].map((c) => (
+          <button
+            key={c}
+            type="button"
+            role="tab"
+            aria-selected={categoryFilter === c}
+            className={`alog-chip${categoryFilter === c ? ' active' : ''}`}
+            onClick={() => setCategoryFilter(c)}
+          >
+            {c === 'all' ? 'All' : c}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -4077,20 +4115,19 @@ function ActivityLogCard() {
       ) : entries.length === 0 ? (
         <p className="text-sm text-ccc-muted text-center py-8">No activity recorded yet.</p>
       ) : (
-        // Sept 24 2026: entries grouped into "Today / Yesterday / <date>"
-        // sections (groupActivityByDate) instead of one continuous list --
-        // 50+ entries with no section breaks read as a single undifferen-
-        // tiated block; a date header every so often gives the eye a place
-        // to land and re-orient while scanning.
-        <div className="timeline">
+        <div className="alog">
           {groupedEntries.map((group) => (
-            <div key={group.label}>
-              <div className="activity-date-heading">{group.label}</div>
+            <div key={group.label} className="alog-group">
+              <div className="activity-date-heading">
+                {group.label}
+                <span className="alog-count">{group.items.length}</span>
+              </div>
               {group.items.map((entry) => (
                 <TimelineItem key={entry.id} entry={entry} />
               ))}
             </div>
           ))}
+          <p className="alog-foot">Showing the latest {entries.length} entries.</p>
         </div>
       )}
     </div>
