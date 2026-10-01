@@ -111,18 +111,50 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
     }
 
-    const { data, error } = await supabase
+    // Oct 1 2026: attach this applicant's newest Supporting Document that was
+    // uploaded after their previous request and isn't attached to one yet
+    // (Appendix J V.g), so an old file from an earlier concern is never
+    // reused. Optional: a request without one still goes through.
+    let supportingDocumentPath = null
+    try {
+      const [{ data: docs }, { data: used }] = await Promise.all([
+        supabase
+          .from('documents')
+          .select('file_path, created_at')
+          .eq('applicant_user_id', applicantSession.id)
+          .eq('document_type', 'supportdoc')
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('reschedule_requests')
+          .select('*')
+          .eq('applicant_user_id', applicantSession.id),
+      ])
+      const usedPaths = new Set((used || []).map((r) => r.supporting_document_path).filter(Boolean))
+      const lastRequestAt = (used || []).reduce((max, r) => (r.created_at > max ? r.created_at : max), '')
+      supportingDocumentPath =
+        (docs || []).find((d) => !usedPaths.has(d.file_path) && (!lastRequestAt || d.created_at > lastRequestAt))?.file_path || null
+    } catch (attachErr) {
+      console.error('Finding the supporting document failed (continuing without):', attachErr)
+    }
+
+    const row = {
+      applicant_name: applicantName,
+      applicant_email: applicantSession.email || applicantEmail || null,
+      applicant_user_id: applicantSession.id,
+      request_type: requestType,
+      details,
+      status: 'submitted',
+    }
+    let { data, error } = await supabase
       .from('reschedule_requests')
-      .insert([{
-        applicant_name: applicantName,
-        applicant_email: applicantEmail || null,
-        applicant_user_id: applicantSession.id,
-        request_type: requestType,
-        details,
-        status: 'submitted',
-      }])
+      .insert([{ ...row, supporting_document_path: supportingDocumentPath }])
       .select()
       .single()
+    // If the migration hasn't been run yet, still save the request.
+    if (error && /supporting_document_path/.test(error.message || '')) {
+      ;({ data, error } = await supabase.from('reschedule_requests').insert([row]).select().single())
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

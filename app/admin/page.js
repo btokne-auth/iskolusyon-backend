@@ -4559,6 +4559,13 @@ function ReschedulePanel() {
                     <div className="text-xs text-ccc-muted mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                       {r.details}
                     </div>
+                    {r.supporting_document_url ? (
+                      <a href={r.supporting_document_url} target="_blank" rel="noopener noreferrer" className="inline-block text-xs font-bold text-ccc-blue underline mt-1.5">
+                        &#128206; View supporting document
+                      </a>
+                    ) : (
+                      <div className="text-[11px] text-ccc-muted mt-1.5">No supporting document attached.</div>
+                    )}
                   </td>
                   <td className="text-xs text-ccc-muted whitespace-nowrap">{formatWhen(r.created_at)}</td>
                   <td>

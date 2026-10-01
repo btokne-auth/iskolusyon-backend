@@ -23,7 +23,7 @@ export async function GET(request) {
 
     const { data: requests, error } = await supabase
       .from('reschedule_requests')
-      .select('id, applicant_name, applicant_email, applicant_user_id, request_type, details, status, created_at')
+      .select('*')
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -47,6 +47,15 @@ export async function GET(request) {
       }
     }
 
+    // Oct 1 2026: a short-lived link to the attached supporting document.
+    const linkByPath = new Map()
+    await Promise.all(
+      [...new Set(rows.map((r) => r.supporting_document_path).filter(Boolean))].map(async (path) => {
+        const { data } = await supabase.storage.from('scholarship-documents').createSignedUrl(path, 3600)
+        if (data?.signedUrl) linkByPath.set(path, data.signedUrl)
+      })
+    )
+
     const result = rows.map((r) => ({
       id: r.id,
       applicant_name: r.applicant_name,
@@ -56,6 +65,7 @@ export async function GET(request) {
       details: r.details,
       status: r.status,
       created_at: r.created_at,
+      supporting_document_url: r.supporting_document_path ? linkByPath.get(r.supporting_document_path) || null : null,
     }))
 
     return NextResponse.json({ success: true, requests: result })

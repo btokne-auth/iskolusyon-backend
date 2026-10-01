@@ -3171,7 +3171,7 @@ function PortalApp({ accountSession, onLogout }) {
                 </div>
                 <InlineUploadRow
                   label="Supporting Document"
-                  sublabel="e.g. Medical certificate, affidavit, or proof of conflict"
+                  sublabel="e.g. Medical certificate, affidavit, or proof of conflict. Upload it before you submit, and it will be attached to this request."
                   status={supportDocStatus === 'idle' && hasUploaded('supportdoc') ? 'done' : supportDocStatus}
                   onFileSelected={(f) => handleInlineUpload('supportdoc', f, setSupportDocStatus, setSupportDocRejection)}
                 />
@@ -3204,6 +3204,7 @@ function PortalApp({ accountSession, onLogout }) {
                         <div className="timeline-body">
                           <h4>{r.request_type} <span style={{ color: 'var(--blue)', fontWeight: 700, fontSize: '10.5px', textTransform: 'uppercase', letterSpacing: '.5px' }}>{r.status}</span></h4>
                           <p>{r.details}</p>
+                          <p>{r.supporting_document_path ? '\u{1F4CE} Supporting document attached' : 'No supporting document attached'}</p>
                           <p>{new Date(r.created_at).toLocaleString()}</p>
                         </div>
                       </div>
