@@ -3,6 +3,7 @@ import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { EDITABLE_FIELDS, PRIVATE_LOG_FIELDS, cleanValue } from '@/app/lib/profileEditRules'
 import { computeEligibility } from '@/app/lib/matching'
+import { checkLock } from '@/app/lib/applicantLocks'
 
 // Full per-applicant profile read, for the Dashboard applicant modal's
 // General Information grid + tabbed "Submitted Documents & Profile Data"
@@ -66,6 +67,10 @@ export async function PATCH(request) {
     if (!changes || typeof changes !== 'object' || Array.isArray(changes)) {
       return NextResponse.json({ error: 'Nothing to save.' }, { status: 400 })
     }
+
+    // Oct 1 2026: Locked Applications for Review.
+    const locked = await checkLock(request, id)
+    if (locked) return locked
 
     const updates = {}
     for (const [key, raw] of Object.entries(changes)) {

@@ -627,6 +627,133 @@ function EligibilitySection({ row, onOverride, overriding }) {
   )
 }
 
+// ---------- Locked Applications for Review (Oct 1 2026, Ivy's row) ----------
+// While one admin has an applicant open (Dashboard or Applicant Results),
+// other admins see that applicant greyed out with "Being reviewed by ..." and
+// can't open it, so nobody edits, emails or changes the status of the same
+// applicant at the same time. The server enforces the same rule on every
+// write (app/lib/applicantLocks.js), and a lock frees itself about 90 seconds
+// after the admin's tab stops refreshing it.
+
+// Polls who has which applicant open. Returns { [applicationId]: { admin_name, mine } }.
+function useApplicantLocks() {
+  const [locks, setLocks] = useState({})
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await fetch('/api/admin-applicant-lock')
+        const data = await res.json()
+        if (cancelled || !data.success) return
+        const map = {}
+        for (const l of data.locks || []) map[l.application_id] = { admin_name: l.admin_name, mine: l.mine }
+        setLocks(map)
+      } catch {
+        // Locks are a convenience on screen; the server still enforces them.
+      }
+    }
+    load()
+    const timer = setInterval(load, 15000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [])
+  return locks
+}
+
+function releaseApplicantLock(applicationId) {
+  if (!applicationId) return
+  const body = JSON.stringify({ id: applicationId, action: 'release' })
+  try {
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/api/admin-applicant-lock', new Blob([body], { type: 'application/json' }))
+      return
+    }
+  } catch {}
+  fetch('/api/admin-applicant-lock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {})
+}
+
+// Opens an applicant's modal only after claiming the lock, keeps the lock
+// alive while open, and releases it on close or when the tab closes.
+function useLockedModal(applicationId) {
+  const [modalOpen, setModalOpen] = useState(false)
+  const [blockedMsg, setBlockedMsg] = useState('')
+  const [opening, setOpening] = useState(false)
+
+  const claim = async () => {
+    const res = await fetch('/api/admin-applicant-lock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: applicationId }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.status === 409) return { blocked: data.error || 'Another admin is reviewing this applicant.' }
+    return { ok: true }
+  }
+
+  const openModal = async () => {
+    setBlockedMsg('')
+    if (!applicationId) {
+      setModalOpen(true)
+      return
+    }
+    setOpening(true)
+    try {
+      const result = await claim()
+      if (result.blocked) {
+        setBlockedMsg(result.blocked)
+        return
+      }
+      setModalOpen(true)
+    } catch {
+      // Network trouble: open anyway; the server still checks every save.
+      setModalOpen(true)
+    } finally {
+      setOpening(false)
+    }
+  }
+
+  const closeModal = () => {
+    setModalOpen(false)
+    releaseApplicantLock(applicationId)
+  }
+
+  useEffect(() => {
+    if (!modalOpen || !applicationId) return undefined
+    const beat = setInterval(() => {
+      claim()
+        .then((r) => {
+          if (r.blocked) setBlockedMsg(r.blocked)
+        })
+        .catch(() => {})
+    }, 30000)
+    const onUnload = () => releaseApplicantLock(applicationId)
+    window.addEventListener('pagehide', onUnload)
+    return () => {
+      clearInterval(beat)
+      window.removeEventListener('pagehide', onUnload)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalOpen, applicationId])
+
+  return { modalOpen, openModal, closeModal, blockedMsg, setBlockedMsg, opening }
+}
+
+function LockedNotice({ lockInfo, blockedMsg, onDismiss }) {
+  if (!blockedMsg && !(lockInfo && !lockInfo.mine)) return null
+  return (
+    <p className="text-[11px] text-ccc-orange px-2 -mt-2 mb-3 flex items-center gap-2">
+      {blockedMsg || `${lockInfo.admin_name || 'Another admin'} is reviewing this applicant right now.`}
+      {blockedMsg && (
+        <button type="button" className="underline text-ccc-muted" onClick={onDismiss}>
+          Dismiss
+        </button>
+      )}
+    </p>
+  )
+}
+
 // One applicant, collapsed by default, with all their documents inside.
 // Row-in-a-list + click-to-open-detail-modal (Sept 22 2026) -- was an
 // inline-expanding accordion (defaultOpen={i===0} forced the first
@@ -762,8 +889,9 @@ function ProfileStackFields({ stack, detail, applicationId, onSaved }) {
   )
 }
 
-function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibilityRow, onEligibilityOverride, eligibilityOverriding, onProfileSaved }) {
-  const [modalOpen, setModalOpen] = useState(false)
+function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibilityRow, onEligibilityOverride, eligibilityOverriding, onProfileSaved, lockInfo }) {
+  const { modalOpen, openModal, closeModal, blockedMsg, setBlockedMsg, opening } = useLockedModal(eligibilityRow?.id)
+  const lockedByOther = !!lockInfo && !lockInfo.mine && !modalOpen
   const [detail, setDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
@@ -825,8 +953,9 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
     <>
       <button
         type="button"
-        onClick={() => setModalOpen(true)}
-        className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors"
+        onClick={openModal}
+        disabled={opening}
+        className={`w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors${lockedByOther ? ' opacity-60' : ''}`}
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
@@ -842,6 +971,11 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
+          {lockedByOther && (
+            <span className="rounded-full border border-ccc-border bg-ccc-off text-ccc-muted text-[10px] font-bold px-2 py-0.5">
+              &#128274; Being reviewed by {lockInfo.admin_name || 'another admin'}
+            </span>
+          )}
           <EligibilityBadge status={eligibilityRow?.eligibility_override || eligibilityRow?.eligibility_status || 'incomplete'} />
           {flaggedCount > 0 && (
             <span className="flex items-center gap-1 rounded-full bg-ccc-gold text-ccc-navy text-[10px] font-bold px-2 py-0.5">
@@ -851,11 +985,12 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
           )}
         </div>
       </button>
+      <LockedNotice lockInfo={null} blockedMsg={blockedMsg} onDismiss={() => setBlockedMsg('')} />
 
       {modalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-4 py-8 overflow-y-auto"
-          onClick={() => setModalOpen(false)}
+          onClick={() => closeModal()}
         >
           <div
             className="w-full max-w-4xl rounded-2xl bg-white shadow-xl border border-ccc-border overflow-hidden my-auto"
@@ -892,7 +1027,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               </div>
               <button
                 type="button"
-                onClick={() => setModalOpen(false)}
+                onClick={() => closeModal()}
                 aria-label="Close"
                 className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-ccc-muted hover:bg-white hover:text-ccc-navy transition-colors"
               >
@@ -1195,6 +1330,7 @@ function DashboardPanel({
   recomputing,
   onProfileSaved,
 }) {
+  const locks = useApplicantLocks()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [programFilter, setProgramFilter] = useState('all')
@@ -1487,6 +1623,7 @@ function DashboardPanel({
                 onEligibilityOverride={onEligibilityOverride}
                 eligibilityOverriding={eligibilityOverriding}
                 onProfileSaved={onProfileSaved}
+                lockInfo={locks[eligibilityByName.get((g.name || '').trim().toLowerCase())?.id]}
               />
             ))}
           </div>
@@ -1940,7 +2077,7 @@ function ResultNoticeBox({ row, onSent, kind = 'result' }) {
   )
 }
 
-function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution, onReload, busy }) {
+function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution, onReload, busy, lockInfo }) {
   const [examScore, setExamScore] = useState(row.exam_score ?? '')
   const [examResult, setExamResult] = useState(row.exam_result || '')
   const [examDate, setExamDate] = useState(row.exam_date || '')
@@ -2003,14 +2140,16 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
   // the first row forced open read as broken/random). No new data fetch
   // needed here, unlike ApplicantGroup's lazy detail fetch -- ResultsPanel
   // already loads every field this modal shows up front.
-  const [modalOpen, setModalOpen] = useState(false)
+  const { modalOpen, openModal, closeModal, blockedMsg, setBlockedMsg, opening } = useLockedModal(row.id)
+  const lockedByOther = !!lockInfo && !lockInfo.mine && !modalOpen
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setModalOpen(true)}
-        className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors mb-4"
+        onClick={openModal}
+        disabled={opening}
+        className={`w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors mb-4${lockedByOther ? ' opacity-60' : ''}`}
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
@@ -2028,14 +2167,20 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           </div>
         </div>
         <div className="flex items-center gap-3 shrink-0">
+          {lockedByOther && (
+            <span className="rounded-full border border-ccc-border bg-ccc-off text-ccc-muted text-[10px] font-bold px-2 py-0.5">
+              &#128274; Being reviewed by {lockInfo.admin_name || 'another admin'}
+            </span>
+          )}
           <ScholarStatusBadge status={row.scholar_status || 'pending_exam'} />
         </div>
       </button>
+      <LockedNotice lockInfo={null} blockedMsg={blockedMsg} onDismiss={() => setBlockedMsg('')} />
 
       {!modalOpen ? null : (
       <div
         className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-4 py-8 overflow-y-auto"
-        onClick={() => setModalOpen(false)}
+        onClick={() => closeModal()}
       >
         <div
           className="w-full max-w-2xl rounded-2xl bg-white shadow-xl border border-ccc-border overflow-hidden my-auto"
@@ -2069,7 +2214,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
               <ScholarStatusBadge status={row.scholar_status || 'pending_exam'} />
               <button
                 type="button"
-                onClick={() => setModalOpen(false)}
+                onClick={() => closeModal()}
                 aria-label="Close"
                 className="w-8 h-8 rounded-full flex items-center justify-center text-ccc-muted hover:bg-white hover:text-ccc-navy transition-colors"
               >
@@ -2330,6 +2475,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
 }
 
 function ResultsPanel() {
+  const locks = useApplicantLocks()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -2488,6 +2634,7 @@ function ResultsPanel() {
               onAdvanceDistribution={handleAdvanceDistribution}
               onReload={() => load(true)}
               busy={busy}
+              lockInfo={locks[row.id]}
             />
           ))}
         </div>
