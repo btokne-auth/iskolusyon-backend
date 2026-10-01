@@ -54,3 +54,43 @@ export async function updateSystemSettings(patch, updatedBy) {
   if (error) throw new Error(error.message)
   return data
 }
+
+// Oct 1 2026: today's date in the Philippines as YYYY-MM-DD, so the
+// Acceptance Start/End dates switch over at Manila midnight, not UTC.
+export function manilaToday() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })
+}
+
+function readableDate(iso) {
+  try {
+    return new Date(`${iso}T00:00:00+08:00`).toLocaleDateString('en-PH', { dateStyle: 'long', timeZone: 'Asia/Manila' })
+  } catch {
+    return iso
+  }
+}
+
+// Oct 1 2026: the Application Cycle Settings gate for a FINAL submit
+// (progress table row "Not Qualified... Management", Ivy's comment: a date
+// range for opening applications). Returns an error message, or null to
+// allow. Checks, in order: Applications Open, the Acceptance Start/End
+// window, and Applicant Slots (how many applications may be submitted).
+// alreadySubmitted: this applicant already submitted before (re-submitting
+// never takes a new slot).
+export async function submitBlockedReason(settings, { alreadySubmitted, countSubmitted }) {
+  if (!settings.applications_open) return 'Applications are currently closed. Please check back later.'
+  const today = manilaToday()
+  if (settings.acceptance_start_date && today < settings.acceptance_start_date) {
+    return `Applications open on ${readableDate(settings.acceptance_start_date)}. Please submit on or after that date.`
+  }
+  if (settings.acceptance_end_date && today > settings.acceptance_end_date) {
+    return `Applications closed on ${readableDate(settings.acceptance_end_date)}.`
+  }
+  if (!alreadySubmitted && settings.applicant_slots != null && settings.applicant_slots !== '') {
+    const slots = Number(settings.applicant_slots)
+    if (Number.isFinite(slots)) {
+      const taken = await countSubmitted()
+      if (taken >= slots) return 'All applicant slots for this cycle have been filled. Please watch the CCC Official Facebook Page for the next application period.'
+    }
+  }
+  return null
+}

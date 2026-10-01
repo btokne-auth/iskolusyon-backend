@@ -3680,12 +3680,11 @@ function AdminAccountsPanel() {
 // ---------- System & Activity panel ----------
 // Sept 22, 2026 rebuild: this used to be just the audit log (moved in from
 // the old standalone /admin/activity route), now split into the two real
-// halves Ivy's mockup shows. Scope decided this session: only Applications
-// Open and Document Uploads Enabled actually gate applicant behavior (see
-// app/api/application/route.js and app/api/upload/route.js) -- Applicant
-// Slots, the Acceptance Start/End Date window, and Exam Results Visible
-// are saved and round-trip through the form, but nothing enforces them
-// yet. The activity log gets real category/status filters and a shared
+// halves Ivy's mockup shows. All settings are enforced on the server:
+// Applications Open, Applicant Slots and the Acceptance Start/End window
+// gate the final submit (Oct 1 2026, app/lib/systemSettings.js), Document
+// Uploads gates /api/upload, and Exam Results Visible gates results
+// (Sept 30 2026). The activity log gets real category/status filters and a shared
 // read/unread flag; Communications posts stay their own separate list in
 // the Communications panel rather than merging into this feed.
 
@@ -3779,7 +3778,10 @@ function CycleSettingsCard() {
       <div className="toggle-row">
         <div className="toggle-row-info">
           <h4>Applications Open</h4>
-          <p>When off, applicants can no longer submit new applications through the public site.</p>
+          <p>
+            When off, applicants can no longer submit new applications. When on, applicants can only submit between the
+            acceptance dates below, and only until the applicant slots are filled. Leave a field blank for no limit.
+          </p>
         </div>
         <label className="switch">
           <input
