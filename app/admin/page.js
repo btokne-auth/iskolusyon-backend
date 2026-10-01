@@ -2180,7 +2180,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         type="button"
         onClick={openModal}
         disabled={opening}
-        className={`w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors mb-4${lockedByOther ? ' opacity-60' : ''}`}
+        className={`w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors${lockedByOther ? ' opacity-60' : ''}`}
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
@@ -2355,8 +2355,8 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
             {examSuggestion.suggested && (
               <>
                 {' '}Score of {examScore} suggests{' '}
-                <strong>{examSuggestion.suggested === 'passed' ? 'Passed' : 'Failed'}</strong> &mdash; this doesn&rsquo;t
-                auto-fill Result, pick it above to confirm.
+                <strong>{examSuggestion.suggested === 'passed' ? 'Passed' : 'Failed'}</strong>. This doesn&rsquo;t
+                auto-fill Result, so pick it above to confirm.
               </>
             )}
           </p>
@@ -2384,12 +2384,12 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           <span className="modal-section-label" style={{ marginBottom: '4px' }}>Step 2 · Manual Override</span>
           <p className="text-[10.5px] text-ccc-muted">
             Only for a real judgment call the exam result itself doesn&rsquo;t decide (Appendix D: a probationary contract, or a
-            later disqualification/forfeiture reason). Fires immediately &mdash; independent of Step 1 above.
+            later disqualification/forfeiture reason). Fires immediately, independent of Step 1 above.
           </p>
         </div>
         {hasUnsavedExamChanges && (
           <div className="rounded-lg border border-ccc-orange/50 bg-orange-100 px-3 py-2 text-[11px] font-semibold text-ccc-orange">
-            You have unsaved changes in the Entrance Exam section above. Clicking a button below will NOT save those &mdash;
+            You have unsaved changes in the Entrance Exam section above. Clicking a button below will NOT save those, so
             save Step 1 first if you meant to record an exam result.
           </div>
         )}
@@ -2460,7 +2460,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         {!canDistribute ? (
           !hasStaleDistribution && (
             <p className="text-[11px] text-ccc-muted">
-              Not applicable yet -- becomes available once this applicant is a Passer or Qualified (Probationary).
+              Not applicable yet. Becomes available once this applicant is a Passer or Qualified (Probationary).
             </p>
           )
         ) : (
@@ -2622,41 +2622,61 @@ function ResultsPanel() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2.5 mb-5">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
-          <IconSearch className="w-4 h-4 text-ccc-muted absolute left-3 top-1/2 -translate-y-1/2" />
+      {/* Oct 1 2026 reskin: same card + filter bar as the Dashboard's All
+          Applicants card, so the two lists look and behave alike. Rows and
+          the pop-up are unchanged. */}
+      <div className="card">
+        <div className="card-title">
+          All Applicants
+          {!loading && (
+            <span className="tag">
+              {filtered.length} applicant{filtered.length === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+
+        <div className="filter-bar">
           <input
-            type="text"
+            type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by applicant name, email, or application number..."
-            className="w-full rounded-lg border border-ccc-border bg-white pl-9 pr-3 py-2.5 text-sm text-ccc-text placeholder:text-ccc-muted focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
           />
+          <select className="program-filter-select" value={docFilter} onChange={(e) => setDocFilter(e.target.value)}>
+            <option value="all">All documents</option>
+            <option value="complete">Documents Complete</option>
+            <option value="incomplete">Documents Incomplete</option>
+          </select>
+          {(search.trim() !== '' || docFilter !== 'all') && (
+            <>
+              <div className="filter-divider" />
+              <button
+                type="button"
+                className="filter-clear"
+                onClick={() => {
+                  setSearch('')
+                  setDocFilter('all')
+                }}
+              >
+                &times; Clear filters
+              </button>
+            </>
+          )}
         </div>
-        <select
-          value={docFilter}
-          onChange={(e) => setDocFilter(e.target.value)}
-          className="rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
-        >
-          <option value="all">All Applicants</option>
-          <option value="complete">Documents Complete</option>
-          <option value="incomplete">Documents Incomplete</option>
-        </select>
-      </div>
 
-      {error && (
-        <div className="mb-4 p-3 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
-      )}
+        {error && (
+          <div className="mb-4 p-3 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
+        )}
 
-      {loading ? (
-        <div className="text-center py-20 text-ccc-muted text-sm">Loading applicants...</div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-ccc-muted text-sm">
-          {rows.length === 0 ? 'No applications on file yet.' : 'No applicants match your search and filter.'}
-        </div>
-      ) : (
-        <div>
-          {filtered.map((row) => (
+        {loading ? (
+          <div className="text-center py-20 text-ccc-muted text-sm">Loading applicants...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-20 text-ccc-muted text-sm">
+            {rows.length === 0 ? 'No applications on file yet.' : 'No applicants match your search and filter.'}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filtered.map((row) => (
             <ResultRow
               key={row.id}
               row={row}
@@ -2666,10 +2686,11 @@ function ResultsPanel() {
               onReload={() => load(true)}
               busy={busy}
               lockInfo={locks[row.id]}
-            />
-          ))}
-        </div>
-      )}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

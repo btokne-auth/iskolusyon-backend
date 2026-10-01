@@ -238,7 +238,7 @@ function ExtractedTextField({ text, method, processing }) {
   if (!text && processing) {
     return (
       <div className="rounded-lg border border-ccc-border bg-ccc-off px-3 py-3 text-xs text-ccc-muted italic">
-        Reading your document. This can take up to a minute. Refresh this page to see the detected text.
+        Reading your document. This can take up to a minute, and the detected text will show here by itself.
       </div>
     )
   }
@@ -912,6 +912,119 @@ function StatusToast({ tone, children }) {
   )
 }
 
+// ---------- Upload / submit pop-up (Oct 1 2026) ----------
+// Pau's request: after an upload or the final Submit, applicants should get a
+// clear "please wait" pop-up instead of a toast they might miss. The OK
+// button stays locked for 7 seconds so they actually read it.
+//  - Birth Certificate / Voter's ID: shows "Reading your document..." and
+//    switches to the auto-fill result as soon as it arrives (reading takes
+//    about 15-30 seconds, up to a minute if the reading service was asleep).
+//  - Other documents: says it's being checked and that Documents & Status
+//    updates by itself (the page re-checks every few seconds, no refresh).
+//  - Final Submit: confirms the application was submitted.
+const UPLOAD_DOC_LABEL = {
+  profilepic: 'Profile Picture',
+  birthcert: 'Birth Certificate',
+  voterid: "Voter's ID",
+  form138: 'Grades (Form 138)',
+  parentid: "Parent/Guardian's Voter's ID",
+  employmentcert: 'Proof of Employment',
+  indigency: 'Certificate of Indigency',
+  medcert: 'Medical Certificate',
+  supportdoc: 'Supporting Document',
+}
+const NOTICE_LOCK_SECONDS = 7
+
+function UploadNoticeDialog({ notice, autofillNote, onClose }) {
+  const [secondsLeft, setSecondsLeft] = useState(NOTICE_LOCK_SECONDS)
+  useEffect(() => {
+    setSecondsLeft(NOTICE_LOCK_SECONDS)
+    const t = setInterval(() => setSecondsLeft((s) => (s > 0 ? s - 1 : 0)), 1000)
+    return () => clearInterval(t)
+  }, [notice])
+  const locked = secondsLeft > 0
+
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && !locked && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [locked, onClose])
+
+  const label = UPLOAD_DOC_LABEL[notice.docType] || 'document'
+  const isAutofill = notice.kind === 'upload' && Boolean(AUTOFILL_FIELD_MAP[notice.docType])
+  const stillReading = isAutofill && (!autofillNote || (autofillNote.tone === 'info' && /^Reading/.test(autofillNote.text)))
+
+  let icon = '\u2713'
+  let iconStyle = { background: '#E3F4EA', color: '#1E8E5A' }
+  let title
+  let body
+  if (notice.kind === 'submit') {
+    title = 'Application submitted'
+    body = (
+      <>
+        {notice.applicationNumber ? (
+          <>
+            Your application number is <b>{notice.applicationNumber}</b>.{' '}
+          </>
+        ) : null}
+        The Guidance Office will now review your documents. Please check <b>Messages</b> for your exam schedule and other
+        updates.
+      </>
+    )
+  } else if (isAutofill && stillReading) {
+    icon = <span className="notice-spinner" aria-hidden="true" />
+    iconStyle = { background: '#EAF0FB', color: 'var(--blue)' }
+    title = `Reading your ${label}`
+    body = locked ? (
+      <>
+        We&rsquo;re reading your {label} to fill in your details. This usually takes 15 to 30 seconds, sometimes up to a
+        minute. Please stay on this page.
+      </>
+    ) : (
+      <>
+        Still reading your {label}. You can close this now; your details will fill in automatically when it&rsquo;s done.
+        Please stay on this page.
+      </>
+    )
+  } else if (isAutofill) {
+    const warn = autofillNote?.tone === 'warn'
+    if (warn) {
+      icon = '!'
+      iconStyle = { background: '#FDF3E1', color: '#B7791F' }
+    }
+    title = warn ? `We couldn\u2019t read your ${label}` : `${label} read`
+    body = autofillNote?.text
+  } else if (notice.reviewStatus === 'processing') {
+    title = `${label} uploaded`
+    body = (
+      <>
+        We&rsquo;re checking it now. In <b>Documents &amp; Status</b> it shows as <b>Processing</b> for about a minute, then
+        updates by itself. You don&rsquo;t need to refresh the page.
+      </>
+    )
+  } else {
+    title = `${label} uploaded`
+    body = <>Your {label} was uploaded and saved.</>
+  }
+
+  return (
+    <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !locked && onClose()}>
+      <div className="confirm-box" role="dialog" aria-modal="true" aria-live="polite" aria-label={title} style={{ maxWidth: 420 }}>
+        <div className="confirm-icon" style={iconStyle}>
+          {icon}
+        </div>
+        <h3>{title}</h3>
+        <p style={{ whiteSpace: 'pre-line' }}>{body}</p>
+        <div className="confirm-actions">
+          <button type="button" className="mbtn mbtn-primary" onClick={onClose} disabled={locked}>
+            {locked ? `OK (${secondsLeft})` : 'OK'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SectionFormActions({ saveState, sectionState, error, disabled, submitDisabled, submitLabel, onSaveDraft, onSubmit }) {
   return (
     <div>
@@ -1315,6 +1428,7 @@ function PortalApp({ accountSession, onLogout }) {
   const [rescheduleSaveState, setRescheduleSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [rescheduleHistory, setRescheduleHistory] = useState([])
   const [supportDocStatus, setSupportDocStatus] = useState('idle')
+  const [uploadNotice, setUploadNotice] = useState(null) // Oct 1 2026: { kind: 'upload' | 'submit', docType, reviewStatus, applicationNumber }
   const [rescheduleError, setRescheduleError] = useState('')
   const [supportDocRejection, setSupportDocRejection] = useState(null)
   // Messages panel — Sept 22 2026: wired to the real /api/portal-messages
@@ -1601,6 +1715,7 @@ function PortalApp({ accountSession, onLogout }) {
       setSubmitted(true)
       setSubmittedAt(data.application.submitted_at || null)
       if (data.application.application_number) setApplicationNumber(data.application.application_number)
+      setUploadNotice({ kind: 'submit', applicationNumber: data.application.application_number || null })
     } catch (err) {
       console.error('Submit failed:', err)
       setSaveState('error')
@@ -1843,6 +1958,45 @@ function PortalApp({ accountSession, onLogout }) {
     fetchHistory()
   }, [])
 
+  // Oct 1 2026: while any document is still Processing (the reading service
+  // hasn't finished it yet), re-check every 5 seconds so its status changes
+  // to Verified / Needs review by itself, with no page refresh. Stops once
+  // nothing is processing, or after 3 minutes in case the service is down.
+  const hasProcessingDoc = myDocs.some((doc) => doc.review_status === 'processing' && !doc.needs_review)
+  useEffect(() => {
+    if (!hasProcessingDoc) return undefined
+    const startedAt = Date.now()
+    const t = setInterval(() => {
+      if (Date.now() - startedAt > 3 * 60 * 1000) {
+        clearInterval(t)
+        return
+      }
+      fetchHistory()
+    }, 5000)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasProcessingDoc])
+
+  // Keep the Step 2 upload result box in step with the re-checked status.
+  useEffect(() => {
+    if (!details?.filePath) return
+    const doc = docHistory.find((d) => d.file_path === details.filePath)
+    if (!doc || doc.review_status === details.reviewStatus) return
+    setDetails((d) =>
+      d && d.filePath === doc.file_path
+        ? {
+            ...d,
+            reviewStatus: doc.review_status,
+            needsReview: Boolean(doc.needs_review),
+            extractedText: doc.extracted_text ?? d.extractedText,
+            extractionMethod: doc.extraction_method ?? d.extractionMethod,
+            extractionConfidence: doc.ocr_confidence ?? d.extractionConfidence,
+          }
+        : d
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docHistory])
+
   // Reschedule request history — fetched whenever the Appeals panel is open
   // and a name is typed in, same lazy-fetch pattern as the rest of the app
   // (no accounts, so there's nothing to fetch until a name exists).
@@ -1970,6 +2124,8 @@ function PortalApp({ accountSession, onLogout }) {
       )
       setDetails(data)
       fetchHistory()
+      setUploadNotice({ kind: 'upload', docType: documentType, reviewStatus: data.reviewStatus })
+      if (AUTOFILL_FIELD_MAP[documentType] && data.filePath) watchAutofill(documentType, data.filePath)
       setFile(null)
       setDocumentType('')
     } catch (err) {
@@ -2079,6 +2235,7 @@ function PortalApp({ accountSession, onLogout }) {
       const data = await uploadDocument(docType, uploadFile)
       setInlineStatus(data.needsReview ? 'flagged' : 'done')
       fetchHistory()
+      setUploadNotice({ kind: 'upload', docType, reviewStatus: data.reviewStatus })
       if (AUTOFILL_FIELD_MAP[docType] && data.filePath) watchAutofill(docType, data.filePath)
     } catch (err) {
       if (err.rejected) {
@@ -3640,10 +3797,32 @@ function PortalApp({ accountSession, onLogout }) {
           </div>
         </div>
       )}
+      {uploadNotice && (
+        <UploadNoticeDialog
+          notice={uploadNotice}
+          autofillNote={uploadNotice.kind === 'upload' ? autofillNotes[uploadNotice.docType] : null}
+          onClose={() => setUploadNotice(null)}
+        />
+      )}
       <style jsx global>{`
         @keyframes slideIn {
           from { transform: translateX(100%); }
           to { transform: translateX(0); }
+        }
+        @keyframes noticeSpin {
+          to { transform: rotate(360deg); }
+        }
+        .applicant-portal .notice-spinner {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          border: 3px solid currentColor;
+          border-right-color: transparent;
+          animation: noticeSpin 0.8s linear infinite;
+        }
+        .applicant-portal .confirm-box .mbtn:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
         }
       `}</style>
     </main>
