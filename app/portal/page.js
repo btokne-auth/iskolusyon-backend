@@ -934,11 +934,18 @@ const UPLOAD_DOC_LABEL = {
   supportdoc: 'Supporting Document',
 }
 const NOTICE_LOCK_SECONDS = 7
+const SECTION_LABEL = {
+  personal: 'Personal Information',
+  academic: 'Educational Background',
+  financial: 'Family & Financial Information',
+  health: 'Health & Wellness',
+}
 
 function UploadNoticeDialog({ notice, autofillNote, onClose }) {
-  const [secondsLeft, setSecondsLeft] = useState(NOTICE_LOCK_SECONDS)
+  const lockFor = notice.lockSeconds ?? NOTICE_LOCK_SECONDS
+  const [secondsLeft, setSecondsLeft] = useState(lockFor)
   useEffect(() => {
-    setSecondsLeft(NOTICE_LOCK_SECONDS)
+    setSecondsLeft(lockFor)
     const t = setInterval(() => setSecondsLeft((s) => (s > 0 ? s - 1 : 0)), 1000)
     return () => clearInterval(t)
   }, [notice])
@@ -958,7 +965,31 @@ function UploadNoticeDialog({ notice, autofillNote, onClose }) {
   let iconStyle = { background: '#E3F4EA', color: '#1E8E5A' }
   let title
   let body
-  if (notice.kind === 'submit') {
+  if (notice.kind === 'section') {
+    const sectionLabel = SECTION_LABEL[notice.section] || 'Section'
+    title = `${sectionLabel} submitted`
+    body = (
+      <>
+        Your {sectionLabel} answers were saved and sent to the Guidance Office.{' '}
+        {notice.section === 'academic'
+          ? 'This section is now locked. If something needs to change, please contact the Guidance Office.'
+          : 'You can still edit and re-submit this section any time.'}
+        {notice.newApplicationNumber ? (
+          <>
+            {'\n\n'}All your required documents are in. Your application number is <b>{notice.newApplicationNumber}</b>.
+          </>
+        ) : null}
+      </>
+    )
+  } else if (notice.kind === 'autofill-result') {
+    const warn = notice.note?.tone === 'warn'
+    if (warn) {
+      icon = '!'
+      iconStyle = { background: '#FDF3E1', color: '#B7791F' }
+    }
+    title = warn ? `We couldn\u2019t read your ${label}` : `${label} read`
+    body = notice.note?.text
+  } else if (notice.kind === 'submit') {
     title = 'Application submitted'
     body = (
       <>
@@ -1048,7 +1079,7 @@ function SectionFormActions({ saveState, sectionState, error, disabled, submitDi
       {saveState === 'saved' && <StatusToast tone="success">&#x2713; Progress saved</StatusToast>}
       {saveState === 'error' && <StatusToast tone="error">Couldn&rsquo;t save, please try again.</StatusToast>}
       {saveState === 'offline' && <StatusToast tone="info">No connection. Saved on this device, will sync automatically.</StatusToast>}
-      {sectionState === 'submitted' && <StatusToast tone="success">&#x2713; Section submitted</StatusToast>}
+      {/* Oct 1 2026: a submitted section now gets the pop-up instead of this toast. */}
       {sectionState === 'error' && <StatusToast tone="error">Couldn&rsquo;t submit, please try again.</StatusToast>}
     </div>
   )
@@ -1428,7 +1459,9 @@ function PortalApp({ accountSession, onLogout }) {
   const [rescheduleSaveState, setRescheduleSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [rescheduleHistory, setRescheduleHistory] = useState([])
   const [supportDocStatus, setSupportDocStatus] = useState('idle')
-  const [uploadNotice, setUploadNotice] = useState(null) // Oct 1 2026: { kind: 'upload' | 'submit', docType, reviewStatus, applicationNumber }
+  const [uploadNotice, setUploadNotice] = useState(null) // Oct 1 2026: { kind: 'upload' | 'autofill-result' | 'section' | 'submit', ... }
+  const uploadNoticeRef = useRef(null)
+  useEffect(() => { uploadNoticeRef.current = uploadNotice }, [uploadNotice])
   const [rescheduleError, setRescheduleError] = useState('')
   const [supportDocRejection, setSupportDocRejection] = useState(null)
   // Messages panel — Sept 22 2026: wired to the real /api/portal-messages
@@ -1679,9 +1712,13 @@ function PortalApp({ accountSession, onLogout }) {
       // runs on every save regardless of which section was just submitted,
       // so this section's submit could be the one that pushes an
       // already-complete document set over the line.
+      const newNumber = data.application.application_number && data.application.application_number !== applicationNumber
+        ? data.application.application_number
+        : null
       if (data.application.application_number) setApplicationNumber(data.application.application_number)
       setState('submitted')
       setTimeout(() => setState('idle'), 1800)
+      setUploadNotice({ kind: 'section', section, newApplicationNumber: newNumber })
     } catch (err) {
       console.error('Submit section failed:', err)
       setSectionErrors((e) => ({ ...e, [section]: 'Could not submit this section. Please try again.' }))
@@ -2213,18 +2250,32 @@ function PortalApp({ accountSession, onLogout }) {
       }
 
       const label = AUTOFILL_DOC_LABEL[docType]
+      let resultNote
       if (fillKeys.length) {
-        setAutofillNote(docType, { tone: 'done', text: `Filled in ${fillKeys.length} empty field${fillKeys.length === 1 ? '' : 's'} from your ${label}. Please check them, then save.` })
+        resultNote = { tone: 'done', text: `Filled in ${fillKeys.length} empty field${fillKeys.length === 1 ? '' : 's'} from your ${label}. Please check them, then save.` }
       } else if (readCount) {
-        setAutofillNote(docType, { tone: 'info', text: `Your ${label} was read. The fields above were already filled in, so nothing was changed.` })
+        resultNote = { tone: 'info', text: `Your ${label} was read. The fields above were already filled in, so nothing was changed.` }
       } else {
-        setAutofillNote(docType, { tone: 'warn', text: `We couldn't read the details from your ${label}. Please fill in the fields above manually.` })
+        resultNote = { tone: 'warn', text: `We couldn't read the details from your ${label}. Please fill in the fields above manually.` }
       }
+      setAutofillNote(docType, resultNote)
+      showAutofillResult(docType, resultNote)
       return
     }
     if (autofillRunRef.current[docType] === filePath) {
-      setAutofillNote(docType, { tone: 'warn', text: 'Reading your document is taking longer than usual. You can fill in the fields above manually.' })
+      const slowNote = { tone: 'warn', text: 'Reading your document is taking longer than usual. You can fill in the fields above manually.' }
+      setAutofillNote(docType, slowNote)
+      showAutofillResult(docType, slowNote)
     }
+  }
+
+  // Oct 1 2026: if the applicant already closed the "Reading..." pop-up, show
+  // the result in its own pop-up so it isn't missed. If that pop-up is still
+  // open, it already switches to the result by itself.
+  const showAutofillResult = (docType, note) => {
+    const open = uploadNoticeRef.current
+    if (open && open.kind === 'upload' && open.docType === docType) return
+    setUploadNotice({ kind: 'autofill-result', docType, note, lockSeconds: 3 })
   }
 
   const handleInlineUpload = async (docType, uploadFile, setInlineStatus, setInlineRejection) => {
