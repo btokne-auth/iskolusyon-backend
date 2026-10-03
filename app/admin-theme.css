@@ -3594,3 +3594,300 @@
 .admin-portal .alog-time{flex-shrink:0;font-size:11px;color:var(--muted);white-space:nowrap}
 .admin-portal .alog-foot{text-align:center;font-size:11px;color:var(--muted);padding-top:12px}
 @media(max-width:640px){.admin-portal .alog-item{align-items:flex-start}.admin-portal .alog-live{margin-left:0;width:100%;margin-top:6px}}
+
+/* ── Oct 3 2026 redesign: Dashboard > All Applicants as a table with status
+   tabs (Ivy's applicant-table columns). Rows are real <button>s so the
+   keyboard and the review lock work the same as the old cards. ── */
+.admin-portal .apl-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 5px;
+  margin-bottom: 14px;
+  background: var(--off);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.admin-portal .apl-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11.5px;
+  color: #4f5f78;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.admin-portal .apl-tab:hover {
+  background: #eef3fd;
+  color: var(--navy);
+}
+.admin-portal .apl-tab:focus-visible {
+  outline: 2px solid var(--ccc-blue);
+  outline-offset: 2px;
+}
+.admin-portal .apl-tab.active,
+.admin-portal .apl-tab.active:hover {
+  background: var(--navy);
+  color: #fff;
+}
+.admin-portal .apl-tab-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  background: #e3e8f1;
+  color: var(--navy);
+}
+.admin-portal .apl-tab.active .apl-tab-count {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.admin-portal .apl-scroll {
+  overflow-x: auto;
+  margin: 0 -4px;
+  -webkit-overflow-scrolling: touch;
+}
+.admin-portal .apl-table {
+  min-width: 920px;
+  padding: 0 4px;
+}
+.admin-portal .apl-head,
+.admin-portal .apl-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.3fr) minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 1.2fr);
+  gap: 14px;
+  align-items: center;
+}
+.admin-portal .apl-head {
+  padding: 0 14px 10px;
+  border-bottom: 2px solid var(--border);
+}
+.admin-portal .apl-th {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  text-align: left;
+}
+.admin-portal .apl-th-sort {
+  cursor: pointer;
+  user-select: none;
+}
+.admin-portal .apl-th-sort:hover {
+  color: var(--ccc-blue);
+}
+.admin-portal .apl-th-right {
+  justify-content: flex-end;
+}
+.admin-portal .apl-row {
+  width: 100%;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.admin-portal .apl-row:hover {
+  background: var(--off);
+}
+.admin-portal .apl-row:focus-visible {
+  outline: 2px solid var(--ccc-blue);
+  outline-offset: -2px;
+}
+.admin-portal .apl-row:disabled {
+  cursor: progress;
+}
+.admin-portal .apl-row-locked,
+.admin-portal .apl-row-locked:hover {
+  background: #eef0f3;
+}
+.admin-portal .apl-row-locked .apl-name,
+.admin-portal .apl-row-locked .apl-main {
+  color: var(--muted);
+}
+.admin-portal .apl-row-locked .apl-avatar {
+  background: #e3e7ee;
+  color: var(--muted);
+}
+.admin-portal .apl-cell {
+  min-width: 0;
+  font-size: 12.3px;
+  color: var(--text);
+}
+.admin-portal .apl-who {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.admin-portal .apl-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #eef3fd;
+  color: var(--ccc-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 11.5px;
+  flex-shrink: 0;
+}
+.admin-portal .apl-who-text,
+.admin-portal .apl-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-portal .apl-name {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12.6px;
+  color: var(--navy);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-portal .apl-sub {
+  font-size: 10.8px;
+  color: #5a6b85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-portal .apl-main {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.admin-portal .apl-main b {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+}
+.admin-portal .apl-lock-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin-top: 3px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 9.6px;
+  font-weight: 700;
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+.admin-portal .apl-lock-tag svg {
+  width: 10px;
+  height: 10px;
+}
+.admin-portal .apl-bar {
+  display: block;
+  max-width: 120px;
+  height: 5px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: #e9edf4;
+  overflow: hidden;
+}
+.admin-portal .apl-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ccc-gold);
+}
+.admin-portal .apl-bar > span.done {
+  background: var(--ccc-green);
+}
+.admin-portal .apl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.admin-portal .apl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 9.8px;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.admin-portal .apl-chip-flag {
+  background: #fbefc9;
+  color: #6b4e00;
+}
+.admin-portal .apl-chip-proc {
+  background: #eef3fd;
+  color: var(--ccc-blue);
+}
+.admin-portal .apl-chip-ok {
+  background: #e6f4ec;
+  color: #1a5c3a;
+}
+.admin-portal .apl-date {
+  font-size: 11.6px;
+  color: #5a6b85;
+  white-space: nowrap;
+}
+.admin-portal .apl-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.admin-portal .apl-pill {
+  font-family: "Montserrat", sans-serif;
+  font-size: 10.2px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 4px 11px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.admin-portal .apl-pill-green { background: #e6f4ec; color: #1a5c3a; }
+.admin-portal .apl-pill-gold { background: #fdf0dc; color: #7a4f0c; }
+.admin-portal .apl-pill-red { background: #fbe7e7; color: #902020; }
+.admin-portal .apl-pill-blue { background: #eef3fd; color: #0035b8; }
+.admin-portal .apl-pill-gray { background: #eef0f3; color: #4f5f78; }
+.admin-portal .apl-chev {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: #b4c0d3;
+  transition: transform 0.15s, color 0.15s;
+}
+.admin-portal .apl-row:hover .apl-chev {
+  color: var(--ccc-blue);
+  transform: translateX(2px);
+}
+@media (max-width: 640px) {
+  .admin-portal .apl-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+}

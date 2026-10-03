@@ -539,6 +539,23 @@ const ELIGIBILITY_META = {
   incomplete: { label: 'Incomplete Profile', className: 'bg-ccc-off text-ccc-muted border-ccc-border' },
 }
 
+// Oct 3 2026: pill styles for the redesigned All Applicants table (same
+// labels as ELIGIBILITY_META, colors from admin-theme.css .apl-pill-*).
+const APL_STATUS_PILL = {
+  qualified: { label: ELIGIBILITY_META.qualified.label, cls: 'apl-pill-green' },
+  waitlisted: { label: ELIGIBILITY_META.waitlisted.label, cls: 'apl-pill-gold' },
+  not_qualified: { label: ELIGIBILITY_META.not_qualified.label, cls: 'apl-pill-red' },
+  pending_exam: { label: ELIGIBILITY_META.pending_exam.label, cls: 'apl-pill-blue' },
+  incomplete: { label: ELIGIBILITY_META.incomplete.label, cls: 'apl-pill-gray' },
+}
+
+function formatAplDate(iso) {
+  if (!iso) return 'No activity yet'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return 'No activity yet'
+  return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function EligibilityBadge({ status }) {
   const meta = ELIGIBILITY_META[status] || ELIGIBILITY_META.incomplete
   return (
@@ -1022,40 +1039,82 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
 
   const activeCategory = PROFILE_CATEGORIES.find((c) => c.key === activeCat) || PROFILE_CATEGORIES[0]
 
+  // Oct 3 2026 redesign: one row of the All Applicants table (Ivy's
+  // applicant-table columns + status tabs), replacing the floating card.
+  // Same click-to-open + review lock behavior as before.
+  const status = eligibilityRow?.eligibility_override || eligibilityRow?.eligibility_status || 'incomplete'
+  const statusMeta = APL_STATUS_PILL[status] || APL_STATUS_PILL.incomplete
+  const initials = (name || '?')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w, i, arr) => (i === 0 || i === arr.length - 1 ? w.charAt(0) : ''))
+    .join('')
+    .toUpperCase() || '?'
+
   return (
     <>
       <button
         type="button"
         onClick={openModal}
         disabled={opening}
-        className={`w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors${lockedByOther ? ' opacity-60' : ''}`}
+        className={`apl-row${lockedByOther ? ' apl-row-locked' : ''}`}
+        title={lockedByOther ? `${lockInfo.admin_name || 'Another admin'} is reviewing this applicant` : `Open ${name || 'applicant'}`}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
-            {name ? name.charAt(0).toUpperCase() : '?'}
-          </div>
-          <div className="text-left min-w-0">
-            <p className="text-sm font-semibold text-ccc-navy truncate" style={{ fontFamily: 'var(--font-montserrat)' }}>
-              {name || 'Unknown applicant'}
-            </p>
-            <p className="text-[11px] text-ccc-muted truncate">
-              {email || 'No email on file'} · {docs.length} document{docs.length === 1 ? '' : 's'}
-            </p>
-          </div>
+        <div className="apl-cell apl-who">
+          <span className="apl-avatar">{initials}</span>
+          <span className="apl-who-text">
+            <span className="apl-name">{name || 'Unknown applicant'}</span>
+            <span className="apl-sub">{email || 'No email on file'}</span>
+            {lockedByOther && (
+              <span className="apl-lock-tag">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="5" y="11" width="14" height="9" rx="2" />
+                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+                Being reviewed by {lockInfo.admin_name || 'another admin'}
+              </span>
+            )}
+          </span>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {lockedByOther && (
-            <span className="rounded-full border border-ccc-border bg-ccc-off text-ccc-muted text-[10px] font-bold px-2 py-0.5">
-              &#128274; Being reviewed by {lockInfo.admin_name || 'another admin'}
-            </span>
-          )}
-          <EligibilityBadge status={eligibilityRow?.eligibility_override || eligibilityRow?.eligibility_status || 'incomplete'} />
-          {flaggedCount > 0 && (
-            <span className="flex items-center gap-1 rounded-full bg-ccc-gold text-ccc-navy text-[10px] font-bold px-2 py-0.5">
-              <IconAlertTriangle className="w-3 h-3" />
-              {flaggedCount} flagged
-            </span>
-          )}
+        <div className="apl-cell apl-stack">
+          <span className="apl-main">{eligibilityRow?.program_choice_1 || 'Not yet chosen'}</span>
+          <span className="apl-sub">{eligibilityRow?.applying_as || 'Not yet specified'}</span>
+        </div>
+        <div className="apl-cell apl-stack">
+          <span className="apl-main">
+            <b>{sectionsDone}</b> of {PROFILE_SECTIONS.length} sections
+          </span>
+          <span className="apl-bar" aria-hidden="true">
+            <span
+              className={sectionsDone === PROFILE_SECTIONS.length ? 'done' : ''}
+              style={{ width: `${profilePct}%` }}
+            />
+          </span>
+        </div>
+        <div className="apl-cell apl-stack">
+          <span className="apl-main">
+            {docs.length} file{docs.length === 1 ? '' : 's'}
+          </span>
+          <span className="apl-chips">
+            {flaggedCount > 0 && (
+              <span className="apl-chip apl-chip-flag">
+                <IconAlertTriangle className="w-3 h-3" />
+                {flaggedCount} flagged
+              </span>
+            )}
+            {processingCount > 0 && <span className="apl-chip apl-chip-proc">{processingCount} processing</span>}
+            {flaggedCount === 0 && processingCount === 0 && docs.length > 0 && (
+              <span className="apl-chip apl-chip-ok">All verified</span>
+            )}
+          </span>
+        </div>
+        <div className="apl-cell apl-date">{formatAplDate(eligibilityRow?.updated_at)}</div>
+        <div className="apl-cell apl-status">
+          <span className={`apl-pill ${statusMeta.cls}`}>{statusMeta.label}</span>
+          <svg className="apl-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
         </div>
       </button>
       <LockedNotice lockInfo={null} blockedMsg={blockedMsg} onDismiss={() => setBlockedMsg('')} />
@@ -1349,6 +1408,20 @@ const DASHBOARD_STAT_CARDS = [
   },
 ]
 
+// Oct 3 2026 redesign: status tabs above the All Applicants table. The
+// stat cards above set the same filter (their keys match these). "Needs
+// action" = something an admin can do now: a flagged document to check or
+// an exam result to record (Pending Exam Result).
+const APL_TABS = [
+  { key: 'all', label: 'All', match: () => true },
+  { key: 'action', label: 'Needs action', match: (g) => g.flagged || g.status === 'pending_exam' },
+  { key: 'pending_exam', label: 'Pending Exam Result', match: (g) => g.status === 'pending_exam' },
+  { key: 'qualified', label: 'Qualified', match: (g) => g.status === 'qualified' },
+  { key: 'not_qualified', label: 'Not Qualified', match: (g) => g.status === 'not_qualified' },
+  { key: 'waitlisted', label: 'Waitlisted', match: (g) => g.status === 'waitlisted' },
+  { key: 'incomplete', label: 'Incomplete Profile', match: (g) => g.status === 'incomplete' },
+]
+
 // Department groupings mirror Ivy's admin.html mockup's DEPARTMENTS const
 // (mirrors the "Programs Offered" listing on index.html) — kept in the same
 // order/labels so the "per Department" breakdown below has the same shape
@@ -1407,6 +1480,8 @@ function DashboardPanel({
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [programFilter, setProgramFilter] = useState('all')
+  const [sort, setSort] = useState({ key: 'default', dir: 1 })
+  const applicantListRef = useRef(null)
   // Sept 30 2026: real appeal count for the Appealed card (applicants with
   // at least one Appeal request). Best effort: 0 if it can't load.
   const [appealCount, setAppealCount] = useState(0)
@@ -1537,17 +1612,17 @@ function DashboardPanel({
     return rows
   }, [qualifiedRows, yearSortKey])
 
-  const groups = useMemo(() => {
+  // Oct 3 2026 redesign: the status filter moved from "stat card sets a
+  // hidden filter" to visible tabs above the table (the stat cards still set
+  // it). Search and program filter apply first so each tab shows its count
+  // for the current search; the status tab is applied in `groups` below.
+  const searchedGroups = useMemo(() => {
     const term = search.trim().toLowerCase()
 
     const filtered = docs.filter((d) => {
       const key = (d.applicant_name || '').trim().toLowerCase()
       const eligRow = eligibilityByName.get(key)
 
-      if (statusFilter !== 'all') {
-        const status = eligRow?.eligibility_override || eligRow?.eligibility_status || 'incomplete'
-        if (status !== statusFilter) return false
-      }
       if (programFilter !== 'all' && eligRow?.program_choice_1 !== programFilter) return false
       if (!term) return true
       const haystack = `${d.applicant_name || ''} ${d.applicant_email || ''} ${getDocTypeLabel(d.document_type)}`.toLowerCase()
@@ -1563,15 +1638,43 @@ function DashboardPanel({
       map.get(key).docs.push(doc)
     }
 
-    // Applicants with flagged documents float to the top so admins triage
-    // those first, without having to hunt through a long alphabetical list.
-    return Array.from(map.values()).sort((a, b) => {
-      const aFlag = a.docs.some((d) => d.needs_review) ? 1 : 0
-      const bFlag = b.docs.some((d) => d.needs_review) ? 1 : 0
-      if (aFlag !== bFlag) return bFlag - aFlag
+    return Array.from(map.values()).map((g) => {
+      const eligRow = eligibilityByName.get((g.name || '').trim().toLowerCase())
+      const status = eligRow?.eligibility_override || eligRow?.eligibility_status || 'incomplete'
+      const flagged = g.docs.some((d) => d.needs_review)
+      return { ...g, status, flagged, updatedAt: eligRow?.updated_at || null }
+    })
+  }, [docs, search, programFilter, eligibilityByName])
+
+  const tabCounts = useMemo(() => {
+    const counts = {}
+    for (const tab of APL_TABS) counts[tab.key] = searchedGroups.filter((g) => tab.match(g)).length
+    return counts
+  }, [searchedGroups])
+
+  const groups = useMemo(() => {
+    const tab = APL_TABS.find((t) => t.key === statusFilter) || APL_TABS[0]
+    const list = searchedGroups.filter((g) => tab.match(g))
+    // Default order (unchanged): applicants with flagged documents float to
+    // the top so admins triage those first, then A-Z. Clicking the
+    // Applicant or Last Update header sorts by that column instead.
+    return list.sort((a, b) => {
+      if (sort.key === 'name') return (a.name || '').localeCompare(b.name || '') * sort.dir
+      if (sort.key === 'updated') {
+        const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
+        const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+        return (at - bt) * sort.dir
+      }
+      if (a.flagged !== b.flagged) return a.flagged ? -1 : 1
       return (a.name || '').localeCompare(b.name || '')
     })
-  }, [docs, search, statusFilter, programFilter, eligibilityByName])
+  }, [searchedGroups, statusFilter, sort])
+
+  const toggleSort = (key) =>
+    setSort((prev) =>
+      prev.key === key ? { key, dir: -prev.dir } : { key, dir: key === 'name' ? 1 : -1 }
+    )
+  const sortArrow = (key) => (sort.key === key ? (sort.dir === 1 ? 'asc active' : 'active') : '')
 
   return (
     <div>
@@ -1603,7 +1706,11 @@ function DashboardPanel({
           <div
             key={card.key}
             className={`stat-card ${card.className}`}
-            onClick={() => card.key !== 'appealed' && setStatusFilter(card.key === 'all' ? 'all' : card.key)}
+            onClick={() => {
+              if (card.key === 'appealed') return
+              setStatusFilter(card.key === 'all' ? 'all' : card.key)
+              applicantListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }}
           >
             <p className="stat-label">{card.label}</p>
             <p className="stat-value">{statCardCounts[card.key]}</p>
@@ -1637,14 +1744,42 @@ function DashboardPanel({
           Ivy's Dashboard module is laid out, same as the department/
           year-level table content itself did earlier. The report tables
           below are unchanged in content/structure, just relocated. ── */}
-      <div className="card">
+      <div className="card" ref={applicantListRef} style={{ scrollMarginTop: '16px' }}>
         <div className="card-title">
           All Applicants
-          {statusFilter !== 'all' && (
+          {!loading && !error && (
             <span className="tag">
-              Filtered: {DASHBOARD_STAT_CARDS.find((c) => c.key === statusFilter)?.label}
+              {groups.length} of {searchedGroups.length} applicant{searchedGroups.length === 1 ? '' : 's'}
             </span>
           )}
+        </div>
+
+        {/* Oct 3 2026 redesign: status tabs (the stat cards above set the
+            same filter). "All" replaces the old "Clear status filter". */}
+        <div className="apl-tabs" role="group" aria-label="Filter applicants by status">
+          {APL_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`apl-tab${statusFilter === tab.key ? ' active' : ''}`}
+              aria-pressed={statusFilter === tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+            >
+              {tab.label}
+              <span className="apl-tab-count">{tabCounts[tab.key] || 0}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="reviewer-note">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="5" y="11" width="14" height="9" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          </svg>
+          <span>
+            Only one admin can have an applicant open at a time. While it&rsquo;s open, the row is grayed out and
+            shows who is reviewing it.
+          </span>
         </div>
 
         <div className="filter-bar">
@@ -1653,25 +1788,19 @@ function DashboardPanel({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by applicant name, email, or document type..."
+            aria-label="Search applicants"
           />
           <select
             className="program-filter-select"
             value={programFilter}
             onChange={(e) => setProgramFilter(e.target.value)}
+            aria-label="Filter by program"
           >
             <option value="all">All programs</option>
             {programOptions.map((p) => (
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
-          {statusFilter !== 'all' && (
-            <>
-              <div className="filter-divider" />
-              <button type="button" className="filter-clear" onClick={() => setStatusFilter('all')}>
-                Clear status filter
-              </button>
-            </>
-          )}
         </div>
 
         {loading ? (
@@ -1683,7 +1812,22 @@ function DashboardPanel({
             {docs.length === 0 ? 'No documents uploaded yet.' : 'No applicants match your filters.'}
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="apl-scroll">
+           <div className="apl-table">
+            <div className="apl-head" role="presentation">
+              <button type="button" className="apl-th apl-th-sort" onClick={() => toggleSort('name')}>
+                Applicant
+                <svg className={`sort-icon ${sortArrow('name')}`} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 16l-6-6h12z" /></svg>
+              </button>
+              <span className="apl-th">Program (1st choice)</span>
+              <span className="apl-th">Profile</span>
+              <span className="apl-th">Documents</span>
+              <button type="button" className="apl-th apl-th-sort" onClick={() => toggleSort('updated')} title="Date of the applicant's last update">
+                Last Update
+                <svg className={`sort-icon ${sortArrow('updated')}`} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 16l-6-6h12z" /></svg>
+              </button>
+              <span className="apl-th apl-th-right">Status</span>
+            </div>
             {groups.map((g, i) => (
               <ApplicantGroup
                 key={g.name ? g.name.toLowerCase() : `unknown-${i}`}
@@ -1699,6 +1843,7 @@ function DashboardPanel({
                 lockInfo={locks[eligibilityByName.get((g.name || '').trim().toLowerCase())?.id]}
               />
             ))}
+           </div>
           </div>
         )}
       </div>
