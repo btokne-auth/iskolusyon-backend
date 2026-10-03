@@ -539,13 +539,21 @@ const ELIGIBILITY_META = {
   incomplete: { label: 'Incomplete Profile', className: 'bg-ccc-off text-ccc-muted border-ccc-border' },
 }
 
-function EligibilityBadge({ status }) {
-  const meta = ELIGIBILITY_META[status] || ELIGIBILITY_META.incomplete
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.className}`}>
-      {meta.label}
-    </span>
-  )
+// Oct 3 2026: pill styles for the redesigned All Applicants table (same
+// labels as ELIGIBILITY_META, colors from admin-theme.css .apl-pill-*).
+const APL_STATUS_PILL = {
+  qualified: { label: ELIGIBILITY_META.qualified.label, cls: 'apl-pill-green' },
+  waitlisted: { label: ELIGIBILITY_META.waitlisted.label, cls: 'apl-pill-gold' },
+  not_qualified: { label: ELIGIBILITY_META.not_qualified.label, cls: 'apl-pill-red' },
+  pending_exam: { label: ELIGIBILITY_META.pending_exam.label, cls: 'apl-pill-blue' },
+  incomplete: { label: ELIGIBILITY_META.incomplete.label, cls: 'apl-pill-gray' },
+}
+
+function formatAplDate(iso) {
+  if (!iso) return 'No activity yet'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return 'No activity yet'
+  return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 // The 3 manual-override choices, restyled Sept 22 2026 as Ivy's mockup's
@@ -1022,40 +1030,82 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
 
   const activeCategory = PROFILE_CATEGORIES.find((c) => c.key === activeCat) || PROFILE_CATEGORIES[0]
 
+  // Oct 3 2026 redesign: one row of the All Applicants table (Ivy's
+  // applicant-table columns + status tabs), replacing the floating card.
+  // Same click-to-open + review lock behavior as before.
+  const status = eligibilityRow?.eligibility_override || eligibilityRow?.eligibility_status || 'incomplete'
+  const statusMeta = APL_STATUS_PILL[status] || APL_STATUS_PILL.incomplete
+  const initials = (name || '?')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w, i, arr) => (i === 0 || i === arr.length - 1 ? w.charAt(0) : ''))
+    .join('')
+    .toUpperCase() || '?'
+
   return (
     <>
       <button
         type="button"
         onClick={openModal}
         disabled={opening}
-        className={`w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors${lockedByOther ? ' opacity-60' : ''}`}
+        className={`apl-row${lockedByOther ? ' apl-row-locked' : ''}`}
+        title={lockedByOther ? `${lockInfo.admin_name || 'Another admin'} is reviewing this applicant` : `Open ${name || 'applicant'}`}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
-            {name ? name.charAt(0).toUpperCase() : '?'}
-          </div>
-          <div className="text-left min-w-0">
-            <p className="text-sm font-semibold text-ccc-navy truncate" style={{ fontFamily: 'var(--font-montserrat)' }}>
-              {name || 'Unknown applicant'}
-            </p>
-            <p className="text-[11px] text-ccc-muted truncate">
-              {email || 'No email on file'} · {docs.length} document{docs.length === 1 ? '' : 's'}
-            </p>
-          </div>
+        <div className="apl-cell apl-who">
+          <span className="apl-avatar">{initials}</span>
+          <span className="apl-who-text">
+            <span className="apl-name">{name || 'Unknown applicant'}</span>
+            <span className="apl-sub">{email || 'No email on file'}</span>
+            {lockedByOther && (
+              <span className="apl-lock-tag">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="5" y="11" width="14" height="9" rx="2" />
+                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+                Being reviewed by {lockInfo.admin_name || 'another admin'}
+              </span>
+            )}
+          </span>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {lockedByOther && (
-            <span className="rounded-full border border-ccc-border bg-ccc-off text-ccc-muted text-[10px] font-bold px-2 py-0.5">
-              &#128274; Being reviewed by {lockInfo.admin_name || 'another admin'}
-            </span>
-          )}
-          <EligibilityBadge status={eligibilityRow?.eligibility_override || eligibilityRow?.eligibility_status || 'incomplete'} />
-          {flaggedCount > 0 && (
-            <span className="flex items-center gap-1 rounded-full bg-ccc-gold text-ccc-navy text-[10px] font-bold px-2 py-0.5">
-              <IconAlertTriangle className="w-3 h-3" />
-              {flaggedCount} flagged
-            </span>
-          )}
+        <div className="apl-cell apl-stack">
+          <span className="apl-main">{eligibilityRow?.program_choice_1 || 'Not yet chosen'}</span>
+          <span className="apl-sub">{eligibilityRow?.applying_as || 'Not yet specified'}</span>
+        </div>
+        <div className="apl-cell apl-stack">
+          <span className="apl-main">
+            <b>{sectionsDone}</b> of {PROFILE_SECTIONS.length} sections
+          </span>
+          <span className="apl-bar" aria-hidden="true">
+            <span
+              className={sectionsDone === PROFILE_SECTIONS.length ? 'done' : ''}
+              style={{ width: `${profilePct}%` }}
+            />
+          </span>
+        </div>
+        <div className="apl-cell apl-stack">
+          <span className="apl-main">
+            {docs.length} file{docs.length === 1 ? '' : 's'}
+          </span>
+          <span className="apl-chips">
+            {flaggedCount > 0 && (
+              <span className="apl-chip apl-chip-flag">
+                <IconAlertTriangle className="w-3 h-3" />
+                {flaggedCount} flagged
+              </span>
+            )}
+            {processingCount > 0 && <span className="apl-chip apl-chip-proc">{processingCount} processing</span>}
+            {flaggedCount === 0 && processingCount === 0 && docs.length > 0 && (
+              <span className="apl-chip apl-chip-ok">All verified</span>
+            )}
+          </span>
+        </div>
+        <div className="apl-cell apl-date">{formatAplDate(eligibilityRow?.updated_at)}</div>
+        <div className="apl-cell apl-status">
+          <span className={`apl-pill ${statusMeta.cls}`}>{statusMeta.label}</span>
+          <svg className="apl-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
         </div>
       </button>
       <LockedNotice lockInfo={null} blockedMsg={blockedMsg} onDismiss={() => setBlockedMsg('')} />
@@ -1349,6 +1399,20 @@ const DASHBOARD_STAT_CARDS = [
   },
 ]
 
+// Oct 3 2026 redesign: status tabs above the All Applicants table. The
+// stat cards above set the same filter (their keys match these). "Needs
+// action" = something an admin can do now: a flagged document to check or
+// an exam result to record (Pending Exam Result).
+const APL_TABS = [
+  { key: 'all', label: 'All', match: () => true },
+  { key: 'action', label: 'Needs action', match: (g) => g.flagged || g.status === 'pending_exam' },
+  { key: 'pending_exam', label: 'Pending Exam Result', match: (g) => g.status === 'pending_exam' },
+  { key: 'qualified', label: 'Qualified', match: (g) => g.status === 'qualified' },
+  { key: 'not_qualified', label: 'Not Qualified', match: (g) => g.status === 'not_qualified' },
+  { key: 'waitlisted', label: 'Waitlisted', match: (g) => g.status === 'waitlisted' },
+  { key: 'incomplete', label: 'Incomplete Profile', match: (g) => g.status === 'incomplete' },
+]
+
 // Department groupings mirror Ivy's admin.html mockup's DEPARTMENTS const
 // (mirrors the "Programs Offered" listing on index.html) — kept in the same
 // order/labels so the "per Department" breakdown below has the same shape
@@ -1407,6 +1471,8 @@ function DashboardPanel({
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [programFilter, setProgramFilter] = useState('all')
+  const [sort, setSort] = useState({ key: 'default', dir: 1 })
+  const applicantListRef = useRef(null)
   // Sept 30 2026: real appeal count for the Appealed card (applicants with
   // at least one Appeal request). Best effort: 0 if it can't load.
   const [appealCount, setAppealCount] = useState(0)
@@ -1537,17 +1603,17 @@ function DashboardPanel({
     return rows
   }, [qualifiedRows, yearSortKey])
 
-  const groups = useMemo(() => {
+  // Oct 3 2026 redesign: the status filter moved from "stat card sets a
+  // hidden filter" to visible tabs above the table (the stat cards still set
+  // it). Search and program filter apply first so each tab shows its count
+  // for the current search; the status tab is applied in `groups` below.
+  const searchedGroups = useMemo(() => {
     const term = search.trim().toLowerCase()
 
     const filtered = docs.filter((d) => {
       const key = (d.applicant_name || '').trim().toLowerCase()
       const eligRow = eligibilityByName.get(key)
 
-      if (statusFilter !== 'all') {
-        const status = eligRow?.eligibility_override || eligRow?.eligibility_status || 'incomplete'
-        if (status !== statusFilter) return false
-      }
       if (programFilter !== 'all' && eligRow?.program_choice_1 !== programFilter) return false
       if (!term) return true
       const haystack = `${d.applicant_name || ''} ${d.applicant_email || ''} ${getDocTypeLabel(d.document_type)}`.toLowerCase()
@@ -1563,15 +1629,43 @@ function DashboardPanel({
       map.get(key).docs.push(doc)
     }
 
-    // Applicants with flagged documents float to the top so admins triage
-    // those first, without having to hunt through a long alphabetical list.
-    return Array.from(map.values()).sort((a, b) => {
-      const aFlag = a.docs.some((d) => d.needs_review) ? 1 : 0
-      const bFlag = b.docs.some((d) => d.needs_review) ? 1 : 0
-      if (aFlag !== bFlag) return bFlag - aFlag
+    return Array.from(map.values()).map((g) => {
+      const eligRow = eligibilityByName.get((g.name || '').trim().toLowerCase())
+      const status = eligRow?.eligibility_override || eligRow?.eligibility_status || 'incomplete'
+      const flagged = g.docs.some((d) => d.needs_review)
+      return { ...g, status, flagged, updatedAt: eligRow?.updated_at || null }
+    })
+  }, [docs, search, programFilter, eligibilityByName])
+
+  const tabCounts = useMemo(() => {
+    const counts = {}
+    for (const tab of APL_TABS) counts[tab.key] = searchedGroups.filter((g) => tab.match(g)).length
+    return counts
+  }, [searchedGroups])
+
+  const groups = useMemo(() => {
+    const tab = APL_TABS.find((t) => t.key === statusFilter) || APL_TABS[0]
+    const list = searchedGroups.filter((g) => tab.match(g))
+    // Default order (unchanged): applicants with flagged documents float to
+    // the top so admins triage those first, then A-Z. Clicking the
+    // Applicant or Last Update header sorts by that column instead.
+    return list.sort((a, b) => {
+      if (sort.key === 'name') return (a.name || '').localeCompare(b.name || '') * sort.dir
+      if (sort.key === 'updated') {
+        const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
+        const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+        return (at - bt) * sort.dir
+      }
+      if (a.flagged !== b.flagged) return a.flagged ? -1 : 1
       return (a.name || '').localeCompare(b.name || '')
     })
-  }, [docs, search, statusFilter, programFilter, eligibilityByName])
+  }, [searchedGroups, statusFilter, sort])
+
+  const toggleSort = (key) =>
+    setSort((prev) =>
+      prev.key === key ? { key, dir: -prev.dir } : { key, dir: key === 'name' ? 1 : -1 }
+    )
+  const sortArrow = (key) => (sort.key === key ? (sort.dir === 1 ? 'asc active' : 'active') : '')
 
   return (
     <div>
@@ -1603,7 +1697,11 @@ function DashboardPanel({
           <div
             key={card.key}
             className={`stat-card ${card.className}`}
-            onClick={() => card.key !== 'appealed' && setStatusFilter(card.key === 'all' ? 'all' : card.key)}
+            onClick={() => {
+              if (card.key === 'appealed') return
+              setStatusFilter(card.key === 'all' ? 'all' : card.key)
+              applicantListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }}
           >
             <p className="stat-label">{card.label}</p>
             <p className="stat-value">{statCardCounts[card.key]}</p>
@@ -1637,14 +1735,42 @@ function DashboardPanel({
           Ivy's Dashboard module is laid out, same as the department/
           year-level table content itself did earlier. The report tables
           below are unchanged in content/structure, just relocated. ── */}
-      <div className="card">
+      <div className="card" ref={applicantListRef} style={{ scrollMarginTop: '16px' }}>
         <div className="card-title">
           All Applicants
-          {statusFilter !== 'all' && (
+          {!loading && !error && (
             <span className="tag">
-              Filtered: {DASHBOARD_STAT_CARDS.find((c) => c.key === statusFilter)?.label}
+              {groups.length} of {searchedGroups.length} applicant{searchedGroups.length === 1 ? '' : 's'}
             </span>
           )}
+        </div>
+
+        {/* Oct 3 2026 redesign: status tabs (the stat cards above set the
+            same filter). "All" replaces the old "Clear status filter". */}
+        <div className="apl-tabs" role="group" aria-label="Filter applicants by status">
+          {APL_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`apl-tab${statusFilter === tab.key ? ' active' : ''}`}
+              aria-pressed={statusFilter === tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+            >
+              {tab.label}
+              <span className="apl-tab-count">{tabCounts[tab.key] || 0}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="reviewer-note">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="5" y="11" width="14" height="9" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          </svg>
+          <span>
+            Only one admin can have an applicant open at a time. While it&rsquo;s open, the row is grayed out and
+            shows who is reviewing it.
+          </span>
         </div>
 
         <div className="filter-bar">
@@ -1653,25 +1779,19 @@ function DashboardPanel({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by applicant name, email, or document type..."
+            aria-label="Search applicants"
           />
           <select
             className="program-filter-select"
             value={programFilter}
             onChange={(e) => setProgramFilter(e.target.value)}
+            aria-label="Filter by program"
           >
             <option value="all">All programs</option>
             {programOptions.map((p) => (
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
-          {statusFilter !== 'all' && (
-            <>
-              <div className="filter-divider" />
-              <button type="button" className="filter-clear" onClick={() => setStatusFilter('all')}>
-                Clear status filter
-              </button>
-            </>
-          )}
         </div>
 
         {loading ? (
@@ -1683,7 +1803,22 @@ function DashboardPanel({
             {docs.length === 0 ? 'No documents uploaded yet.' : 'No applicants match your filters.'}
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="apl-scroll">
+           <div className="apl-table">
+            <div className="apl-head" role="presentation">
+              <button type="button" className="apl-th apl-th-sort" onClick={() => toggleSort('name')}>
+                Applicant
+                <svg className={`sort-icon ${sortArrow('name')}`} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 16l-6-6h12z" /></svg>
+              </button>
+              <span className="apl-th">Program (1st choice)</span>
+              <span className="apl-th">Profile</span>
+              <span className="apl-th">Documents</span>
+              <button type="button" className="apl-th apl-th-sort" onClick={() => toggleSort('updated')} title="Date of the applicant's last update">
+                Last Update
+                <svg className={`sort-icon ${sortArrow('updated')}`} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 16l-6-6h12z" /></svg>
+              </button>
+              <span className="apl-th apl-th-right">Status</span>
+            </div>
             {groups.map((g, i) => (
               <ApplicantGroup
                 key={g.name ? g.name.toLowerCase() : `unknown-${i}`}
@@ -1699,6 +1834,7 @@ function DashboardPanel({
                 lockInfo={locks[eligibilityByName.get((g.name || '').trim().toLowerCase())?.id]}
               />
             ))}
+           </div>
           </div>
         )}
       </div>
@@ -1835,44 +1971,28 @@ function getNextStepHint(row) {
   const scholarStatus = row.scholar_status || 'pending_exam'
 
   if (scholarStatus === 'disqualified' || scholarStatus === 'forfeited') {
-    return { text: `No further action -- applicant is ${SCHOLAR_STATUS_META[scholarStatus].label.toLowerCase()}.`, tone: 'stop' }
+    return { text: `No further action. The applicant is ${SCHOLAR_STATUS_META[scholarStatus].label.toLowerCase()}.`, tone: 'stop' }
   }
   if (scholarStatus === 'passer' || scholarStatus === 'qualified_probationary') {
     if (row.distribution_status === 'enrollment_complete') {
-      return { text: 'Enrollment complete -- no further action needed.', tone: 'done' }
+      return { text: 'Enrollment complete. No further action needed.', tone: 'done' }
     }
-    return { text: 'Ready to advance Distribution Status below.', tone: 'go' }
+    return { text: 'Ready to advance Distribution Status in section 4 below.', tone: 'go' }
   }
   if (scholarStatus === 'waitlisted_probationary') {
-    return { text: 'Waitlisted pending an open slot -- re-check later, or use Manual Override if a slot opens.', tone: 'wait' }
+    return { text: 'Waitlisted pending an open slot. Re-check later, or use Change manually if a slot opens.', tone: 'wait' }
   }
   // scholarStatus is 'pending_exam' -- no exam result recorded yet, so
   // whether exam entry even applies depends on eligibility.
   if (eligStatus === 'incomplete') {
-    return { text: "Eligibility: Incomplete -- applicant hasn't finished their profile yet. Exam entry doesn't apply yet.", tone: 'wait' }
+    return { text: "Eligibility: Incomplete. The applicant hasn't finished their profile yet, so exam entry doesn't apply yet.", tone: 'wait' }
   }
   if (eligStatus === 'not_qualified') {
-    return { text: 'Eligibility: Not Qualified -- exam entry only applies here for a real Program Director exception.', tone: 'stop' }
+    return { text: 'Eligibility: Not Qualified. Exam entry only applies here for a real Program Director exception.', tone: 'stop' }
   }
   // pending_exam (automated) or a manual qualified/waitlisted override --
   // either way, this is the point where recording an exam result applies.
-  return { text: `Eligibility: ${ELIGIBILITY_META[eligStatus]?.label || eligStatus} -- ready for exam entry in Step 1 below.`, tone: 'go' }
-}
-
-const NEXT_STEP_TONE_CLASSES = {
-  go: 'border-ccc-blue/30 bg-blue-50 text-ccc-blue',
-  wait: 'border-ccc-gold/40 bg-ccc-gold/10 text-ccc-navy',
-  stop: 'border-ccc-red/30 bg-red-50 text-ccc-red',
-  done: 'border-ccc-green/30 bg-green-50 text-ccc-green',
-}
-
-function NextStepHint({ row }) {
-  const { text, tone } = getNextStepHint(row)
-  return (
-    <div className={`rounded-lg border px-3 py-2 text-[11px] font-semibold ${NEXT_STEP_TONE_CLASSES[tone]}`}>
-      {text}
-    </div>
-  )
+  return { text: `Eligibility: ${ELIGIBILITY_META[eligStatus]?.label || eligStatus}. Ready for exam entry in section 1 below.`, tone: 'go' }
 }
 
 // Distribution steps that have an applicant notice (Sept 30 2026).
@@ -1952,7 +2072,7 @@ function ConfirmActionModal({ eyebrow = 'Confirm', title, message, onConfirm, on
 // message always, plus an email only if the applicant opted in. Follows Ivy's
 // admin.html confirm-and-edit step (Email / Subject / Message, each with an
 // Edit toggle). Nothing is sent until the admin clicks "Send".
-function ResultNoticeBox({ row, onSent, kind = 'result' }) {
+function ResultNoticeBox({ row, onSent, kind = 'result', number = null }) {
   // Sept 30 2026: the same box also sends endorsement notices (kind
   // 'endorsement', progress table row "Real-time Result Notifications
   // (Pass/Fail/Endorsement)"), driven by Distribution Status instead of
@@ -2056,26 +2176,40 @@ function ResultNoticeBox({ row, onSent, kind = 'result' }) {
     try { return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) } catch { return iso }
   }
 
+  // Oct 3 2026 redesign: shown as numbered section 3 ("Result notice") in
+  // the applicant window, or as a sub-block of Distribution Status for the
+  // endorsement notice. Same send flow as before.
+  const isSection = number != null
+  const heading = kind === 'endorsement' ? 'Endorsement notice' : 'Result notice'
   return (
-    <div className="rounded-xl border border-ccc-border p-3.5 space-y-2.5">
-      <div className="modal-section-label" style={{ marginBottom: '4px' }}>
-        <span>{cfg.title}</span>
+    <div className={isSection ? 'rr-sec' : 'rr-subblock'}>
+      <div className={isSection ? 'rr-sec-head' : 'rr-subblock-head'}>
+        <div className="rr-sec-title-wrap">
+          {isSection && <span className={`rr-num${cfg.lastAt ? ' done' : ''}`}>{number}</span>}
+          <h3 className={isSection ? 'rr-sec-title' : 'rr-subblock-title'}>{heading}</h3>
+        </div>
         {releasable && !open && (
-          <button type="button" className="section-edit-btn" onClick={openBox}>
+          <button type="button" className={`rr-btn ${cfg.lastAt ? 'rr-btn-secondary' : 'rr-btn-primary'}`} onClick={openBox}>
             {cfg.lastAt ? 'Send again' : 'Notify applicant'}
           </button>
         )}
       </div>
+      <div className={isSection ? 'rr-sec-body' : 'rr-subblock-body'}>
 
       {cfg.lastAt ? (
-        <p className="text-[11px] text-ccc-muted">
-          Last sent: {cfg.label(cfg.lastStatus)}, {fmt(cfg.lastAt)}
-          {cfg.lastBy ? ' by ' + cfg.lastBy : ''}
-          {cfg.lastEmail ? ' (portal message and email)' : ' (portal message only)'}
-          {cfg.lastStatus && cfg.lastStatus !== cfg.current ? '. The status has changed since then.' : '.'}
+        <p className="rr-sent-line">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          <span>
+            Last sent: <b>{cfg.label(cfg.lastStatus)}</b>, {fmt(cfg.lastAt)}
+            {cfg.lastBy ? ' by ' + cfg.lastBy : ''}
+            {cfg.lastEmail ? ' (portal message and email)' : ' (portal message only)'}
+            {cfg.lastStatus && cfg.lastStatus !== cfg.current ? '. The status has changed since then.' : '.'}
+          </span>
         </p>
       ) : (
-        <p className="text-[11px] text-ccc-muted">
+        <p className="rr-muted-line">
           {releasable ? 'Not sent yet.' : cfg.notReady}
         </p>
       )}
@@ -2146,7 +2280,78 @@ function ResultNoticeBox({ row, onSent, kind = 'result' }) {
           )}
         </div>
       )}
+      </div>
     </div>
+  )
+}
+
+// Oct 3 2026 redesign (approved on the design canvas): short wording for the
+// list's "Next step" column, built from the same branches as
+// getNextStepHint() above so the two can't drift apart.
+function getShortNextStep(row) {
+  const eligStatus = row.eligibility_override || row.eligibility_status || 'incomplete'
+  const scholarStatus = row.scholar_status || 'pending_exam'
+  if (scholarStatus === 'disqualified' || scholarStatus === 'forfeited') return 'No further action'
+  if (scholarStatus === 'passer' || scholarStatus === 'qualified_probationary') {
+    if (row.distribution_status === 'enrollment_complete') return 'Enrollment complete'
+    const i = DISTRIBUTION_STATUS_STEPS.findIndex(([k]) => k === row.distribution_status)
+    const next = DISTRIBUTION_STATUS_STEPS[i + 1] || DISTRIBUTION_STATUS_STEPS[0]
+    return `Move to ${next[1]}`
+  }
+  if (scholarStatus === 'waitlisted_probationary') return 'Waiting for an open slot'
+  if (eligStatus === 'incomplete') return 'Waiting on applicant profile'
+  if (eligStatus === 'not_qualified') return 'Not qualified (exception only)'
+  return 'Record exam result'
+}
+
+const RESULT_RELEASABLE = ['passer', 'waitlisted_probationary', 'qualified_probationary', 'forfeited', 'disqualified']
+
+const EXAM_RESULT_LABELS = { passed: 'Passed', failed: 'Failed', absent: 'Absent' }
+
+const SCHOLAR_PILL_CLASS = {
+  pending_exam: 'apl-pill-blue',
+  passer: 'apl-pill-green',
+  waitlisted_probationary: 'apl-pill-gold',
+  qualified_probationary: 'apl-pill-gold',
+  disqualified: 'apl-pill-red',
+  forfeited: 'apl-pill-red',
+}
+
+const OVERRIDE_CHOICES = [
+  { key: 'qualified_probationary', desc: 'Accepted under a probationary contract.' },
+  { key: 'disqualified', desc: 'Removed for a later disqualification reason.' },
+  { key: 'forfeited', desc: 'Gave up or lost the slot.' },
+]
+
+function rrInitials(name) {
+  const parts = (name || '?').trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  return ((parts[0][0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
+}
+
+function rrDate(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+  } catch {
+    return iso
+  }
+}
+
+function rrShortDate(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+  } catch {
+    return iso
+  }
+}
+
+function RrCheck() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
   )
 }
 
@@ -2157,6 +2362,11 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
   const [statusReason, setStatusReason] = useState('')
   const [pendingOverride, setPendingOverride] = useState(null) // scholar_status target, or null
   const [pendingClearDistribution, setPendingClearDistribution] = useState(false)
+  // Oct 3 2026 redesign: Manual Override now sits behind "Change manually"
+  // inside section 2, with the choice picked first and applied with one
+  // button (still confirmed by ConfirmActionModal, same as before).
+  const [overrideOpen, setOverrideOpen] = useState(false)
+  const [overridePick, setOverridePick] = useState('')
   const isBusy = busy === row.id
 
   const canDistribute = row.scholar_status === 'passer' || row.scholar_status === 'qualified_probationary'
@@ -2197,24 +2407,64 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
   const handleConfirmed = () => {
     onSetScholarStatus(row.id, pendingOverride, statusReason)
     setPendingOverride(null)
+    setOverrideOpen(false)
+    setOverridePick('')
   }
   const handleClearDistributionConfirmed = () => {
     onAdvanceDistribution(row.id, 'not_applicable')
     setPendingClearDistribution(false)
   }
 
-  // Sept 24 2026: collapsed-row + click-to-open-modal, replacing the old
-  // always-expanded card. Live testing (Pau, Sept 24) found a scrolling
-  // list of fully-expanded Step 1/Step 2/Distribution Status sections per
-  // applicant overwhelming to scan. Mirrors ApplicantGroup's existing
-  // pattern above (Dashboard panel) for consistency across the admin
-  // console -- that panel deliberately moved to this same collapsed-row +
-  // modal shape on Sept 22 for the same reason (an inline accordion with
-  // the first row forced open read as broken/random). No new data fetch
-  // needed here, unlike ApplicantGroup's lazy detail fetch -- ResultsPanel
-  // already loads every field this modal shows up front.
+  // Sept 24 2026: collapsed-row + click-to-open-modal (see ApplicantGroup).
   const { modalOpen, openModal, closeModal, blockedMsg, setBlockedMsg, opening } = useLockedModal(row.id)
   const lockedByOther = !!lockInfo && !lockInfo.mine && !modalOpen
+
+  const scholarStatus = row.scholar_status || 'pending_exam'
+  const scholarLabel = SCHOLAR_STATUS_META[scholarStatus]?.label || scholarStatus
+  const pillClass = SCHOLAR_PILL_CLASS[scholarStatus] || 'apl-pill-blue'
+  const hint = getNextStepHint(row)
+  const examLabel = EXAM_RESULT_LABELS[row.exam_result] || ''
+  const examSummary = row.exam_result
+    ? `${examLabel}${row.exam_score != null && row.exam_score !== '' ? ` · ${row.exam_score}` : ''}`
+    : 'Not recorded'
+  const resultUnsent = RESULT_RELEASABLE.includes(scholarStatus) && !row.result_notified_at
+  const nextIndex = currentStepIndex + 1
+  const nextStep = canDistribute ? DISTRIBUTION_STATUS_STEPS[nextIndex] || null : null
+
+  // Progress strip: 4 stages, each done / current / upcoming / not applicable.
+  const stages = (() => {
+    const out = [
+      {
+        title: 'Entrance exam',
+        value: examSummary,
+        done: !!row.exam_result,
+      },
+      {
+        title: 'Scholar status',
+        value: scholarLabel,
+        done: scholarStatus !== 'pending_exam',
+      },
+      {
+        title: 'Result notice',
+        value: row.result_notified_at
+          ? `Sent ${rrShortDate(row.result_notified_at)}`
+          : RESULT_RELEASABLE.includes(scholarStatus)
+            ? 'Not sent yet'
+            : 'Not yet',
+        done: !!row.result_notified_at,
+      },
+      {
+        title: 'Distribution',
+        value: canDistribute
+          ? DISTRIBUTION_STATUS_STEPS.find(([k]) => k === row.distribution_status)?.[1] || 'Not started'
+          : 'Not applicable',
+        done: row.distribution_status === 'enrollment_complete',
+        na: !canDistribute,
+      },
+    ]
+    const firstOpen = out.findIndex((s) => !s.done && !s.na)
+    return out.map((s, i) => ({ ...s, current: i === firstOpen }))
+  })()
 
   return (
     <>
@@ -2222,30 +2472,53 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         type="button"
         onClick={openModal}
         disabled={opening}
-        className={`w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors${lockedByOther ? ' opacity-60' : ''}`}
+        className={`rr-row${lockedByOther ? ' apl-row-locked' : ''}`}
+        title={lockedByOther ? `${lockInfo.admin_name || 'Another admin'} is reviewing this applicant` : `Open ${row.applicant_name || 'applicant'}`}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
-            {row.applicant_name ? row.applicant_name.charAt(0).toUpperCase() : '?'}
-          </div>
-          <div className="text-left min-w-0">
-            <p className="text-sm font-semibold text-ccc-navy truncate" style={{ fontFamily: 'var(--font-montserrat)' }}>
-              {row.applicant_name || 'Unknown applicant'}
-            </p>
-            <p className="text-[11px] text-ccc-muted truncate">
-              {row.applicant_email || 'No email on file'}
-              {row.application_number && ` · ${row.application_number}`}
-              {row.program_choice_1 && ` · ${row.program_choice_1}`}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {lockedByOther && (
-            <span className="rounded-full border border-ccc-border bg-ccc-off text-ccc-muted text-[10px] font-bold px-2 py-0.5">
-              &#128274; Being reviewed by {lockInfo.admin_name || 'another admin'}
+        <div className="apl-cell apl-who">
+          <span className="apl-avatar">{rrInitials(row.applicant_name)}</span>
+          <span className="apl-who-text">
+            <span className="apl-name">{row.applicant_name || 'Unknown applicant'}</span>
+            <span className="apl-sub">
+              {[row.application_number, row.applicant_email || 'No email on file'].filter(Boolean).join(' · ')}
             </span>
+            {lockedByOther && (
+              <span className="apl-lock-tag">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="5" y="11" width="14" height="9" rx="2" />
+                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+                Being reviewed by {lockInfo.admin_name || 'another admin'}
+              </span>
+            )}
+          </span>
+        </div>
+        <div className="apl-cell apl-stack">
+          <span className="apl-main">{row.program_choice_1 || 'Not yet chosen'}</span>
+          <span className="apl-sub">{row.applying_as || 'Not yet specified'}</span>
+        </div>
+        <div className="apl-cell apl-stack">
+          <span className={`rr-exam-main ${row.exam_result === 'passed' ? 'pass' : row.exam_result ? 'fail' : 'none'}`}>
+            {row.exam_result ? (row.exam_score != null && row.exam_score !== '' ? row.exam_score : examLabel) : 'Not recorded'}
+          </span>
+          {row.exam_result && (
+            <span className="apl-sub">{row.exam_score != null && row.exam_score !== '' ? examLabel : 'No score'}</span>
           )}
-          <ScholarStatusBadge status={row.scholar_status || 'pending_exam'} />
+        </div>
+        <div className="apl-cell">
+          <span className={`apl-pill ${pillClass}`}>{scholarLabel}</span>
+        </div>
+        <div className="apl-cell apl-status rr-next">
+          <span className="rr-next-text">
+            <span className={`rr-next-dot ${hint.tone}`} aria-hidden="true" />
+            <span className="apl-stack">
+              <span className={`rr-next-main ${hint.tone}`}>{getShortNextStep(row)}</span>
+              {resultUnsent && <span className="apl-sub">Result not sent yet</span>}
+            </span>
+          </span>
+          <svg className="apl-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
         </div>
       </button>
       <LockedNotice lockInfo={null} blockedMsg={blockedMsg} onDismiss={() => setBlockedMsg('')} />
@@ -2256,47 +2529,60 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         onClick={() => closeModal()}
       >
         <div
-          className="w-full max-w-2xl rounded-2xl bg-white shadow-xl border border-ccc-border overflow-hidden my-auto"
+          className="rr-window w-full max-w-3xl my-auto"
+          role="dialog"
+          aria-label={`${row.applicant_name || 'Applicant'} results`}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Tinted header band -- same treatment as ApplicantGroup's modal
-              above, for visual consistency between the two panels. */}
-          <div
-            className="flex items-center justify-between gap-3 px-5 py-4 border-b border-ccc-border"
-            style={{ background: 'linear-gradient(135deg, #eef3fd 0%, #ffffff 100%)' }}
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-11 h-11 rounded-full bg-ccc-navy flex items-center justify-center text-base font-bold text-white shrink-0">
-                {row.applicant_name ? row.applicant_name.charAt(0).toUpperCase() : '?'}
-              </div>
-              <div className="min-w-0">
-                <p className="text-base font-bold text-ccc-navy truncate" style={{ fontFamily: 'var(--font-montserrat)' }}>
-                  {row.applicant_name || 'Unknown applicant'}
-                </p>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {row.application_number && (
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue bg-white/70 border border-ccc-blue/30 rounded-full px-2 py-0.5 shrink-0">
-                      {row.application_number}
-                    </span>
-                  )}
-                  <span className="text-[11px] text-ccc-muted truncate">{row.applicant_email || 'No email on file'}</span>
+          <div className="rr-head">
+            <div className="rr-head-top">
+              <div className="rr-head-who">
+                <span className="rr-head-avatar">{rrInitials(row.applicant_name)}</span>
+                <div className="min-w-0">
+                  <div className="rr-head-name-line">
+                    <h2 className="rr-head-name">{row.applicant_name || 'Unknown applicant'}</h2>
+                    <span className={`apl-pill ${pillClass}`}>{scholarLabel}</span>
+                  </div>
+                  <div className="rr-head-meta">
+                    {row.application_number && <span className="rr-appno">{row.application_number}</span>}
+                    <span>{row.applicant_email || 'No email on file'}</span>
+                    {row.program_choice_1 && (
+                      <span>
+                        {row.program_choice_1}
+                        {row.applying_as ? ` · ${row.applying_as}` : ''}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <ScholarStatusBadge status={row.scholar_status || 'pending_exam'} />
-              <button
-                type="button"
-                onClick={() => closeModal()}
-                aria-label="Close"
-                className="w-8 h-8 rounded-full flex items-center justify-center text-ccc-muted hover:bg-white hover:text-ccc-navy transition-colors"
-              >
+              <button type="button" onClick={() => closeModal()} aria-label="Close" className="rr-close">
                 &#10005;
               </button>
             </div>
+
+            <div className="rr-stages">
+              {stages.map((s, i) => (
+                <div key={s.title} className={`rr-stage${s.done ? ' done' : ''}${s.current ? ' current' : ''}${s.na ? ' na' : ''}`}>
+                  <span className="rr-num">{s.done ? <RrCheck /> : i + 1}</span>
+                  <span className="rr-stage-text">
+                    <span className="rr-stage-title">{s.title}</span>
+                    <span className="rr-stage-value">{s.value}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className={`rr-next-line ${hint.tone}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+              <span>
+                <b>Next:</b> {hint.text}
+              </span>
+            </div>
           </div>
 
-          <div className="px-5 pb-5 pt-4 space-y-4 max-h-[75vh] overflow-y-auto">
+          <div className="rr-body">
       {pendingOverride && (
         <ConfirmActionModal
           eyebrow="Confirm Override"
@@ -2330,215 +2616,260 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         />
       )}
 
-      <NextStepHint row={row} />
-
-      {/* Exam Score Entry and Verification */}
-      <div className="rounded-xl border border-ccc-border bg-ccc-off/40 p-3.5 space-y-2.5">
-        <div>
-          <span className="modal-section-label" style={{ marginBottom: '4px' }}>Step 1 · Entrance Exam</span>
-          <p className="text-[10.5px] text-ccc-muted">
-            Nothing here is saved until you click Save &amp; Verify. Saving auto-sets Scholar Status below (Passed &rarr; Passer, Failed &rarr; Waitlisted, Absent &rarr; Forfeited).
-          </p>
+      {/* 1 · Entrance Exam (Exam Score Entry and Verification) */}
+      <section className="rr-sec">
+        <div className="rr-sec-head">
+          <div className="rr-sec-title-wrap">
+            <span className={`rr-num${row.exam_result ? ' done' : ''}`}>1</span>
+            <h3 className="rr-sec-title">Entrance exam</h3>
+            {hasUnsavedExamChanges && <span className="rr-unsaved">Unsaved changes</span>}
+          </div>
+          {row.exam_verified_by && (
+            <span className="rr-sec-meta">
+              Last verified by {row.exam_verified_by}
+              {row.exam_verified_at ? ` · ${rrDate(row.exam_verified_at)}` : ''}
+            </span>
+          )}
         </div>
-        <div className="flex flex-wrap items-end gap-2.5">
-          <div>
-            <label className="text-[10px] text-ccc-muted block mb-1">Score</label>
-            <input
-              type="number"
-              value={examScore}
-              onChange={(e) => setExamScore(e.target.value)}
-              className="w-24 rounded-lg border border-ccc-border px-2.5 py-1.5 text-sm"
-              placeholder="e.g. 82"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-ccc-muted block mb-1">Date</label>
-            <input
-              type="date"
-              value={examDate || ''}
-              onChange={(e) => setExamDate(e.target.value)}
-              className="rounded-lg border border-ccc-border px-2.5 py-1.5 text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-ccc-muted block mb-1">Result</label>
-            <select
-              value={examResult}
-              onChange={(e) => setExamResult(e.target.value)}
-              className="rounded-lg border border-ccc-border px-2.5 py-1.5 text-sm"
+        <div className="rr-sec-body">
+          <div className="rr-exam-grid">
+            <label className="rr-field">
+              <span className="rr-label">Score</span>
+              <input
+                type="number"
+                value={examScore}
+                onChange={(e) => setExamScore(e.target.value)}
+                className="rr-input"
+                placeholder="e.g. 82"
+              />
+            </label>
+            <label className="rr-field">
+              <span className="rr-label">Exam date</span>
+              <input type="date" value={examDate || ''} onChange={(e) => setExamDate(e.target.value)} className="rr-input" />
+            </label>
+            <label className="rr-field">
+              <span className="rr-label">Result</span>
+              <select value={examResult} onChange={(e) => setExamResult(e.target.value)} className="rr-input">
+                <option value="">Not yet recorded</option>
+                <option value="passed">Passed</option>
+                <option value="failed">Failed</option>
+                <option value="absent">Absent (no-show)</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => onSaveExam(row.id, { examScore, examResult, examDate })}
+              className="rr-btn rr-btn-primary rr-btn-tall"
             >
-              <option value="">Not yet recorded</option>
-              <option value="passed">Passed</option>
-              <option value="failed">Failed</option>
-              <option value="absent">Absent (no-show)</option>
-            </select>
+              {isBusy ? 'Saving…' : 'Save & verify'}
+            </button>
           </div>
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={() => onSaveExam(row.id, { examScore, examResult, examDate })}
-            className="text-xs font-bold px-3.5 py-2 rounded-lg bg-ccc-navy text-white hover:bg-ccc-blue disabled:opacity-50"
-          >
-            {isBusy ? 'Saving…' : 'Save & Verify'}
-          </button>
+          {examSuggestion.threshold != null && (
+            <p className={`rr-hint ${examSuggestion.suggested === 'passed' ? 'pass' : examSuggestion.suggested === 'failed' ? 'fail' : ''}`}>
+              {row.program_choice_1}&rsquo;s passing grade per Appendix J: <strong>{examSuggestion.threshold}</strong>.
+              {examSuggestion.suggested && (
+                <>
+                  {' '}A score of {examScore} suggests <strong>{examSuggestion.suggested === 'passed' ? 'Passed' : 'Failed'}</strong>.
+                  This doesn&rsquo;t auto-fill Result, so pick it above to confirm.
+                </>
+              )}
+            </p>
+          )}
+          <p className="rr-muted-line">
+            Nothing here is saved until you click Save &amp; verify. Saving also sets the Scholar Status: Passed becomes
+            Passer, Failed becomes Waitlisted (Probationary), Absent becomes Forfeited.
+          </p>
         </div>
-        {examSuggestion.threshold != null && (
-          <p
-            className={
-              'text-[10.5px] rounded-lg px-2.5 py-1.5 ' +
-              (examSuggestion.suggested === 'passed'
-                ? 'bg-green-50 text-green-800'
-                : examSuggestion.suggested === 'failed'
-                ? 'bg-red-50 text-red-700'
-                : 'text-ccc-muted')
-            }
-          >
-            {row.program_choice_1}&rsquo;s passing grade per Appendix J: <strong>{examSuggestion.threshold}</strong>.
-            {examSuggestion.suggested && (
-              <>
-                {' '}Score of {examScore} suggests{' '}
-                <strong>{examSuggestion.suggested === 'passed' ? 'Passed' : 'Failed'}</strong>. This doesn&rsquo;t
-                auto-fill Result, so pick it above to confirm.
-              </>
+      </section>
+
+      {/* 2 · Scholar Status (Disqualification/Forfeiture Handling). The
+          manual override is a separate write path from section 1: it fires
+          on its own, after a confirm, and never saves the exam form. */}
+      <section className="rr-sec">
+        <div className="rr-sec-head">
+          <div className="rr-sec-title-wrap">
+            <span className={`rr-num${scholarStatus !== 'pending_exam' ? ' done' : ''}`}>2</span>
+            <h3 className="rr-sec-title">Scholar status</h3>
+          </div>
+          {!overrideOpen && (
+            <button type="button" className="rr-btn rr-btn-secondary" disabled={isBusy} onClick={() => setOverrideOpen(true)}>
+              Change manually
+            </button>
+          )}
+        </div>
+        <div className="rr-sec-body">
+          <div className="rr-status-line">
+            <span className={`apl-pill apl-pill-lg ${pillClass}`}>{scholarLabel}</span>
+            {row.scholar_status_set_by && (
+              <span className="rr-muted-line">
+                Last set by {row.scholar_status_set_by}
+                {row.scholar_status_set_at ? ` · ${rrDate(row.scholar_status_set_at)}` : ''}
+              </span>
             )}
-          </p>
-        )}
-        {row.exam_verified_by && (
-          <p className="text-[10px] text-ccc-muted">
-            Last verified by {row.exam_verified_by}
-            {row.exam_verified_at ? ` on ${new Date(row.exam_verified_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
-          </p>
-        )}
-      </div>
+          </div>
+          {row.scholar_status_reason && <p className="rr-muted-line">Note: {row.scholar_status_reason}</p>}
 
-      {/* Disqualification/Forfeiture Handling -- manual escape hatch for the
-          two statuses the exam result alone can't decide (see matching.js
-          deriveScholarStatus). Redesigned Sept 21 after live testing showed
-          an admin could type "Passed" into the exam form above, forget to
-          click Save & Verify, then click a button here expecting it to
-          somehow combine with the unsaved exam entry -- it doesn't, these
-          are two independent write paths. Now: clearly labeled Step 2,
-          visually set apart (orange-tinted, not the neutral card the exam
-          section uses), a live warning when the exam form above has
-          unsaved edits, and a confirm prompt before any override fires. */}
-      <div className="rounded-xl border border-ccc-orange/30 bg-orange-50/40 p-3.5 space-y-2.5">
-        <div>
-          <span className="modal-section-label" style={{ marginBottom: '4px' }}>Step 2 · Manual Override</span>
-          <p className="text-[10.5px] text-ccc-muted">
-            Only for a real judgment call the exam result itself doesn&rsquo;t decide (Appendix D: a probationary contract, or a
-            later disqualification/forfeiture reason). Fires immediately, independent of Step 1 above.
-          </p>
+          {overrideOpen && (
+            <div className="rr-override">
+              <p className="rr-override-intro">
+                Manual override. Only for a real judgment call the exam result itself doesn&rsquo;t decide (Appendix D: a
+                probationary contract, or a later disqualification or forfeiture reason). It applies right away and does
+                not save anything typed in section 1.
+              </p>
+              {hasUnsavedExamChanges && (
+                <div className="rr-warn">
+                  You have unsaved changes in the Entrance Exam section above. Applying an override will NOT save those,
+                  so save section 1 first if you meant to record an exam result.
+                </div>
+              )}
+              <div className="rr-choices" role="group" aria-label="New scholar status">
+                {OVERRIDE_CHOICES.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    className={`rr-choice rr-choice-${c.key === 'qualified_probationary' ? 'gold' : 'red'}${overridePick === c.key ? ' picked' : ''}`}
+                    aria-pressed={overridePick === c.key}
+                    onClick={() => setOverridePick(c.key)}
+                  >
+                    <span className="rr-choice-title">{SCHOLAR_STATUS_OVERRIDE_LABELS[c.key]}</span>
+                    <span className="rr-choice-desc">{c.desc}</span>
+                  </button>
+                ))}
+              </div>
+              <label className="rr-field">
+                <span className="rr-label">Reason / note (optional)</span>
+                <input
+                  type="text"
+                  value={statusReason}
+                  onChange={(e) => setStatusReason(e.target.value)}
+                  placeholder="e.g. failed a subject under probationary contract"
+                  className="rr-input"
+                />
+              </label>
+              <div className="rr-actions">
+                <button
+                  type="button"
+                  className="rr-btn rr-btn-secondary"
+                  onClick={() => {
+                    setOverrideOpen(false)
+                    setOverridePick('')
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isBusy || !overridePick}
+                  onClick={() => confirmOverride(overridePick)}
+                  className={`rr-btn ${overridePick === 'qualified_probationary' ? 'rr-btn-primary' : 'rr-btn-danger'}`}
+                >
+                  {overridePick ? `Set to ${SCHOLAR_STATUS_OVERRIDE_LABELS[overridePick]}` : 'Pick a status'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-        {hasUnsavedExamChanges && (
-          <div className="rounded-lg border border-ccc-orange/50 bg-orange-100 px-3 py-2 text-[11px] font-semibold text-ccc-orange">
-            You have unsaved changes in the Entrance Exam section above. Clicking a button below will NOT save those, so
-            save Step 1 first if you meant to record an exam result.
-          </div>
-        )}
-        <div className="flex flex-wrap items-end gap-2.5">
-          <div className="flex-1 min-w-[180px]">
-            <label className="text-[10px] text-ccc-muted block mb-1">Reason / note (optional)</label>
-            <input
-              type="text"
-              value={statusReason}
-              onChange={(e) => setStatusReason(e.target.value)}
-              placeholder="e.g. failed a subject under probationary contract"
-              className="w-full rounded-lg border border-ccc-border px-2.5 py-1.5 text-sm"
-            />
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <button type="button" disabled={isBusy} onClick={() => confirmOverride('qualified_probationary')}
-              className="text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-ccc-gold/50 text-ccc-navy hover:bg-ccc-gold/10 disabled:opacity-50">
-              Qualified (Probationary)
-            </button>
-            <button type="button" disabled={isBusy} onClick={() => confirmOverride('disqualified')}
-              className="text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-ccc-red/40 text-ccc-red hover:bg-red-50 disabled:opacity-50">
-              Disqualify
-            </button>
-            <button type="button" disabled={isBusy} onClick={() => confirmOverride('forfeited')}
-              className="text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-ccc-red/40 text-ccc-red hover:bg-red-50 disabled:opacity-50">
-              Forfeit
-            </button>
-          </div>
-        </div>
-        {row.scholar_status_reason && (
-          <p className="text-[11px] text-ccc-muted">Note: {row.scholar_status_reason}</p>
-        )}
-      </div>
+      </section>
 
-      <ResultNoticeBox row={row} onSent={onReload} />
+      {/* 3 · Result notice */}
+      <ResultNoticeBox row={row} onSent={onReload} number={3} />
 
-      {/* Distribution Status Tracking and Statement of Subsequent Actions --
+      {/* 4 · Distribution Status Tracking and Statement of Subsequent Actions --
           only meaningful once a passer/qualified-probationary status exists
           (Appendix D: Registrar -> Medical or Admissions -> enrollment). The
           "statement" itself is the audit_log trail each button click writes. */}
-      <div className="rounded-xl border border-ccc-border p-3.5 space-y-2.5">
-        <div className="modal-section-label" style={{ marginBottom: '4px' }}>
-          <span>Distribution Status</span>
-          {/* Clear button -- Sept 21, added after live testing found no way
-              to reset a leftover distribution_status once Scholar Status no
-              longer qualifies (e.g. an exam result got reset for retesting).
-              Shown whenever there's something to clear, whether or not the
-              stepper itself is currently visible. Data-hygiene only -- see
-              the comment above hasStaleDistribution. */}
+      <section className="rr-sec">
+        <div className="rr-sec-head">
+          <div className="rr-sec-title-wrap">
+            <span className={`rr-num${row.distribution_status === 'enrollment_complete' ? ' done' : ''}`}>4</span>
+            <h3 className="rr-sec-title">Distribution Status</h3>
+            <span className="rr-sec-meta">Endorsement and enrollment</span>
+          </div>
+          {/* Clear button -- Sept 21: data-hygiene reset of a leftover
+              distribution_status; shown whenever there's something to clear. */}
           {row.distribution_status && row.distribution_status !== 'not_applicable' && (
             <button
               type="button"
               disabled={isBusy}
               onClick={() => setPendingClearDistribution(true)}
-              className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-ccc-border text-ccc-muted hover:text-ccc-navy hover:bg-ccc-off disabled:opacity-50"
+              className="rr-link"
             >
               Clear
             </button>
           )}
         </div>
-        {hasStaleDistribution && (
-          <div className="rounded-lg border border-ccc-orange/40 bg-orange-50 px-3 py-2 text-[11px] text-ccc-orange">
-            This applicant&rsquo;s Scholar Status no longer qualifies for distribution tracking, but a stored value
-            (&ldquo;{DISTRIBUTION_STATUS_STEPS.find(([k]) => k === row.distribution_status)?.[1] || row.distribution_status}&rdquo;)
-            is still on file from before. Use Clear above if this should be reset.
-          </div>
-        )}
-        {!canDistribute ? (
-          !hasStaleDistribution && (
-            <p className="text-[11px] text-ccc-muted">
-              Not applicable yet. Becomes available once this applicant is a Passer or Qualified (Probationary).
+        <div className="rr-sec-body">
+          {hasStaleDistribution && (
+            <div className="rr-warn">
+              This applicant&rsquo;s Scholar Status no longer qualifies for distribution tracking, but a stored value
+              (&ldquo;{DISTRIBUTION_STATUS_STEPS.find(([k]) => k === row.distribution_status)?.[1] || row.distribution_status}&rdquo;)
+              is still on file from before. Use Clear above if this should be reset.
+            </div>
+          )}
+          {!canDistribute ? (
+            !hasStaleDistribution && (
+              <p className="rr-muted-line">
+                Not applicable yet. Becomes available once this applicant is a Passer or Qualified (Probationary).
+              </p>
+            )
+          ) : (
+            <>
+              <div className="rr-stepper">
+                <span className="rr-stepper-track" aria-hidden="true" />
+                <span
+                  className="rr-stepper-fill"
+                  aria-hidden="true"
+                  style={{ width: currentStepIndex > 0 ? `${(currentStepIndex / (DISTRIBUTION_STATUS_STEPS.length - 1)) * 80}%` : '0%' }}
+                />
+                {DISTRIBUTION_STATUS_STEPS.map(([key, label], i) => {
+                  const isCurrent = row.distribution_status === key
+                  const isPast = currentStepIndex >= 0 && i < currentStepIndex
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      disabled={isBusy}
+                      aria-current={isCurrent ? 'step' : undefined}
+                      onClick={() => onAdvanceDistribution(row.id, key)}
+                      className={`rr-step${isCurrent ? ' current' : ''}${isPast ? ' past' : ''}`}
+                      title={isCurrent ? `Current: ${label}` : `Set to ${label}`}
+                    >
+                      <span className="rr-step-dot">{isPast ? <RrCheck /> : i + 1}</span>
+                      <span className="rr-step-label">{label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="rr-actions rr-actions-split">
+                <span className="rr-muted-line">
+                  {row.distribution_status_updated_by && row.distribution_status !== 'not_applicable'
+                    ? `Last updated by ${row.distribution_status_updated_by}${row.distribution_status_updated_at ? ` · ${rrDate(row.distribution_status_updated_at)}` : ''}. Click any step to jump to it.`
+                    : 'Not started. Click any step to jump to it.'}
+                </span>
+                {nextStep && (
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    className="rr-btn rr-btn-primary"
+                    onClick={() => onAdvanceDistribution(row.id, nextStep[0])}
+                  >
+                    Move to {nextStep[1]}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+          {!canDistribute && row.distribution_status_updated_by && row.distribution_status !== 'not_applicable' && (
+            <p className="rr-muted-line">
+              Last updated by {row.distribution_status_updated_by}
+              {row.distribution_status_updated_at ? ` · ${rrDate(row.distribution_status_updated_at)}` : ''}
             </p>
-          )
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {DISTRIBUTION_STATUS_STEPS.map(([key, label], i) => {
-              const isCurrent = row.distribution_status === key
-              const isPast = currentStepIndex >= 0 && i < currentStepIndex
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  disabled={isBusy}
-                  onClick={() => onAdvanceDistribution(row.id, key)}
-                  className={`text-[10px] font-bold px-2.5 py-1.5 rounded-full border disabled:opacity-50 ${
-                    isCurrent
-                      ? 'bg-ccc-navy text-white border-ccc-navy'
-                      : isPast
-                      ? 'bg-ccc-off text-ccc-muted border-ccc-border'
-                      : 'border-ccc-blue/40 text-ccc-blue hover:bg-blue-50'
-                  }`}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
-        )}
-        {row.distribution_status_updated_by && row.distribution_status !== 'not_applicable' && (
-          <p className="text-[10px] text-ccc-muted">
-            Last updated by {row.distribution_status_updated_by}
-            {row.distribution_status_updated_at ? ` on ${new Date(row.distribution_status_updated_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
-          </p>
-        )}
-      </div>
+          )}
 
-      {canDistribute && <ResultNoticeBox row={row} onSent={onReload} kind="endorsement" />}
+          {canDistribute && <ResultNoticeBox row={row} onSent={onReload} kind="endorsement" />}
+        </div>
+      </section>
           </div>
         </div>
       </div>
@@ -2546,6 +2877,24 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
     </>
   )
 }
+
+// Oct 3 2026 redesign: status tabs for the Applicant Results list.
+const RESULT_TABS = [
+  { key: 'all', label: 'All', match: () => true },
+  { key: 'action', label: 'Needs action', match: (r) => getNextStepHint(r).tone === 'go' },
+  { key: 'pending_exam', label: 'Pending Exam', match: (r) => (r.scholar_status || 'pending_exam') === 'pending_exam' },
+  { key: 'passer', label: 'Passer', match: (r) => r.scholar_status === 'passer' },
+  {
+    key: 'probationary',
+    label: 'Probationary',
+    match: (r) => r.scholar_status === 'qualified_probationary' || r.scholar_status === 'waitlisted_probationary',
+  },
+  {
+    key: 'out',
+    label: 'Disqualified / Forfeited',
+    match: (r) => r.scholar_status === 'disqualified' || r.scholar_status === 'forfeited',
+  },
+]
 
 function ResultsPanel() {
   const locks = useApplicantLocks()
@@ -2638,8 +2987,11 @@ function ResultsPanel() {
   // never revoked, so "Documents Complete"/"Documents Incomplete" is an
   // accurate, not just convenient, label for this.
   const [docFilter, setDocFilter] = useState('all') // 'all' | 'complete' | 'incomplete'
+  // Oct 3 2026 redesign: status tabs above the table. "Needs action" uses
+  // getNextStepHint()'s own 'go' tone, same as the default ordering below.
+  const [tab, setTab] = useState('all')
 
-  const filtered = useMemo(() => {
+  const searched = useMemo(() => {
     const term = search.trim().toLowerCase()
     let list = rows
     if (docFilter === 'complete') list = list.filter((r) => !!r.application_number)
@@ -2649,6 +3001,18 @@ function ResultsPanel() {
         `${r.applicant_name || ''} ${r.applicant_email || ''} ${r.application_number || ''}`.toLowerCase().includes(term)
       )
     }
+    return list
+  }, [rows, search, docFilter])
+
+  const resultTabCounts = useMemo(() => {
+    const counts = {}
+    for (const t of RESULT_TABS) counts[t.key] = searched.filter((r) => t.match(r)).length
+    return counts
+  }, [searched])
+
+  const filtered = useMemo(() => {
+    const current = RESULT_TABS.find((t) => t.key === tab) || RESULT_TABS[0]
+    const list = searched.filter((r) => current.match(r))
     // "Needs action first" default ordering, per Pau's Sept 24 request --
     // reuses getNextStepHint()'s own tone classification instead of
     // inventing a second "needs action" definition that could drift out of
@@ -2663,7 +3027,7 @@ function ResultsPanel() {
       if (pa !== pb) return pa - pb
       return (a.applicant_name || '').localeCompare(b.applicant_name || '')
     })
-  }, [rows, search, docFilter])
+  }, [searched, tab])
 
   return (
     <div>
@@ -2685,9 +3049,24 @@ function ResultsPanel() {
           All Applicants
           {!loading && (
             <span className="tag">
-              {filtered.length} applicant{filtered.length === 1 ? '' : 's'}
+              {filtered.length} of {rows.length} applicant{rows.length === 1 ? '' : 's'}
             </span>
           )}
+        </div>
+
+        <div className="apl-tabs" role="group" aria-label="Filter applicants by scholar status">
+          {RESULT_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              className={`apl-tab${tab === t.key ? ' active' : ''}`}
+              aria-pressed={tab === t.key}
+              onClick={() => setTab(t.key)}
+            >
+              {t.label}
+              <span className="apl-tab-count">{resultTabCounts[t.key] || 0}</span>
+            </button>
+          ))}
         </div>
 
         <div className="filter-bar">
@@ -2696,13 +3075,14 @@ function ResultsPanel() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by applicant name, email, or application number..."
+            aria-label="Search applicants"
           />
-          <select className="program-filter-select" value={docFilter} onChange={(e) => setDocFilter(e.target.value)}>
+          <select className="program-filter-select" value={docFilter} onChange={(e) => setDocFilter(e.target.value)} aria-label="Filter by documents">
             <option value="all">All documents</option>
             <option value="complete">Documents Complete</option>
             <option value="incomplete">Documents Incomplete</option>
           </select>
-          {(search.trim() !== '' || docFilter !== 'all') && (
+          {(search.trim() !== '' || docFilter !== 'all' || tab !== 'all') && (
             <>
               <div className="filter-divider" />
               <button
@@ -2711,6 +3091,7 @@ function ResultsPanel() {
                 onClick={() => {
                   setSearch('')
                   setDocFilter('all')
+                  setTab('all')
                 }}
               >
                 &times; Clear filters
@@ -2730,7 +3111,15 @@ function ResultsPanel() {
             {rows.length === 0 ? 'No applications on file yet.' : 'No applicants match your search and filter.'}
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="apl-scroll">
+           <div className="apl-table">
+            <div className="apl-head rr-grid" role="presentation">
+              <span className="apl-th">Applicant</span>
+              <span className="apl-th">Program (1st choice)</span>
+              <span className="apl-th">Exam</span>
+              <span className="apl-th">Scholar status</span>
+              <span className="apl-th">Next step</span>
+            </div>
             {filtered.map((row) => (
             <ResultRow
               key={row.id}
@@ -2743,6 +3132,7 @@ function ResultsPanel() {
               lockInfo={locks[row.id]}
               />
             ))}
+           </div>
           </div>
         )}
       </div>
@@ -2772,62 +3162,89 @@ function ResultsPanel() {
 // 1st year, but transferees don't), and says so on the card instead of
 // silently pretending the other two exist.
 
-function BarRow({ label, count, total, colorClass }) {
-  const pct = total > 0 ? Math.round((count / total) * 100) : 0
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-[11px]">
-        <span className="text-ccc-text font-medium truncate pr-2">{label}</span>
-        <span className="text-ccc-muted shrink-0">{count} ({pct}%)</span>
-      </div>
-      <div className="h-2 rounded-full bg-ccc-off overflow-hidden">
-        <div className={`h-full rounded-full ${colorClass || 'bg-ccc-blue'}`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  )
+// Oct 3 2026 redesign (Statistics v2, approved on the design canvas):
+// one KPI strip, three status panels with a "% of applicants" column, and
+// an "Applicants by program" table. The panel now refreshes on its own,
+// same as the Activity Log: every 15 s while the tab is visible, when the
+// admin comes back to the tab, and right after any admin action pop-up.
+// Same data sources as before (/api/admin-eligibility + /api/admin-results,
+// joined by id, plus the appeal count from /api/admin-reschedule).
+const STAT_ELIGIBILITY = [
+  { key: 'qualified', label: 'Qualified', color: '#1B6B3A' },
+  { key: 'not_qualified', label: 'Not Qualified', color: '#C0392B' },
+  { key: 'waitlisted', label: 'Waitlisted', color: '#C8A84B' },
+  { key: 'pending_exam', label: 'Pending Exam', color: '#003CD0' },
+  { key: 'incomplete', label: 'Incomplete (Ongoing)', color: '#A7B4C8' },
+]
+const STAT_SCHOLAR = [
+  { key: 'passer', label: 'Passer', color: '#1B6B3A' },
+  { key: 'qualified_probationary', label: 'Qualified (Probationary)', color: '#E07B39' },
+  { key: 'waitlisted_probationary', label: 'Waitlisted (Probationary)', color: '#C8A84B' },
+  { key: 'disqualified', label: 'Disqualified', color: '#C0392B' },
+  { key: 'forfeited', label: 'Forfeited', color: '#5A6B85' },
+  { key: 'pending_exam', label: 'Pending Exam', color: '#003CD0' },
+]
+const STAT_APPLYING_COLORS = ['#0D2F6E', '#C8A84B', '#5A6B85', '#A7B4C8']
+const STAT_POLL_MS = 15000
+
+function statPct(n, total) {
+  return total ? `${Math.round((n / total) * 100)}%` : '0%'
 }
 
-// Sept 24 2026: single 100%-stacked bar + legend, replacing a column of
-// separate BarRow bars for part-to-whole data (every applicant has exactly
-// one eligibility status / one scholar status, so these always sum to the
-// same total). Five-to-six bars each independently scaled against that
-// same total made it hard to see at a glance that they add up to a whole,
-// and repeated the total that many times. One stacked bar with a legend
-// (colored dot + label + count + percent) reads as one whole made of
-// parts instead. Segment colors reuse the same status color mapping the
-// rest of the admin console already uses (green=good, gold=warning,
-// red=critical, blue=neutral/pending, gray=unresolved/incomplete) rather
-// than introducing a second color scheme.
-function StackedBar({ segments, total }) {
-  const visible = segments.filter((s) => s.count > 0)
+function statDepartmentOf(program) {
+  const dept = DASHBOARD_DEPARTMENTS.find((d) => d.programs.includes(program))
+  return dept ? dept.label : 'Not yet chosen'
+}
+
+function statAgo(ts, now) {
+  if (!ts) return 'loading'
+  const s = Math.max(0, Math.round((now - ts) / 1000))
+  if (s < 3) return 'just now'
+  if (s < 60) return `${s}s ago`
+  const m = Math.round(s / 60)
+  return `${m} min ago`
+}
+
+function StatSplitPanel({ title, items, total, foot, keyLabel = 'Status' }) {
+  const withCounts = items.filter((i) => i.count > 0)
   return (
-    <div className="space-y-3">
-      <div className="flex w-full h-6 rounded-full overflow-hidden bg-ccc-off" style={{ gap: '2px' }}>
-        {total > 0 && visible.length > 0 ? (
-          visible.map((s) => (
-            <div
-              key={s.label}
-              className={s.colorClass}
-              style={{ width: `${(s.count / total) * 100}%` }}
-              title={`${s.label}: ${s.count} (${Math.round((s.count / total) * 100)}%)`}
-            />
-          ))
-        ) : (
-          <div className="w-full bg-ccc-off" />
-        )}
+    <section className="st-card">
+      <div className="st-card-head">
+        <h2 className="st-card-title">{title}</h2>
+        <span className="st-meta">
+          {total} applicant{total === 1 ? '' : 's'}
+        </span>
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-        {segments.map((s) => (
-          <div key={s.label} className="flex items-center gap-1.5 text-[11px]">
-            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.colorClass}`} />
-            <span className="text-ccc-text font-medium">{s.label}</span>
-            <span className="text-ccc-muted">
-              {s.count} ({total > 0 ? Math.round((s.count / total) * 100) : 0}%)
-            </span>
-          </div>
+      <div className="st-split" role="img" aria-label={items.map((i) => `${i.label}: ${i.count}`).join(', ')}>
+        {withCounts.map((i) => (
+          <span key={i.label} style={{ width: statPct(i.count, total), background: i.color }} title={`${i.label}: ${i.count}`} />
         ))}
       </div>
-    </div>
+      <table className="st-table">
+        <thead>
+          <tr>
+            <th>{keyLabel}</th>
+            <th className="r">Applicants</th>
+            <th className="r">% of applicants</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((i) => (
+            <tr key={i.label} className={i.count ? '' : 'zero'}>
+              <td>
+                <span className="st-key">
+                  <span className="st-dot" style={{ background: i.count ? i.color : '#D5DDEA' }} />
+                  {i.label}
+                </span>
+              </td>
+              <td className="r st-strong">{i.count}</td>
+              <td className="r st-muted">{statPct(i.count, total)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {foot && <div className="st-card-foot">{foot}</div>}
+    </section>
   )
 }
 
@@ -2835,10 +3252,43 @@ function AnalyticsPanel() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [refreshError, setRefreshError] = useState(false)
+  const [loadedAt, setLoadedAt] = useState(null)
+  const [now, setNow] = useState(() => Date.now())
+  const [department, setDepartment] = useState('all')
+  const [showEmptyPrograms, setShowEmptyPrograms] = useState(false)
   // Sept 30 2026: appeals count (progress table "... Appeals, and Waitlisted
   // Analytics"). Best effort, 0 if it can't load.
   const [appealCount, setAppealCount] = useState(0)
-  useEffect(() => {
+
+  const load = async ({ quiet = false } = {}) => {
+    if (!quiet) {
+      setLoading(true)
+      setError('')
+    }
+    try {
+      const [eligRes, resultsRes] = await Promise.all([
+        fetch('/api/admin-eligibility'),
+        fetch('/api/admin-results'),
+      ])
+      const eligData = await eligRes.json()
+      const resultsData = await resultsRes.json()
+      if (!eligData.success) throw new Error(eligData.error || 'Failed to load eligibility data.')
+      if (!resultsData.success) throw new Error(resultsData.error || 'Failed to load results data.')
+      // Merge by id -- both endpoints read the same `applications` table,
+      // just different column subsets, so this is a straight join on the
+      // one shared key rather than another name-based match.
+      const byId = new Map(eligData.applications.map((r) => [r.id, r]))
+      setRows(resultsData.applications.map((r) => ({ ...byId.get(r.id), ...r })))
+      setLoadedAt(Date.now())
+      setRefreshError(false)
+    } catch (err) {
+      // A failed background refresh keeps the numbers already on screen.
+      if (quiet) setRefreshError(true)
+      else setError(err.message)
+    } finally {
+      if (!quiet) setLoading(false)
+    }
     fetch('/api/admin-reschedule')
       .then((res) => res.json())
       .then((data) => {
@@ -2851,186 +3301,236 @@ function AnalyticsPanel() {
         setAppealCount(who.size)
       })
       .catch(() => {})
-  }, [])
+  }
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const [eligRes, resultsRes] = await Promise.all([
-          fetch('/api/admin-eligibility'),
-          fetch('/api/admin-results'),
-        ])
-        const eligData = await eligRes.json()
-        const resultsData = await resultsRes.json()
-        if (!eligData.success) throw new Error(eligData.error || 'Failed to load eligibility data.')
-        if (!resultsData.success) throw new Error(resultsData.error || 'Failed to load results data.')
-        // Merge by id -- both endpoints read the same `applications` table,
-        // just different column subsets, so this is a straight join on the
-        // one shared key rather than another name-based match.
-        const byId = new Map(eligData.applications.map((r) => [r.id, r]))
-        const merged = resultsData.applications.map((r) => ({ ...byId.get(r.id), ...r }))
-        setRows(merged)
-      } catch (err) {
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
-    }
     load()
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible') load({ quiet: true })
+    }, STAT_POLL_MS)
+    const clock = setInterval(() => setNow(Date.now()), 1000)
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') load({ quiet: true })
+    }
+    const onNotice = () => load({ quiet: true })
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    window.addEventListener('admin-notice', onNotice)
+    return () => {
+      clearInterval(poll)
+      clearInterval(clock)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+      window.removeEventListener('admin-notice', onNotice)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const visibleRows = useMemo(
+    () => (department === 'all' ? rows : rows.filter((r) => statDepartmentOf(r.program_choice_1) === department)),
+    [rows, department]
+  )
+
   const stats = useMemo(() => {
-    const total = rows.length
-    const byProgram = new Map()
-    const byApplyingAs = new Map()
-    const eligibilityCounts = { qualified: 0, waitlisted: 0, not_qualified: 0, pending_exam: 0, incomplete: 0 }
-    const scholarCounts = { pending_exam: 0, passer: 0, waitlisted_probationary: 0, qualified_probationary: 0, disqualified: 0, forfeited: 0 }
+    const total = visibleRows.length
+    const elig = Object.fromEntries(STAT_ELIGIBILITY.map((s) => [s.key, 0]))
+    const scholar = Object.fromEntries(STAT_SCHOLAR.map((s) => [s.key, 0]))
+    const applying = new Map()
+    const programs = new Map()
+    let profileComplete = 0
 
-    for (const r of rows) {
+    for (const r of visibleRows) {
+      const e = r.eligibility_override || r.eligibility_status || 'incomplete'
+      if (e in elig) elig[e] += 1
+      const s = r.scholar_status || 'pending_exam'
+      if (s in scholar) scholar[s] += 1
+      const a = r.applying_as || 'Not yet specified'
+      applying.set(a, (applying.get(a) || 0) + 1)
+      if (PROFILE_SECTIONS.every((sec) => !!r[sec.key])) profileComplete += 1
+
       const program = r.program_choice_1 || 'Not yet chosen'
-      byProgram.set(program, (byProgram.get(program) || 0) + 1)
-
-      const applyingAs = r.applying_as || 'Not yet specified'
-      byApplyingAs.set(applyingAs, (byApplyingAs.get(applyingAs) || 0) + 1)
-
-      const elig = r.eligibility_override || r.eligibility_status || 'incomplete'
-      if (elig in eligibilityCounts) eligibilityCounts[elig] += 1
-
-      const scholar = r.scholar_status || 'pending_exam'
-      if (scholar in scholarCounts) scholarCounts[scholar] += 1
+      if (!programs.has(program)) programs.set(program, { total: 0, ...Object.fromEntries(STAT_ELIGIBILITY.map((x) => [x.key, 0])) })
+      const p = programs.get(program)
+      p.total += 1
+      if (e in p) p[e] += 1
     }
+
+    // Every program CCC offers (in the selected department), so empty ones
+    // can be shown on request, plus any other value found in the data.
+    const offered = DASHBOARD_DEPARTMENTS.filter((d) => department === 'all' || d.label === department).flatMap((d) => d.programs)
+    const names = Array.from(new Set([...offered, ...programs.keys()]))
+    const empty = { total: 0, ...Object.fromEntries(STAT_ELIGIBILITY.map((x) => [x.key, 0])) }
+    const programRows = names
+      .map((name) => ({ name, department: statDepartmentOf(name), ...(programs.get(name) || empty) }))
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
 
     return {
       total,
-      byProgram: Array.from(byProgram.entries()).sort((a, b) => b[1] - a[1]),
-      byApplyingAs: Array.from(byApplyingAs.entries()).sort((a, b) => b[1] - a[1]),
-      eligibilityCounts,
-      scholarCounts,
+      profileComplete,
+      elig,
+      scholar,
+      applying: Array.from(applying.entries()).sort((a, b) => b[1] - a[1]),
+      programRows,
     }
-  }, [rows])
+  }, [visibleRows, department])
 
   if (loading) return <div className="text-center py-20 text-ccc-muted text-sm">Loading statistics...</div>
   if (error) return <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
 
+  const programRowsShown = showEmptyPrograms ? stats.programRows : stats.programRows.filter((p) => p.total > 0)
+  const kpis = [
+    { label: 'Total applications', value: stats.total, sub: department === 'all' ? 'All applicants this cycle' : department },
+    { label: 'Profile complete', value: stats.profileComplete, sub: `${statPct(stats.profileComplete, stats.total)} of applicants` },
+    { label: 'Pending exam result', value: stats.elig.pending_exam, sub: `${statPct(stats.elig.pending_exam, stats.total)} of applicants` },
+    { label: 'Qualified', value: stats.elig.qualified, sub: `${statPct(stats.elig.qualified, stats.total)} of applicants` },
+    { label: 'Appeals filed', value: appealCount, sub: 'Retake or re-application, all departments' },
+  ]
+
   return (
-    <div>
-      <div className="portal-header">
+    <div className="st-wrap">
+      <div className="st-header">
         <div>
-          <h1>Statistics</h1>
-          <p>
-            Allowance monitoring and exportable LGU compliance reports aren&rsquo;t built here -- the manuscript
-            itself marks both as to-follow modules, out of scope for this version.
-          </p>
+          <h1 className="st-title">Statistics</h1>
+          <p className="st-subtitle">Scholarship applications, as of today</p>
         </div>
-        {/* Sept 24 2026: the headline number gets its own tile instead of
-            being buried in a sentence -- a dashboard's lead number should
-            read in one glance, not require reading a paragraph. */}
-        <div className="rounded-2xl border border-ccc-border bg-white px-5 py-3 text-right shrink-0">
-          <div className="text-[10px] font-bold uppercase tracking-wide text-ccc-muted" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            Total Applications
+        <div className="st-tools">
+          <label htmlFor="stDept" className="st-tool-label">Department</label>
+          <select id="stDept" className="st-select" value={department} onChange={(e) => setDepartment(e.target.value)}>
+            <option value="all">All departments</option>
+            {DASHBOARD_DEPARTMENTS.map((d) => (
+              <option key={d.label} value={d.label}>{d.label}</option>
+            ))}
+          </select>
+          <span
+            className={`st-live${refreshError ? ' st-live-warn' : ''}`}
+            title="Updates on its own every 15 seconds, when you come back to this tab, and after any admin action"
+            aria-live="polite"
+          >
+            <span className="st-live-dot" aria-hidden="true">
+              <span className="st-live-pulse" />
+              <span className="st-live-core" />
+            </span>
+            <b>{refreshError ? 'Retrying' : 'Live'}</b>
+            <span className="st-live-ago">
+              {refreshError ? `· couldn't refresh, last updated ${statAgo(loadedAt, now)}` : `· updated ${statAgo(loadedAt, now)}`}
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <div className="st-card st-kpis">
+        {kpis.map((k) => (
+          <div key={k.label} className="st-kpi">
+            <span className="st-kpi-label">{k.label}</span>
+            <span className="st-kpi-value">{k.value}</span>
+            <span className="st-kpi-sub">{k.sub}</span>
           </div>
-          <div className="text-2xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            {stats.total}
+        ))}
+      </div>
+
+      <div className="st-panels">
+        <StatSplitPanel
+          title="Eligibility status"
+          total={stats.total}
+          items={STAT_ELIGIBILITY.map((s) => ({ ...s, count: stats.elig[s.key] }))}
+        />
+        <StatSplitPanel
+          title="Scholar status (after exam)"
+          total={stats.total}
+          items={STAT_SCHOLAR.map((s) => ({ ...s, count: stats.scholar[s.key] }))}
+          foot={
+            <>
+              Appeals filed (retake or re-application): <b>{appealCount}</b>. Details are in Appeals &amp; Reschedules.
+            </>
+          }
+        />
+        <StatSplitPanel
+          title="Applying as"
+          keyLabel="Applying as"
+          total={stats.total}
+          items={stats.applying.map(([label, count], i) => ({
+            label,
+            count,
+            color: STAT_APPLYING_COLORS[i % STAT_APPLYING_COLORS.length],
+          }))}
+          foot="Used in place of Year Level, which the application form does not collect."
+        />
+      </div>
+
+      <section className="st-card">
+        <div className="st-card-head st-card-head-wrap">
+          <div>
+            <h2 className="st-card-title">Applicants by program</h2>
+            <span className="st-meta">Grouped by 1st choice program. Eligibility status per program.</span>
           </div>
+          <label className="st-check">
+            <input type="checkbox" checked={showEmptyPrograms} onChange={(e) => setShowEmptyPrograms(e.target.checked)} />
+            Show programs with no applicants
+          </label>
         </div>
-      </div>
-
-      {/* Sept 24 2026: the four cards below answer two different questions
-          (how many applied to what, vs where do they stand) but read as one
-          undifferentiated 2x2 grid without a lead-in -- same section-label
-          pattern the Dashboard panel already uses for its own breakdown
-          tables, reused here rather than inventing new CSS. */}
-      <div className="dashboard-section-label" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none' }}>
-        Application Volume
-      </div>
-      <div className="grid md:grid-cols-2 gap-5">
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">By Program (Course)</div>
-          {stats.byProgram.length === 0 ? (
-            <p className="text-[11px] text-ccc-muted">No data yet.</p>
-          ) : (
-            <div className="space-y-2.5">
-              {stats.byProgram.map(([label, count]) => (
-                <BarRow key={label} label={label} count={count} total={stats.total} colorClass="bg-ccc-blue" />
-              ))}
-            </div>
-          )}
+        <div className="st-scroll">
+          <table className="st-table st-program-table">
+            <thead>
+              <tr>
+                <th>Program</th>
+                <th className="r">Applicants</th>
+                <th className="r">Qualified</th>
+                <th className="r">Not Qualified</th>
+                <th className="r">Waitlisted</th>
+                <th className="r">Pending Exam</th>
+                <th className="r">Incomplete</th>
+                <th>Distribution</th>
+              </tr>
+            </thead>
+            <tbody>
+              {programRowsShown.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="st-empty">No applicants in this department yet.</td>
+                </tr>
+              ) : (
+                programRowsShown.map((p) => (
+                  <tr key={p.name} className={p.total ? '' : 'zero'}>
+                    <td>
+                      <span className="st-prog">{p.name}</span>
+                      <span className="st-dept">{p.department}</span>
+                    </td>
+                    <td className="r st-strong">{p.total}</td>
+                    <td className="r">{p.qualified}</td>
+                    <td className="r">{p.not_qualified}</td>
+                    <td className="r">{p.waitlisted}</td>
+                    <td className="r">{p.pending_exam}</td>
+                    <td className="r">{p.incomplete}</td>
+                    <td>
+                      <span className="st-split st-split-sm" aria-hidden="true">
+                        {STAT_ELIGIBILITY.filter((s) => p[s.key] > 0).map((s) => (
+                          <span key={s.key} style={{ width: statPct(p[s.key], p.total), background: s.color }} />
+                        ))}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>Total</td>
+                <td className="r">{stats.total}</td>
+                <td className="r">{stats.elig.qualified}</td>
+                <td className="r">{stats.elig.not_qualified}</td>
+                <td className="r">{stats.elig.waitlisted}</td>
+                <td className="r">{stats.elig.pending_exam}</td>
+                <td className="r">{stats.elig.incomplete}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
         </div>
+      </section>
 
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">By Applying As (nearest proxy for Year Level)</div>
-          {stats.byApplyingAs.length === 0 ? (
-            <p className="text-[11px] text-ccc-muted">No data yet.</p>
-          ) : (
-            <div className="space-y-2.5">
-              {stats.byApplyingAs.map(([label, count]) => (
-                <BarRow key={label} label={label} count={count} total={stats.total} colorClass="bg-ccc-gold" />
-              ))}
-            </div>
-          )}
-          <p className="text-[10px] text-ccc-muted pt-3 mt-1 border-t border-ccc-border">
-            No dedicated &ldquo;Department&rdquo; or literal &ldquo;Year Level&rdquo; field exists anywhere in the
-            system yet, so those two aren&rsquo;t charted here rather than invented from a guess.
-          </p>
-        </div>
-
-      </div>
-
-      <div className="dashboard-section-label">Status Breakdown</div>
-      <div className="grid md:grid-cols-2 gap-5">
-        <div className="card" style={{ marginBottom: 0 }}>
-          {/* Shortened from "Ongoing / Qualified / Not Qualified / Waitlisted
-              (Scholarship Matching)" -- the legend right below already spells
-              out every category, so the heading doesn't need to. */}
-          <div className="card-title">Eligibility Status</div>
-          <StackedBar
-            total={stats.total}
-            segments={[
-              { label: 'Qualified', count: stats.eligibilityCounts.qualified, colorClass: 'bg-ccc-green' },
-              { label: 'Waitlisted', count: stats.eligibilityCounts.waitlisted, colorClass: 'bg-ccc-gold' },
-              { label: 'Not Qualified', count: stats.eligibilityCounts.not_qualified, colorClass: 'bg-ccc-red' },
-              { label: 'Pending Exam', count: stats.eligibilityCounts.pending_exam, colorClass: 'bg-ccc-blue' },
-              { label: 'Incomplete (Ongoing)', count: stats.eligibilityCounts.incomplete, colorClass: 'bg-ccc-muted' },
-            ]}
-          />
-        </div>
-
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">Post-Exam Scholar Status</div>
-          <StackedBar
-            total={stats.total}
-            segments={[
-              { label: 'Passer', count: stats.scholarCounts.passer, colorClass: 'bg-ccc-green' },
-              {
-                label: 'Waitlisted (Probationary)',
-                count: stats.scholarCounts.waitlisted_probationary,
-                colorClass: 'bg-ccc-gold',
-              },
-              {
-                // Sept 24 2026: split from Waitlisted's gold to bg-ccc-orange --
-                // both used the same gold in the old separate-bars layout (fine
-                // there, each got its own full bar), but two adjacent segments
-                // sharing a color in one stacked bar would visually merge into
-                // one blob and defeat the point of stacking them.
-                label: 'Qualified (Probationary)',
-                count: stats.scholarCounts.qualified_probationary,
-                colorClass: 'bg-ccc-orange',
-              },
-              { label: 'Disqualified', count: stats.scholarCounts.disqualified, colorClass: 'bg-ccc-red' },
-              // Same collision as Waitlisted/Qualified (Probationary) above --
-              // Forfeited was also sharing bg-ccc-red with the segment right
-              // next to it, so it gets its own color here too.
-              { label: 'Forfeited', count: stats.scholarCounts.forfeited, colorClass: 'bg-ccc-muted' },
-              { label: 'Pending Exam', count: stats.scholarCounts.pending_exam, colorClass: 'bg-ccc-blue' },
-            ]}
-          />
-          <p className="text-[10px] text-ccc-muted pt-3 mt-1 border-t border-ccc-border">
-            Appeals filed (retake or re-application): <b>{appealCount}</b>. Details are in Appeals &amp; Reschedules.
-          </p>
-        </div>
-      </div>
+      <p className="st-footnote">
+        Department is derived from the program. Year Level is not collected, so Applying As is used instead. Allowance
+        Distribution Monitoring and exportable LGU reports are to-follow modules, out of scope for this version.
+      </p>
     </div>
   )
 }
@@ -3080,6 +3580,11 @@ function CommunicationsPanel() {
   const [posting, setPosting] = useState(false)
   const [postError, setPostError] = useState('')
   const [deletingId, setDeletingId] = useState(null)
+  const [feedType, setFeedType] = useState('all') // 'all' | 'announcement' | 'message'
+  const [feedSearch, setFeedSearch] = useState('')
+  const [feedCategory, setFeedCategory] = useState('all')
+  const [expandedIds, setExpandedIds] = useState([])
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
 
   const load = async () => {
     setLoading(true)
@@ -3177,88 +3682,98 @@ function CommunicationsPanel() {
     }
   }
 
+  // Oct 3 2026 redesign: feed filters, "Show more" and a delete confirm.
+  const targetLabel = (item) =>
+    item.type !== 'message'
+      ? 'Everyone (public)'
+      : item.target_type === 'specific'
+        ? applicants.find((a) => a.id === item.target_application_id)?.applicant_name || 'Applicant'
+        : item.target_type === 'category'
+          ? `Group: ${ELIGIBILITY_META[item.target_category]?.label || item.target_category}`
+          : 'All Applicants'
+  const categoryLabel = (c) => COMM_CATEGORY_LABELS[c] || c
+  const feedCategories = Array.from(new Set(items.map((i) => i.category).filter(Boolean)))
+  const feedTypeCount = (t) => items.filter((i) => t === 'all' || (t === 'message' ? i.type === 'message' : i.type !== 'message')).length
+  const feed = items.filter((i) => {
+    if (feedType === 'message' && i.type !== 'message') return false
+    if (feedType === 'announcement' && i.type === 'message') return false
+    if (feedCategory !== 'all' && i.category !== feedCategory) return false
+    const q = feedSearch.trim().toLowerCase()
+    if (!q) return true
+    return `${i.title || ''} ${i.body || ''} ${targetLabel(i)}`.toLowerCase().includes(q)
+  })
+
   return (
     <div>
       <div className="portal-header">
-        <h1>Communications</h1>
-        <p>Manage public announcements and private messages for signed-in applicants.</p>
+        <div>
+          <h1>Communications</h1>
+          <p>Post public announcements and send private messages to signed-in applicants.</p>
+        </div>
       </div>
 
-      <div className="card">
-        <div className="card-title">New Post</div>
-        <form onSubmit={handlePost} className="announce-form">
-          <div className="mfield">
-            <label htmlFor="commTypeSelect">Type</label>
-            <select id="commTypeSelect" value={commType} onChange={(e) => setCommType(e.target.value)}>
-              <option value="">Select a type…</option>
-              <option value="announcement">Announcement</option>
-              <option value="message">Message</option>
-            </select>
+      <div className="cm-layout">
+        <section className="cm-card cm-composer">
+          <div className="cm-head">
+            <h2 className="cm-title">New post</h2>
+            <span className="cm-meta">Sends right away</span>
           </div>
-
-          {!commType && <p className="publish-note">Please choose a communication type. Each option serves a different purpose.</p>}
-
-          {commType && (
-            <>
-              <div className="comm-scope-note">
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 8v4" />
-                  <path d="M12 16h.01" />
-                </svg>
-                <span>
-                  {commType === 'announcement' ? (
-                    <>
-                      <b>Announcements</b> are displayed at the guest (public) page as well as the Applicant Portal,
-                      and are received by all applicants.
-                    </>
-                  ) : (
-                    <>
-                      <b>Messages</b> are private and never shown on the guest/public page. Send to a specific
-                      applicant or a category of applicants.
-                    </>
-                  )}
-                </span>
+          <form onSubmit={handlePost} className="cm-form">
+            <div className="cm-field">
+              <span className="cm-label" id="commTypeLabel">Type</span>
+              <div className="cm-type-grid" role="group" aria-labelledby="commTypeLabel">
+                {[
+                  { key: 'announcement', label: 'Announcement', desc: 'Public. Guest page and every applicant.' },
+                  { key: 'message', label: 'Message', desc: 'Private. Applicant Messages tab only.' },
+                ].map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    className={`cm-type${commType === t.key ? ' on' : ''}`}
+                    aria-pressed={commType === t.key}
+                    onClick={() => setCommType(t.key)}
+                  >
+                    <span className={`cm-type-icon ${t.key}`}>
+                      {t.key === 'announcement' ? <IconMegaphone /> : <IconMail />}
+                    </span>
+                    <span className="cm-type-text">
+                      <span className="cm-type-name">{t.label}</span>
+                      <span className="cm-type-desc">{t.desc}</span>
+                    </span>
+                  </button>
+                ))}
               </div>
+            </div>
 
-              <div className="mfield">
-                <label htmlFor="commTitle">Title</label>
-                <input
-                  id="commTitle"
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Scholarship Examination Schedule Released"
-                  required
-                />
-              </div>
+            {!commType && <p className="cm-hint">Choose a type to start. Each one serves a different purpose.</p>}
 
-              <div className="mfield">
-                <label htmlFor="commCategory">Category</label>
-                <select id="commCategory" value={category} onChange={(e) => setCategory(e.target.value)}>
-                  {COMM_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {COMM_CATEGORY_LABELS[c]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {commType === 'message' && (
-                <>
-                  <div className="mfield">
-                    <label htmlFor="msgTarget">Send To</label>
-                    <select id="msgTarget" value={targetType} onChange={(e) => setTargetType(e.target.value)}>
-                      <option value="all">All Applicants</option>
-                      <option value="specific">Specific Applicant</option>
-                      <option value="category">Category of Applicants</option>
-                    </select>
-                  </div>
-                  {targetType === 'specific' && (
-                    <div className="mfield">
-                      <label htmlFor="msgTargetApplicant">Applicant</label>
+            {commType && (
+              <>
+                {commType === 'message' && (
+                  <div className="cm-field">
+                    <span className="cm-label" id="msgTargetLabel">Send to</span>
+                    <div className="cm-seg" role="group" aria-labelledby="msgTargetLabel">
+                      {[
+                        ['all', 'All applicants'],
+                        ['specific', 'One applicant'],
+                        ['category', 'Status group'],
+                      ].map(([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          className={`cm-seg-btn${targetType === key ? ' on' : ''}`}
+                          aria-pressed={targetType === key}
+                          onClick={() => setTargetType(key)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {targetType === 'specific' && (
                       <select
                         id="msgTargetApplicant"
+                        aria-label="Applicant"
+                        className="cm-input"
                         value={targetApplicationId}
                         onChange={(e) => setTargetApplicationId(e.target.value)}
                       >
@@ -3270,124 +3785,248 @@ function CommunicationsPanel() {
                           </option>
                         ))}
                       </select>
-                    </div>
-                  )}
-                  {targetType === 'category' && (
-                    <div className="mfield">
-                      <label htmlFor="msgTargetCategory">Category</label>
-                      <select id="msgTargetCategory" value={targetCategory} onChange={(e) => setTargetCategory(e.target.value)}>
+                    )}
+                    {targetType === 'category' && (
+                      <select
+                        id="msgTargetCategory"
+                        aria-label="Status group"
+                        className="cm-input"
+                        value={targetCategory}
+                        onChange={(e) => setTargetCategory(e.target.value)}
+                      >
                         {COMM_ELIGIBILITY_CATEGORIES.map((key) => (
                           <option key={key} value={key}>
                             {ELIGIBILITY_META[key]?.label || key}
                           </option>
                         ))}
                       </select>
-                    </div>
-                  )}
-                </>
-              )}
-
-              <div className="mfield">
-                <label htmlFor="commBody">Message</label>
-                <textarea
-                  id="commBody"
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  rows={4}
-                  placeholder={commType === 'announcement' ? 'Write the announcement…' : 'Write the message to applicants…'}
-                  required
-                />
-              </div>
-
-              {postError && <p className="text-xs text-ccc-red mb-2">{postError}</p>}
-              <button type="submit" disabled={posting} className="mbtn mbtn-primary">
-                {posting ? (commType === 'announcement' ? 'Posting…' : 'Sending…') : commType === 'announcement' ? 'Publish Announcement' : 'Send Message'}
-              </button>
-              <p className="publish-note">
-                {commType === 'announcement'
-                  ? '📢 This will publish immediately to the Applicant Portal and the public website.'
-                  : "📢 This will be sent immediately to the selected recipient(s)' Applicant Portal Messages."}
-              </p>
-            </>
-          )}
-        </form>
-      </div>
-
-      <div className="card">
-        <div className="card-title">
-          Posted
-          <span className="tag">{items.length} total</span>
-        </div>
-        {loading ? (
-          <p className="text-sm text-ccc-muted text-center py-8">Loading…</p>
-        ) : error ? (
-          <p className="text-sm text-ccc-red text-center py-8">{error}</p>
-        ) : items.length === 0 ? (
-          <p className="text-sm text-ccc-muted text-center py-8">Nothing posted yet.</p>
-        ) : (
-          <div>
-            {items.map((item) =>
-              item.type === 'message' ? (
-                <div key={item.id} className="message-item">
-                  <div className="message-dot">✉️</div>
-                  <div className="message-body">
-                    <h4>
-                      {item.title}
-                      <span className="msg-target-tag">
-                        {item.target_type === 'specific'
-                          ? applicants.find((a) => a.id === item.target_application_id)?.applicant_name || 'Applicant'
-                          : item.target_type === 'category'
-                          ? ELIGIBILITY_META[item.target_category]?.label || item.target_category
-                          : 'All Applicants'}
-                      </span>
-                    </h4>
-                    <p>{item.body}</p>
-                    <span className="message-date">
-                      {item.author} · {formatWhen(item.created_at)}
-                      {item.category ? ` · ${COMM_CATEGORY_LABELS[item.category] || item.category}` : ''}
-                    </span>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    className="message-del"
-                    disabled={deletingId === item.id}
-                    onClick={() => handleDelete(item.id)}
-                    title="Delete message"
-                  >
-                    🗑
-                  </button>
-                </div>
-              ) : (
-                <div key={item.id} className="announce-item">
-                  <div className="announce-dot">📣</div>
-                  <div className="announce-body">
-                    <h4>{item.title}</h4>
-                    <p>{item.body}</p>
-                    <span className="announce-date">
-                      {item.author} · {formatWhen(item.created_at)}
-                      {item.category ? ` · ${COMM_CATEGORY_LABELS[item.category] || item.category}` : ''}
-                    </span>
+                )}
+
+                <div className="cm-row2">
+                  <div className="cm-field">
+                    <label className="cm-label" htmlFor="commTitle">Title</label>
+                    <input
+                      id="commTitle"
+                      className="cm-input"
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="e.g. Scholarship Examination Schedule Released"
+                      required
+                    />
                   </div>
-                  <button
-                    type="button"
-                    className="announce-del"
-                    disabled={deletingId === item.id}
-                    onClick={() => handleDelete(item.id)}
-                    title="Delete announcement"
-                  >
-                    🗑
-                  </button>
+                  <div className="cm-field">
+                    <label className="cm-label" htmlFor="commCategory">Category</label>
+                    <select id="commCategory" className="cm-input" value={category} onChange={(e) => setCategory(e.target.value)}>
+                      {COMM_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {COMM_CATEGORY_LABELS[c]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              )
+
+                <div className="cm-field">
+                  <label className="cm-label" htmlFor="commBody">Message</label>
+                  <textarea
+                    id="commBody"
+                    className="cm-input cm-textarea"
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    rows={6}
+                    placeholder={commType === 'announcement' ? 'Write the announcement…' : 'Write the message to applicants…'}
+                    required
+                  />
+                </div>
+
+                <div className={`cm-scope ${commType}`}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 16v-4M12 8h.01" />
+                  </svg>
+                  <span>
+                    {commType === 'announcement'
+                      ? 'Public. Shows on the guest (public) page and in every applicant’s portal as soon as you publish.'
+                      : 'Private. Goes to the selected recipients’ Messages in the Applicant Portal. Never shown on the public page.'}
+                  </span>
+                </div>
+
+                {postError && <p className="cm-error">{postError}</p>}
+                <button type="submit" disabled={posting} className="cm-btn cm-btn-primary cm-btn-block">
+                  {posting
+                    ? commType === 'announcement' ? 'Posting…' : 'Sending…'
+                    : commType === 'announcement' ? 'Publish announcement' : 'Send message'}
+                </button>
+              </>
             )}
+          </form>
+        </section>
+
+        <section className="cm-card">
+          <div className="cm-head cm-head-wrap">
+            <div className="cm-head-left">
+              <h2 className="cm-title">Posted</h2>
+              <span className="tag">{items.length} total</span>
+            </div>
+            <div className="cm-tabs" role="group" aria-label="Filter posts by type">
+              {[
+                ['all', 'All'],
+                ['announcement', 'Announcements'],
+                ['message', 'Messages'],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`cm-tab${feedType === key ? ' on' : ''}`}
+                  aria-pressed={feedType === key}
+                  onClick={() => setFeedType(key)}
+                >
+                  {label} <span className="cm-tab-count">{feedTypeCount(key)}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        )}
+          <div className="cm-filters">
+            <input
+              type="search"
+              className="cm-input"
+              aria-label="Search posts"
+              placeholder="Search by title, message or applicant…"
+              value={feedSearch}
+              onChange={(e) => setFeedSearch(e.target.value)}
+            />
+            <select
+              className="cm-input cm-filter-cat"
+              aria-label="Filter by category"
+              value={feedCategory}
+              onChange={(e) => setFeedCategory(e.target.value)}
+            >
+              <option value="all">All categories</option>
+              {feedCategories.map((c) => (
+                <option key={c} value={c}>{categoryLabel(c)}</option>
+              ))}
+            </select>
+          </div>
+
+          {loading ? (
+            <p className="text-sm text-ccc-muted text-center py-8">Loading…</p>
+          ) : error ? (
+            <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+          ) : items.length === 0 ? (
+            <p className="text-sm text-ccc-muted text-center py-8">Nothing posted yet.</p>
+          ) : feed.length === 0 ? (
+            <p className="text-sm text-ccc-muted text-center py-8">No posts match your search and filters.</p>
+          ) : (
+            <div>
+              {feed.map((item) => {
+                const isMsg = item.type === 'message'
+                const long = (item.body || '').length > 170
+                const open = expandedIds.includes(item.id)
+                return (
+                  <article key={item.id} className="cm-item">
+                    <span className={`cm-item-icon ${isMsg ? 'message' : 'announcement'}`}>
+                      {isMsg ? <IconMail /> : <IconMegaphone />}
+                    </span>
+                    <div className="cm-item-main">
+                      <h3 className="cm-item-title">{item.title}</h3>
+                      <div className="cm-chips">
+                        <span className={`cm-chip ${isMsg ? 'message' : 'announcement'}`}>{isMsg ? 'Message' : 'Announcement'}</span>
+                        <span className="cm-chip target">{targetLabel(item)}</span>
+                        {item.category && <span className="cm-chip cat">{categoryLabel(item.category)}</span>}
+                      </div>
+                      <p className={`cm-item-body${long && !open ? ' clamp' : ''}`}>{item.body}</p>
+                      <div className="cm-item-meta">
+                        <span>
+                          {item.author} · {formatWhen(item.created_at)}
+                        </span>
+                        {long && (
+                          <button
+                            type="button"
+                            className="cm-more"
+                            onClick={() =>
+                              setExpandedIds((prev) => (prev.includes(item.id) ? prev.filter((x) => x !== item.id) : [...prev, item.id]))
+                            }
+                          >
+                            {open ? 'Show less' : 'Show more'}
+                          </button>
+                        )}
+                      </div>
+                      {confirmDeleteId === item.id && (
+                        <div className="cm-confirm">
+                          <span>
+                            {isMsg
+                              ? `Delete this message? ${targetLabel(item)} will no longer see it.`
+                              : 'Delete this announcement? It disappears from the guest page and every portal.'}
+                          </span>
+                          <span className="cm-confirm-actions">
+                            <button type="button" className="cm-btn cm-btn-secondary" onClick={() => setConfirmDeleteId(null)}>
+                              Keep it
+                            </button>
+                            <button
+                              type="button"
+                              className="cm-btn cm-btn-danger"
+                              disabled={deletingId === item.id}
+                              onClick={async () => {
+                                await handleDelete(item.id)
+                                setConfirmDeleteId(null)
+                              }}
+                            >
+                              {deletingId === item.id ? 'Deleting…' : 'Delete'}
+                            </button>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="cm-del"
+                      disabled={deletingId === item.id}
+                      onClick={() => setConfirmDeleteId(item.id)}
+                      title={isMsg ? 'Delete message' : 'Delete announcement'}
+                      aria-label={`Delete ${item.title}`}
+                    >
+                      <IconTrash />
+                    </button>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   )
 }
 
-// ---------- Admin Accounts panel (new, real, read-only) ----------
+function IconMegaphone() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m3 11 18-5v12L3 14v-3z" />
+      <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+    </svg>
+  )
+}
+
+function IconMail() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m22 7-10 6L2 7" />
+    </svg>
+  )
+}
+
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" />
+    </svg>
+  )
+}
+
 
 function AdminAccountsPanel() {
   const [accounts, setAccounts] = useState([])
@@ -3579,17 +4218,29 @@ function AdminAccountsPanel() {
     return expired ? 'expired' : 'pending'
   }
 
+  // Oct 3 2026 redesign: summary row, invite form beside an accounts table,
+  // role picked with two cards, labeled Reset password / Remove buttons and
+  // a restyled password check. Same rules and requests as before.
+  const superCount = accounts.filter((a) => a.is_super_admin).length
+  const waitingCount = accounts.filter((a) => pendingState(a)).length
+  const confirmTone = confirmAction?.type === 'remove' ? 'danger' : 'primary'
+  const confirmLabel =
+    confirmAction?.type === 'invite' ? 'Invite' : confirmAction?.type === 'reset' ? 'Send new password' : 'Remove'
+
   return (
     <div>
-      <div className="portal-header">
+      <div className="portal-header aa-header">
         <div>
           <h1>Admin Accounts</h1>
           <p>
-            Super admin only. Invite an Admin or Super Admin below. They&apos;ll get an email with a temporary
-            password and choose their own when they first sign in. Inviting, resetting and removing accounts all
-            ask for your password first.
+            Invite and manage the people who can use this admin console. They&apos;ll get an email with a temporary
+            password and choose their own when they first sign in. Inviting, resetting and removing accounts all ask for
+            your password first.
           </p>
         </div>
+        <span className="aa-super-chip">
+          <IconShield className="w-3.5 h-3.5" /> Super Admin only
+        </span>
       </div>
 
       {/* Oct 1 2026: plain success/failure notices are toasts; a notice
@@ -3598,185 +4249,245 @@ function AdminAccountsPanel() {
         <AdminToast message={notice.text} tone={notice.tone === 'done' ? 'success' : 'error'} onDone={() => setNotice(null)} />
       )}
       {notice && notice.tempPassword && (
-        <div
-          className={`mb-4 rounded-xl border px-4 py-3 text-xs font-semibold ${
-            notice.tone === 'done'
-              ? 'border-ccc-green/40 bg-green-50 text-ccc-green'
-              : 'border-ccc-orange/50 bg-orange-50 text-ccc-orange'
-          }`}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <span>{notice.text}</span>
-            <button type="button" onClick={() => setNotice(null)} className="text-ccc-muted hover:text-ccc-text" aria-label="Dismiss">
-              ✕
-            </button>
-          </div>
-          {notice.tempPassword && (
-            <div className="mt-2 flex items-center gap-2">
-              <code className="rounded-md border border-ccc-border bg-white px-3 py-1.5 text-sm font-bold tracking-wider text-ccc-text">
-                {notice.tempPassword}
-              </code>
+        <div className={`aa-temp ${notice.tone === 'done' ? 'done' : 'warn'}`}>
+          <IconAlertTriangle className="w-5 h-5 shrink-0" />
+          <div className="aa-temp-main">
+            <span className="aa-temp-text">{notice.text}</span>
+            <span className="aa-temp-row">
+              <code className="aa-temp-code">{notice.tempPassword}</code>
               <CopyHashButton hash={notice.tempPassword} label="Copy" />
-            </div>
-          )}
+            </span>
+          </div>
+          <button type="button" onClick={() => setNotice(null)} className="aa-temp-x" aria-label="Dismiss">
+            &#10005;
+          </button>
         </div>
       )}
 
-      <div className="card">
-        <div className="card-title">Add Admin Account</div>
-        {formError && (
-          <div className="mb-4 rounded-xl border border-ccc-red/40 bg-red-50 px-4 py-2.5 text-xs font-semibold text-ccc-red">
-            {formError}
+      {!loading && !error && (
+        <div className="cm-card cm-kpis">
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Accounts</span>
+            <span className="cm-kpi-value">{accounts.length}</span>
           </div>
-        )}
-        <form className="add-admin-form" onSubmit={requestInvite}>
-          <div className="efield">
-            <label>Full Name</label>
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Grace Villanueva"
-              required
-            />
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Super Admins</span>
+            <span className="cm-kpi-value">{superCount}</span>
           </div>
-          <div className="efield">
-            <label>Email</label>
-            <input
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="name@ccc.edu.ph"
-              required
-            />
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Admins</span>
+            <span className="cm-kpi-value">{accounts.length - superCount}</span>
           </div>
-          <div className="efield">
-            <label>Role</label>
-            <select value={newRole} onChange={(e) => setNewRole(e.target.value)}>
-              <option value="admin">Admin</option>
-              <option value="super_admin">Super Admin</option>
-            </select>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Waiting to set a password</span>
+            <span className="cm-kpi-value">{waitingCount}</span>
           </div>
-          <button
-            type="submit"
-            className="text-xs font-bold uppercase tracking-wide text-white bg-ccc-navy px-4 py-2.5 rounded-lg"
-          >
-            Invite
-          </button>
-        </form>
-      </div>
-
-      <div className="card" style={{ marginBottom: 0 }}>
-        <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>Current Accounts</span>
-          {!loading && !error && (
-            <span className="badge badge-notsubmitted">
-              {accounts.length} account{accounts.length === 1 ? '' : 's'}
-            </span>
-          )}
         </div>
-        {loading ? (
-          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
-        ) : error ? (
-          <p className="text-sm text-ccc-red text-center py-8">{error}</p>
-        ) : accounts.length === 0 ? (
-          <p className="text-sm text-ccc-muted text-center py-8">No admin accounts found.</p>
-        ) : (
-          <div className="admin-list">
-            {accounts.map((acc) => {
-              const isSelf = acc.email.toLowerCase() === myEmail
-              const pending = pendingState(acc)
-              return (
-                <div key={acc.email} className="admin-row">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '13px', width: '100%' }}>
-                    <div className="aa-avatar">{getInitials(acc.name)}</div>
-                    <div className="aa-info">
-                      <div className="aa-name">
-                        {acc.name}
-                        {isSelf && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-ccc-muted">You</span>}
-                      </div>
-                      <div className="aa-email">{acc.email}</div>
-                    </div>
-                    {pending && (
-                      <span
-                        className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                          pending === 'expired'
-                            ? 'border-ccc-red/40 bg-red-50 text-ccc-red'
-                            : 'border-ccc-orange/50 bg-orange-50 text-ccc-orange'
-                        }`}
-                        title={
-                          pending === 'expired'
-                            ? 'Their temporary password expired. Use Reset to send a new one.'
-                            : 'Invited. Waiting for them to sign in and choose their own password.'
-                        }
-                      >
-                        {pending === 'expired' ? 'Invite expired' : 'Pending setup'}
-                      </span>
-                    )}
-                    <span className={`role-tag ${acc.is_super_admin ? 'super' : 'admin'}`}>
-                      {acc.is_super_admin ? 'Super Admin' : 'Admin'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => requestReset(acc)}
-                      disabled={isSelf}
-                      className="flex items-center justify-center w-8 h-8 rounded-lg text-sm text-ccc-blue hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      title={isSelf ? "You can't reset your own password here." : 'Email a new temporary password'}
-                    >
-                      🔑
-                    </button>
-                    <button
-                      type="button"
-                      className={`admin-row-del${isSelf ? ' is-disabled' : ''}`}
-                      onClick={() => requestRemove(acc)}
-                      disabled={isSelf}
-                      title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
-                    >
-                      🗑
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
+      )}
+
+      <div className="cm-layout aa-layout">
+        <section className="cm-card">
+          <div className="cm-head">
+            <h2 className="cm-title">Invite an admin</h2>
           </div>
-        )}
+          <form className="cm-form" onSubmit={requestInvite}>
+            {formError && <div className="aa-form-error">{formError}</div>}
+            <div className="cm-field">
+              <label className="cm-label" htmlFor="aaName">Full name</label>
+              <input id="aaName" className="cm-input" type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g. Grace Villanueva" required />
+            </div>
+            <div className="cm-field">
+              <label className="cm-label" htmlFor="aaEmail">Email</label>
+              <input id="aaEmail" className="cm-input" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="name@ccc.edu.ph" required />
+            </div>
+            <div className="cm-field">
+              <span className="cm-label" id="aaRoleLabel">Role</span>
+              <div className="aa-roles" role="group" aria-labelledby="aaRoleLabel">
+                {[
+                  { key: 'admin', label: 'Admin', desc: 'Reviews applicants, results, schedules, requests and communications.' },
+                  { key: 'super_admin', label: 'Super Admin', desc: 'Everything an Admin does, plus Admin Accounts and System & Activity.' },
+                ].map((r) => (
+                  <button
+                    key={r.key}
+                    type="button"
+                    className={`cm-type aa-role${newRole === r.key ? ' on' : ''}`}
+                    aria-pressed={newRole === r.key}
+                    onClick={() => setNewRole(r.key)}
+                  >
+                    <span className="cm-type-text">
+                      <span className="cm-type-name">{r.label}</span>
+                      <span className="cm-type-desc">{r.desc}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="cm-scope muted">
+              <IconMail />
+              <span>They get an email with a temporary password and choose their own the first time they sign in.</span>
+            </div>
+            <button type="submit" className="cm-btn cm-btn-primary cm-btn-block">
+              Invite admin
+            </button>
+          </form>
+        </section>
+
+        <section className="cm-card">
+          <div className="cm-head">
+            <div className="cm-head-left">
+              <h2 className="cm-title">Current accounts</h2>
+              {!loading && !error && (
+                <span className="tag">
+                  {accounts.length} account{accounts.length === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
+          </div>
+          {loading ? (
+            <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+          ) : error ? (
+            <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+          ) : accounts.length === 0 ? (
+            <p className="text-sm text-ccc-muted text-center py-8">No admin accounts found.</p>
+          ) : (
+            <>
+              <div className="st-scroll">
+                <table className="st-table aa-table">
+                  <thead>
+                    <tr>
+                      <th>Account</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th className="r">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {accounts.map((acc) => {
+                      const isSelf = acc.email.toLowerCase() === myEmail
+                      const pending = pendingState(acc)
+                      return (
+                        <tr key={acc.email}>
+                          <td>
+                            <div className="aa-who">
+                              <span className={`aa-avatar-2${isSelf ? ' self' : ''}`}>{getInitials(acc.name)}</span>
+                              <span className="aa-who-text">
+                                <span className="aa-name-line">
+                                  <span className="aa-name-2">{acc.name}</span>
+                                  {isSelf && <span className="aa-you">You</span>}
+                                </span>
+                                <span className="aa-email-2">{acc.email}</span>
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`aa-chip ${acc.is_super_admin ? 'super' : 'admin'}`}>
+                              {acc.is_super_admin ? 'Super Admin' : 'Admin'}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className={`aa-chip status ${pending || 'active'}`}
+                              title={
+                                pending === 'expired'
+                                  ? 'Their temporary password expired. Use Reset password to send a new one.'
+                                  : pending === 'pending'
+                                    ? 'Invited. Waiting for them to sign in and choose their own password.'
+                                    : 'Signed in with their own password.'
+                              }
+                            >
+                              <span className="aa-dot" />
+                              {pending === 'expired' ? 'Invite expired' : pending === 'pending' ? 'Pending setup' : 'Active'}
+                            </span>
+                          </td>
+                          <td className="r">
+                            <span className="aa-actions">
+                              <button
+                                type="button"
+                                onClick={() => requestReset(acc)}
+                                disabled={isSelf}
+                                className="aa-act"
+                                title={isSelf ? "You can't reset your own password here." : 'Email a new temporary password'}
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <circle cx="8" cy="15" r="4" />
+                                  <path d="m11 12 9-9M17 6l3 3" />
+                                </svg>
+                                Reset password
+                              </button>
+                              <button
+                                type="button"
+                                className="aa-act danger"
+                                onClick={() => requestRemove(acc)}
+                                disabled={isSelf}
+                                title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
+                              >
+                                <IconTrash />
+                                Remove
+                              </button>
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="aa-foot">
+                You can&apos;t reset or remove your own account here. <b>Pending setup</b> means they haven&apos;t signed in to
+                choose a password yet; <b>Invite expired</b> means use Reset password to send a new one.
+              </div>
+            </>
+          )}
+        </section>
       </div>
 
-      {/* Password confirm pop-up, ported from Ivy's admin.html
-          (#adminActionPasswordOverlay). */}
+      {/* Password confirm pop-up (ported from Ivy's admin.html,
+          #adminActionPasswordOverlay), restyled Oct 3 2026. */}
       {confirmAction && (
         <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && closeConfirm()}>
-          <form className="confirm-box has-password" role="dialog" aria-modal="true" onSubmit={submitConfirm}>
-            <div className="confirm-icon">&#128274;</div>
-            <h3>{confirmAction.title}</h3>
-            <p>{confirmAction.desc}</p>
-            <div className="gate-field" style={{ position: 'relative' }}>
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Your password"
-                autoComplete="current-password"
-                autoFocus
-                style={{ paddingRight: 36 }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword((v) => !v)}
-                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
-                tabIndex={-1}
-              >
-                {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
-              </button>
+          <form className="aa-confirm" role="dialog" aria-modal="true" aria-label={confirmAction.title} onSubmit={submitConfirm}>
+            <div className="aa-confirm-body">
+              <span className={`aa-confirm-icon ${confirmTone}`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="5" y="11" width="14" height="9" rx="2" />
+                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+              </span>
+              <h3 className="aa-confirm-title">{confirmAction.title}</h3>
+              <p className="aa-confirm-desc">{confirmAction.desc}</p>
+              <label className="cm-label" htmlFor="aaConfirmPw">Your password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="aaConfirmPw"
+                  className="cm-input"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Your password"
+                  autoComplete="current-password"
+                  autoFocus
+                  style={{ paddingRight: 40 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
+              {confirmError && <p className="aa-confirm-error">{confirmError}</p>}
             </div>
-            {confirmError && <p className="confirm-password-error show">{confirmError}</p>}
-            <div className="confirm-actions">
-              <button type="button" className="mbtn mbtn-ghost" onClick={closeConfirm} disabled={confirmBusy}>
+            <div className="aa-confirm-foot">
+              <button type="button" className="cm-btn cm-btn-secondary" onClick={closeConfirm} disabled={confirmBusy}>
                 Cancel
               </button>
-              <button type="submit" className="mbtn mbtn-primary" disabled={confirmBusy}>
-                {confirmBusy ? 'Working...' : 'Confirm'}
+              <button type="submit" className={`cm-btn ${confirmTone === 'danger' ? 'cm-btn-danger' : 'cm-btn-primary'}`} disabled={confirmBusy}>
+                {confirmBusy ? 'Working...' : confirmLabel}
               </button>
             </div>
           </form>
@@ -3785,6 +4496,7 @@ function AdminAccountsPanel() {
     </div>
   )
 }
+
 
 // ---------- System & Activity panel ----------
 // Sept 22, 2026 rebuild: this used to be just the audit log (moved in from
@@ -4301,220 +5013,306 @@ function ExamSchedulesPanel() {
   }
 
   const schedules = data?.schedules || []
+  const batchSize = data?.batchSize || 100
+  const sentCount = schedules.filter((s) => s.sent_at).length
+  const scheduledCount = schedules.reduce((n, s) => n + s.applicants.length, 0)
+  const dateParts = (iso) => {
+    try {
+      const d = new Date(`${iso}T00:00:00+08:00`)
+      return {
+        mon: d.toLocaleDateString('en-PH', { month: 'short', timeZone: 'Asia/Manila' }).toUpperCase(),
+        day: d.toLocaleDateString('en-PH', { day: 'numeric', timeZone: 'Asia/Manila' }),
+        dow: d.toLocaleDateString('en-PH', { weekday: 'short', timeZone: 'Asia/Manila' }),
+      }
+    } catch {
+      return { mon: '', day: iso, dow: '' }
+    }
+  }
 
+  // Oct 3 2026 redesign: summary strip, the form beside the batches, and
+  // each batch as a card. Every action and rule is the same as before.
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Exam Schedules
-        </h1>
-        <p className="text-xs text-ccc-muted mt-0.5">
-          Create an entrance exam batch and send the schedule to its applicants. Batches fill with the next applicants in
-          submission order, up to {data?.batchSize || 100} per batch. Someone removed from a batch goes back to the waiting
-          list and is picked first for the next batch.
-        </p>
+      <div className="portal-header">
+        <div>
+          <h1>Exam Schedules</h1>
+          <p>
+            Create an entrance exam batch and send the schedule to its applicants. Batches fill with the next applicants in
+            submission order, up to {batchSize} per batch. Someone removed from a batch goes back to the waiting list and is
+            picked first for the next batch.
+          </p>
+        </div>
       </div>
 
       {error && <p className="text-sm text-ccc-red mb-3">{error}</p>}
       <AdminToast message={notice} onDone={() => setNotice('')} />
 
-      <div className="card">
-        <div className="card-title">
-          New Exam Batch
-          {data && (
-            <span className="tag" style={{ marginLeft: '10px' }}>
-              {data.waitingCount} applicant{data.waitingCount === 1 ? '' : 's'} waiting for a schedule
+      {data && (
+        <div className="cm-card cm-kpis">
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Waiting for a schedule</span>
+            <span className="cm-kpi-value">{data.waitingCount}</span>
+            <span className="cm-kpi-sub">Submitted applicants not in a batch</span>
+          </div>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Batches</span>
+            <span className="cm-kpi-value">{schedules.length}</span>
+            <span className="cm-kpi-sub">
+              {sentCount} sent · {schedules.length - sentCount} not sent yet
             </span>
-          )}
+          </div>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Applicants scheduled</span>
+            <span className="cm-kpi-value">{scheduledCount}</span>
+            <span className="cm-kpi-sub">Across all batches</span>
+          </div>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Batch size</span>
+            <span className="cm-kpi-value">{batchSize}</span>
+            <span className="cm-kpi-sub">Applicants per batch, max</span>
+          </div>
         </div>
-        <form onSubmit={createBatch} className="email-fields" style={{ marginBottom: 0 }}>
-          <div className="email-field-row">
-            <label>Batch name</label>
-            <input className="email-field-input" value={form.batchLabel} maxLength={80} placeholder="e.g. Batch 1"
-              onChange={(e) => setForm((f) => ({ ...f, batchLabel: e.target.value }))} />
+      )}
+
+      <div className="cm-layout es-layout">
+        <section className="cm-card cm-composer">
+          <div className="cm-head">
+            <h2 className="cm-title">New exam batch</h2>
           </div>
-          <div className="email-field-row">
-            <label>Exam date</label>
-            <input className="email-field-input" type="date" value={form.examDate}
-              onChange={(e) => setForm((f) => ({ ...f, examDate: e.target.value }))} />
-          </div>
-          <div className="email-field-row">
-            <label>Start time (optional)</label>
-            <input className="email-field-input" type="time" value={form.startTime}
-              onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} />
-          </div>
-          <div className="email-field-row">
-            <label>End time (optional)</label>
-            <input className="email-field-input" type="time" value={form.endTime}
-              onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} />
-          </div>
-          <div className="email-field-row">
-            <label>Venue (optional)</label>
-            <input className="email-field-input" value={form.venue} maxLength={150} placeholder="e.g. CCC Main Campus, Room 101"
-              onChange={(e) => setForm((f) => ({ ...f, venue: e.target.value }))} />
-          </div>
-          <div className="email-field-row">
-            <label>Notes for applicants (optional)</label>
-            <textarea className="email-field-input" rows={3} value={form.notes} maxLength={1000} placeholder="e.g. what to bring"
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
-          </div>
-          <div className="confirm-inline-actions" style={{ marginBottom: '8px' }}>
-            <button type="submit" className="mbtn mbtn-primary mbtn-sm" disabled={busy || !form.batchLabel.trim() || !form.examDate}>
+          <form onSubmit={createBatch} className="cm-form">
+            <div className="cm-field">
+              <label className="cm-label" htmlFor="esLabel">Batch name</label>
+              <input id="esLabel" className="cm-input" value={form.batchLabel} maxLength={80} placeholder="e.g. Batch 1"
+                onChange={(e) => setForm((f) => ({ ...f, batchLabel: e.target.value }))} />
+            </div>
+            <div className="cm-field">
+              <label className="cm-label" htmlFor="esDate">Exam date</label>
+              <input id="esDate" className="cm-input" type="date" value={form.examDate}
+                onChange={(e) => setForm((f) => ({ ...f, examDate: e.target.value }))} />
+            </div>
+            <div className="es-row2">
+              <div className="cm-field">
+                <label className="cm-label" htmlFor="esStart">Start <span className="cm-opt">(optional)</span></label>
+                <input id="esStart" className="cm-input" type="time" value={form.startTime}
+                  onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} />
+              </div>
+              <div className="cm-field">
+                <label className="cm-label" htmlFor="esEnd">End <span className="cm-opt">(optional)</span></label>
+                <input id="esEnd" className="cm-input" type="time" value={form.endTime}
+                  onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} />
+              </div>
+            </div>
+            <div className="cm-field">
+              <label className="cm-label" htmlFor="esVenue">Venue <span className="cm-opt">(optional)</span></label>
+              <input id="esVenue" className="cm-input" value={form.venue} maxLength={150} placeholder="e.g. CCC Main Campus, Room 101"
+                onChange={(e) => setForm((f) => ({ ...f, venue: e.target.value }))} />
+            </div>
+            <div className="cm-field">
+              <label className="cm-label" htmlFor="esNotes">Notes for applicants <span className="cm-opt">(optional)</span></label>
+              <textarea id="esNotes" className="cm-input cm-textarea" style={{ minHeight: 84 }} rows={3} value={form.notes} maxLength={1000}
+                placeholder="e.g. what to bring" onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <div className="cm-scope muted">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+              </svg>
+              <span>
+                The batch takes the next waiting applicants, up to {batchSize}. Nobody is notified until you click Send
+                schedule.
+              </span>
+            </div>
+            <button type="submit" className="cm-btn cm-btn-primary cm-btn-block" disabled={busy || !form.batchLabel.trim() || !form.examDate}>
               {busy ? 'Working...' : 'Create batch'}
             </button>
-          </div>
-        </form>
-      </div>
+          </form>
+        </section>
 
-      <div className="card" style={{ marginBottom: 0 }}>
-        <div className="card-title">
-          Batches
-          {!loading && (
-            <span className="tag" style={{ marginLeft: '10px' }}>
-              {schedules.length} batch{schedules.length === 1 ? '' : 'es'}
-            </span>
+        <section className="cm-card">
+          <div className="cm-head">
+            <div className="cm-head-left">
+              <h2 className="cm-title">Batches</h2>
+              {!loading && (
+                <span className="tag">
+                  {schedules.length} batch{schedules.length === 1 ? '' : 'es'}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+          ) : schedules.length === 0 ? (
+            <p className="text-sm text-ccc-muted text-center py-8">No exam batches yet.</p>
+          ) : (
+            <div className="es-list">
+              {schedules.map((s) => {
+                const isOpen = openId === s.id
+                const optedIn = s.applicants.filter((a) => a.email_updates_opt_in).length
+                const dp = dateParts(s.exam_date)
+                const pct = Math.min(100, Math.round((s.applicants.length / batchSize) * 100))
+                return (
+                  <article key={s.id} className="es-batch">
+                    <div className="es-batch-top">
+                      <div className="es-date" aria-label={fmtDate(s.exam_date)}>
+                        <span className="es-date-mon">{dp.mon}</span>
+                        <span className="es-date-day">{dp.day}</span>
+                        <span className="es-date-dow">{dp.dow}</span>
+                      </div>
+                      <div className="es-batch-main">
+                        <div className="es-batch-row">
+                          <div className="es-batch-info">
+                            <div className="es-name-line">
+                              <h3 className="es-name">{s.batch_label}</h3>
+                              <span className={`es-state ${s.sent_at ? 'sent' : 'draft'}`}>{s.sent_at ? 'Sent' : 'Not sent yet'}</span>
+                            </div>
+                            <div className="es-where">
+                              <span>
+                                <IconClock className="w-3.5 h-3.5" /> {s.exam_time || 'Time not set'}
+                              </span>
+                              <span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M12 21s-7-6.3-7-11a7 7 0 0 1 14 0c0 4.7-7 11-7 11z" />
+                                  <circle cx="12" cy="10" r="2.5" />
+                                </svg>{' '}
+                                {s.venue || 'Venue not set'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="es-actions">
+                            <button type="button" className="cm-btn cm-btn-secondary" onClick={() => setOpenId(isOpen ? null : s.id)}>
+                              {isOpen ? 'Hide applicants' : 'View applicants'}
+                            </button>
+                            {!s.sent_at && s.applicants.length < batchSize && data?.waitingCount > 0 && (
+                              <button type="button" className="cm-btn cm-btn-secondary" disabled={busy}
+                                onClick={() => simpleAction({ action: 'fill', scheduleId: s.id }, (j) => `Added ${j.added} applicant${j.added === 1 ? '' : 's'}.`)}>
+                                Fill up to {batchSize}
+                              </button>
+                            )}
+                            {!s.sent_at && (
+                              <button type="button" className="es-icon-btn" disabled={busy} aria-label={`Delete ${s.batch_label}`}
+                                title="Delete batch (its applicants go back to the waiting list)"
+                                onClick={() => {
+                                  if (window.confirm(`Delete ${s.batch_label}? Its applicants go back to the waiting list.`)) {
+                                    simpleAction({ action: 'delete', scheduleId: s.id }, 'Batch deleted.')
+                                  }
+                                }}>
+                                <IconTrash />
+                              </button>
+                            )}
+                            <button type="button" className="cm-btn cm-btn-primary" disabled={busy || s.applicants.length === 0}
+                              onClick={() => openSend(s.id)}>
+                              {s.sent_at ? 'Send again' : 'Send schedule'}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="es-capacity">
+                          <span className="es-bar" aria-hidden="true">
+                            <span style={{ width: `${Math.max(pct, s.applicants.length ? 2 : 0)}%` }} />
+                          </span>
+                          <span className="es-count">
+                            <b>{s.applicants.length}</b> / {batchSize} applicants
+                          </span>
+                          <span className="es-sub">{optedIn} of {s.applicants.length} opted in to email</span>
+                          <span className={`es-sub es-sent ${s.sent_at ? 'sent' : 'draft'}`}>
+                            {s.sent_at
+                              ? `Sent ${fmtDateTime(s.sent_at)}${s.sent_by ? ' by ' + s.sent_by : ''}`
+                              : 'Not sent yet. Applicants can still be changed.'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {sendBox && sendBox.scheduleId === s.id && (
+                      <div className="es-send">
+                        <div className="es-send-head">
+                          <b>
+                            Send schedule to {s.applicants.length} applicant{s.applicants.length === 1 ? '' : 's'}
+                          </b>
+                          <span>
+                            A private portal message to all of them, and an email to the {optedIn} who opted in.
+                          </span>
+                        </div>
+                        <div className="es-send-grid">
+                          <label className="cm-label" htmlFor={`esSubj${s.id}`}>Subject</label>
+                          <input id={`esSubj${s.id}`} className="cm-input" value={sendBox.subject} maxLength={150} disabled={!sendBox.editSubject}
+                            onChange={(e) => setSendBox((b) => ({ ...b, subject: e.target.value }))} />
+                          <button type="button" className="es-edit" onClick={() => setSendBox((b) => ({ ...b, editSubject: !b.editSubject }))}>
+                            {sendBox.editSubject ? 'Done' : 'Edit'}
+                          </button>
+                          <label className="cm-label es-top" htmlFor={`esMsg${s.id}`}>Message</label>
+                          <textarea id={`esMsg${s.id}`} className="cm-input cm-textarea" rows={9} value={sendBox.message} maxLength={4000}
+                            disabled={!sendBox.editMessage} onChange={(e) => setSendBox((b) => ({ ...b, message: e.target.value }))} />
+                          <button type="button" className="es-edit es-top" onClick={() => setSendBox((b) => ({ ...b, editMessage: !b.editMessage }))}>
+                            {sendBox.editMessage ? 'Done' : 'Edit'}
+                          </button>
+                        </div>
+                        {!s.sent_at && <div className="rq-warn">After sending, the applicants in this batch can no longer be changed.</div>}
+                        {sendBox.needsResend && <div className="rq-warn">This batch was already sent. Send it again to everyone in it?</div>}
+                        <div className="es-send-actions">
+                          <button type="button" className="cm-btn cm-btn-secondary" disabled={busy} onClick={() => setSendBox(null)}>
+                            Cancel
+                          </button>
+                          <button type="button" className="cm-btn cm-btn-primary" disabled={busy || !sendBox.subject.trim() || !sendBox.message.trim()} onClick={send}>
+                            {busy ? 'Sending...' : sendBox.needsResend ? 'Yes, send again' : 'Send'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {isOpen && (
+                      s.applicants.length === 0 ? (
+                        <p className="es-empty">No applicants in this batch.</p>
+                      ) : (
+                        <div className="es-table-wrap">
+                          <table className="st-table es-table">
+                            <thead>
+                              <tr>
+                                <th style={{ width: 44 }}>#</th>
+                                <th>Applicant</th>
+                                <th>Application No.</th>
+                                <th>Email updates</th>
+                                {!s.sent_at && <th />}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {s.applicants.map((a, i) => (
+                                <tr key={a.id}>
+                                  <td className="es-num">{i + 1}</td>
+                                  <td>
+                                    <span className="es-person">{a.applicant_name || '(no name)'}</span>
+                                    <span className="es-person-sub">{a.applicant_email}</span>
+                                  </td>
+                                  <td>{a.application_number || '-'}</td>
+                                  <td>
+                                    <span className={`es-opt ${a.email_updates_opt_in ? 'yes' : 'no'}`}>{a.email_updates_opt_in ? 'Yes' : 'No'}</span>
+                                  </td>
+                                  {!s.sent_at && (
+                                    <td className="r">
+                                      <button type="button" className="es-remove" disabled={busy}
+                                        onClick={() => simpleAction({ action: 'remove', scheduleId: s.id, applicationId: a.id }, 'Applicant removed from the batch.')}>
+                                        Remove
+                                      </button>
+                                    </td>
+                                  )}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )
+                    )}
+                  </article>
+                )
+              })}
+            </div>
           )}
-        </div>
-
-        {loading ? (
-          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
-        ) : schedules.length === 0 ? (
-          <p className="text-sm text-ccc-muted text-center py-8">No exam batches yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {schedules.map((s) => {
-              const isOpen = openId === s.id
-              const optedIn = s.applicants.filter((a) => a.email_updates_opt_in).length
-              return (
-                <div key={s.id} className="rounded-xl border border-ccc-border p-3.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-bold text-ccc-navy">{s.batch_label}</p>
-                      <p className="text-[11px] text-ccc-muted">
-                        {fmtDate(s.exam_date)}
-                        {s.exam_time ? `, ${s.exam_time}` : ''}
-                        {s.venue ? `, ${s.venue}` : ''}
-                      </p>
-                      <p className="text-[11px] text-ccc-muted">
-                        {s.applicants.length} applicant{s.applicants.length === 1 ? '' : 's'} ({optedIn} opted in to email)
-                        {s.sent_at ? `. Sent ${fmtDateTime(s.sent_at)}${s.sent_by ? ' by ' + s.sent_by : ''}.` : '. Not sent yet.'}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" className="mbtn mbtn-ghost mbtn-sm" onClick={() => setOpenId(isOpen ? null : s.id)}>
-                        {isOpen ? 'Hide applicants' : 'View applicants'}
-                      </button>
-                      {!s.sent_at && s.applicants.length < (data?.batchSize || 100) && data?.waitingCount > 0 && (
-                        <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={busy}
-                          onClick={() => simpleAction({ action: 'fill', scheduleId: s.id }, (j) => `Added ${j.added} applicant${j.added === 1 ? '' : 's'}.`)}>
-                          Fill up to {data?.batchSize || 100}
-                        </button>
-                      )}
-                      {!s.sent_at && (
-                        <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={busy}
-                          onClick={() => {
-                            if (window.confirm(`Delete ${s.batch_label}? Its applicants go back to the waiting list.`)) {
-                              simpleAction({ action: 'delete', scheduleId: s.id }, 'Batch deleted.')
-                            }
-                          }}>
-                          Delete
-                        </button>
-                      )}
-                      <button type="button" className="mbtn mbtn-primary mbtn-sm" disabled={busy || s.applicants.length === 0}
-                        onClick={() => openSend(s.id)}>
-                        {s.sent_at ? 'Send again' : 'Send schedule'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {sendBox && sendBox.scheduleId === s.id && (
-                    <div className="confirm-inline show" style={{ marginTop: '12px' }}>
-                      <p>
-                        This sends a private message to all {s.applicants.length} applicant{s.applicants.length === 1 ? '' : 's'} in this
-                        batch, and an email to the {optedIn} who opted in.
-                      </p>
-                      <div className="email-fields">
-                        <div className="email-field-row">
-                          <label>Subject</label>
-                          <div className="email-field-input-wrap">
-                            <input className="email-field-input" value={sendBox.subject} maxLength={150} disabled={!sendBox.editSubject}
-                              onChange={(e) => setSendBox((b) => ({ ...b, subject: e.target.value }))} />
-                            <button type="button" className="mbtn mbtn-ghost mbtn-sm email-field-edit-btn"
-                              onClick={() => setSendBox((b) => ({ ...b, editSubject: !b.editSubject }))}>
-                              {sendBox.editSubject ? 'Done' : 'Edit'}
-                            </button>
-                          </div>
-                        </div>
-                        <div className="email-field-row">
-                          <label>Message</label>
-                          <div className="email-field-input-wrap">
-                            <textarea className="email-field-input" rows={9} value={sendBox.message} maxLength={4000} disabled={!sendBox.editMessage}
-                              onChange={(e) => setSendBox((b) => ({ ...b, message: e.target.value }))} />
-                            <button type="button" className="mbtn mbtn-ghost mbtn-sm email-field-edit-btn"
-                              onClick={() => setSendBox((b) => ({ ...b, editMessage: !b.editMessage }))}>
-                              {sendBox.editMessage ? 'Done' : 'Edit'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                      {!s.sent_at && <p>After sending, the applicants in this batch can no longer be changed.</p>}
-                      {sendBox.needsResend && <p>This batch was already sent. Send it again to everyone in it?</p>}
-                      <div className="confirm-inline-actions">
-                        <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={busy} onClick={() => setSendBox(null)}>Cancel</button>
-                        <button type="button" className="mbtn mbtn-primary mbtn-sm" disabled={busy || !sendBox.subject.trim() || !sendBox.message.trim()} onClick={send}>
-                          {busy ? 'Sending...' : sendBox.needsResend ? 'Yes, send again' : 'Send'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {isOpen && (
-                    s.applicants.length === 0 ? (
-                      <p className="text-[11px] text-ccc-muted mt-3">No applicants in this batch.</p>
-                    ) : (
-                      <table className="applicant-table" style={{ marginTop: '12px' }}>
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>Applicant</th>
-                            <th>Application No.</th>
-                            <th>Email updates</th>
-                            {!s.sent_at && <th></th>}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {s.applicants.map((a, i) => (
-                            <tr key={a.id}>
-                              <td>{i + 1}</td>
-                              <td>
-                                <div className="font-bold">{a.applicant_name || '(no name)'}</div>
-                                <div className="text-[11px] text-ccc-muted">{a.applicant_email}</div>
-                              </td>
-                              <td>{a.application_number || '-'}</td>
-                              <td>{a.email_updates_opt_in ? 'Yes' : 'No'}</td>
-                              {!s.sent_at && (
-                                <td>
-                                  <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={busy}
-                                    onClick={() => simpleAction({ action: 'remove', scheduleId: s.id, applicationId: a.id }, 'Applicant removed from the batch.')}>
-                                    Remove
-                                  </button>
-                                </td>
-                              )}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
+        </section>
       </div>
     </div>
   )
 }
+
 
 // ---------- Reschedule requests (Notifications Module, admin side) ----------
 
@@ -4640,6 +5438,29 @@ function ReschedulePanel() {
           )}
         </div>
 
+        {/* Oct 3 2026 redesign: status tabs replace the Status dropdown. */}
+        <div className="apl-tabs" role="group" aria-label="Filter requests by status">
+          {[
+            ['all', 'All'],
+            ['submitted', 'Awaiting review'],
+            ['approved', 'Approved'],
+            ['declined', 'Declined'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={`apl-tab${statusFilter === key ? ' active' : ''}`}
+              aria-pressed={statusFilter === key}
+              onClick={() => setStatusFilter(key)}
+            >
+              {label}
+              <span className="apl-tab-count">
+                {key === 'all' ? requests.length : requests.filter((r) => r.status === key).length}
+              </span>
+            </button>
+          ))}
+        </div>
+
         <div className="reviewer-note">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
@@ -4681,14 +5502,6 @@ function ReschedulePanel() {
               </select>
             </>
           )}
-          <span className="filter-divider"></span>
-          <span className="filter-bar-label">Status</span>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="all">All</option>
-            <option value="submitted">Awaiting review</option>
-            <option value="approved">Approved</option>
-            <option value="declined">Declined</option>
-          </select>
           {filtersActive && (
             <button
               type="button"
@@ -4716,8 +5529,9 @@ function ReschedulePanel() {
           <table className="applicant-table">
             <thead>
               <tr>
-                <th style={{ width: '26%' }}>Applicant</th>
+                <th style={{ width: '24%' }}>Applicant</th>
                 <th>Request</th>
+                <th style={{ width: '15%' }}>Attachment</th>
                 <th
                   className="sortable-th"
                   style={{ width: '17%' }}
@@ -4761,22 +5575,28 @@ function ReschedulePanel() {
                     </div>
                   </td>
                   <td>
-                    <div className="text-xs font-bold text-ccc-navy">{r.request_type}</div>
+                    <div className="rq-type-line">
+                      <span className="text-xs font-bold text-ccc-navy">{r.request_type}</span>
+                      {/reschedule/i.test(r.request_type || '') && <span className="rq-req-tag">Document required</span>}
+                    </div>
                     <div className="text-xs text-ccc-muted mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                       {r.details}
                     </div>
+                  </td>
+                  <td>
                     {r.supporting_document_url ? (
-                      <a
-                        href={r.supporting_document_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-block text-xs font-bold text-ccc-blue underline mt-1.5"
-                      >
-                        &#128206; View supporting document
-                      </a>
+                      <span className="rq-attach">
+                        <span className={`rq-thumb ${docKindOf(r.supporting_document_url)}`} aria-hidden="true">
+                          <i /><i /><i /><i />
+                          <b>{docExtOf(r.supporting_document_url)}</b>
+                        </span>
+                        <span className="rq-attach-text">
+                          <span className="rq-attach-kind">{docKindOf(r.supporting_document_url) === 'pdf' ? 'PDF' : docKindOf(r.supporting_document_url) === 'image' ? 'Image' : 'File'}</span>
+                          <span className="rq-attach-sub">Preview inside</span>
+                        </span>
+                      </span>
                     ) : (
-                      <div className="text-[11px] text-ccc-muted mt-1.5">No supporting document attached.</div>
+                      <span className="text-[11px] text-ccc-muted">None attached</span>
                     )}
                   </td>
                   <td className="text-xs text-ccc-muted whitespace-nowrap">{formatWhen(r.created_at)}</td>
@@ -4820,6 +5640,27 @@ function RequestStatusBadge({ status }) {
 // Review pop-up (same look as the Admin Accounts confirm pop-up, ported from
 // Ivy's admin.html). Awaiting requests: note + Decline / Approve. Decided
 // requests: read-only summary with the note and the next step.
+// Oct 3 2026 redesign (Ivy's suggestion): the supporting document shows
+// right inside the window, on the left, instead of behind a link. Images
+// are shown directly, PDFs in an embedded viewer (same as the Dashboard's
+// document cards); "Open in a new tab" keeps the old link's behavior.
+function docExtOf(url) {
+  try {
+    const path = new URL(url).pathname
+    const m = path.match(/\.([a-z0-9]+)$/i)
+    return m ? m[1].toUpperCase().slice(0, 4) : 'FILE'
+  } catch {
+    return 'FILE'
+  }
+}
+
+function docKindOf(url) {
+  const ext = docExtOf(url)
+  if (ext === 'PDF') return 'pdf'
+  if (['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'HEIC', 'BMP'].includes(ext)) return 'image'
+  return 'file'
+}
+
 function RequestReviewDialog({ request: r, note, onNote, saving, onDecide, onClose }) {
   const decided = r.status === 'approved' || r.status === 'declined'
   const badge = REQUEST_STATUS_BADGE[r.status] || REQUEST_STATUS_BADGE.submitted
@@ -4831,6 +5672,10 @@ function RequestReviewDialog({ request: r, note, onNote, saving, onDecide, onClo
       : r.status === 'approved' && isAppeal
         ? 'Update the applicant\u2019s status in Applicant Results.'
         : null
+  const docUrl = r.supporting_document_url
+  const kind = docUrl ? docKindOf(docUrl) : null
+  const [zoom, setZoom] = useState(100)
+  const [imgFailed, setImgFailed] = useState(false)
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -4838,86 +5683,153 @@ function RequestReviewDialog({ request: r, note, onNote, saving, onDecide, onClo
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const label = { fontSize: '10.5px', fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--navy)' }
-
   return (
-    <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="confirm-box" role="dialog" aria-modal="true" aria-label="Review request" style={{ maxWidth: 520, textAlign: 'left' }}>
-        <div className="flex items-start justify-between gap-3">
-          <div style={{ minWidth: 0 }}>
-            <h3 style={{ marginBottom: 2 }}>{r.request_type}</h3>
-            <div className="text-xs text-ccc-muted" style={{ overflowWrap: 'anywhere' }}>
-              {[r.applicant_name, r.application_number].filter(Boolean).join(' \u00b7 ')} &middot; Sent {formatWhen(r.created_at)}
+    <div className="confirm-overlay open rq-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="rq-window" role="dialog" aria-modal="true" aria-label="Review request">
+        <div className="rq-head">
+          <div className="rq-head-who">
+            <span className="rq-head-avatar">{getInitials(r.applicant_name)}</span>
+            <div style={{ minWidth: 0 }}>
+              <div className="rq-head-line">
+                <h3 className="rq-head-title">{r.request_type}</h3>
+                <span className={`badge whitespace-nowrap ${badge.cls}`}>{badge.label}</span>
+              </div>
+              <div className="rq-head-meta">
+                {[r.applicant_name, r.application_number, r.applicant_email].filter(Boolean).join(' \u00b7 ')} &middot; Sent{' '}
+                {formatWhen(r.created_at)}
+              </div>
             </div>
           </div>
-          <span className={`badge whitespace-nowrap ${badge.cls}`}>{badge.label}</span>
+          <button type="button" className="rq-close" aria-label="Close" onClick={onClose}>
+            &#10005;
+          </button>
         </div>
 
-        <div className="mt-4" style={label}>Details</div>
-        <div className="text-[13px] text-ccc-text mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-          {r.details || 'No details given.'}
-        </div>
-        <div className="mt-2">
-          {r.supporting_document_url ? (
-            <a href={r.supporting_document_url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-ccc-blue underline">
-              &#128206; View supporting document
-            </a>
-          ) : (
-            <span className="text-xs text-ccc-muted">No supporting document attached.</span>
-          )}
-        </div>
-
-        {decided ? (
-          <>
-            <div className="mt-4" style={label}>Decision</div>
-            <div className="text-[13px] text-ccc-text mt-1">
-              {badge.label}
-              {r.decided_by ? ` by ${r.decided_by}` : ''}
-              {r.decided_at ? `, ${formatWhen(r.decided_at)}` : ''}
+        <div className="rq-body">
+          <div className="rq-doc">
+            <div className="rq-doc-bar">
+              <span className="rq-doc-name">
+                <span className="rq-label">Supporting document</span>
+                <span>{docUrl ? (kind === 'pdf' ? 'PDF document' : `${kind === 'image' ? 'Image' : 'File'} (${docExtOf(docUrl)})`) : 'None attached'}</span>
+              </span>
+              {docUrl && (
+                <span className="rq-doc-tools">
+                  {kind === 'image' && (
+                    <>
+                      <button type="button" className="rq-tool" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(50, z - 25))}>
+                        &minus;
+                      </button>
+                      <span className="rq-zoom">{zoom}%</span>
+                      <button type="button" className="rq-tool" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(250, z + 25))}>
+                        +
+                      </button>
+                    </>
+                  )}
+                  <a className="rq-tool rq-tool-wide" href={docUrl} target="_blank" rel="noopener noreferrer">
+                    <IconExternal className="w-3.5 h-3.5" /> Open in a new tab
+                  </a>
+                </span>
+              )}
             </div>
-            {r.decision_note && (
-              <div className="text-[13px] text-ccc-text mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-                Note to applicant: {r.decision_note}
+            <div className="rq-doc-view">
+              {!docUrl ? (
+                <div className="rq-doc-empty">
+                  <IconFile className="w-10 h-10" />
+                  <b>No supporting document</b>
+                  <span>
+                    The applicant didn&rsquo;t attach a file. A document is only required for Reschedule Examination
+                    (Absence).
+                  </span>
+                </div>
+              ) : kind === 'image' && !imgFailed ? (
+                <img
+                  src={docUrl}
+                  alt={`Supporting document from ${r.applicant_name || 'the applicant'}`}
+                  className="rq-doc-img"
+                  style={{ width: `${zoom}%` }}
+                  onError={() => setImgFailed(true)}
+                />
+              ) : kind === 'pdf' ? (
+                <iframe src={docUrl} title="Supporting document" className="rq-doc-frame" />
+              ) : (
+                <div className="rq-doc-empty">
+                  <IconFile className="w-10 h-10" />
+                  <b>{imgFailed ? 'Couldn\u2019t load the preview' : 'Preview not available for this file type'}</b>
+                  <span>Use &ldquo;Open in a new tab&rdquo; above to see the file.</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rq-side">
+            <div className="rq-side-main">
+              <div>
+                <div className="rq-label">Details from the applicant</div>
+                <div className="rq-details">{r.details || 'No details given.'}</div>
               </div>
-            )}
-            {nextStep && <div className="text-xs text-ccc-muted mt-2">Next: {nextStep}</div>}
-            <div className="confirm-actions" style={{ marginTop: 22 }}>
-              <button type="button" className="mbtn mbtn-ghost" onClick={onClose}>
-                Close
-              </button>
+
+              {decided ? (
+                <div className={`rq-decision ${r.status}`}>
+                  <div className="rq-decision-top">
+                    <b>{badge.label}</b>
+                    <span>
+                      {r.decided_by ? `by ${r.decided_by}` : ''}
+                      {r.decided_at ? `, ${formatWhen(r.decided_at)}` : ''}
+                    </span>
+                  </div>
+                  {r.decision_note && (
+                    <div className="rq-decision-note">
+                      <b>Note to applicant:</b> {r.decision_note}
+                    </div>
+                  )}
+                  {nextStep && <div className="rq-next">Next: {nextStep}</div>}
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="rq-label" htmlFor="request-decision-note">
+                      Note to the applicant <span className="rq-opt">(optional)</span>
+                    </label>
+                    <textarea
+                      id="request-decision-note"
+                      value={note}
+                      onChange={(e) => onNote(e.target.value)}
+                      maxLength={500}
+                      rows={4}
+                      placeholder="e.g. Moved to the Oct 10 batch, or the reason for declining"
+                      className="rq-note"
+                      disabled={Boolean(saving)}
+                    />
+                    <div className="rq-count">{note.length} / 500</div>
+                  </div>
+                  <div className="rq-warn">
+                    The applicant sees this in their portal. Leave out private details. A decision can&rsquo;t be changed
+                    once saved.
+                  </div>
+                </>
+              )}
             </div>
-          </>
-        ) : (
-          <>
-            <label className="block mt-4" style={label} htmlFor="request-decision-note">
-              Note to the applicant <span className="text-ccc-muted" style={{ textTransform: 'none', fontWeight: 600 }}>(optional)</span>
-            </label>
-            <textarea
-              id="request-decision-note"
-              value={note}
-              onChange={(e) => onNote(e.target.value)}
-              maxLength={500}
-              rows={3}
-              placeholder="e.g. Moved to the Oct 10 batch, or the reason for declining"
-              className="w-full mt-1.5 text-[13px] border border-ccc-border rounded-md p-2"
-              disabled={Boolean(saving)}
-            />
-            <div className="text-[11px] text-ccc-muted mt-1">
-              The applicant sees this in their portal. Leave out private details. A decision can&rsquo;t be changed once saved.
+            <div className="rq-foot">
+              {decided ? (
+                <button type="button" className="cm-btn cm-btn-secondary" onClick={onClose}>
+                  Close
+                </button>
+              ) : (
+                <>
+                  <button type="button" className="cm-btn cm-btn-secondary" onClick={onClose} disabled={Boolean(saving)}>
+                    Cancel
+                  </button>
+                  <button type="button" className="cm-btn cm-btn-outline-red" onClick={() => onDecide('declined')} disabled={Boolean(saving)}>
+                    {saving === 'declined' ? 'Saving...' : 'Decline'}
+                  </button>
+                  <button type="button" className="cm-btn cm-btn-green" onClick={() => onDecide('approved')} disabled={Boolean(saving)}>
+                    {saving === 'approved' ? 'Saving...' : 'Approve'}
+                  </button>
+                </>
+              )}
             </div>
-            <div className="confirm-actions" style={{ marginTop: 20 }}>
-              <button type="button" className="mbtn mbtn-ghost" onClick={onClose} disabled={Boolean(saving)}>
-                Cancel
-              </button>
-              <button type="button" className="mbtn mbtn-danger" onClick={() => onDecide('declined')} disabled={Boolean(saving)}>
-                {saving === 'declined' ? 'Saving...' : 'Decline'}
-              </button>
-              <button type="button" className="mbtn mbtn-primary" onClick={() => onDecide('approved')} disabled={Boolean(saving)}>
-                {saving === 'approved' ? 'Saving...' : 'Approve'}
-              </button>
-            </div>
-          </>
-        )}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -4940,6 +5852,9 @@ function AdminPageInner() {
   const [recomputing, setRecomputing] = useState(false)
   const [adminName, setAdminName] = useState('')
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [adminEmail, setAdminEmail] = useState('')
+  const [confirmLogout, setConfirmLogout] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
   const [overriding, setOverriding] = useState(null)
   const [overrideError, setOverrideError] = useState('')
   const [activePanel, setActivePanel] = useState(initialPanel)
@@ -4978,6 +5893,7 @@ function AdminPageInner() {
         if (data.loggedIn) {
           setAdminName(data.name)
           setIsSuperAdmin(!!data.isSuperAdmin)
+          setAdminEmail(data.email || '')
         }
       })
       .catch(() => {})
@@ -5179,10 +6095,45 @@ function AdminPageInner() {
           activePanel={activePanel}
           onSelectPanel={setActivePanel}
           displayName={adminName}
+          email={adminEmail}
           isSuperAdmin={isSuperAdmin}
           flaggedCount={totalFlagged}
-          onLogout={handleLogout}
+          onLogout={() => setConfirmLogout(true)}
         />
+        {/* Oct 3 2026: log out asks first (was one click). */}
+        {confirmLogout && (
+          <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !loggingOut && setConfirmLogout(false)}>
+            <div className="aa-confirm" role="dialog" aria-modal="true" aria-label="Log out">
+              <div className="aa-confirm-body">
+                <h3 className="aa-confirm-title">Log out?</h3>
+                <p className="aa-confirm-desc">
+                  You&rsquo;ll need your email and password to sign in again. Any applicant you have open is released for
+                  other admins.
+                </p>
+              </div>
+              <div className="aa-confirm-foot">
+                <button type="button" className="cm-btn cm-btn-secondary" disabled={loggingOut} onClick={() => setConfirmLogout(false)} autoFocus>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="cm-btn cm-btn-primary"
+                  disabled={loggingOut}
+                  onClick={async () => {
+                    setLoggingOut(true)
+                    try {
+                      await handleLogout()
+                    } catch {
+                      setLoggingOut(false)
+                    }
+                  }}
+                >
+                  {loggingOut ? 'Logging out...' : 'Log out'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="portal-main">
           {activePanel === 'dashboard' && (

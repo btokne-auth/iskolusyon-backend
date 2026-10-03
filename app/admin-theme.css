@@ -3594,3 +3594,1985 @@
 .admin-portal .alog-time{flex-shrink:0;font-size:11px;color:var(--muted);white-space:nowrap}
 .admin-portal .alog-foot{text-align:center;font-size:11px;color:var(--muted);padding-top:12px}
 @media(max-width:640px){.admin-portal .alog-item{align-items:flex-start}.admin-portal .alog-live{margin-left:0;width:100%;margin-top:6px}}
+
+/* ── Oct 3 2026 redesign: Dashboard > All Applicants as a table with status
+   tabs (Ivy's applicant-table columns). Rows are real <button>s so the
+   keyboard and the review lock work the same as the old cards. ── */
+.admin-portal .apl-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 5px;
+  margin-bottom: 14px;
+  background: var(--off);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.admin-portal .apl-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11.5px;
+  color: #4f5f78;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.admin-portal .apl-tab:hover {
+  background: #eef3fd;
+  color: var(--navy);
+}
+.admin-portal .apl-tab:focus-visible {
+  outline: 2px solid var(--ccc-blue);
+  outline-offset: 2px;
+}
+.admin-portal .apl-tab.active,
+.admin-portal .apl-tab.active:hover {
+  background: var(--navy);
+  color: #fff;
+}
+.admin-portal .apl-tab-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  background: #e3e8f1;
+  color: var(--navy);
+}
+.admin-portal .apl-tab.active .apl-tab-count {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.admin-portal .apl-scroll {
+  overflow-x: auto;
+  margin: 0 -4px;
+  -webkit-overflow-scrolling: touch;
+}
+.admin-portal .apl-table {
+  min-width: 920px;
+  padding: 0 4px;
+}
+.admin-portal .apl-head,
+.admin-portal .apl-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.3fr) minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 1.2fr);
+  gap: 14px;
+  align-items: center;
+}
+.admin-portal .apl-head {
+  padding: 0 14px 10px;
+  border-bottom: 2px solid var(--border);
+}
+.admin-portal .apl-th {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  text-align: left;
+}
+.admin-portal .apl-th-sort {
+  cursor: pointer;
+  user-select: none;
+}
+.admin-portal .apl-th-sort:hover {
+  color: var(--ccc-blue);
+}
+.admin-portal .apl-th-right {
+  justify-content: flex-end;
+}
+.admin-portal .apl-row {
+  width: 100%;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.admin-portal .apl-row:hover {
+  background: var(--off);
+}
+.admin-portal .apl-row:focus-visible {
+  outline: 2px solid var(--ccc-blue);
+  outline-offset: -2px;
+}
+.admin-portal .apl-row:disabled {
+  cursor: progress;
+}
+.admin-portal .apl-row-locked,
+.admin-portal .apl-row-locked:hover {
+  background: #eef0f3;
+}
+.admin-portal .apl-row-locked .apl-name,
+.admin-portal .apl-row-locked .apl-main {
+  color: var(--muted);
+}
+.admin-portal .apl-row-locked .apl-avatar {
+  background: #e3e7ee;
+  color: var(--muted);
+}
+.admin-portal .apl-cell {
+  min-width: 0;
+  font-size: 12.3px;
+  color: var(--text);
+}
+.admin-portal .apl-who {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.admin-portal .apl-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #eef3fd;
+  color: var(--ccc-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 11.5px;
+  flex-shrink: 0;
+}
+.admin-portal .apl-who-text,
+.admin-portal .apl-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-portal .apl-name {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12.6px;
+  color: var(--navy);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-portal .apl-sub {
+  font-size: 10.8px;
+  color: #5a6b85;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-portal .apl-main {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.admin-portal .apl-main b {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+}
+.admin-portal .apl-lock-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin-top: 3px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 9.6px;
+  font-weight: 700;
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+.admin-portal .apl-lock-tag svg {
+  width: 10px;
+  height: 10px;
+}
+.admin-portal .apl-bar {
+  display: block;
+  max-width: 120px;
+  height: 5px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: #e9edf4;
+  overflow: hidden;
+}
+.admin-portal .apl-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ccc-gold);
+}
+.admin-portal .apl-bar > span.done {
+  background: var(--ccc-green);
+}
+.admin-portal .apl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.admin-portal .apl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 9.8px;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.admin-portal .apl-chip-flag {
+  background: #fbefc9;
+  color: #6b4e00;
+}
+.admin-portal .apl-chip-proc {
+  background: #eef3fd;
+  color: var(--ccc-blue);
+}
+.admin-portal .apl-chip-ok {
+  background: #e6f4ec;
+  color: #1a5c3a;
+}
+.admin-portal .apl-date {
+  font-size: 11.6px;
+  color: #5a6b85;
+  white-space: nowrap;
+}
+.admin-portal .apl-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.admin-portal .apl-pill {
+  font-family: "Montserrat", sans-serif;
+  font-size: 10.2px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 4px 11px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.admin-portal .apl-pill-green { background: #e6f4ec; color: #1a5c3a; }
+.admin-portal .apl-pill-gold { background: #fdf0dc; color: #7a4f0c; }
+.admin-portal .apl-pill-red { background: #fbe7e7; color: #902020; }
+.admin-portal .apl-pill-blue { background: #eef3fd; color: #0035b8; }
+.admin-portal .apl-pill-gray { background: #eef0f3; color: #4f5f78; }
+.admin-portal .apl-chev {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: #b4c0d3;
+  transition: transform 0.15s, color 0.15s;
+}
+.admin-portal .apl-row:hover .apl-chev {
+  color: var(--ccc-blue);
+  transform: translateX(2px);
+}
+@media (max-width: 640px) {
+  .admin-portal .apl-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+}
+
+/* ── Oct 3 2026 redesign: Statistics v2 (KPI strip, status panels with a
+   "% of applicants" column, applicants-by-program table, live indicator). ── */
+.admin-portal .st-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.admin-portal .st-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.admin-portal .st-title {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  color: var(--navy);
+}
+.admin-portal .st-subtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #5a6b85;
+}
+.admin-portal .st-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.admin-portal .st-tool-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #5a6b85;
+}
+.admin-portal .st-select {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d5ddea;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 12px;
+  color: var(--text);
+}
+.admin-portal .st-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #cde6d6;
+  border-radius: 7px;
+  background: #f1f9f4;
+  font-size: 11.5px;
+  color: #1a5c3a;
+}
+.admin-portal .st-live b {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+}
+.admin-portal .st-live-ago {
+  color: #3d6b50;
+}
+.admin-portal .st-live-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+}
+.admin-portal .st-live-dot > span {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--ccc-green);
+}
+.admin-portal .st-live-pulse {
+  animation: st-pulse 2s ease-out infinite;
+}
+@keyframes st-pulse {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-portal .st-live-pulse { animation: none; }
+}
+.admin-portal .st-live-warn {
+  border-color: #f0d9a8;
+  background: #fdf6e7;
+  color: #7a4f0c;
+}
+.admin-portal .st-live-warn .st-live-ago { color: #7a4f0c; }
+.admin-portal .st-live-warn .st-live-dot > span { background: #c8a84b; }
+.admin-portal .st-live-warn .st-live-pulse { animation: none; }
+.admin-portal .st-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.admin-portal .st-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.admin-portal .st-kpi {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+.admin-portal .st-kpi:last-child { border-right: none; }
+.admin-portal .st-kpi-label { font-size: 11px; font-weight: 600; color: #5a6b85; }
+.admin-portal .st-kpi-value {
+  font-family: "Montserrat", sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1;
+}
+.admin-portal .st-kpi-sub { font-size: 11px; color: #5a6b85; }
+.admin-portal .st-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+.admin-portal .st-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.admin-portal .st-card-head-wrap { flex-wrap: wrap; }
+.admin-portal .st-card-title {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--navy);
+}
+.admin-portal .st-meta { font-size: 11px; color: #5a6b85; }
+.admin-portal .st-split {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  margin: 16px 18px 6px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #eef1f6;
+}
+.admin-portal .st-split > span { display: block; height: 100%; }
+.admin-portal .st-split-sm {
+  height: 8px;
+  margin: 0;
+  gap: 1px;
+  border-radius: 4px;
+}
+.admin-portal .st-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.3px;
+}
+.admin-portal .st-table th {
+  font-family: "Montserrat", sans-serif;
+  font-size: 9.8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #5a6b85;
+  text-align: left;
+  padding: 9px 18px;
+  background: #f8f9fb;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.admin-portal .st-table td {
+  padding: 10px 18px;
+  border-bottom: 1px solid #eef1f6;
+  color: var(--text);
+  vertical-align: middle;
+}
+.admin-portal .st-table .r { text-align: right; }
+.admin-portal .st-table tbody tr:hover td { background: #fafbfd; }
+.admin-portal .st-table tr.zero td { color: #8c99ae; }
+.admin-portal .st-table tfoot td {
+  font-weight: 700;
+  color: var(--navy);
+  background: #f8f9fb;
+  border-bottom: none;
+  border-top: 1px solid var(--border);
+}
+.admin-portal .st-strong { font-weight: 700; color: var(--navy); }
+.admin-portal .st-table tr.zero .st-strong { color: #8c99ae; }
+.admin-portal .st-muted { color: #5a6b85; }
+.admin-portal .st-key { display: inline-flex; align-items: center; gap: 9px; }
+.admin-portal .st-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+.admin-portal .st-card-foot {
+  padding: 11px 18px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: #5a6b85;
+}
+.admin-portal .st-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: #4f5f78;
+  cursor: pointer;
+}
+.admin-portal .st-scroll { overflow-x: auto; }
+.admin-portal .st-program-table { min-width: 880px; }
+.admin-portal .st-program-table td:last-child { width: 16%; }
+.admin-portal .st-prog { display: block; font-weight: 600; color: var(--navy); }
+.admin-portal .st-dept { display: block; margin-top: 2px; font-size: 10.8px; color: #5a6b85; }
+.admin-portal .st-table tr.zero .st-prog { color: #8c99ae; }
+.admin-portal .st-empty { text-align: center; color: #5a6b85; padding: 24px 18px !important; }
+.admin-portal .st-footnote {
+  margin: 0;
+  font-size: 11px;
+  color: #5a6b85;
+  line-height: 1.6;
+}
+@media (max-width: 640px) {
+  .admin-portal .st-kpi { border-right: none; border-bottom: 1px solid var(--border); }
+  .admin-portal .st-panels { grid-template-columns: 1fr; }
+}
+.admin-portal .st-panels .st-table th,
+.admin-portal .st-panels .st-table td {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+.admin-portal .st-panels .st-table th {
+  white-space: normal;
+  line-height: 1.3;
+}
+.admin-portal .st-panels .st-table th.r,
+.admin-portal .st-panels .st-table td.r {
+  width: 1%;
+  white-space: nowrap;
+}
+.admin-portal .st-panels .st-split {
+  margin-left: 14px;
+  margin-right: 14px;
+}
+
+/* ── Oct 3 2026 redesign: Applicant Results list + applicant window
+   (progress strip, numbered sections 1-4). Rows reuse .apl-* from the
+   Dashboard table. ── */
+.admin-portal .rr-grid,
+.admin-portal .rr-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.9fr) minmax(0, 0.9fr) minmax(0, 1.4fr) minmax(0, 1.7fr);
+  gap: 14px;
+  align-items: center;
+}
+.admin-portal .rr-row {
+  width: 100%;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.admin-portal .rr-row:hover { background: var(--off); }
+.admin-portal .rr-row:focus-visible { outline: 2px solid var(--ccc-blue); outline-offset: -2px; }
+.admin-portal .rr-row:hover .apl-chev { color: var(--ccc-blue); transform: translateX(2px); }
+.admin-portal .rr-row.apl-row-locked,
+.admin-portal .rr-row.apl-row-locked:hover { background: #eef0f3; }
+.admin-portal .rr-exam-main {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+.admin-portal .rr-exam-main.pass { color: #1a5c3a; }
+.admin-portal .rr-exam-main.fail { color: #902020; }
+.admin-portal .rr-exam-main.none { color: #5a6b85; font-weight: 600; font-family: inherit; font-size: 12px; }
+.admin-portal .rr-next { justify-content: space-between; }
+.admin-portal .rr-next-text { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.admin-portal .rr-next-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: #c5cedc; }
+.admin-portal .rr-next-dot.go { background: var(--ccc-blue); }
+.admin-portal .rr-next-dot.wait { background: var(--ccc-gold); }
+.admin-portal .rr-next-dot.done { background: var(--ccc-green); }
+.admin-portal .rr-next-main { font-size: 11.8px; color: #5a6b85; }
+.admin-portal .rr-next-main.go { color: var(--text); font-weight: 600; }
+.admin-portal .apl-pill-lg { font-size: 12px; padding: 6px 14px; }
+
+/* window */
+.admin-portal .rr-window {
+  background: #f7f8fb;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(13, 47, 110, 0.35);
+  border: 1px solid var(--border);
+}
+.admin-portal .rr-head {
+  background: #fff;
+  padding: 20px 24px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.admin-portal .rr-head-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.admin-portal .rr-head-who { display: flex; gap: 14px; align-items: center; min-width: 0; }
+.admin-portal .rr-head-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.admin-portal .rr-head-name-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.admin-portal .rr-head-name {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--navy);
+}
+.admin-portal .rr-head-meta {
+  display: flex;
+  gap: 6px 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: #5a6b85;
+}
+.admin-portal .rr-appno {
+  font-family: "Montserrat", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ccc-blue);
+  border: 1px solid #c9d8f6;
+  border-radius: 20px;
+  padding: 2px 8px;
+}
+.admin-portal .rr-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5a6b85;
+  flex-shrink: 0;
+}
+.admin-portal .rr-close:hover { background: #eef1f6; color: var(--navy); }
+.admin-portal .rr-stages {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.admin-portal .rr-stage {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+  min-width: 0;
+}
+.admin-portal .rr-stage.current { border-color: #b9cbef; background: #f4f7fd; }
+.admin-portal .rr-stage.na { background: #fafbfc; }
+.admin-portal .rr-stage-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-portal .rr-stage-title {
+  font-family: "Montserrat", sans-serif;
+  font-size: 9.8px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #5a6b85;
+}
+.admin-portal .rr-stage-value { font-size: 12px; font-weight: 600; color: var(--text); }
+.admin-portal .rr-stage.current .rr-stage-value { color: var(--navy); }
+.admin-portal .rr-stage.na .rr-stage-value { color: #8c99ae; font-weight: 400; }
+.admin-portal .rr-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 11px;
+  background: #eef1f6;
+  color: #5a6b85;
+}
+.admin-portal .rr-num svg { width: 12px; height: 12px; }
+.admin-portal .rr-num.done,
+.admin-portal .rr-stage.done .rr-num { background: #e6f4ec; color: #1a5c3a; }
+.admin-portal .rr-stage.current .rr-num { background: var(--navy); color: #fff; }
+.admin-portal .rr-next-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  background: #eef3fd;
+  color: var(--navy);
+}
+.admin-portal .rr-next-line svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; color: var(--ccc-blue); }
+.admin-portal .rr-next-line.wait { background: #fdf6e7; color: #6b4e00; }
+.admin-portal .rr-next-line.wait svg { color: #a07c10; }
+.admin-portal .rr-next-line.stop { background: #fbeeee; color: #902020; }
+.admin-portal .rr-next-line.stop svg { color: #c0392b; }
+.admin-portal .rr-next-line.done { background: #ebf6ef; color: #1a5c3a; }
+.admin-portal .rr-next-line.done svg { color: var(--ccc-green); }
+.admin-portal .rr-body {
+  padding: 20px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 62vh;
+  overflow-y: auto;
+}
+.admin-portal .rr-sec {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.admin-portal .rr-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 18px;
+  border-bottom: 1px solid #eef1f6;
+  flex-wrap: wrap;
+}
+.admin-portal .rr-sec-title-wrap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.admin-portal .rr-sec-title {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--navy);
+}
+.admin-portal .rr-sec-meta { font-size: 11px; color: #5a6b85; }
+.admin-portal .rr-sec-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+.admin-portal .rr-unsaved {
+  font-family: "Montserrat", sans-serif;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #7a4f0c;
+  background: #fbefc9;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+.admin-portal .rr-exam-grid {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+.admin-portal .rr-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.admin-portal .rr-label { font-size: 11px; font-weight: 600; color: #4f5f78; }
+.admin-portal .rr-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1.5px solid #d5ddea;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+}
+.admin-portal .rr-input:focus { border-color: var(--ccc-blue); }
+.admin-portal .rr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11.5px;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.admin-portal .rr-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.admin-portal .rr-btn:focus-visible { outline: 2px solid var(--ccc-blue); outline-offset: 2px; }
+.admin-portal .rr-btn-tall { min-height: 40px; }
+.admin-portal .rr-btn-primary { background: var(--navy); color: #fff; }
+.admin-portal .rr-btn-primary:hover:not(:disabled) { background: var(--ccc-blue); }
+.admin-portal .rr-btn-secondary { background: #fff; color: var(--navy); border: 1px solid #d5ddea; }
+.admin-portal .rr-btn-secondary:hover:not(:disabled) { background: var(--off); }
+.admin-portal .rr-btn-danger { background: #c0392b; color: #fff; }
+.admin-portal .rr-btn-danger:hover:not(:disabled) { background: #a8301f; }
+.admin-portal .rr-link {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ccc-blue);
+  text-decoration: underline;
+}
+.admin-portal .rr-link:disabled { opacity: 0.5; }
+.admin-portal .rr-hint {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 11.8px;
+  line-height: 1.5;
+  background: #f1f4f9;
+  color: var(--text);
+}
+.admin-portal .rr-hint.pass { background: #eaf6ef; color: #1a5c3a; }
+.admin-portal .rr-hint.fail { background: #fceeee; color: #902020; }
+.admin-portal .rr-muted-line { margin: 0; font-size: 11.5px; color: #5a6b85; line-height: 1.5; }
+.admin-portal .rr-status-line { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.admin-portal .rr-override {
+  border-top: 1px dashed #d5ddea;
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-portal .rr-override-intro { margin: 0; font-size: 12px; color: var(--text); line-height: 1.5; }
+.admin-portal .rr-warn {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdf3e3;
+  border: 1px solid #f0d9a8;
+  color: #7a4f0c;
+  font-size: 11.8px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.admin-portal .rr-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.admin-portal .rr-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1.5px solid #d5ddea;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  min-width: 0;
+}
+.admin-portal .rr-choice:hover { border-color: #8fa3c2; }
+.admin-portal .rr-choice:focus-visible { outline: 2px solid var(--ccc-blue); outline-offset: 2px; }
+.admin-portal .rr-choice.picked { border-color: var(--navy); background: #f4f7fd; box-shadow: 0 0 0 1px var(--navy); }
+.admin-portal .rr-choice-title { font-family: "Montserrat", sans-serif; font-size: 12px; font-weight: 700; }
+.admin-portal .rr-choice-gold .rr-choice-title { color: #7a4f0c; }
+.admin-portal .rr-choice-red .rr-choice-title { color: #902020; }
+.admin-portal .rr-choice-desc { font-size: 11px; color: #5a6b85; line-height: 1.45; }
+.admin-portal .rr-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.admin-portal .rr-actions-split { justify-content: space-between; align-items: center; }
+.admin-portal .rr-sent-line {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.admin-portal .rr-sent-line svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; color: var(--ccc-green); }
+.admin-portal .rr-subblock {
+  border-top: 1px solid #eef1f6;
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.admin-portal .rr-subblock-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.admin-portal .rr-subblock-title {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--navy);
+}
+.admin-portal .rr-subblock-body { display: flex; flex-direction: column; gap: 10px; }
+.admin-portal .rr-sec-body .confirm-inline,
+.admin-portal .rr-subblock-body .confirm-inline { margin-top: 2px; }
+.admin-portal .rr-stepper {
+  position: relative;
+  display: flex;
+  padding: 2px 4px 0;
+}
+.admin-portal .rr-stepper-track,
+.admin-portal .rr-stepper-fill {
+  position: absolute;
+  left: 10%;
+  top: 15px;
+  height: 2px;
+}
+.admin-portal .rr-stepper-track { right: 10%; background: var(--border); }
+.admin-portal .rr-stepper-fill { background: var(--ccc-green); }
+.admin-portal .rr-step {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  position: relative;
+  padding: 0 2px;
+  border-radius: 8px;
+}
+.admin-portal .rr-step:focus-visible { outline: 2px solid var(--ccc-blue); outline-offset: 2px; }
+.admin-portal .rr-step:disabled { cursor: progress; }
+.admin-portal .rr-step-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  background: #fff;
+  border: 1.5px solid #c5cedc;
+  color: #5a6b85;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 11px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.admin-portal .rr-step-dot svg { width: 12px; height: 12px; }
+.admin-portal .rr-step:hover .rr-step-dot { border-color: var(--ccc-blue); color: var(--ccc-blue); }
+.admin-portal .rr-step.past .rr-step-dot { background: var(--ccc-green); border-color: var(--ccc-green); color: #fff; }
+.admin-portal .rr-step.current .rr-step-dot {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+  box-shadow: 0 0 0 4px #c9d8f6;
+}
+.admin-portal .rr-step-label {
+  font-family: "Montserrat", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #5a6b85;
+  line-height: 1.35;
+}
+.admin-portal .rr-step.past .rr-step-label { color: var(--text); }
+.admin-portal .rr-step.current .rr-step-label { color: var(--navy); font-weight: 800; }
+@media (max-width: 720px) {
+  .admin-portal .rr-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-portal .rr-exam-grid { grid-template-columns: 1fr 1fr; }
+  .admin-portal .rr-choices { grid-template-columns: 1fr; }
+  .admin-portal .rr-head, .admin-portal .rr-body { padding-left: 16px; padding-right: 16px; }
+  .admin-portal .rr-body { max-height: none; }
+}
+
+/* ── Oct 3 2026 redesign: Communications (composer + posted feed) and the
+   shared form/button pieces the other redesigned panels reuse. ── */
+.admin-portal .cm-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+.admin-portal .cm-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 3px 18px rgba(13, 47, 110, 0.06);
+  min-width: 0;
+}
+.admin-portal .cm-composer { position: sticky; top: 16px; }
+.admin-portal .cm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.admin-portal .cm-head-wrap { flex-wrap: wrap; }
+.admin-portal .cm-head-left { display: flex; align-items: center; gap: 10px; }
+.admin-portal .cm-head .tag {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.3px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--off);
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+.admin-portal .cm-title {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--navy);
+}
+.admin-portal .cm-meta { font-size: 11px; color: #5a6b85; }
+.admin-portal .cm-form { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 16px; }
+.admin-portal .cm-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.admin-portal .cm-label {
+  font-family: "Montserrat", sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #4f5f78;
+}
+.admin-portal .cm-label .cm-opt { font-weight: 600; text-transform: none; letter-spacing: 0; color: #8c99ae; }
+.admin-portal .cm-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1.5px solid #d5ddea;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+}
+.admin-portal .cm-input:focus { border-color: var(--ccc-blue); }
+.admin-portal .cm-textarea { padding: 10px 12px; min-height: 130px; resize: vertical; line-height: 1.5; }
+.admin-portal .cm-row2 { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 10px; }
+.admin-portal .cm-type-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.admin-portal .cm-type {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1.5px solid #d5ddea;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  min-width: 0;
+}
+.admin-portal .cm-type:hover { border-color: #8fa3c2; }
+.admin-portal .cm-type:focus-visible { outline: 2px solid var(--ccc-blue); outline-offset: 2px; }
+.admin-portal .cm-type.on { border-color: var(--navy); background: #f4f7fd; box-shadow: 0 0 0 1px var(--navy); }
+.admin-portal .cm-type-icon,
+.admin-portal .cm-item-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-portal .cm-type-icon svg { width: 16px; height: 16px; }
+.admin-portal .cm-type-icon.announcement,
+.admin-portal .cm-item-icon.announcement { background: #fdf0dc; color: #8a5a10; }
+.admin-portal .cm-type-icon.message,
+.admin-portal .cm-item-icon.message { background: #eef3fd; color: var(--ccc-blue); }
+.admin-portal .cm-type-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-portal .cm-type-name { font-family: "Montserrat", sans-serif; font-size: 12.5px; font-weight: 700; color: var(--navy); }
+.admin-portal .cm-type-desc { font-size: 10.8px; color: #5a6b85; line-height: 1.4; }
+.admin-portal .cm-hint { margin: 0; font-size: 11.5px; color: #5a6b85; }
+.admin-portal .cm-seg { display: flex; gap: 4px; padding: 4px; background: #f1f4f9; border-radius: 9px; }
+.admin-portal .cm-seg-btn {
+  flex: 1 1 0;
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11.3px;
+  color: #4f5f78;
+}
+.admin-portal .cm-seg-btn:hover { background: #eef3fd; color: var(--navy); }
+.admin-portal .cm-seg-btn.on,
+.admin-portal .cm-seg-btn.on:hover { background: #fff; color: var(--navy); box-shadow: 0 1px 3px rgba(13, 47, 110, 0.18); }
+.admin-portal .cm-scope {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.admin-portal .cm-scope svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+.admin-portal .cm-scope.message,
+.admin-portal .cm-scope.info { background: #eef3fd; color: var(--navy); }
+.admin-portal .cm-scope.announcement { background: #fdf6e7; color: #6b4e00; }
+.admin-portal .cm-scope.muted { background: #f1f4f9; color: #4f5f78; }
+.admin-portal .cm-error { margin: 0; font-size: 12px; color: var(--ccc-red); }
+.admin-portal .cm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 15px;
+  border-radius: 8px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11.5px;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.admin-portal .cm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.admin-portal .cm-btn:focus-visible { outline: 2px solid var(--ccc-blue); outline-offset: 2px; }
+.admin-portal .cm-btn-block { width: 100%; min-height: 42px; }
+.admin-portal .cm-btn-primary { background: var(--navy); color: #fff; }
+.admin-portal .cm-btn-primary:hover:not(:disabled) { background: var(--ccc-blue); }
+.admin-portal .cm-btn-secondary { background: #fff; color: var(--navy); border: 1px solid #d5ddea; }
+.admin-portal .cm-btn-secondary:hover:not(:disabled) { background: var(--off); }
+.admin-portal .cm-btn-danger { background: #c0392b; color: #fff; }
+.admin-portal .cm-btn-danger:hover:not(:disabled) { background: #a8301f; }
+.admin-portal .cm-btn-green { background: #1b6b3a; color: #fff; }
+.admin-portal .cm-btn-green:hover:not(:disabled) { background: #155230; }
+.admin-portal .cm-btn-outline-red { background: #fff; color: #c0392b; border: 1.5px solid #e7b4ae; }
+.admin-portal .cm-btn-outline-red:hover:not(:disabled) { background: #fbe7e7; }
+.admin-portal .cm-tabs { display: flex; gap: 4px; padding: 4px; background: var(--off); border: 1px solid var(--border); border-radius: 9px; flex-wrap: wrap; }
+.admin-portal .cm-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11.5px;
+  color: #4f5f78;
+}
+.admin-portal .cm-tab:hover { background: #eef3fd; color: var(--navy); }
+.admin-portal .cm-tab.on,
+.admin-portal .cm-tab.on:hover { background: var(--navy); color: #fff; }
+.admin-portal .cm-tab-count { font-size: 10px; opacity: 0.8; }
+.admin-portal .cm-filters { display: flex; gap: 10px; padding: 14px 20px; border-bottom: 1px solid #eef1f6; flex-wrap: wrap; }
+.admin-portal .cm-filters .cm-input { flex: 1 1 240px; width: auto; }
+.admin-portal .cm-filters .cm-filter-cat { flex: 0 1 210px; }
+.admin-portal .cm-item {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eef1f6;
+}
+.admin-portal .cm-item:last-child { border-bottom: none; }
+.admin-portal .cm-item:hover { background: #fafbfd; }
+.admin-portal .cm-item-icon { width: 36px; height: 36px; border-radius: 10px; }
+.admin-portal .cm-item-icon svg { width: 17px; height: 17px; }
+.admin-portal .cm-item-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.admin-portal .cm-item-title { margin: 0; font-family: "Montserrat", sans-serif; font-size: 13px; font-weight: 700; color: var(--navy); }
+.admin-portal .cm-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.admin-portal .cm-chip {
+  font-family: "Montserrat", sans-serif;
+  font-size: 9.8px;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.admin-portal .cm-chip.announcement { background: #fdf0dc; color: #7a4f0c; }
+.admin-portal .cm-chip.message { background: #eef3fd; color: #0035b8; }
+.admin-portal .cm-chip.target { background: #f1f4f9; color: var(--text); }
+.admin-portal .cm-chip.cat { background: #fff; color: #5a6b85; border: 1px solid var(--border); }
+.admin-portal .cm-item-body { margin: 0; font-size: 12.3px; line-height: 1.6; color: var(--text); white-space: pre-line; }
+.admin-portal .cm-item-body.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.admin-portal .cm-item-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 11px; color: #5a6b85; }
+.admin-portal .cm-more { font-size: 11.5px; font-weight: 600; color: var(--ccc-blue); }
+.admin-portal .cm-more:hover { text-decoration: underline; }
+.admin-portal .cm-del {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8c99ae;
+}
+.admin-portal .cm-del svg { width: 16px; height: 16px; }
+.admin-portal .cm-del:hover:not(:disabled) { background: #fbe7e7; color: #c0392b; }
+.admin-portal .cm-del:focus-visible { outline: 2px solid var(--ccc-blue); }
+.admin-portal .cm-confirm {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fceeee;
+  border: 1px solid #f3cfcf;
+  font-size: 12px;
+  color: #902020;
+}
+.admin-portal .cm-confirm-actions { display: flex; gap: 8px; }
+.admin-portal .cm-confirm .cm-btn { min-height: 34px; }
+.admin-portal .cm-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  margin-bottom: 20px;
+}
+.admin-portal .cm-kpi {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+.admin-portal .cm-kpi:last-child { border-right: none; }
+.admin-portal .cm-kpi-label { font-size: 11px; font-weight: 600; color: #5a6b85; }
+.admin-portal .cm-kpi-value { font-family: "Montserrat", sans-serif; font-size: 24px; font-weight: 800; color: var(--navy); line-height: 1; }
+.admin-portal .cm-kpi-sub { font-size: 11px; color: #5a6b85; }
+@media (max-width: 900px) {
+  .admin-portal .cm-layout { grid-template-columns: 1fr; }
+  .admin-portal .cm-composer { position: static; }
+  .admin-portal .cm-kpi { border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+/* ── Oct 3 2026 redesign: Appeals & Reschedules (attachment column and a
+   two-pane review window with the supporting document inside). ── */
+.admin-portal .rq-type-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.admin-portal .rq-req-tag {
+  font-family: "Montserrat", sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  color: #5a6b85;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+.admin-portal .rq-attach { display: flex; align-items: center; gap: 9px; }
+.admin-portal .rq-thumb {
+  position: relative;
+  width: 36px;
+  height: 46px;
+  flex-shrink: 0;
+  border: 1px solid #d5ddea;
+  border-radius: 5px;
+  background: #fff;
+  padding: 6px 5px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+.admin-portal .rq-thumb i { display: block; height: 2px; border-radius: 1px; background: #dce3ee; }
+.admin-portal .rq-thumb i:first-child { width: 70%; background: var(--navy); }
+.admin-portal .rq-thumb b {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 7px;
+  font-weight: 800;
+  text-align: center;
+  color: #fff;
+  background: var(--ccc-blue);
+  padding: 1px 0;
+}
+.admin-portal .rq-thumb.pdf b { background: #c0392b; }
+.admin-portal .rq-thumb.file b { background: #5a6b85; }
+.admin-portal .rq-attach-text { display: flex; flex-direction: column; gap: 1px; }
+.admin-portal .rq-attach-kind { font-size: 11.5px; font-weight: 600; color: var(--text); }
+.admin-portal .rq-attach-sub { font-size: 10.5px; color: #5a6b85; }
+
+.admin-portal .rq-overlay { align-items: flex-start; overflow-y: auto; padding: 32px 16px; }
+.admin-portal .rq-window {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(13, 47, 110, 0.35);
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.admin-portal .rq-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+}
+.admin-portal .rq-head-who { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.admin-portal .rq-head-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.admin-portal .rq-head-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.admin-portal .rq-head-title { margin: 0; font-family: "Montserrat", sans-serif; font-size: 16px; font-weight: 800; color: var(--navy); }
+.admin-portal .rq-head-meta { margin-top: 4px; font-size: 11.5px; color: #5a6b85; overflow-wrap: anywhere; }
+.admin-portal .rq-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5a6b85;
+  flex-shrink: 0;
+}
+.admin-portal .rq-close:hover { background: #eef1f6; color: var(--navy); }
+.admin-portal .rq-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); min-height: 540px; }
+.admin-portal .rq-doc { background: #eef1f6; border-right: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
+.admin-portal .rq-doc-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.admin-portal .rq-doc-name { display: flex; flex-direction: column; gap: 1px; font-size: 11.5px; color: var(--text); }
+.admin-portal .rq-label {
+  display: block;
+  font-family: "Montserrat", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #5a6b85;
+}
+.admin-portal .rq-opt { font-weight: 600; text-transform: none; letter-spacing: 0; color: #8c99ae; }
+.admin-portal .rq-doc-tools { display: flex; gap: 6px; align-items: center; }
+.admin-portal .rq-tool {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #d5ddea;
+  background: #fff;
+  color: var(--text);
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  text-decoration: none;
+}
+.admin-portal .rq-tool:hover { background: #eef3fd; color: var(--navy); }
+.admin-portal .rq-tool-wide { font-size: 11px; }
+.admin-portal .rq-zoom { min-width: 42px; text-align: center; font-family: "Montserrat", sans-serif; font-size: 11px; font-weight: 700; color: #4f5f78; }
+.admin-portal .rq-doc-view {
+  flex: 1;
+  overflow: auto;
+  padding: 18px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  max-height: 66vh;
+}
+.admin-portal .rq-doc-img {
+  max-width: none;
+  margin: 0 auto;
+  flex-shrink: 0;
+  height: auto;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 6px 24px rgba(13, 47, 110, 0.18);
+}
+.admin-portal .rq-doc-frame { width: 100%; height: 62vh; min-height: 460px; border: 0; border-radius: 6px; background: #fff; }
+.admin-portal .rq-doc-empty {
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 300px;
+  text-align: center;
+  color: #5a6b85;
+  font-size: 11.5px;
+  line-height: 1.5;
+  padding: 40px 0;
+}
+.admin-portal .rq-doc-empty svg { color: #a7b4c8; }
+.admin-portal .rq-doc-empty b { font-family: "Montserrat", sans-serif; font-size: 13px; color: #4f5f78; }
+.admin-portal .rq-side { display: flex; flex-direction: column; min-width: 0; }
+.admin-portal .rq-side-main { padding: 18px 22px; display: flex; flex-direction: column; gap: 16px; flex: 1; }
+.admin-portal .rq-details { margin-top: 6px; font-size: 13px; line-height: 1.6; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-portal .rq-note {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1.5px solid #d5ddea;
+  border-radius: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+.admin-portal .rq-note:focus { border-color: var(--ccc-blue); }
+.admin-portal .rq-count { margin-top: 4px; text-align: right; font-size: 10.5px; color: #8c99ae; }
+.admin-portal .rq-warn {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdf6e7;
+  border: 1px solid #f0d9a8;
+  color: #6b4e00;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.admin-portal .rq-decision {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.admin-portal .rq-decision.approved { background: #eff8f2; border: 1px solid #cde6d6; }
+.admin-portal .rq-decision.declined { background: #fcf1f1; border: 1px solid #f3cfcf; }
+.admin-portal .rq-decision-top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.admin-portal .rq-decision-top b { font-family: "Montserrat", sans-serif; font-size: 12.5px; }
+.admin-portal .rq-decision.approved .rq-decision-top b { color: #1a5c3a; }
+.admin-portal .rq-decision.declined .rq-decision-top b { color: #902020; }
+.admin-portal .rq-decision-top span { font-size: 11.5px; color: #4f5f78; }
+.admin-portal .rq-decision-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-portal .rq-next { font-size: 11.5px; color: var(--navy); }
+.admin-portal .rq-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+  background: #fafbfc;
+  flex-wrap: wrap;
+}
+@media (max-width: 820px) {
+  .admin-portal .rq-body { grid-template-columns: 1fr; }
+  .admin-portal .rq-doc { border-right: none; border-bottom: 1px solid var(--border); }
+  .admin-portal .rq-doc-view { max-height: 50vh; }
+}
+
+/* ── Oct 3 2026 redesign: Exam Schedules (batch cards). Reuses .cm-* and
+   .st-table from the Communications and Statistics redesigns. ── */
+.admin-portal .es-layout { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); }
+.admin-portal .es-row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.admin-portal .es-list { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.admin-portal .es-batch { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #fff; }
+.admin-portal .es-batch-top { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px; padding: 16px; }
+.admin-portal .es-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid #d5ddea;
+  border-radius: 10px;
+  overflow: hidden;
+  align-self: start;
+}
+.admin-portal .es-date-mon {
+  width: 100%;
+  text-align: center;
+  background: var(--navy);
+  color: #fff;
+  font-family: "Montserrat", sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 4px 0;
+}
+.admin-portal .es-date-day { font-family: "Montserrat", sans-serif; font-size: 24px; font-weight: 900; color: var(--navy); padding: 6px 0 2px; }
+.admin-portal .es-date-dow { font-size: 10px; color: #5a6b85; padding-bottom: 6px; }
+.admin-portal .es-batch-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.admin-portal .es-batch-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.admin-portal .es-batch-info { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.admin-portal .es-name-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.admin-portal .es-name { margin: 0; font-family: "Montserrat", sans-serif; font-size: 14.5px; font-weight: 800; color: var(--navy); }
+.admin-portal .es-state { font-family: "Montserrat", sans-serif; font-size: 9.8px; font-weight: 700; border-radius: 20px; padding: 3px 10px; }
+.admin-portal .es-state.sent { background: #e6f4ec; color: #1a5c3a; }
+.admin-portal .es-state.draft { background: #fdf0dc; color: #7a4f0c; }
+.admin-portal .es-where { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: #4f5f78; }
+.admin-portal .es-where span { display: inline-flex; align-items: center; gap: 5px; }
+.admin-portal .es-where svg { width: 13px; height: 13px; }
+.admin-portal .es-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-portal .es-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8c99ae;
+  border: 1px solid var(--border);
+}
+.admin-portal .es-icon-btn svg { width: 16px; height: 16px; }
+.admin-portal .es-icon-btn:hover:not(:disabled) { background: #fbe7e7; color: #c0392b; border-color: #f3cfcf; }
+.admin-portal .es-icon-btn:disabled { opacity: 0.5; }
+.admin-portal .es-capacity { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; }
+.admin-portal .es-bar { display: block; height: 6px; border-radius: 3px; background: #eef1f6; overflow: hidden; }
+.admin-portal .es-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--ccc-blue); }
+.admin-portal .es-count { font-size: 11.5px; color: var(--text); }
+.admin-portal .es-count b { font-family: "Montserrat", sans-serif; }
+.admin-portal .es-sub { font-size: 11px; color: #5a6b85; }
+.admin-portal .es-sent { text-align: right; }
+.admin-portal .es-sent.sent { color: #1a5c3a; }
+.admin-portal .es-sent.draft { color: #7a4f0c; }
+.admin-portal .es-send {
+  border-top: 1px solid var(--border);
+  background: #f7f9fc;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-portal .es-send-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.admin-portal .es-send-head b { font-family: "Montserrat", sans-serif; font-size: 12.5px; color: var(--navy); }
+.admin-portal .es-send-head span { font-size: 11px; color: #5a6b85; }
+.admin-portal .es-send-grid { display: grid; grid-template-columns: 80px minmax(0, 1fr) auto; gap: 8px 10px; align-items: center; }
+.admin-portal .es-send-grid .cm-input:disabled { background: #fff; color: var(--text); }
+.admin-portal .es-top { align-self: start; padding-top: 10px; }
+.admin-portal .es-edit { font-family: "Montserrat", sans-serif; font-size: 11px; font-weight: 700; color: var(--ccc-blue); }
+.admin-portal .es-edit:hover { text-decoration: underline; }
+.admin-portal .es-send-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.admin-portal .es-empty { margin: 0; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 11.5px; color: #5a6b85; }
+.admin-portal .es-table-wrap { border-top: 1px solid var(--border); overflow-x: auto; }
+.admin-portal .es-table th,
+.admin-portal .es-table td { padding-left: 14px; padding-right: 14px; }
+.admin-portal .es-num { color: #8c99ae !important; }
+.admin-portal .es-person { display: block; font-family: "Montserrat", sans-serif; font-weight: 700; font-size: 12.3px; color: var(--navy); }
+.admin-portal .es-person-sub { display: block; font-size: 10.8px; color: #5a6b85; }
+.admin-portal .es-opt { font-family: "Montserrat", sans-serif; font-size: 9.8px; font-weight: 700; border-radius: 20px; padding: 2px 9px; }
+.admin-portal .es-opt.yes { background: #e6f4ec; color: #1a5c3a; }
+.admin-portal .es-opt.no { background: #eef0f3; color: #4f5f78; }
+.admin-portal .es-remove { font-size: 11.5px; font-weight: 600; color: #c0392b; }
+.admin-portal .es-remove:hover:not(:disabled) { text-decoration: underline; }
+@media (max-width: 640px) {
+  .admin-portal .es-batch-top { grid-template-columns: 1fr; }
+  .admin-portal .es-date { flex-direction: row; gap: 8px; padding-right: 10px; }
+  .admin-portal .es-date-mon { width: auto; padding: 4px 8px; }
+  .admin-portal .es-date-day { font-size: 16px; padding: 0; }
+  .admin-portal .es-date-dow { padding: 0; }
+  .admin-portal .es-sent { text-align: left; }
+}
+
+/* ── Oct 3 2026 redesign: Admin Accounts. ── */
+.admin-portal .aa-header { align-items: flex-end; }
+.admin-portal .aa-super-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: #7a4f0c;
+  background: #fdf0dc;
+  border-radius: 20px;
+  padding: 5px 12px;
+}
+.admin-portal .aa-temp {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  border-radius: 10px;
+}
+.admin-portal .aa-temp.warn { background: #fdf6e7; border: 1px solid #f0d9a8; color: #6b4e00; }
+.admin-portal .aa-temp.done { background: #eff8f2; border: 1px solid #cde6d6; color: #1a5c3a; }
+.admin-portal .aa-temp-main { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
+.admin-portal .aa-temp-text { font-size: 12.3px; font-weight: 600; line-height: 1.5; }
+.admin-portal .aa-temp-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.admin-portal .aa-temp-code {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 12px;
+  color: var(--text);
+}
+.admin-portal .aa-temp-x {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5a6b85;
+  flex-shrink: 0;
+}
+.admin-portal .aa-temp-x:hover { background: rgba(13, 47, 110, 0.08); }
+.admin-portal .aa-layout { grid-template-columns: minmax(290px, 370px) minmax(0, 1fr); }
+.admin-portal .aa-form-error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fceeee;
+  border: 1px solid #f3cfcf;
+  color: #902020;
+  font-size: 12px;
+  font-weight: 600;
+}
+.admin-portal .aa-roles { display: flex; flex-direction: column; gap: 8px; }
+.admin-portal .aa-role { width: 100%; }
+.admin-portal .aa-table { min-width: 620px; }
+.admin-portal .aa-table td { padding-top: 13px; padding-bottom: 13px; }
+.admin-portal .aa-who { display: flex; align-items: center; gap: 12px; }
+.admin-portal .aa-avatar-2 {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #eef3fd;
+  color: var(--ccc-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.admin-portal .aa-avatar-2.self { background: var(--navy); color: #fff; }
+.admin-portal .aa-who-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-portal .aa-name-line { display: flex; align-items: center; gap: 7px; }
+.admin-portal .aa-name-2 { font-family: "Montserrat", sans-serif; font-weight: 700; font-size: 12.8px; color: var(--navy); }
+.admin-portal .aa-you {
+  font-family: "Montserrat", sans-serif;
+  font-size: 8.8px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  background: var(--navy);
+  color: #fff;
+  border-radius: 20px;
+  padding: 1px 7px;
+}
+.admin-portal .aa-email-2 { font-size: 11px; color: #5a6b85; overflow-wrap: anywhere; }
+.admin-portal .aa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 9.8px;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.admin-portal .aa-chip.super { background: #fdf0dc; color: #7a4f0c; }
+.admin-portal .aa-chip.admin { background: #eef3fd; color: #0035b8; }
+.admin-portal .aa-chip.active { background: #e6f4ec; color: #1a5c3a; }
+.admin-portal .aa-chip.pending { background: #fdf0dc; color: #7a4f0c; }
+.admin-portal .aa-chip.expired { background: #fbe7e7; color: #902020; }
+.admin-portal .aa-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.admin-portal .aa-actions { display: inline-flex; gap: 6px; }
+.admin-portal .aa-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid #d5ddea;
+  background: #fff;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--navy);
+  white-space: nowrap;
+}
+.admin-portal .aa-act svg { width: 13px; height: 13px; }
+.admin-portal .aa-act:hover:not(:disabled) { background: #eef3fd; }
+.admin-portal .aa-act.danger { color: #c0392b; border-color: #ebc4bf; }
+.admin-portal .aa-act.danger:hover:not(:disabled) { background: #fbe7e7; }
+.admin-portal .aa-act:disabled { color: #a7b4c8; border-color: #e6ebf2; background: #fafbfc; cursor: not-allowed; }
+.admin-portal .aa-foot { padding: 12px 20px; font-size: 11px; color: #5a6b85; border-top: 1px solid #eef1f6; line-height: 1.5; }
+.admin-portal .aa-confirm {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(13, 47, 110, 0.35);
+  overflow: hidden;
+  text-align: left;
+}
+.admin-portal .aa-confirm-body { padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 10px; }
+.admin-portal .aa-confirm-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-portal .aa-confirm-icon svg { width: 20px; height: 20px; }
+.admin-portal .aa-confirm-icon.primary { background: #eef3fd; color: var(--ccc-blue); }
+.admin-portal .aa-confirm-icon.danger { background: #fbe7e7; color: #c0392b; }
+.admin-portal .aa-confirm-title { margin: 0; font-family: "Montserrat", sans-serif; font-size: 16px; font-weight: 800; color: var(--navy); }
+.admin-portal .aa-confirm-desc { margin: 0 0 4px; font-size: 12.5px; color: #4f5f78; line-height: 1.55; }
+.admin-portal .aa-confirm-error { margin: 0; font-size: 12px; font-weight: 600; color: var(--ccc-red); }
+.admin-portal .aa-confirm-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 22px;
+  background: #fafbfc;
+  border-top: 1px solid var(--border);
+}
+.admin-portal .aa-table { min-width: 700px; }
+.admin-portal .aa-who-text { max-width: 240px; }
+.admin-portal .aa-name-2,
+.admin-portal .aa-email-2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+.admin-portal .aa-table th,
+.admin-portal .aa-table td { padding-left: 16px; padding-right: 16px; }
+.admin-portal .aa-layout { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); }
+.admin-portal .aa-table { min-width: 600px; }
+.admin-portal .aa-who-text { max-width: 210px; }
+.admin-portal .aa-table th,
+.admin-portal .aa-table td { padding-left: 12px; padding-right: 12px; }
+.admin-portal .aa-actions { flex-wrap: wrap; justify-content: flex-end; }
+
+/* ── Oct 3 2026 redesign: sidebar (initials beside the name, role as plain
+   text, one icon set, white badge, no colored accents). Same structure and
+   classes, so the existing mobile layout (max-width 960px) still applies. ── */
+.admin-portal .sidebar { background: var(--navy); padding: 22px 16px 18px; }
+.admin-portal .sb-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  margin-bottom: 18px;
+  padding: 12px;
+  border-radius: 12px;
+  border-bottom: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.admin-portal .sb-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+}
+.admin-portal .sb-who { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.admin-portal .sb-name {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-portal .sb-role { font-size: 11.5px; font-weight: 600; color: #b8c6e0; }
+.admin-portal .sidebar-menu { gap: 6px; }
+.admin-portal .sidebar-menu-label {
+  font-size: 9.5px;
+  letter-spacing: 1.2px;
+  color: #8ea3c8;
+  margin: 12px 0 6px 12px;
+}
+.admin-portal .sidebar-menu-group:first-child .sidebar-menu-label { margin-top: 0; }
+.admin-portal .sidebar-menu-sub { margin: 0; padding-left: 0; border-left: none; gap: 2px; }
+.admin-portal .menu-btn {
+  min-height: 40px;
+  padding: 0 12px;
+  gap: 11px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  color: #c9d6ee;
+}
+.admin-portal .menu-btn:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+.admin-portal .menu-btn.active,
+.admin-portal .menu-btn.active:hover { background: #fff; color: var(--navy); }
+.admin-portal .menu-btn:focus-visible,
+.admin-portal .logout-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.admin-portal .menu-icon { display: inline-flex; align-items: center; justify-content: center; }
+.admin-portal .menu-icon svg { width: 17px; height: 17px; }
+.admin-portal .menu-badge { background: #fff; color: var(--navy); min-width: 20px; height: 20px; font-size: 10px; }
+.admin-portal .menu-btn.active .menu-badge { background: var(--navy); color: #fff; }
+.admin-portal .sidebar-logout { border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 12px; margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
+.admin-portal .sb-signed-in {
+  font-size: 10.5px;
+  color: #8ea3c8;
+  padding: 0 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-portal .logout-btn { min-height: 40px; padding: 0 12px; font-size: 12.5px; color: #ffb4ab; }
+.admin-portal .logout-btn:hover { background: rgba(255, 120, 100, 0.12); color: #ffd2cc; }
+@media (max-width: 960px) {
+  .admin-portal .sb-profile { margin-bottom: 0; background: none; border: none; padding: 0; }
+  .admin-portal .sb-signed-in { display: none; }
+  .admin-portal .sidebar-logout { flex-direction: row; border-top: none; padding-top: 0; margin-top: 0; }
+}
+
+/* ── Oct 3 2026 redesign: admin sign-in, same split card as the applicant
+   login. ── */
+.admin-portal .al-card {
+  width: 100%;
+  max-width: 1040px;
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 10px 34px rgba(13, 47, 110, 0.1);
+}
+.admin-portal .al-side {
+  position: relative;
+  overflow: hidden;
+  background: var(--navy);
+  color: #fff;
+  padding: 42px 36px 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.admin-portal .al-side-circle {
+  position: absolute;
+  right: -90px;
+  bottom: -110px;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+}
+.admin-portal .al-side-title { margin: 0; font-family: "Montserrat", sans-serif; font-size: 25px; font-weight: 900; line-height: 1.3; }
+.admin-portal .al-side-text { margin: 0; font-size: 14px; line-height: 1.6; color: #d5deee; }
+.admin-portal .al-steps { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 22px; position: relative; }
+.admin-portal .al-steps::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 32px;
+  height: 22px;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.25);
+}
+.admin-portal .al-step { display: flex; align-items: center; gap: 12px; }
+.admin-portal .al-step-num {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.14);
+  color: #c9d6ee;
+}
+.admin-portal .al-step.current .al-step-num { background: #fff; color: var(--navy); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.18); }
+.admin-portal .al-step-text { display: flex; flex-direction: column; font-size: 14px; font-weight: 700; color: #c9d6ee; }
+.admin-portal .al-step.current .al-step-text { color: #fff; }
+.admin-portal .al-step-text small { font-size: 11.5px; font-weight: 400; color: #93a6c9; }
+.admin-portal .al-spacer { flex: 1; min-height: 36px; }
+.admin-portal .al-back { color: #fff; font-weight: 700; font-size: 13px; text-decoration: none; position: relative; }
+.admin-portal .al-back:hover { text-decoration: underline; }
+.admin-portal .al-form { padding: 42px 44px 38px; display: flex; flex-direction: column; gap: 16px; }
+.admin-portal .al-form-head { display: flex; flex-direction: column; gap: 6px; }
+.admin-portal .al-title { margin: 0; font-family: "Montserrat", sans-serif; font-size: 22px; font-weight: 800; color: var(--navy); }
+.admin-portal .al-sub { margin: 0; font-size: 14px; color: #5a6b85; }
+.admin-portal .al-info {
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: #eef3fd;
+  border: 1px solid #c9d8f6;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--navy);
+}
+.admin-portal .al-error {
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: #fceeee;
+  border: 1px solid #f3cfcf;
+  font-size: 13.5px;
+  color: #902020;
+}
+.admin-portal .al-field { display: flex; flex-direction: column; gap: 7px; }
+.admin-portal .al-label { font-size: 11.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--navy); }
+.admin-portal .al-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid #d5ddea;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 14.5px;
+  color: var(--text);
+  outline: none;
+}
+.admin-portal .al-input:focus { border-color: var(--ccc-blue); }
+.admin-portal .al-eye {
+  position: absolute;
+  right: 8px;
+  top: 7px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7e9a;
+}
+.admin-portal .al-eye:hover { background: #eef1f6; }
+.admin-portal .al-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.admin-portal .al-keep { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: #8c99ae; }
+.admin-portal .al-forgot { font-size: 13px; color: #5a6b85; }
+.admin-portal .al-submit {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 6px;
+  background: var(--ccc-blue);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  transition: background 0.15s;
+}
+.admin-portal .al-submit:hover:not(:disabled) { background: var(--navy); }
+.admin-portal .al-submit:disabled { background: #d5d9df; color: #8a9199; cursor: not-allowed; }
+.admin-portal .al-submit:focus-visible { outline: 2px solid var(--ccc-blue); outline-offset: 2px; }
+.admin-portal .al-note { margin: 0; text-align: center; font-size: 12.5px; color: #8c99ae; }
+@media (max-width: 820px) {
+  .admin-portal .al-card { grid-template-columns: 1fr; }
+  .admin-portal .al-side { padding: 28px 24px; }
+  .admin-portal .al-spacer { display: none; }
+  .admin-portal .al-form { padding: 28px 24px; }
+}
