@@ -5173,3 +5173,181 @@
   .admin-portal .es-date-dow { padding: 0; }
   .admin-portal .es-sent { text-align: left; }
 }
+
+/* ── Oct 3 2026 redesign: Admin Accounts. ── */
+.admin-portal .aa-header { align-items: flex-end; }
+.admin-portal .aa-super-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: #7a4f0c;
+  background: #fdf0dc;
+  border-radius: 20px;
+  padding: 5px 12px;
+}
+.admin-portal .aa-temp {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  border-radius: 10px;
+}
+.admin-portal .aa-temp.warn { background: #fdf6e7; border: 1px solid #f0d9a8; color: #6b4e00; }
+.admin-portal .aa-temp.done { background: #eff8f2; border: 1px solid #cde6d6; color: #1a5c3a; }
+.admin-portal .aa-temp-main { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }
+.admin-portal .aa-temp-text { font-size: 12.3px; font-weight: 600; line-height: 1.5; }
+.admin-portal .aa-temp-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.admin-portal .aa-temp-code {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 12px;
+  color: var(--text);
+}
+.admin-portal .aa-temp-x {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5a6b85;
+  flex-shrink: 0;
+}
+.admin-portal .aa-temp-x:hover { background: rgba(13, 47, 110, 0.08); }
+.admin-portal .aa-layout { grid-template-columns: minmax(290px, 370px) minmax(0, 1fr); }
+.admin-portal .aa-form-error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fceeee;
+  border: 1px solid #f3cfcf;
+  color: #902020;
+  font-size: 12px;
+  font-weight: 600;
+}
+.admin-portal .aa-roles { display: flex; flex-direction: column; gap: 8px; }
+.admin-portal .aa-role { width: 100%; }
+.admin-portal .aa-table { min-width: 620px; }
+.admin-portal .aa-table td { padding-top: 13px; padding-bottom: 13px; }
+.admin-portal .aa-who { display: flex; align-items: center; gap: 12px; }
+.admin-portal .aa-avatar-2 {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #eef3fd;
+  color: var(--ccc-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.admin-portal .aa-avatar-2.self { background: var(--navy); color: #fff; }
+.admin-portal .aa-who-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-portal .aa-name-line { display: flex; align-items: center; gap: 7px; }
+.admin-portal .aa-name-2 { font-family: "Montserrat", sans-serif; font-weight: 700; font-size: 12.8px; color: var(--navy); }
+.admin-portal .aa-you {
+  font-family: "Montserrat", sans-serif;
+  font-size: 8.8px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  background: var(--navy);
+  color: #fff;
+  border-radius: 20px;
+  padding: 1px 7px;
+}
+.admin-portal .aa-email-2 { font-size: 11px; color: #5a6b85; overflow-wrap: anywhere; }
+.admin-portal .aa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 9.8px;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.admin-portal .aa-chip.super { background: #fdf0dc; color: #7a4f0c; }
+.admin-portal .aa-chip.admin { background: #eef3fd; color: #0035b8; }
+.admin-portal .aa-chip.active { background: #e6f4ec; color: #1a5c3a; }
+.admin-portal .aa-chip.pending { background: #fdf0dc; color: #7a4f0c; }
+.admin-portal .aa-chip.expired { background: #fbe7e7; color: #902020; }
+.admin-portal .aa-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.admin-portal .aa-actions { display: inline-flex; gap: 6px; }
+.admin-portal .aa-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid #d5ddea;
+  background: #fff;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--navy);
+  white-space: nowrap;
+}
+.admin-portal .aa-act svg { width: 13px; height: 13px; }
+.admin-portal .aa-act:hover:not(:disabled) { background: #eef3fd; }
+.admin-portal .aa-act.danger { color: #c0392b; border-color: #ebc4bf; }
+.admin-portal .aa-act.danger:hover:not(:disabled) { background: #fbe7e7; }
+.admin-portal .aa-act:disabled { color: #a7b4c8; border-color: #e6ebf2; background: #fafbfc; cursor: not-allowed; }
+.admin-portal .aa-foot { padding: 12px 20px; font-size: 11px; color: #5a6b85; border-top: 1px solid #eef1f6; line-height: 1.5; }
+.admin-portal .aa-confirm {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(13, 47, 110, 0.35);
+  overflow: hidden;
+  text-align: left;
+}
+.admin-portal .aa-confirm-body { padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 10px; }
+.admin-portal .aa-confirm-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-portal .aa-confirm-icon svg { width: 20px; height: 20px; }
+.admin-portal .aa-confirm-icon.primary { background: #eef3fd; color: var(--ccc-blue); }
+.admin-portal .aa-confirm-icon.danger { background: #fbe7e7; color: #c0392b; }
+.admin-portal .aa-confirm-title { margin: 0; font-family: "Montserrat", sans-serif; font-size: 16px; font-weight: 800; color: var(--navy); }
+.admin-portal .aa-confirm-desc { margin: 0 0 4px; font-size: 12.5px; color: #4f5f78; line-height: 1.55; }
+.admin-portal .aa-confirm-error { margin: 0; font-size: 12px; font-weight: 600; color: var(--ccc-red); }
+.admin-portal .aa-confirm-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 22px;
+  background: #fafbfc;
+  border-top: 1px solid var(--border);
+}
+.admin-portal .aa-table { min-width: 700px; }
+.admin-portal .aa-who-text { max-width: 240px; }
+.admin-portal .aa-name-2,
+.admin-portal .aa-email-2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+.admin-portal .aa-table th,
+.admin-portal .aa-table td { padding-left: 16px; padding-right: 16px; }
+.admin-portal .aa-layout { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); }
+.admin-portal .aa-table { min-width: 600px; }
+.admin-portal .aa-who-text { max-width: 210px; }
+.admin-portal .aa-table th,
+.admin-portal .aa-table td { padding-left: 12px; padding-right: 12px; }
+.admin-portal .aa-actions { flex-wrap: wrap; justify-content: flex-end; }

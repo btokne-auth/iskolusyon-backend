@@ -4218,17 +4218,29 @@ function AdminAccountsPanel() {
     return expired ? 'expired' : 'pending'
   }
 
+  // Oct 3 2026 redesign: summary row, invite form beside an accounts table,
+  // role picked with two cards, labeled Reset password / Remove buttons and
+  // a restyled password check. Same rules and requests as before.
+  const superCount = accounts.filter((a) => a.is_super_admin).length
+  const waitingCount = accounts.filter((a) => pendingState(a)).length
+  const confirmTone = confirmAction?.type === 'remove' ? 'danger' : 'primary'
+  const confirmLabel =
+    confirmAction?.type === 'invite' ? 'Invite' : confirmAction?.type === 'reset' ? 'Send new password' : 'Remove'
+
   return (
     <div>
-      <div className="portal-header">
+      <div className="portal-header aa-header">
         <div>
           <h1>Admin Accounts</h1>
           <p>
-            Super admin only. Invite an Admin or Super Admin below. They&apos;ll get an email with a temporary
-            password and choose their own when they first sign in. Inviting, resetting and removing accounts all
-            ask for your password first.
+            Invite and manage the people who can use this admin console. They&apos;ll get an email with a temporary
+            password and choose their own when they first sign in. Inviting, resetting and removing accounts all ask for
+            your password first.
           </p>
         </div>
+        <span className="aa-super-chip">
+          <IconShield className="w-3.5 h-3.5" /> Super Admin only
+        </span>
       </div>
 
       {/* Oct 1 2026: plain success/failure notices are toasts; a notice
@@ -4237,185 +4249,245 @@ function AdminAccountsPanel() {
         <AdminToast message={notice.text} tone={notice.tone === 'done' ? 'success' : 'error'} onDone={() => setNotice(null)} />
       )}
       {notice && notice.tempPassword && (
-        <div
-          className={`mb-4 rounded-xl border px-4 py-3 text-xs font-semibold ${
-            notice.tone === 'done'
-              ? 'border-ccc-green/40 bg-green-50 text-ccc-green'
-              : 'border-ccc-orange/50 bg-orange-50 text-ccc-orange'
-          }`}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <span>{notice.text}</span>
-            <button type="button" onClick={() => setNotice(null)} className="text-ccc-muted hover:text-ccc-text" aria-label="Dismiss">
-              ✕
-            </button>
-          </div>
-          {notice.tempPassword && (
-            <div className="mt-2 flex items-center gap-2">
-              <code className="rounded-md border border-ccc-border bg-white px-3 py-1.5 text-sm font-bold tracking-wider text-ccc-text">
-                {notice.tempPassword}
-              </code>
+        <div className={`aa-temp ${notice.tone === 'done' ? 'done' : 'warn'}`}>
+          <IconAlertTriangle className="w-5 h-5 shrink-0" />
+          <div className="aa-temp-main">
+            <span className="aa-temp-text">{notice.text}</span>
+            <span className="aa-temp-row">
+              <code className="aa-temp-code">{notice.tempPassword}</code>
               <CopyHashButton hash={notice.tempPassword} label="Copy" />
-            </div>
-          )}
+            </span>
+          </div>
+          <button type="button" onClick={() => setNotice(null)} className="aa-temp-x" aria-label="Dismiss">
+            &#10005;
+          </button>
         </div>
       )}
 
-      <div className="card">
-        <div className="card-title">Add Admin Account</div>
-        {formError && (
-          <div className="mb-4 rounded-xl border border-ccc-red/40 bg-red-50 px-4 py-2.5 text-xs font-semibold text-ccc-red">
-            {formError}
+      {!loading && !error && (
+        <div className="cm-card cm-kpis">
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Accounts</span>
+            <span className="cm-kpi-value">{accounts.length}</span>
           </div>
-        )}
-        <form className="add-admin-form" onSubmit={requestInvite}>
-          <div className="efield">
-            <label>Full Name</label>
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Grace Villanueva"
-              required
-            />
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Super Admins</span>
+            <span className="cm-kpi-value">{superCount}</span>
           </div>
-          <div className="efield">
-            <label>Email</label>
-            <input
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="name@ccc.edu.ph"
-              required
-            />
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Admins</span>
+            <span className="cm-kpi-value">{accounts.length - superCount}</span>
           </div>
-          <div className="efield">
-            <label>Role</label>
-            <select value={newRole} onChange={(e) => setNewRole(e.target.value)}>
-              <option value="admin">Admin</option>
-              <option value="super_admin">Super Admin</option>
-            </select>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Waiting to set a password</span>
+            <span className="cm-kpi-value">{waitingCount}</span>
           </div>
-          <button
-            type="submit"
-            className="text-xs font-bold uppercase tracking-wide text-white bg-ccc-navy px-4 py-2.5 rounded-lg"
-          >
-            Invite
-          </button>
-        </form>
-      </div>
-
-      <div className="card" style={{ marginBottom: 0 }}>
-        <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>Current Accounts</span>
-          {!loading && !error && (
-            <span className="badge badge-notsubmitted">
-              {accounts.length} account{accounts.length === 1 ? '' : 's'}
-            </span>
-          )}
         </div>
-        {loading ? (
-          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
-        ) : error ? (
-          <p className="text-sm text-ccc-red text-center py-8">{error}</p>
-        ) : accounts.length === 0 ? (
-          <p className="text-sm text-ccc-muted text-center py-8">No admin accounts found.</p>
-        ) : (
-          <div className="admin-list">
-            {accounts.map((acc) => {
-              const isSelf = acc.email.toLowerCase() === myEmail
-              const pending = pendingState(acc)
-              return (
-                <div key={acc.email} className="admin-row">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '13px', width: '100%' }}>
-                    <div className="aa-avatar">{getInitials(acc.name)}</div>
-                    <div className="aa-info">
-                      <div className="aa-name">
-                        {acc.name}
-                        {isSelf && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-ccc-muted">You</span>}
-                      </div>
-                      <div className="aa-email">{acc.email}</div>
-                    </div>
-                    {pending && (
-                      <span
-                        className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                          pending === 'expired'
-                            ? 'border-ccc-red/40 bg-red-50 text-ccc-red'
-                            : 'border-ccc-orange/50 bg-orange-50 text-ccc-orange'
-                        }`}
-                        title={
-                          pending === 'expired'
-                            ? 'Their temporary password expired. Use Reset to send a new one.'
-                            : 'Invited. Waiting for them to sign in and choose their own password.'
-                        }
-                      >
-                        {pending === 'expired' ? 'Invite expired' : 'Pending setup'}
-                      </span>
-                    )}
-                    <span className={`role-tag ${acc.is_super_admin ? 'super' : 'admin'}`}>
-                      {acc.is_super_admin ? 'Super Admin' : 'Admin'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => requestReset(acc)}
-                      disabled={isSelf}
-                      className="flex items-center justify-center w-8 h-8 rounded-lg text-sm text-ccc-blue hover:bg-blue-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      title={isSelf ? "You can't reset your own password here." : 'Email a new temporary password'}
-                    >
-                      🔑
-                    </button>
-                    <button
-                      type="button"
-                      className={`admin-row-del${isSelf ? ' is-disabled' : ''}`}
-                      onClick={() => requestRemove(acc)}
-                      disabled={isSelf}
-                      title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
-                    >
-                      🗑
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
+      )}
+
+      <div className="cm-layout aa-layout">
+        <section className="cm-card">
+          <div className="cm-head">
+            <h2 className="cm-title">Invite an admin</h2>
           </div>
-        )}
+          <form className="cm-form" onSubmit={requestInvite}>
+            {formError && <div className="aa-form-error">{formError}</div>}
+            <div className="cm-field">
+              <label className="cm-label" htmlFor="aaName">Full name</label>
+              <input id="aaName" className="cm-input" type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g. Grace Villanueva" required />
+            </div>
+            <div className="cm-field">
+              <label className="cm-label" htmlFor="aaEmail">Email</label>
+              <input id="aaEmail" className="cm-input" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="name@ccc.edu.ph" required />
+            </div>
+            <div className="cm-field">
+              <span className="cm-label" id="aaRoleLabel">Role</span>
+              <div className="aa-roles" role="group" aria-labelledby="aaRoleLabel">
+                {[
+                  { key: 'admin', label: 'Admin', desc: 'Reviews applicants, results, schedules, requests and communications.' },
+                  { key: 'super_admin', label: 'Super Admin', desc: 'Everything an Admin does, plus Admin Accounts and System & Activity.' },
+                ].map((r) => (
+                  <button
+                    key={r.key}
+                    type="button"
+                    className={`cm-type aa-role${newRole === r.key ? ' on' : ''}`}
+                    aria-pressed={newRole === r.key}
+                    onClick={() => setNewRole(r.key)}
+                  >
+                    <span className="cm-type-text">
+                      <span className="cm-type-name">{r.label}</span>
+                      <span className="cm-type-desc">{r.desc}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="cm-scope muted">
+              <IconMail />
+              <span>They get an email with a temporary password and choose their own the first time they sign in.</span>
+            </div>
+            <button type="submit" className="cm-btn cm-btn-primary cm-btn-block">
+              Invite admin
+            </button>
+          </form>
+        </section>
+
+        <section className="cm-card">
+          <div className="cm-head">
+            <div className="cm-head-left">
+              <h2 className="cm-title">Current accounts</h2>
+              {!loading && !error && (
+                <span className="tag">
+                  {accounts.length} account{accounts.length === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
+          </div>
+          {loading ? (
+            <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+          ) : error ? (
+            <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+          ) : accounts.length === 0 ? (
+            <p className="text-sm text-ccc-muted text-center py-8">No admin accounts found.</p>
+          ) : (
+            <>
+              <div className="st-scroll">
+                <table className="st-table aa-table">
+                  <thead>
+                    <tr>
+                      <th>Account</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th className="r">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {accounts.map((acc) => {
+                      const isSelf = acc.email.toLowerCase() === myEmail
+                      const pending = pendingState(acc)
+                      return (
+                        <tr key={acc.email}>
+                          <td>
+                            <div className="aa-who">
+                              <span className={`aa-avatar-2${isSelf ? ' self' : ''}`}>{getInitials(acc.name)}</span>
+                              <span className="aa-who-text">
+                                <span className="aa-name-line">
+                                  <span className="aa-name-2">{acc.name}</span>
+                                  {isSelf && <span className="aa-you">You</span>}
+                                </span>
+                                <span className="aa-email-2">{acc.email}</span>
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`aa-chip ${acc.is_super_admin ? 'super' : 'admin'}`}>
+                              {acc.is_super_admin ? 'Super Admin' : 'Admin'}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className={`aa-chip status ${pending || 'active'}`}
+                              title={
+                                pending === 'expired'
+                                  ? 'Their temporary password expired. Use Reset password to send a new one.'
+                                  : pending === 'pending'
+                                    ? 'Invited. Waiting for them to sign in and choose their own password.'
+                                    : 'Signed in with their own password.'
+                              }
+                            >
+                              <span className="aa-dot" />
+                              {pending === 'expired' ? 'Invite expired' : pending === 'pending' ? 'Pending setup' : 'Active'}
+                            </span>
+                          </td>
+                          <td className="r">
+                            <span className="aa-actions">
+                              <button
+                                type="button"
+                                onClick={() => requestReset(acc)}
+                                disabled={isSelf}
+                                className="aa-act"
+                                title={isSelf ? "You can't reset your own password here." : 'Email a new temporary password'}
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <circle cx="8" cy="15" r="4" />
+                                  <path d="m11 12 9-9M17 6l3 3" />
+                                </svg>
+                                Reset password
+                              </button>
+                              <button
+                                type="button"
+                                className="aa-act danger"
+                                onClick={() => requestRemove(acc)}
+                                disabled={isSelf}
+                                title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
+                              >
+                                <IconTrash />
+                                Remove
+                              </button>
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="aa-foot">
+                You can&apos;t reset or remove your own account here. <b>Pending setup</b> means they haven&apos;t signed in to
+                choose a password yet; <b>Invite expired</b> means use Reset password to send a new one.
+              </div>
+            </>
+          )}
+        </section>
       </div>
 
-      {/* Password confirm pop-up, ported from Ivy's admin.html
-          (#adminActionPasswordOverlay). */}
+      {/* Password confirm pop-up (ported from Ivy's admin.html,
+          #adminActionPasswordOverlay), restyled Oct 3 2026. */}
       {confirmAction && (
         <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && closeConfirm()}>
-          <form className="confirm-box has-password" role="dialog" aria-modal="true" onSubmit={submitConfirm}>
-            <div className="confirm-icon">&#128274;</div>
-            <h3>{confirmAction.title}</h3>
-            <p>{confirmAction.desc}</p>
-            <div className="gate-field" style={{ position: 'relative' }}>
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Your password"
-                autoComplete="current-password"
-                autoFocus
-                style={{ paddingRight: 36 }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword((v) => !v)}
-                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
-                tabIndex={-1}
-              >
-                {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
-              </button>
+          <form className="aa-confirm" role="dialog" aria-modal="true" aria-label={confirmAction.title} onSubmit={submitConfirm}>
+            <div className="aa-confirm-body">
+              <span className={`aa-confirm-icon ${confirmTone}`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="5" y="11" width="14" height="9" rx="2" />
+                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+              </span>
+              <h3 className="aa-confirm-title">{confirmAction.title}</h3>
+              <p className="aa-confirm-desc">{confirmAction.desc}</p>
+              <label className="cm-label" htmlFor="aaConfirmPw">Your password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="aaConfirmPw"
+                  className="cm-input"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Your password"
+                  autoComplete="current-password"
+                  autoFocus
+                  style={{ paddingRight: 40 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
+              {confirmError && <p className="aa-confirm-error">{confirmError}</p>}
             </div>
-            {confirmError && <p className="confirm-password-error show">{confirmError}</p>}
-            <div className="confirm-actions">
-              <button type="button" className="mbtn mbtn-ghost" onClick={closeConfirm} disabled={confirmBusy}>
+            <div className="aa-confirm-foot">
+              <button type="button" className="cm-btn cm-btn-secondary" onClick={closeConfirm} disabled={confirmBusy}>
                 Cancel
               </button>
-              <button type="submit" className="mbtn mbtn-primary" disabled={confirmBusy}>
-                {confirmBusy ? 'Working...' : 'Confirm'}
+              <button type="submit" className={`cm-btn ${confirmTone === 'danger' ? 'cm-btn-danger' : 'cm-btn-primary'}`} disabled={confirmBusy}>
+                {confirmBusy ? 'Working...' : confirmLabel}
               </button>
             </div>
           </form>
@@ -4424,6 +4496,7 @@ function AdminAccountsPanel() {
     </div>
   )
 }
+
 
 // ---------- System & Activity panel ----------
 // Sept 22, 2026 rebuild: this used to be just the audit log (moved in from
