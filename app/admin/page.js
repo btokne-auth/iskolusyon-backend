@@ -4940,220 +4940,306 @@ function ExamSchedulesPanel() {
   }
 
   const schedules = data?.schedules || []
+  const batchSize = data?.batchSize || 100
+  const sentCount = schedules.filter((s) => s.sent_at).length
+  const scheduledCount = schedules.reduce((n, s) => n + s.applicants.length, 0)
+  const dateParts = (iso) => {
+    try {
+      const d = new Date(`${iso}T00:00:00+08:00`)
+      return {
+        mon: d.toLocaleDateString('en-PH', { month: 'short', timeZone: 'Asia/Manila' }).toUpperCase(),
+        day: d.toLocaleDateString('en-PH', { day: 'numeric', timeZone: 'Asia/Manila' }),
+        dow: d.toLocaleDateString('en-PH', { weekday: 'short', timeZone: 'Asia/Manila' }),
+      }
+    } catch {
+      return { mon: '', day: iso, dow: '' }
+    }
+  }
 
+  // Oct 3 2026 redesign: summary strip, the form beside the batches, and
+  // each batch as a card. Every action and rule is the same as before.
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          Exam Schedules
-        </h1>
-        <p className="text-xs text-ccc-muted mt-0.5">
-          Create an entrance exam batch and send the schedule to its applicants. Batches fill with the next applicants in
-          submission order, up to {data?.batchSize || 100} per batch. Someone removed from a batch goes back to the waiting
-          list and is picked first for the next batch.
-        </p>
+      <div className="portal-header">
+        <div>
+          <h1>Exam Schedules</h1>
+          <p>
+            Create an entrance exam batch and send the schedule to its applicants. Batches fill with the next applicants in
+            submission order, up to {batchSize} per batch. Someone removed from a batch goes back to the waiting list and is
+            picked first for the next batch.
+          </p>
+        </div>
       </div>
 
       {error && <p className="text-sm text-ccc-red mb-3">{error}</p>}
       <AdminToast message={notice} onDone={() => setNotice('')} />
 
-      <div className="card">
-        <div className="card-title">
-          New Exam Batch
-          {data && (
-            <span className="tag" style={{ marginLeft: '10px' }}>
-              {data.waitingCount} applicant{data.waitingCount === 1 ? '' : 's'} waiting for a schedule
+      {data && (
+        <div className="cm-card cm-kpis">
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Waiting for a schedule</span>
+            <span className="cm-kpi-value">{data.waitingCount}</span>
+            <span className="cm-kpi-sub">Submitted applicants not in a batch</span>
+          </div>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Batches</span>
+            <span className="cm-kpi-value">{schedules.length}</span>
+            <span className="cm-kpi-sub">
+              {sentCount} sent · {schedules.length - sentCount} not sent yet
             </span>
-          )}
+          </div>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Applicants scheduled</span>
+            <span className="cm-kpi-value">{scheduledCount}</span>
+            <span className="cm-kpi-sub">Across all batches</span>
+          </div>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Batch size</span>
+            <span className="cm-kpi-value">{batchSize}</span>
+            <span className="cm-kpi-sub">Applicants per batch, max</span>
+          </div>
         </div>
-        <form onSubmit={createBatch} className="email-fields" style={{ marginBottom: 0 }}>
-          <div className="email-field-row">
-            <label>Batch name</label>
-            <input className="email-field-input" value={form.batchLabel} maxLength={80} placeholder="e.g. Batch 1"
-              onChange={(e) => setForm((f) => ({ ...f, batchLabel: e.target.value }))} />
+      )}
+
+      <div className="cm-layout es-layout">
+        <section className="cm-card cm-composer">
+          <div className="cm-head">
+            <h2 className="cm-title">New exam batch</h2>
           </div>
-          <div className="email-field-row">
-            <label>Exam date</label>
-            <input className="email-field-input" type="date" value={form.examDate}
-              onChange={(e) => setForm((f) => ({ ...f, examDate: e.target.value }))} />
-          </div>
-          <div className="email-field-row">
-            <label>Start time (optional)</label>
-            <input className="email-field-input" type="time" value={form.startTime}
-              onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} />
-          </div>
-          <div className="email-field-row">
-            <label>End time (optional)</label>
-            <input className="email-field-input" type="time" value={form.endTime}
-              onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} />
-          </div>
-          <div className="email-field-row">
-            <label>Venue (optional)</label>
-            <input className="email-field-input" value={form.venue} maxLength={150} placeholder="e.g. CCC Main Campus, Room 101"
-              onChange={(e) => setForm((f) => ({ ...f, venue: e.target.value }))} />
-          </div>
-          <div className="email-field-row">
-            <label>Notes for applicants (optional)</label>
-            <textarea className="email-field-input" rows={3} value={form.notes} maxLength={1000} placeholder="e.g. what to bring"
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
-          </div>
-          <div className="confirm-inline-actions" style={{ marginBottom: '8px' }}>
-            <button type="submit" className="mbtn mbtn-primary mbtn-sm" disabled={busy || !form.batchLabel.trim() || !form.examDate}>
+          <form onSubmit={createBatch} className="cm-form">
+            <div className="cm-field">
+              <label className="cm-label" htmlFor="esLabel">Batch name</label>
+              <input id="esLabel" className="cm-input" value={form.batchLabel} maxLength={80} placeholder="e.g. Batch 1"
+                onChange={(e) => setForm((f) => ({ ...f, batchLabel: e.target.value }))} />
+            </div>
+            <div className="cm-field">
+              <label className="cm-label" htmlFor="esDate">Exam date</label>
+              <input id="esDate" className="cm-input" type="date" value={form.examDate}
+                onChange={(e) => setForm((f) => ({ ...f, examDate: e.target.value }))} />
+            </div>
+            <div className="es-row2">
+              <div className="cm-field">
+                <label className="cm-label" htmlFor="esStart">Start <span className="cm-opt">(optional)</span></label>
+                <input id="esStart" className="cm-input" type="time" value={form.startTime}
+                  onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} />
+              </div>
+              <div className="cm-field">
+                <label className="cm-label" htmlFor="esEnd">End <span className="cm-opt">(optional)</span></label>
+                <input id="esEnd" className="cm-input" type="time" value={form.endTime}
+                  onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} />
+              </div>
+            </div>
+            <div className="cm-field">
+              <label className="cm-label" htmlFor="esVenue">Venue <span className="cm-opt">(optional)</span></label>
+              <input id="esVenue" className="cm-input" value={form.venue} maxLength={150} placeholder="e.g. CCC Main Campus, Room 101"
+                onChange={(e) => setForm((f) => ({ ...f, venue: e.target.value }))} />
+            </div>
+            <div className="cm-field">
+              <label className="cm-label" htmlFor="esNotes">Notes for applicants <span className="cm-opt">(optional)</span></label>
+              <textarea id="esNotes" className="cm-input cm-textarea" style={{ minHeight: 84 }} rows={3} value={form.notes} maxLength={1000}
+                placeholder="e.g. what to bring" onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <div className="cm-scope muted">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+              </svg>
+              <span>
+                The batch takes the next waiting applicants, up to {batchSize}. Nobody is notified until you click Send
+                schedule.
+              </span>
+            </div>
+            <button type="submit" className="cm-btn cm-btn-primary cm-btn-block" disabled={busy || !form.batchLabel.trim() || !form.examDate}>
               {busy ? 'Working...' : 'Create batch'}
             </button>
-          </div>
-        </form>
-      </div>
+          </form>
+        </section>
 
-      <div className="card" style={{ marginBottom: 0 }}>
-        <div className="card-title">
-          Batches
-          {!loading && (
-            <span className="tag" style={{ marginLeft: '10px' }}>
-              {schedules.length} batch{schedules.length === 1 ? '' : 'es'}
-            </span>
+        <section className="cm-card">
+          <div className="cm-head">
+            <div className="cm-head-left">
+              <h2 className="cm-title">Batches</h2>
+              {!loading && (
+                <span className="tag">
+                  {schedules.length} batch{schedules.length === 1 ? '' : 'es'}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+          ) : schedules.length === 0 ? (
+            <p className="text-sm text-ccc-muted text-center py-8">No exam batches yet.</p>
+          ) : (
+            <div className="es-list">
+              {schedules.map((s) => {
+                const isOpen = openId === s.id
+                const optedIn = s.applicants.filter((a) => a.email_updates_opt_in).length
+                const dp = dateParts(s.exam_date)
+                const pct = Math.min(100, Math.round((s.applicants.length / batchSize) * 100))
+                return (
+                  <article key={s.id} className="es-batch">
+                    <div className="es-batch-top">
+                      <div className="es-date" aria-label={fmtDate(s.exam_date)}>
+                        <span className="es-date-mon">{dp.mon}</span>
+                        <span className="es-date-day">{dp.day}</span>
+                        <span className="es-date-dow">{dp.dow}</span>
+                      </div>
+                      <div className="es-batch-main">
+                        <div className="es-batch-row">
+                          <div className="es-batch-info">
+                            <div className="es-name-line">
+                              <h3 className="es-name">{s.batch_label}</h3>
+                              <span className={`es-state ${s.sent_at ? 'sent' : 'draft'}`}>{s.sent_at ? 'Sent' : 'Not sent yet'}</span>
+                            </div>
+                            <div className="es-where">
+                              <span>
+                                <IconClock className="w-3.5 h-3.5" /> {s.exam_time || 'Time not set'}
+                              </span>
+                              <span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M12 21s-7-6.3-7-11a7 7 0 0 1 14 0c0 4.7-7 11-7 11z" />
+                                  <circle cx="12" cy="10" r="2.5" />
+                                </svg>{' '}
+                                {s.venue || 'Venue not set'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="es-actions">
+                            <button type="button" className="cm-btn cm-btn-secondary" onClick={() => setOpenId(isOpen ? null : s.id)}>
+                              {isOpen ? 'Hide applicants' : 'View applicants'}
+                            </button>
+                            {!s.sent_at && s.applicants.length < batchSize && data?.waitingCount > 0 && (
+                              <button type="button" className="cm-btn cm-btn-secondary" disabled={busy}
+                                onClick={() => simpleAction({ action: 'fill', scheduleId: s.id }, (j) => `Added ${j.added} applicant${j.added === 1 ? '' : 's'}.`)}>
+                                Fill up to {batchSize}
+                              </button>
+                            )}
+                            {!s.sent_at && (
+                              <button type="button" className="es-icon-btn" disabled={busy} aria-label={`Delete ${s.batch_label}`}
+                                title="Delete batch (its applicants go back to the waiting list)"
+                                onClick={() => {
+                                  if (window.confirm(`Delete ${s.batch_label}? Its applicants go back to the waiting list.`)) {
+                                    simpleAction({ action: 'delete', scheduleId: s.id }, 'Batch deleted.')
+                                  }
+                                }}>
+                                <IconTrash />
+                              </button>
+                            )}
+                            <button type="button" className="cm-btn cm-btn-primary" disabled={busy || s.applicants.length === 0}
+                              onClick={() => openSend(s.id)}>
+                              {s.sent_at ? 'Send again' : 'Send schedule'}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="es-capacity">
+                          <span className="es-bar" aria-hidden="true">
+                            <span style={{ width: `${Math.max(pct, s.applicants.length ? 2 : 0)}%` }} />
+                          </span>
+                          <span className="es-count">
+                            <b>{s.applicants.length}</b> / {batchSize} applicants
+                          </span>
+                          <span className="es-sub">{optedIn} of {s.applicants.length} opted in to email</span>
+                          <span className={`es-sub es-sent ${s.sent_at ? 'sent' : 'draft'}`}>
+                            {s.sent_at
+                              ? `Sent ${fmtDateTime(s.sent_at)}${s.sent_by ? ' by ' + s.sent_by : ''}`
+                              : 'Not sent yet. Applicants can still be changed.'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {sendBox && sendBox.scheduleId === s.id && (
+                      <div className="es-send">
+                        <div className="es-send-head">
+                          <b>
+                            Send schedule to {s.applicants.length} applicant{s.applicants.length === 1 ? '' : 's'}
+                          </b>
+                          <span>
+                            A private portal message to all of them, and an email to the {optedIn} who opted in.
+                          </span>
+                        </div>
+                        <div className="es-send-grid">
+                          <label className="cm-label" htmlFor={`esSubj${s.id}`}>Subject</label>
+                          <input id={`esSubj${s.id}`} className="cm-input" value={sendBox.subject} maxLength={150} disabled={!sendBox.editSubject}
+                            onChange={(e) => setSendBox((b) => ({ ...b, subject: e.target.value }))} />
+                          <button type="button" className="es-edit" onClick={() => setSendBox((b) => ({ ...b, editSubject: !b.editSubject }))}>
+                            {sendBox.editSubject ? 'Done' : 'Edit'}
+                          </button>
+                          <label className="cm-label es-top" htmlFor={`esMsg${s.id}`}>Message</label>
+                          <textarea id={`esMsg${s.id}`} className="cm-input cm-textarea" rows={9} value={sendBox.message} maxLength={4000}
+                            disabled={!sendBox.editMessage} onChange={(e) => setSendBox((b) => ({ ...b, message: e.target.value }))} />
+                          <button type="button" className="es-edit es-top" onClick={() => setSendBox((b) => ({ ...b, editMessage: !b.editMessage }))}>
+                            {sendBox.editMessage ? 'Done' : 'Edit'}
+                          </button>
+                        </div>
+                        {!s.sent_at && <div className="rq-warn">After sending, the applicants in this batch can no longer be changed.</div>}
+                        {sendBox.needsResend && <div className="rq-warn">This batch was already sent. Send it again to everyone in it?</div>}
+                        <div className="es-send-actions">
+                          <button type="button" className="cm-btn cm-btn-secondary" disabled={busy} onClick={() => setSendBox(null)}>
+                            Cancel
+                          </button>
+                          <button type="button" className="cm-btn cm-btn-primary" disabled={busy || !sendBox.subject.trim() || !sendBox.message.trim()} onClick={send}>
+                            {busy ? 'Sending...' : sendBox.needsResend ? 'Yes, send again' : 'Send'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {isOpen && (
+                      s.applicants.length === 0 ? (
+                        <p className="es-empty">No applicants in this batch.</p>
+                      ) : (
+                        <div className="es-table-wrap">
+                          <table className="st-table es-table">
+                            <thead>
+                              <tr>
+                                <th style={{ width: 44 }}>#</th>
+                                <th>Applicant</th>
+                                <th>Application No.</th>
+                                <th>Email updates</th>
+                                {!s.sent_at && <th />}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {s.applicants.map((a, i) => (
+                                <tr key={a.id}>
+                                  <td className="es-num">{i + 1}</td>
+                                  <td>
+                                    <span className="es-person">{a.applicant_name || '(no name)'}</span>
+                                    <span className="es-person-sub">{a.applicant_email}</span>
+                                  </td>
+                                  <td>{a.application_number || '-'}</td>
+                                  <td>
+                                    <span className={`es-opt ${a.email_updates_opt_in ? 'yes' : 'no'}`}>{a.email_updates_opt_in ? 'Yes' : 'No'}</span>
+                                  </td>
+                                  {!s.sent_at && (
+                                    <td className="r">
+                                      <button type="button" className="es-remove" disabled={busy}
+                                        onClick={() => simpleAction({ action: 'remove', scheduleId: s.id, applicationId: a.id }, 'Applicant removed from the batch.')}>
+                                        Remove
+                                      </button>
+                                    </td>
+                                  )}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )
+                    )}
+                  </article>
+                )
+              })}
+            </div>
           )}
-        </div>
-
-        {loading ? (
-          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
-        ) : schedules.length === 0 ? (
-          <p className="text-sm text-ccc-muted text-center py-8">No exam batches yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {schedules.map((s) => {
-              const isOpen = openId === s.id
-              const optedIn = s.applicants.filter((a) => a.email_updates_opt_in).length
-              return (
-                <div key={s.id} className="rounded-xl border border-ccc-border p-3.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-bold text-ccc-navy">{s.batch_label}</p>
-                      <p className="text-[11px] text-ccc-muted">
-                        {fmtDate(s.exam_date)}
-                        {s.exam_time ? `, ${s.exam_time}` : ''}
-                        {s.venue ? `, ${s.venue}` : ''}
-                      </p>
-                      <p className="text-[11px] text-ccc-muted">
-                        {s.applicants.length} applicant{s.applicants.length === 1 ? '' : 's'} ({optedIn} opted in to email)
-                        {s.sent_at ? `. Sent ${fmtDateTime(s.sent_at)}${s.sent_by ? ' by ' + s.sent_by : ''}.` : '. Not sent yet.'}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" className="mbtn mbtn-ghost mbtn-sm" onClick={() => setOpenId(isOpen ? null : s.id)}>
-                        {isOpen ? 'Hide applicants' : 'View applicants'}
-                      </button>
-                      {!s.sent_at && s.applicants.length < (data?.batchSize || 100) && data?.waitingCount > 0 && (
-                        <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={busy}
-                          onClick={() => simpleAction({ action: 'fill', scheduleId: s.id }, (j) => `Added ${j.added} applicant${j.added === 1 ? '' : 's'}.`)}>
-                          Fill up to {data?.batchSize || 100}
-                        </button>
-                      )}
-                      {!s.sent_at && (
-                        <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={busy}
-                          onClick={() => {
-                            if (window.confirm(`Delete ${s.batch_label}? Its applicants go back to the waiting list.`)) {
-                              simpleAction({ action: 'delete', scheduleId: s.id }, 'Batch deleted.')
-                            }
-                          }}>
-                          Delete
-                        </button>
-                      )}
-                      <button type="button" className="mbtn mbtn-primary mbtn-sm" disabled={busy || s.applicants.length === 0}
-                        onClick={() => openSend(s.id)}>
-                        {s.sent_at ? 'Send again' : 'Send schedule'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {sendBox && sendBox.scheduleId === s.id && (
-                    <div className="confirm-inline show" style={{ marginTop: '12px' }}>
-                      <p>
-                        This sends a private message to all {s.applicants.length} applicant{s.applicants.length === 1 ? '' : 's'} in this
-                        batch, and an email to the {optedIn} who opted in.
-                      </p>
-                      <div className="email-fields">
-                        <div className="email-field-row">
-                          <label>Subject</label>
-                          <div className="email-field-input-wrap">
-                            <input className="email-field-input" value={sendBox.subject} maxLength={150} disabled={!sendBox.editSubject}
-                              onChange={(e) => setSendBox((b) => ({ ...b, subject: e.target.value }))} />
-                            <button type="button" className="mbtn mbtn-ghost mbtn-sm email-field-edit-btn"
-                              onClick={() => setSendBox((b) => ({ ...b, editSubject: !b.editSubject }))}>
-                              {sendBox.editSubject ? 'Done' : 'Edit'}
-                            </button>
-                          </div>
-                        </div>
-                        <div className="email-field-row">
-                          <label>Message</label>
-                          <div className="email-field-input-wrap">
-                            <textarea className="email-field-input" rows={9} value={sendBox.message} maxLength={4000} disabled={!sendBox.editMessage}
-                              onChange={(e) => setSendBox((b) => ({ ...b, message: e.target.value }))} />
-                            <button type="button" className="mbtn mbtn-ghost mbtn-sm email-field-edit-btn"
-                              onClick={() => setSendBox((b) => ({ ...b, editMessage: !b.editMessage }))}>
-                              {sendBox.editMessage ? 'Done' : 'Edit'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                      {!s.sent_at && <p>After sending, the applicants in this batch can no longer be changed.</p>}
-                      {sendBox.needsResend && <p>This batch was already sent. Send it again to everyone in it?</p>}
-                      <div className="confirm-inline-actions">
-                        <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={busy} onClick={() => setSendBox(null)}>Cancel</button>
-                        <button type="button" className="mbtn mbtn-primary mbtn-sm" disabled={busy || !sendBox.subject.trim() || !sendBox.message.trim()} onClick={send}>
-                          {busy ? 'Sending...' : sendBox.needsResend ? 'Yes, send again' : 'Send'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {isOpen && (
-                    s.applicants.length === 0 ? (
-                      <p className="text-[11px] text-ccc-muted mt-3">No applicants in this batch.</p>
-                    ) : (
-                      <table className="applicant-table" style={{ marginTop: '12px' }}>
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>Applicant</th>
-                            <th>Application No.</th>
-                            <th>Email updates</th>
-                            {!s.sent_at && <th></th>}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {s.applicants.map((a, i) => (
-                            <tr key={a.id}>
-                              <td>{i + 1}</td>
-                              <td>
-                                <div className="font-bold">{a.applicant_name || '(no name)'}</div>
-                                <div className="text-[11px] text-ccc-muted">{a.applicant_email}</div>
-                              </td>
-                              <td>{a.application_number || '-'}</td>
-                              <td>{a.email_updates_opt_in ? 'Yes' : 'No'}</td>
-                              {!s.sent_at && (
-                                <td>
-                                  <button type="button" className="mbtn mbtn-ghost mbtn-sm" disabled={busy}
-                                    onClick={() => simpleAction({ action: 'remove', scheduleId: s.id, applicationId: a.id }, 'Applicant removed from the batch.')}>
-                                    Remove
-                                  </button>
-                                </td>
-                              )}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
+        </section>
       </div>
     </div>
   )
 }
+
 
 // ---------- Reschedule requests (Notifications Module, admin side) ----------
 

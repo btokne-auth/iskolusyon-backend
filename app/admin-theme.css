@@ -5072,3 +5072,104 @@
   .admin-portal .rq-doc { border-right: none; border-bottom: 1px solid var(--border); }
   .admin-portal .rq-doc-view { max-height: 50vh; }
 }
+
+/* ── Oct 3 2026 redesign: Exam Schedules (batch cards). Reuses .cm-* and
+   .st-table from the Communications and Statistics redesigns. ── */
+.admin-portal .es-layout { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); }
+.admin-portal .es-row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.admin-portal .es-list { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.admin-portal .es-batch { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #fff; }
+.admin-portal .es-batch-top { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px; padding: 16px; }
+.admin-portal .es-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid #d5ddea;
+  border-radius: 10px;
+  overflow: hidden;
+  align-self: start;
+}
+.admin-portal .es-date-mon {
+  width: 100%;
+  text-align: center;
+  background: var(--navy);
+  color: #fff;
+  font-family: "Montserrat", sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 4px 0;
+}
+.admin-portal .es-date-day { font-family: "Montserrat", sans-serif; font-size: 24px; font-weight: 900; color: var(--navy); padding: 6px 0 2px; }
+.admin-portal .es-date-dow { font-size: 10px; color: #5a6b85; padding-bottom: 6px; }
+.admin-portal .es-batch-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.admin-portal .es-batch-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.admin-portal .es-batch-info { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.admin-portal .es-name-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.admin-portal .es-name { margin: 0; font-family: "Montserrat", sans-serif; font-size: 14.5px; font-weight: 800; color: var(--navy); }
+.admin-portal .es-state { font-family: "Montserrat", sans-serif; font-size: 9.8px; font-weight: 700; border-radius: 20px; padding: 3px 10px; }
+.admin-portal .es-state.sent { background: #e6f4ec; color: #1a5c3a; }
+.admin-portal .es-state.draft { background: #fdf0dc; color: #7a4f0c; }
+.admin-portal .es-where { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: #4f5f78; }
+.admin-portal .es-where span { display: inline-flex; align-items: center; gap: 5px; }
+.admin-portal .es-where svg { width: 13px; height: 13px; }
+.admin-portal .es-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-portal .es-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8c99ae;
+  border: 1px solid var(--border);
+}
+.admin-portal .es-icon-btn svg { width: 16px; height: 16px; }
+.admin-portal .es-icon-btn:hover:not(:disabled) { background: #fbe7e7; color: #c0392b; border-color: #f3cfcf; }
+.admin-portal .es-icon-btn:disabled { opacity: 0.5; }
+.admin-portal .es-capacity { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center; }
+.admin-portal .es-bar { display: block; height: 6px; border-radius: 3px; background: #eef1f6; overflow: hidden; }
+.admin-portal .es-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--ccc-blue); }
+.admin-portal .es-count { font-size: 11.5px; color: var(--text); }
+.admin-portal .es-count b { font-family: "Montserrat", sans-serif; }
+.admin-portal .es-sub { font-size: 11px; color: #5a6b85; }
+.admin-portal .es-sent { text-align: right; }
+.admin-portal .es-sent.sent { color: #1a5c3a; }
+.admin-portal .es-sent.draft { color: #7a4f0c; }
+.admin-portal .es-send {
+  border-top: 1px solid var(--border);
+  background: #f7f9fc;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-portal .es-send-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.admin-portal .es-send-head b { font-family: "Montserrat", sans-serif; font-size: 12.5px; color: var(--navy); }
+.admin-portal .es-send-head span { font-size: 11px; color: #5a6b85; }
+.admin-portal .es-send-grid { display: grid; grid-template-columns: 80px minmax(0, 1fr) auto; gap: 8px 10px; align-items: center; }
+.admin-portal .es-send-grid .cm-input:disabled { background: #fff; color: var(--text); }
+.admin-portal .es-top { align-self: start; padding-top: 10px; }
+.admin-portal .es-edit { font-family: "Montserrat", sans-serif; font-size: 11px; font-weight: 700; color: var(--ccc-blue); }
+.admin-portal .es-edit:hover { text-decoration: underline; }
+.admin-portal .es-send-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.admin-portal .es-empty { margin: 0; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 11.5px; color: #5a6b85; }
+.admin-portal .es-table-wrap { border-top: 1px solid var(--border); overflow-x: auto; }
+.admin-portal .es-table th,
+.admin-portal .es-table td { padding-left: 14px; padding-right: 14px; }
+.admin-portal .es-num { color: #8c99ae !important; }
+.admin-portal .es-person { display: block; font-family: "Montserrat", sans-serif; font-weight: 700; font-size: 12.3px; color: var(--navy); }
+.admin-portal .es-person-sub { display: block; font-size: 10.8px; color: #5a6b85; }
+.admin-portal .es-opt { font-family: "Montserrat", sans-serif; font-size: 9.8px; font-weight: 700; border-radius: 20px; padding: 2px 9px; }
+.admin-portal .es-opt.yes { background: #e6f4ec; color: #1a5c3a; }
+.admin-portal .es-opt.no { background: #eef0f3; color: #4f5f78; }
+.admin-portal .es-remove { font-size: 11.5px; font-weight: 600; color: #c0392b; }
+.admin-portal .es-remove:hover:not(:disabled) { text-decoration: underline; }
+@media (max-width: 640px) {
+  .admin-portal .es-batch-top { grid-template-columns: 1fr; }
+  .admin-portal .es-date { flex-direction: row; gap: 8px; padding-right: 10px; }
+  .admin-portal .es-date-mon { width: auto; padding: 4px 8px; }
+  .admin-portal .es-date-day { font-size: 16px; padding: 0; }
+  .admin-portal .es-date-dow { padding: 0; }
+  .admin-portal .es-sent { text-align: left; }
+}
