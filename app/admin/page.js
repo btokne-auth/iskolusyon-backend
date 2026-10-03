@@ -5279,6 +5279,29 @@ function ReschedulePanel() {
           )}
         </div>
 
+        {/* Oct 3 2026 redesign: status tabs replace the Status dropdown. */}
+        <div className="apl-tabs" role="group" aria-label="Filter requests by status">
+          {[
+            ['all', 'All'],
+            ['submitted', 'Awaiting review'],
+            ['approved', 'Approved'],
+            ['declined', 'Declined'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={`apl-tab${statusFilter === key ? ' active' : ''}`}
+              aria-pressed={statusFilter === key}
+              onClick={() => setStatusFilter(key)}
+            >
+              {label}
+              <span className="apl-tab-count">
+                {key === 'all' ? requests.length : requests.filter((r) => r.status === key).length}
+              </span>
+            </button>
+          ))}
+        </div>
+
         <div className="reviewer-note">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
@@ -5320,14 +5343,6 @@ function ReschedulePanel() {
               </select>
             </>
           )}
-          <span className="filter-divider"></span>
-          <span className="filter-bar-label">Status</span>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="all">All</option>
-            <option value="submitted">Awaiting review</option>
-            <option value="approved">Approved</option>
-            <option value="declined">Declined</option>
-          </select>
           {filtersActive && (
             <button
               type="button"
@@ -5355,8 +5370,9 @@ function ReschedulePanel() {
           <table className="applicant-table">
             <thead>
               <tr>
-                <th style={{ width: '26%' }}>Applicant</th>
+                <th style={{ width: '24%' }}>Applicant</th>
                 <th>Request</th>
+                <th style={{ width: '15%' }}>Attachment</th>
                 <th
                   className="sortable-th"
                   style={{ width: '17%' }}
@@ -5400,22 +5416,28 @@ function ReschedulePanel() {
                     </div>
                   </td>
                   <td>
-                    <div className="text-xs font-bold text-ccc-navy">{r.request_type}</div>
+                    <div className="rq-type-line">
+                      <span className="text-xs font-bold text-ccc-navy">{r.request_type}</span>
+                      {/reschedule/i.test(r.request_type || '') && <span className="rq-req-tag">Document required</span>}
+                    </div>
                     <div className="text-xs text-ccc-muted mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                       {r.details}
                     </div>
+                  </td>
+                  <td>
                     {r.supporting_document_url ? (
-                      <a
-                        href={r.supporting_document_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-block text-xs font-bold text-ccc-blue underline mt-1.5"
-                      >
-                        &#128206; View supporting document
-                      </a>
+                      <span className="rq-attach">
+                        <span className={`rq-thumb ${docKindOf(r.supporting_document_url)}`} aria-hidden="true">
+                          <i /><i /><i /><i />
+                          <b>{docExtOf(r.supporting_document_url)}</b>
+                        </span>
+                        <span className="rq-attach-text">
+                          <span className="rq-attach-kind">{docKindOf(r.supporting_document_url) === 'pdf' ? 'PDF' : docKindOf(r.supporting_document_url) === 'image' ? 'Image' : 'File'}</span>
+                          <span className="rq-attach-sub">Preview inside</span>
+                        </span>
+                      </span>
                     ) : (
-                      <div className="text-[11px] text-ccc-muted mt-1.5">No supporting document attached.</div>
+                      <span className="text-[11px] text-ccc-muted">None attached</span>
                     )}
                   </td>
                   <td className="text-xs text-ccc-muted whitespace-nowrap">{formatWhen(r.created_at)}</td>
@@ -5459,6 +5481,27 @@ function RequestStatusBadge({ status }) {
 // Review pop-up (same look as the Admin Accounts confirm pop-up, ported from
 // Ivy's admin.html). Awaiting requests: note + Decline / Approve. Decided
 // requests: read-only summary with the note and the next step.
+// Oct 3 2026 redesign (Ivy's suggestion): the supporting document shows
+// right inside the window, on the left, instead of behind a link. Images
+// are shown directly, PDFs in an embedded viewer (same as the Dashboard's
+// document cards); "Open in a new tab" keeps the old link's behavior.
+function docExtOf(url) {
+  try {
+    const path = new URL(url).pathname
+    const m = path.match(/\.([a-z0-9]+)$/i)
+    return m ? m[1].toUpperCase().slice(0, 4) : 'FILE'
+  } catch {
+    return 'FILE'
+  }
+}
+
+function docKindOf(url) {
+  const ext = docExtOf(url)
+  if (ext === 'PDF') return 'pdf'
+  if (['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'HEIC', 'BMP'].includes(ext)) return 'image'
+  return 'file'
+}
+
 function RequestReviewDialog({ request: r, note, onNote, saving, onDecide, onClose }) {
   const decided = r.status === 'approved' || r.status === 'declined'
   const badge = REQUEST_STATUS_BADGE[r.status] || REQUEST_STATUS_BADGE.submitted
@@ -5470,6 +5513,10 @@ function RequestReviewDialog({ request: r, note, onNote, saving, onDecide, onClo
       : r.status === 'approved' && isAppeal
         ? 'Update the applicant\u2019s status in Applicant Results.'
         : null
+  const docUrl = r.supporting_document_url
+  const kind = docUrl ? docKindOf(docUrl) : null
+  const [zoom, setZoom] = useState(100)
+  const [imgFailed, setImgFailed] = useState(false)
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -5477,86 +5524,153 @@ function RequestReviewDialog({ request: r, note, onNote, saving, onDecide, onClo
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const label = { fontSize: '10.5px', fontWeight: 800, letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--navy)' }
-
   return (
-    <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="confirm-box" role="dialog" aria-modal="true" aria-label="Review request" style={{ maxWidth: 520, textAlign: 'left' }}>
-        <div className="flex items-start justify-between gap-3">
-          <div style={{ minWidth: 0 }}>
-            <h3 style={{ marginBottom: 2 }}>{r.request_type}</h3>
-            <div className="text-xs text-ccc-muted" style={{ overflowWrap: 'anywhere' }}>
-              {[r.applicant_name, r.application_number].filter(Boolean).join(' \u00b7 ')} &middot; Sent {formatWhen(r.created_at)}
+    <div className="confirm-overlay open rq-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="rq-window" role="dialog" aria-modal="true" aria-label="Review request">
+        <div className="rq-head">
+          <div className="rq-head-who">
+            <span className="rq-head-avatar">{getInitials(r.applicant_name)}</span>
+            <div style={{ minWidth: 0 }}>
+              <div className="rq-head-line">
+                <h3 className="rq-head-title">{r.request_type}</h3>
+                <span className={`badge whitespace-nowrap ${badge.cls}`}>{badge.label}</span>
+              </div>
+              <div className="rq-head-meta">
+                {[r.applicant_name, r.application_number, r.applicant_email].filter(Boolean).join(' \u00b7 ')} &middot; Sent{' '}
+                {formatWhen(r.created_at)}
+              </div>
             </div>
           </div>
-          <span className={`badge whitespace-nowrap ${badge.cls}`}>{badge.label}</span>
+          <button type="button" className="rq-close" aria-label="Close" onClick={onClose}>
+            &#10005;
+          </button>
         </div>
 
-        <div className="mt-4" style={label}>Details</div>
-        <div className="text-[13px] text-ccc-text mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-          {r.details || 'No details given.'}
-        </div>
-        <div className="mt-2">
-          {r.supporting_document_url ? (
-            <a href={r.supporting_document_url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-ccc-blue underline">
-              &#128206; View supporting document
-            </a>
-          ) : (
-            <span className="text-xs text-ccc-muted">No supporting document attached.</span>
-          )}
-        </div>
-
-        {decided ? (
-          <>
-            <div className="mt-4" style={label}>Decision</div>
-            <div className="text-[13px] text-ccc-text mt-1">
-              {badge.label}
-              {r.decided_by ? ` by ${r.decided_by}` : ''}
-              {r.decided_at ? `, ${formatWhen(r.decided_at)}` : ''}
+        <div className="rq-body">
+          <div className="rq-doc">
+            <div className="rq-doc-bar">
+              <span className="rq-doc-name">
+                <span className="rq-label">Supporting document</span>
+                <span>{docUrl ? (kind === 'pdf' ? 'PDF document' : `${kind === 'image' ? 'Image' : 'File'} (${docExtOf(docUrl)})`) : 'None attached'}</span>
+              </span>
+              {docUrl && (
+                <span className="rq-doc-tools">
+                  {kind === 'image' && (
+                    <>
+                      <button type="button" className="rq-tool" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(50, z - 25))}>
+                        &minus;
+                      </button>
+                      <span className="rq-zoom">{zoom}%</span>
+                      <button type="button" className="rq-tool" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(250, z + 25))}>
+                        +
+                      </button>
+                    </>
+                  )}
+                  <a className="rq-tool rq-tool-wide" href={docUrl} target="_blank" rel="noopener noreferrer">
+                    <IconExternal className="w-3.5 h-3.5" /> Open in a new tab
+                  </a>
+                </span>
+              )}
             </div>
-            {r.decision_note && (
-              <div className="text-[13px] text-ccc-text mt-1" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-                Note to applicant: {r.decision_note}
+            <div className="rq-doc-view">
+              {!docUrl ? (
+                <div className="rq-doc-empty">
+                  <IconFile className="w-10 h-10" />
+                  <b>No supporting document</b>
+                  <span>
+                    The applicant didn&rsquo;t attach a file. A document is only required for Reschedule Examination
+                    (Absence).
+                  </span>
+                </div>
+              ) : kind === 'image' && !imgFailed ? (
+                <img
+                  src={docUrl}
+                  alt={`Supporting document from ${r.applicant_name || 'the applicant'}`}
+                  className="rq-doc-img"
+                  style={{ width: `${zoom}%` }}
+                  onError={() => setImgFailed(true)}
+                />
+              ) : kind === 'pdf' ? (
+                <iframe src={docUrl} title="Supporting document" className="rq-doc-frame" />
+              ) : (
+                <div className="rq-doc-empty">
+                  <IconFile className="w-10 h-10" />
+                  <b>{imgFailed ? 'Couldn\u2019t load the preview' : 'Preview not available for this file type'}</b>
+                  <span>Use &ldquo;Open in a new tab&rdquo; above to see the file.</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rq-side">
+            <div className="rq-side-main">
+              <div>
+                <div className="rq-label">Details from the applicant</div>
+                <div className="rq-details">{r.details || 'No details given.'}</div>
               </div>
-            )}
-            {nextStep && <div className="text-xs text-ccc-muted mt-2">Next: {nextStep}</div>}
-            <div className="confirm-actions" style={{ marginTop: 22 }}>
-              <button type="button" className="mbtn mbtn-ghost" onClick={onClose}>
-                Close
-              </button>
+
+              {decided ? (
+                <div className={`rq-decision ${r.status}`}>
+                  <div className="rq-decision-top">
+                    <b>{badge.label}</b>
+                    <span>
+                      {r.decided_by ? `by ${r.decided_by}` : ''}
+                      {r.decided_at ? `, ${formatWhen(r.decided_at)}` : ''}
+                    </span>
+                  </div>
+                  {r.decision_note && (
+                    <div className="rq-decision-note">
+                      <b>Note to applicant:</b> {r.decision_note}
+                    </div>
+                  )}
+                  {nextStep && <div className="rq-next">Next: {nextStep}</div>}
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="rq-label" htmlFor="request-decision-note">
+                      Note to the applicant <span className="rq-opt">(optional)</span>
+                    </label>
+                    <textarea
+                      id="request-decision-note"
+                      value={note}
+                      onChange={(e) => onNote(e.target.value)}
+                      maxLength={500}
+                      rows={4}
+                      placeholder="e.g. Moved to the Oct 10 batch, or the reason for declining"
+                      className="rq-note"
+                      disabled={Boolean(saving)}
+                    />
+                    <div className="rq-count">{note.length} / 500</div>
+                  </div>
+                  <div className="rq-warn">
+                    The applicant sees this in their portal. Leave out private details. A decision can&rsquo;t be changed
+                    once saved.
+                  </div>
+                </>
+              )}
             </div>
-          </>
-        ) : (
-          <>
-            <label className="block mt-4" style={label} htmlFor="request-decision-note">
-              Note to the applicant <span className="text-ccc-muted" style={{ textTransform: 'none', fontWeight: 600 }}>(optional)</span>
-            </label>
-            <textarea
-              id="request-decision-note"
-              value={note}
-              onChange={(e) => onNote(e.target.value)}
-              maxLength={500}
-              rows={3}
-              placeholder="e.g. Moved to the Oct 10 batch, or the reason for declining"
-              className="w-full mt-1.5 text-[13px] border border-ccc-border rounded-md p-2"
-              disabled={Boolean(saving)}
-            />
-            <div className="text-[11px] text-ccc-muted mt-1">
-              The applicant sees this in their portal. Leave out private details. A decision can&rsquo;t be changed once saved.
+            <div className="rq-foot">
+              {decided ? (
+                <button type="button" className="cm-btn cm-btn-secondary" onClick={onClose}>
+                  Close
+                </button>
+              ) : (
+                <>
+                  <button type="button" className="cm-btn cm-btn-secondary" onClick={onClose} disabled={Boolean(saving)}>
+                    Cancel
+                  </button>
+                  <button type="button" className="cm-btn cm-btn-outline-red" onClick={() => onDecide('declined')} disabled={Boolean(saving)}>
+                    {saving === 'declined' ? 'Saving...' : 'Decline'}
+                  </button>
+                  <button type="button" className="cm-btn cm-btn-green" onClick={() => onDecide('approved')} disabled={Boolean(saving)}>
+                    {saving === 'approved' ? 'Saving...' : 'Approve'}
+                  </button>
+                </>
+              )}
             </div>
-            <div className="confirm-actions" style={{ marginTop: 20 }}>
-              <button type="button" className="mbtn mbtn-ghost" onClick={onClose} disabled={Boolean(saving)}>
-                Cancel
-              </button>
-              <button type="button" className="mbtn mbtn-danger" onClick={() => onDecide('declined')} disabled={Boolean(saving)}>
-                {saving === 'declined' ? 'Saving...' : 'Decline'}
-              </button>
-              <button type="button" className="mbtn mbtn-primary" onClick={() => onDecide('approved')} disabled={Boolean(saving)}>
-                {saving === 'approved' ? 'Saving...' : 'Approve'}
-              </button>
-            </div>
-          </>
-        )}
+          </div>
+        </div>
       </div>
     </div>
   )
