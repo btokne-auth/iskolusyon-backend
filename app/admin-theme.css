@@ -4566,3 +4566,271 @@
   .admin-portal .rr-head, .admin-portal .rr-body { padding-left: 16px; padding-right: 16px; }
   .admin-portal .rr-body { max-height: none; }
 }
+
+/* ── Oct 3 2026 redesign: Communications (composer + posted feed) and the
+   shared form/button pieces the other redesigned panels reuse. ── */
+.admin-portal .cm-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+.admin-portal .cm-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 3px 18px rgba(13, 47, 110, 0.06);
+  min-width: 0;
+}
+.admin-portal .cm-composer { position: sticky; top: 16px; }
+.admin-portal .cm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.admin-portal .cm-head-wrap { flex-wrap: wrap; }
+.admin-portal .cm-head-left { display: flex; align-items: center; gap: 10px; }
+.admin-portal .cm-head .tag {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 9.3px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--off);
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
+.admin-portal .cm-title {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--navy);
+}
+.admin-portal .cm-meta { font-size: 11px; color: #5a6b85; }
+.admin-portal .cm-form { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 16px; }
+.admin-portal .cm-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.admin-portal .cm-label {
+  font-family: "Montserrat", sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #4f5f78;
+}
+.admin-portal .cm-label .cm-opt { font-weight: 600; text-transform: none; letter-spacing: 0; color: #8c99ae; }
+.admin-portal .cm-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1.5px solid #d5ddea;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+}
+.admin-portal .cm-input:focus { border-color: var(--ccc-blue); }
+.admin-portal .cm-textarea { padding: 10px 12px; min-height: 130px; resize: vertical; line-height: 1.5; }
+.admin-portal .cm-row2 { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 10px; }
+.admin-portal .cm-type-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.admin-portal .cm-type {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px;
+  border: 1.5px solid #d5ddea;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  min-width: 0;
+}
+.admin-portal .cm-type:hover { border-color: #8fa3c2; }
+.admin-portal .cm-type:focus-visible { outline: 2px solid var(--ccc-blue); outline-offset: 2px; }
+.admin-portal .cm-type.on { border-color: var(--navy); background: #f4f7fd; box-shadow: 0 0 0 1px var(--navy); }
+.admin-portal .cm-type-icon,
+.admin-portal .cm-item-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-portal .cm-type-icon svg { width: 16px; height: 16px; }
+.admin-portal .cm-type-icon.announcement,
+.admin-portal .cm-item-icon.announcement { background: #fdf0dc; color: #8a5a10; }
+.admin-portal .cm-type-icon.message,
+.admin-portal .cm-item-icon.message { background: #eef3fd; color: var(--ccc-blue); }
+.admin-portal .cm-type-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-portal .cm-type-name { font-family: "Montserrat", sans-serif; font-size: 12.5px; font-weight: 700; color: var(--navy); }
+.admin-portal .cm-type-desc { font-size: 10.8px; color: #5a6b85; line-height: 1.4; }
+.admin-portal .cm-hint { margin: 0; font-size: 11.5px; color: #5a6b85; }
+.admin-portal .cm-seg { display: flex; gap: 4px; padding: 4px; background: #f1f4f9; border-radius: 9px; }
+.admin-portal .cm-seg-btn {
+  flex: 1 1 0;
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11.3px;
+  color: #4f5f78;
+}
+.admin-portal .cm-seg-btn:hover { background: #eef3fd; color: var(--navy); }
+.admin-portal .cm-seg-btn.on,
+.admin-portal .cm-seg-btn.on:hover { background: #fff; color: var(--navy); box-shadow: 0 1px 3px rgba(13, 47, 110, 0.18); }
+.admin-portal .cm-scope {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.admin-portal .cm-scope svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
+.admin-portal .cm-scope.message,
+.admin-portal .cm-scope.info { background: #eef3fd; color: var(--navy); }
+.admin-portal .cm-scope.announcement { background: #fdf6e7; color: #6b4e00; }
+.admin-portal .cm-scope.muted { background: #f1f4f9; color: #4f5f78; }
+.admin-portal .cm-error { margin: 0; font-size: 12px; color: var(--ccc-red); }
+.admin-portal .cm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 15px;
+  border-radius: 8px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11.5px;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.admin-portal .cm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.admin-portal .cm-btn:focus-visible { outline: 2px solid var(--ccc-blue); outline-offset: 2px; }
+.admin-portal .cm-btn-block { width: 100%; min-height: 42px; }
+.admin-portal .cm-btn-primary { background: var(--navy); color: #fff; }
+.admin-portal .cm-btn-primary:hover:not(:disabled) { background: var(--ccc-blue); }
+.admin-portal .cm-btn-secondary { background: #fff; color: var(--navy); border: 1px solid #d5ddea; }
+.admin-portal .cm-btn-secondary:hover:not(:disabled) { background: var(--off); }
+.admin-portal .cm-btn-danger { background: #c0392b; color: #fff; }
+.admin-portal .cm-btn-danger:hover:not(:disabled) { background: #a8301f; }
+.admin-portal .cm-btn-green { background: #1b6b3a; color: #fff; }
+.admin-portal .cm-btn-green:hover:not(:disabled) { background: #155230; }
+.admin-portal .cm-btn-outline-red { background: #fff; color: #c0392b; border: 1.5px solid #e7b4ae; }
+.admin-portal .cm-btn-outline-red:hover:not(:disabled) { background: #fbe7e7; }
+.admin-portal .cm-tabs { display: flex; gap: 4px; padding: 4px; background: var(--off); border: 1px solid var(--border); border-radius: 9px; flex-wrap: wrap; }
+.admin-portal .cm-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  font-size: 11.5px;
+  color: #4f5f78;
+}
+.admin-portal .cm-tab:hover { background: #eef3fd; color: var(--navy); }
+.admin-portal .cm-tab.on,
+.admin-portal .cm-tab.on:hover { background: var(--navy); color: #fff; }
+.admin-portal .cm-tab-count { font-size: 10px; opacity: 0.8; }
+.admin-portal .cm-filters { display: flex; gap: 10px; padding: 14px 20px; border-bottom: 1px solid #eef1f6; flex-wrap: wrap; }
+.admin-portal .cm-filters .cm-input { flex: 1 1 240px; width: auto; }
+.admin-portal .cm-filters .cm-filter-cat { flex: 0 1 210px; }
+.admin-portal .cm-item {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eef1f6;
+}
+.admin-portal .cm-item:last-child { border-bottom: none; }
+.admin-portal .cm-item:hover { background: #fafbfd; }
+.admin-portal .cm-item-icon { width: 36px; height: 36px; border-radius: 10px; }
+.admin-portal .cm-item-icon svg { width: 17px; height: 17px; }
+.admin-portal .cm-item-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.admin-portal .cm-item-title { margin: 0; font-family: "Montserrat", sans-serif; font-size: 13px; font-weight: 700; color: var(--navy); }
+.admin-portal .cm-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.admin-portal .cm-chip {
+  font-family: "Montserrat", sans-serif;
+  font-size: 9.8px;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.admin-portal .cm-chip.announcement { background: #fdf0dc; color: #7a4f0c; }
+.admin-portal .cm-chip.message { background: #eef3fd; color: #0035b8; }
+.admin-portal .cm-chip.target { background: #f1f4f9; color: var(--text); }
+.admin-portal .cm-chip.cat { background: #fff; color: #5a6b85; border: 1px solid var(--border); }
+.admin-portal .cm-item-body { margin: 0; font-size: 12.3px; line-height: 1.6; color: var(--text); white-space: pre-line; }
+.admin-portal .cm-item-body.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.admin-portal .cm-item-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 11px; color: #5a6b85; }
+.admin-portal .cm-more { font-size: 11.5px; font-weight: 600; color: var(--ccc-blue); }
+.admin-portal .cm-more:hover { text-decoration: underline; }
+.admin-portal .cm-del {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8c99ae;
+}
+.admin-portal .cm-del svg { width: 16px; height: 16px; }
+.admin-portal .cm-del:hover:not(:disabled) { background: #fbe7e7; color: #c0392b; }
+.admin-portal .cm-del:focus-visible { outline: 2px solid var(--ccc-blue); }
+.admin-portal .cm-confirm {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fceeee;
+  border: 1px solid #f3cfcf;
+  font-size: 12px;
+  color: #902020;
+}
+.admin-portal .cm-confirm-actions { display: flex; gap: 8px; }
+.admin-portal .cm-confirm .cm-btn { min-height: 34px; }
+.admin-portal .cm-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  margin-bottom: 20px;
+}
+.admin-portal .cm-kpi {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+.admin-portal .cm-kpi:last-child { border-right: none; }
+.admin-portal .cm-kpi-label { font-size: 11px; font-weight: 600; color: #5a6b85; }
+.admin-portal .cm-kpi-value { font-family: "Montserrat", sans-serif; font-size: 24px; font-weight: 800; color: var(--navy); line-height: 1; }
+.admin-portal .cm-kpi-sub { font-size: 11px; color: #5a6b85; }
+@media (max-width: 900px) {
+  .admin-portal .cm-layout { grid-template-columns: 1fr; }
+  .admin-portal .cm-composer { position: static; }
+  .admin-portal .cm-kpi { border-right: none; border-bottom: 1px solid var(--border); }
+}
