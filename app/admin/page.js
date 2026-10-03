@@ -2917,62 +2917,89 @@ function ResultsPanel() {
 // 1st year, but transferees don't), and says so on the card instead of
 // silently pretending the other two exist.
 
-function BarRow({ label, count, total, colorClass }) {
-  const pct = total > 0 ? Math.round((count / total) * 100) : 0
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-[11px]">
-        <span className="text-ccc-text font-medium truncate pr-2">{label}</span>
-        <span className="text-ccc-muted shrink-0">{count} ({pct}%)</span>
-      </div>
-      <div className="h-2 rounded-full bg-ccc-off overflow-hidden">
-        <div className={`h-full rounded-full ${colorClass || 'bg-ccc-blue'}`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  )
+// Oct 3 2026 redesign (Statistics v2, approved on the design canvas):
+// one KPI strip, three status panels with a "% of applicants" column, and
+// an "Applicants by program" table. The panel now refreshes on its own,
+// same as the Activity Log: every 15 s while the tab is visible, when the
+// admin comes back to the tab, and right after any admin action pop-up.
+// Same data sources as before (/api/admin-eligibility + /api/admin-results,
+// joined by id, plus the appeal count from /api/admin-reschedule).
+const STAT_ELIGIBILITY = [
+  { key: 'qualified', label: 'Qualified', color: '#1B6B3A' },
+  { key: 'not_qualified', label: 'Not Qualified', color: '#C0392B' },
+  { key: 'waitlisted', label: 'Waitlisted', color: '#C8A84B' },
+  { key: 'pending_exam', label: 'Pending Exam', color: '#003CD0' },
+  { key: 'incomplete', label: 'Incomplete (Ongoing)', color: '#A7B4C8' },
+]
+const STAT_SCHOLAR = [
+  { key: 'passer', label: 'Passer', color: '#1B6B3A' },
+  { key: 'qualified_probationary', label: 'Qualified (Probationary)', color: '#E07B39' },
+  { key: 'waitlisted_probationary', label: 'Waitlisted (Probationary)', color: '#C8A84B' },
+  { key: 'disqualified', label: 'Disqualified', color: '#C0392B' },
+  { key: 'forfeited', label: 'Forfeited', color: '#5A6B85' },
+  { key: 'pending_exam', label: 'Pending Exam', color: '#003CD0' },
+]
+const STAT_APPLYING_COLORS = ['#0D2F6E', '#C8A84B', '#5A6B85', '#A7B4C8']
+const STAT_POLL_MS = 15000
+
+function statPct(n, total) {
+  return total ? `${Math.round((n / total) * 100)}%` : '0%'
 }
 
-// Sept 24 2026: single 100%-stacked bar + legend, replacing a column of
-// separate BarRow bars for part-to-whole data (every applicant has exactly
-// one eligibility status / one scholar status, so these always sum to the
-// same total). Five-to-six bars each independently scaled against that
-// same total made it hard to see at a glance that they add up to a whole,
-// and repeated the total that many times. One stacked bar with a legend
-// (colored dot + label + count + percent) reads as one whole made of
-// parts instead. Segment colors reuse the same status color mapping the
-// rest of the admin console already uses (green=good, gold=warning,
-// red=critical, blue=neutral/pending, gray=unresolved/incomplete) rather
-// than introducing a second color scheme.
-function StackedBar({ segments, total }) {
-  const visible = segments.filter((s) => s.count > 0)
+function statDepartmentOf(program) {
+  const dept = DASHBOARD_DEPARTMENTS.find((d) => d.programs.includes(program))
+  return dept ? dept.label : 'Not yet chosen'
+}
+
+function statAgo(ts, now) {
+  if (!ts) return 'loading'
+  const s = Math.max(0, Math.round((now - ts) / 1000))
+  if (s < 3) return 'just now'
+  if (s < 60) return `${s}s ago`
+  const m = Math.round(s / 60)
+  return `${m} min ago`
+}
+
+function StatSplitPanel({ title, items, total, foot, keyLabel = 'Status' }) {
+  const withCounts = items.filter((i) => i.count > 0)
   return (
-    <div className="space-y-3">
-      <div className="flex w-full h-6 rounded-full overflow-hidden bg-ccc-off" style={{ gap: '2px' }}>
-        {total > 0 && visible.length > 0 ? (
-          visible.map((s) => (
-            <div
-              key={s.label}
-              className={s.colorClass}
-              style={{ width: `${(s.count / total) * 100}%` }}
-              title={`${s.label}: ${s.count} (${Math.round((s.count / total) * 100)}%)`}
-            />
-          ))
-        ) : (
-          <div className="w-full bg-ccc-off" />
-        )}
+    <section className="st-card">
+      <div className="st-card-head">
+        <h2 className="st-card-title">{title}</h2>
+        <span className="st-meta">
+          {total} applicant{total === 1 ? '' : 's'}
+        </span>
       </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-        {segments.map((s) => (
-          <div key={s.label} className="flex items-center gap-1.5 text-[11px]">
-            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.colorClass}`} />
-            <span className="text-ccc-text font-medium">{s.label}</span>
-            <span className="text-ccc-muted">
-              {s.count} ({total > 0 ? Math.round((s.count / total) * 100) : 0}%)
-            </span>
-          </div>
+      <div className="st-split" role="img" aria-label={items.map((i) => `${i.label}: ${i.count}`).join(', ')}>
+        {withCounts.map((i) => (
+          <span key={i.label} style={{ width: statPct(i.count, total), background: i.color }} title={`${i.label}: ${i.count}`} />
         ))}
       </div>
-    </div>
+      <table className="st-table">
+        <thead>
+          <tr>
+            <th>{keyLabel}</th>
+            <th className="r">Applicants</th>
+            <th className="r">% of applicants</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((i) => (
+            <tr key={i.label} className={i.count ? '' : 'zero'}>
+              <td>
+                <span className="st-key">
+                  <span className="st-dot" style={{ background: i.count ? i.color : '#D5DDEA' }} />
+                  {i.label}
+                </span>
+              </td>
+              <td className="r st-strong">{i.count}</td>
+              <td className="r st-muted">{statPct(i.count, total)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {foot && <div className="st-card-foot">{foot}</div>}
+    </section>
   )
 }
 
@@ -2980,10 +3007,43 @@ function AnalyticsPanel() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [refreshError, setRefreshError] = useState(false)
+  const [loadedAt, setLoadedAt] = useState(null)
+  const [now, setNow] = useState(() => Date.now())
+  const [department, setDepartment] = useState('all')
+  const [showEmptyPrograms, setShowEmptyPrograms] = useState(false)
   // Sept 30 2026: appeals count (progress table "... Appeals, and Waitlisted
   // Analytics"). Best effort, 0 if it can't load.
   const [appealCount, setAppealCount] = useState(0)
-  useEffect(() => {
+
+  const load = async ({ quiet = false } = {}) => {
+    if (!quiet) {
+      setLoading(true)
+      setError('')
+    }
+    try {
+      const [eligRes, resultsRes] = await Promise.all([
+        fetch('/api/admin-eligibility'),
+        fetch('/api/admin-results'),
+      ])
+      const eligData = await eligRes.json()
+      const resultsData = await resultsRes.json()
+      if (!eligData.success) throw new Error(eligData.error || 'Failed to load eligibility data.')
+      if (!resultsData.success) throw new Error(resultsData.error || 'Failed to load results data.')
+      // Merge by id -- both endpoints read the same `applications` table,
+      // just different column subsets, so this is a straight join on the
+      // one shared key rather than another name-based match.
+      const byId = new Map(eligData.applications.map((r) => [r.id, r]))
+      setRows(resultsData.applications.map((r) => ({ ...byId.get(r.id), ...r })))
+      setLoadedAt(Date.now())
+      setRefreshError(false)
+    } catch (err) {
+      // A failed background refresh keeps the numbers already on screen.
+      if (quiet) setRefreshError(true)
+      else setError(err.message)
+    } finally {
+      if (!quiet) setLoading(false)
+    }
     fetch('/api/admin-reschedule')
       .then((res) => res.json())
       .then((data) => {
@@ -2996,186 +3056,236 @@ function AnalyticsPanel() {
         setAppealCount(who.size)
       })
       .catch(() => {})
-  }, [])
+  }
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const [eligRes, resultsRes] = await Promise.all([
-          fetch('/api/admin-eligibility'),
-          fetch('/api/admin-results'),
-        ])
-        const eligData = await eligRes.json()
-        const resultsData = await resultsRes.json()
-        if (!eligData.success) throw new Error(eligData.error || 'Failed to load eligibility data.')
-        if (!resultsData.success) throw new Error(resultsData.error || 'Failed to load results data.')
-        // Merge by id -- both endpoints read the same `applications` table,
-        // just different column subsets, so this is a straight join on the
-        // one shared key rather than another name-based match.
-        const byId = new Map(eligData.applications.map((r) => [r.id, r]))
-        const merged = resultsData.applications.map((r) => ({ ...byId.get(r.id), ...r }))
-        setRows(merged)
-      } catch (err) {
-        setError(err.message)
-      } finally {
-        setLoading(false)
-      }
-    }
     load()
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible') load({ quiet: true })
+    }, STAT_POLL_MS)
+    const clock = setInterval(() => setNow(Date.now()), 1000)
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') load({ quiet: true })
+    }
+    const onNotice = () => load({ quiet: true })
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    window.addEventListener('admin-notice', onNotice)
+    return () => {
+      clearInterval(poll)
+      clearInterval(clock)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+      window.removeEventListener('admin-notice', onNotice)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const visibleRows = useMemo(
+    () => (department === 'all' ? rows : rows.filter((r) => statDepartmentOf(r.program_choice_1) === department)),
+    [rows, department]
+  )
+
   const stats = useMemo(() => {
-    const total = rows.length
-    const byProgram = new Map()
-    const byApplyingAs = new Map()
-    const eligibilityCounts = { qualified: 0, waitlisted: 0, not_qualified: 0, pending_exam: 0, incomplete: 0 }
-    const scholarCounts = { pending_exam: 0, passer: 0, waitlisted_probationary: 0, qualified_probationary: 0, disqualified: 0, forfeited: 0 }
+    const total = visibleRows.length
+    const elig = Object.fromEntries(STAT_ELIGIBILITY.map((s) => [s.key, 0]))
+    const scholar = Object.fromEntries(STAT_SCHOLAR.map((s) => [s.key, 0]))
+    const applying = new Map()
+    const programs = new Map()
+    let profileComplete = 0
 
-    for (const r of rows) {
+    for (const r of visibleRows) {
+      const e = r.eligibility_override || r.eligibility_status || 'incomplete'
+      if (e in elig) elig[e] += 1
+      const s = r.scholar_status || 'pending_exam'
+      if (s in scholar) scholar[s] += 1
+      const a = r.applying_as || 'Not yet specified'
+      applying.set(a, (applying.get(a) || 0) + 1)
+      if (PROFILE_SECTIONS.every((sec) => !!r[sec.key])) profileComplete += 1
+
       const program = r.program_choice_1 || 'Not yet chosen'
-      byProgram.set(program, (byProgram.get(program) || 0) + 1)
-
-      const applyingAs = r.applying_as || 'Not yet specified'
-      byApplyingAs.set(applyingAs, (byApplyingAs.get(applyingAs) || 0) + 1)
-
-      const elig = r.eligibility_override || r.eligibility_status || 'incomplete'
-      if (elig in eligibilityCounts) eligibilityCounts[elig] += 1
-
-      const scholar = r.scholar_status || 'pending_exam'
-      if (scholar in scholarCounts) scholarCounts[scholar] += 1
+      if (!programs.has(program)) programs.set(program, { total: 0, ...Object.fromEntries(STAT_ELIGIBILITY.map((x) => [x.key, 0])) })
+      const p = programs.get(program)
+      p.total += 1
+      if (e in p) p[e] += 1
     }
+
+    // Every program CCC offers (in the selected department), so empty ones
+    // can be shown on request, plus any other value found in the data.
+    const offered = DASHBOARD_DEPARTMENTS.filter((d) => department === 'all' || d.label === department).flatMap((d) => d.programs)
+    const names = Array.from(new Set([...offered, ...programs.keys()]))
+    const empty = { total: 0, ...Object.fromEntries(STAT_ELIGIBILITY.map((x) => [x.key, 0])) }
+    const programRows = names
+      .map((name) => ({ name, department: statDepartmentOf(name), ...(programs.get(name) || empty) }))
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
 
     return {
       total,
-      byProgram: Array.from(byProgram.entries()).sort((a, b) => b[1] - a[1]),
-      byApplyingAs: Array.from(byApplyingAs.entries()).sort((a, b) => b[1] - a[1]),
-      eligibilityCounts,
-      scholarCounts,
+      profileComplete,
+      elig,
+      scholar,
+      applying: Array.from(applying.entries()).sort((a, b) => b[1] - a[1]),
+      programRows,
     }
-  }, [rows])
+  }, [visibleRows, department])
 
   if (loading) return <div className="text-center py-20 text-ccc-muted text-sm">Loading statistics...</div>
   if (error) return <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
 
+  const programRowsShown = showEmptyPrograms ? stats.programRows : stats.programRows.filter((p) => p.total > 0)
+  const kpis = [
+    { label: 'Total applications', value: stats.total, sub: department === 'all' ? 'All applicants this cycle' : department },
+    { label: 'Profile complete', value: stats.profileComplete, sub: `${statPct(stats.profileComplete, stats.total)} of applicants` },
+    { label: 'Pending exam result', value: stats.elig.pending_exam, sub: `${statPct(stats.elig.pending_exam, stats.total)} of applicants` },
+    { label: 'Qualified', value: stats.elig.qualified, sub: `${statPct(stats.elig.qualified, stats.total)} of applicants` },
+    { label: 'Appeals filed', value: appealCount, sub: 'Retake or re-application, all departments' },
+  ]
+
   return (
-    <div>
-      <div className="portal-header">
+    <div className="st-wrap">
+      <div className="st-header">
         <div>
-          <h1>Statistics</h1>
-          <p>
-            Allowance monitoring and exportable LGU compliance reports aren&rsquo;t built here -- the manuscript
-            itself marks both as to-follow modules, out of scope for this version.
-          </p>
+          <h1 className="st-title">Statistics</h1>
+          <p className="st-subtitle">Scholarship applications, as of today</p>
         </div>
-        {/* Sept 24 2026: the headline number gets its own tile instead of
-            being buried in a sentence -- a dashboard's lead number should
-            read in one glance, not require reading a paragraph. */}
-        <div className="rounded-2xl border border-ccc-border bg-white px-5 py-3 text-right shrink-0">
-          <div className="text-[10px] font-bold uppercase tracking-wide text-ccc-muted" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            Total Applications
+        <div className="st-tools">
+          <label htmlFor="stDept" className="st-tool-label">Department</label>
+          <select id="stDept" className="st-select" value={department} onChange={(e) => setDepartment(e.target.value)}>
+            <option value="all">All departments</option>
+            {DASHBOARD_DEPARTMENTS.map((d) => (
+              <option key={d.label} value={d.label}>{d.label}</option>
+            ))}
+          </select>
+          <span
+            className={`st-live${refreshError ? ' st-live-warn' : ''}`}
+            title="Updates on its own every 15 seconds, when you come back to this tab, and after any admin action"
+            aria-live="polite"
+          >
+            <span className="st-live-dot" aria-hidden="true">
+              <span className="st-live-pulse" />
+              <span className="st-live-core" />
+            </span>
+            <b>{refreshError ? 'Retrying' : 'Live'}</b>
+            <span className="st-live-ago">
+              {refreshError ? `· couldn't refresh, last updated ${statAgo(loadedAt, now)}` : `· updated ${statAgo(loadedAt, now)}`}
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <div className="st-card st-kpis">
+        {kpis.map((k) => (
+          <div key={k.label} className="st-kpi">
+            <span className="st-kpi-label">{k.label}</span>
+            <span className="st-kpi-value">{k.value}</span>
+            <span className="st-kpi-sub">{k.sub}</span>
           </div>
-          <div className="text-2xl font-extrabold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-            {stats.total}
+        ))}
+      </div>
+
+      <div className="st-panels">
+        <StatSplitPanel
+          title="Eligibility status"
+          total={stats.total}
+          items={STAT_ELIGIBILITY.map((s) => ({ ...s, count: stats.elig[s.key] }))}
+        />
+        <StatSplitPanel
+          title="Scholar status (after exam)"
+          total={stats.total}
+          items={STAT_SCHOLAR.map((s) => ({ ...s, count: stats.scholar[s.key] }))}
+          foot={
+            <>
+              Appeals filed (retake or re-application): <b>{appealCount}</b>. Details are in Appeals &amp; Reschedules.
+            </>
+          }
+        />
+        <StatSplitPanel
+          title="Applying as"
+          keyLabel="Applying as"
+          total={stats.total}
+          items={stats.applying.map(([label, count], i) => ({
+            label,
+            count,
+            color: STAT_APPLYING_COLORS[i % STAT_APPLYING_COLORS.length],
+          }))}
+          foot="Used in place of Year Level, which the application form does not collect."
+        />
+      </div>
+
+      <section className="st-card">
+        <div className="st-card-head st-card-head-wrap">
+          <div>
+            <h2 className="st-card-title">Applicants by program</h2>
+            <span className="st-meta">Grouped by 1st choice program. Eligibility status per program.</span>
           </div>
+          <label className="st-check">
+            <input type="checkbox" checked={showEmptyPrograms} onChange={(e) => setShowEmptyPrograms(e.target.checked)} />
+            Show programs with no applicants
+          </label>
         </div>
-      </div>
-
-      {/* Sept 24 2026: the four cards below answer two different questions
-          (how many applied to what, vs where do they stand) but read as one
-          undifferentiated 2x2 grid without a lead-in -- same section-label
-          pattern the Dashboard panel already uses for its own breakdown
-          tables, reused here rather than inventing new CSS. */}
-      <div className="dashboard-section-label" style={{ marginTop: 0, paddingTop: 0, borderTop: 'none' }}>
-        Application Volume
-      </div>
-      <div className="grid md:grid-cols-2 gap-5">
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">By Program (Course)</div>
-          {stats.byProgram.length === 0 ? (
-            <p className="text-[11px] text-ccc-muted">No data yet.</p>
-          ) : (
-            <div className="space-y-2.5">
-              {stats.byProgram.map(([label, count]) => (
-                <BarRow key={label} label={label} count={count} total={stats.total} colorClass="bg-ccc-blue" />
-              ))}
-            </div>
-          )}
+        <div className="st-scroll">
+          <table className="st-table st-program-table">
+            <thead>
+              <tr>
+                <th>Program</th>
+                <th className="r">Applicants</th>
+                <th className="r">Qualified</th>
+                <th className="r">Not Qualified</th>
+                <th className="r">Waitlisted</th>
+                <th className="r">Pending Exam</th>
+                <th className="r">Incomplete</th>
+                <th>Distribution</th>
+              </tr>
+            </thead>
+            <tbody>
+              {programRowsShown.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="st-empty">No applicants in this department yet.</td>
+                </tr>
+              ) : (
+                programRowsShown.map((p) => (
+                  <tr key={p.name} className={p.total ? '' : 'zero'}>
+                    <td>
+                      <span className="st-prog">{p.name}</span>
+                      <span className="st-dept">{p.department}</span>
+                    </td>
+                    <td className="r st-strong">{p.total}</td>
+                    <td className="r">{p.qualified}</td>
+                    <td className="r">{p.not_qualified}</td>
+                    <td className="r">{p.waitlisted}</td>
+                    <td className="r">{p.pending_exam}</td>
+                    <td className="r">{p.incomplete}</td>
+                    <td>
+                      <span className="st-split st-split-sm" aria-hidden="true">
+                        {STAT_ELIGIBILITY.filter((s) => p[s.key] > 0).map((s) => (
+                          <span key={s.key} style={{ width: statPct(p[s.key], p.total), background: s.color }} />
+                        ))}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>Total</td>
+                <td className="r">{stats.total}</td>
+                <td className="r">{stats.elig.qualified}</td>
+                <td className="r">{stats.elig.not_qualified}</td>
+                <td className="r">{stats.elig.waitlisted}</td>
+                <td className="r">{stats.elig.pending_exam}</td>
+                <td className="r">{stats.elig.incomplete}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
         </div>
+      </section>
 
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">By Applying As (nearest proxy for Year Level)</div>
-          {stats.byApplyingAs.length === 0 ? (
-            <p className="text-[11px] text-ccc-muted">No data yet.</p>
-          ) : (
-            <div className="space-y-2.5">
-              {stats.byApplyingAs.map(([label, count]) => (
-                <BarRow key={label} label={label} count={count} total={stats.total} colorClass="bg-ccc-gold" />
-              ))}
-            </div>
-          )}
-          <p className="text-[10px] text-ccc-muted pt-3 mt-1 border-t border-ccc-border">
-            No dedicated &ldquo;Department&rdquo; or literal &ldquo;Year Level&rdquo; field exists anywhere in the
-            system yet, so those two aren&rsquo;t charted here rather than invented from a guess.
-          </p>
-        </div>
-
-      </div>
-
-      <div className="dashboard-section-label">Status Breakdown</div>
-      <div className="grid md:grid-cols-2 gap-5">
-        <div className="card" style={{ marginBottom: 0 }}>
-          {/* Shortened from "Ongoing / Qualified / Not Qualified / Waitlisted
-              (Scholarship Matching)" -- the legend right below already spells
-              out every category, so the heading doesn't need to. */}
-          <div className="card-title">Eligibility Status</div>
-          <StackedBar
-            total={stats.total}
-            segments={[
-              { label: 'Qualified', count: stats.eligibilityCounts.qualified, colorClass: 'bg-ccc-green' },
-              { label: 'Waitlisted', count: stats.eligibilityCounts.waitlisted, colorClass: 'bg-ccc-gold' },
-              { label: 'Not Qualified', count: stats.eligibilityCounts.not_qualified, colorClass: 'bg-ccc-red' },
-              { label: 'Pending Exam', count: stats.eligibilityCounts.pending_exam, colorClass: 'bg-ccc-blue' },
-              { label: 'Incomplete (Ongoing)', count: stats.eligibilityCounts.incomplete, colorClass: 'bg-ccc-muted' },
-            ]}
-          />
-        </div>
-
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">Post-Exam Scholar Status</div>
-          <StackedBar
-            total={stats.total}
-            segments={[
-              { label: 'Passer', count: stats.scholarCounts.passer, colorClass: 'bg-ccc-green' },
-              {
-                label: 'Waitlisted (Probationary)',
-                count: stats.scholarCounts.waitlisted_probationary,
-                colorClass: 'bg-ccc-gold',
-              },
-              {
-                // Sept 24 2026: split from Waitlisted's gold to bg-ccc-orange --
-                // both used the same gold in the old separate-bars layout (fine
-                // there, each got its own full bar), but two adjacent segments
-                // sharing a color in one stacked bar would visually merge into
-                // one blob and defeat the point of stacking them.
-                label: 'Qualified (Probationary)',
-                count: stats.scholarCounts.qualified_probationary,
-                colorClass: 'bg-ccc-orange',
-              },
-              { label: 'Disqualified', count: stats.scholarCounts.disqualified, colorClass: 'bg-ccc-red' },
-              // Same collision as Waitlisted/Qualified (Probationary) above --
-              // Forfeited was also sharing bg-ccc-red with the segment right
-              // next to it, so it gets its own color here too.
-              { label: 'Forfeited', count: stats.scholarCounts.forfeited, colorClass: 'bg-ccc-muted' },
-              { label: 'Pending Exam', count: stats.scholarCounts.pending_exam, colorClass: 'bg-ccc-blue' },
-            ]}
-          />
-          <p className="text-[10px] text-ccc-muted pt-3 mt-1 border-t border-ccc-border">
-            Appeals filed (retake or re-application): <b>{appealCount}</b>. Details are in Appeals &amp; Reschedules.
-          </p>
-        </div>
-      </div>
+      <p className="st-footnote">
+        Department is derived from the program. Year Level is not collected, so Applying As is used instead. Allowance
+        Distribution Monitoring and exportable LGU reports are to-follow modules, out of scope for this version.
+      </p>
     </div>
   )
 }
