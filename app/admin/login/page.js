@@ -1,6 +1,7 @@
 'use client'
 import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import SiteHeader from '../../components/SiteHeader'
 // Sept 24 2026 reskin: this page never imported the shared admin theme or
 // carried the .admin-portal wrapper class, so it was pure ad hoc Tailwind
@@ -78,50 +79,59 @@ function AdminLoginForm() {
     }
   }
 
+  // Oct 3 2026 redesign: same split-card layout as the applicant login
+  // (navy pane with the steps on the left, form on the right) so the two
+  // sign-in pages look like one system. Same fields and submit flow.
   return (
-    <div className="card" style={{ maxWidth: 420, width: '100%', textAlign: 'center' }}>
-      {/* Lock icon circle from the mockup -- an emoji instead of an SVG since
-          no icon set is wired into this project; it's a decorative badge,
-          not a functional element, so it doesn't need to be pixel-exact. */}
-      <div
-        style={{
-          width: 60,
-          height: 60,
-          borderRadius: '50%',
-          background: 'rgba(224, 123, 57, 0.12)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 18px',
-          fontSize: 26,
-        }}
-      >
-        🔒
+    <div className="al-card">
+      <div className="al-side">
+        <span className="al-side-circle" aria-hidden="true" />
+        <h1 className="al-side-title">
+          Admin
+          <br />
+          Console
+        </h1>
+        <p className="al-side-text">
+          Sign in to review scholarship applications, record results and manage communications for applicants.
+        </p>
+        <ol className="al-steps">
+          <li className="al-step current">
+            <span className="al-step-num">1</span>
+            <span className="al-step-text">Sign in</span>
+          </li>
+          <li className="al-step">
+            <span className="al-step-num">2</span>
+            <span className="al-step-text">
+              Set your own password
+              <small>First sign-in after an invite or reset only</small>
+            </span>
+          </li>
+        </ol>
+        <div className="al-spacer" />
+        <Link href="/" className="al-back">
+          &larr; Back to homepage
+        </Link>
       </div>
 
-      <h1
-        className="text-xl font-extrabold text-ccc-navy mb-2"
-        style={{ fontFamily: 'var(--font-montserrat)' }}
-      >
-        Admin Console Access
-      </h1>
-      {/* Sept 24 2026: opening sentence matches Ivy's mockup copy word for
-          word ("This console is restricted..."); the rest is still ours --
-          it names what's genuinely still missing (self-signup, session
-          timeout) and points a locked-out admin at the real fix (Super
-          Admin reset), neither of which the mockup's shorter copy covers. */}
-      {/* Sept 29 2026: copy updated for the invite flow (and no em dash). */}
-      <p className="text-xs text-ccc-muted mb-6">
-        This console is restricted to authorized CCC personnel. Sign in with
-        your institutional email and password. If you were just invited, use
-        the temporary password from your email; you&apos;ll choose your own
-        right after. Forgot your password? Ask a Super Admin to reset it.
-      </p>
-
-      <form onSubmit={handleSubmit} style={{ textAlign: 'left' }}>
-        <div className="efield">
-          <label>Institutional Email</label>
+      <form onSubmit={handleSubmit} className="al-form">
+        <div className="al-form-head">
+          <h2 className="al-title">Admin Login</h2>
+          <p className="al-sub">For authorized CCC personnel. Use your institutional email and password.</p>
+        </div>
+        <div className="al-info">
+          Just invited, or had your password reset? Use the temporary password from your email. You&apos;ll choose
+          your own right after.
+        </div>
+        {error && (
+          <div className="al-error" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="al-field">
+          <label htmlFor="adminEmail" className="al-label">Institutional email</label>
           <input
+            id="adminEmail"
+            className="al-input"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -130,77 +140,49 @@ function AdminLoginForm() {
             required
           />
         </div>
-        <div className="efield">
-          <label>Password</label>
-          {/* Sept 24 2026: show/hide toggle -- no matching CSS class for this
-              in admin-theme.css, so the input is wrapped in a relative
-              container and the toggle is hand-styled to sit inside it. */}
+        <div className="al-field">
+          <label htmlFor="adminPassword" className="al-label">Password</label>
           <div style={{ position: 'relative' }}>
             <input
+              id="adminPassword"
+              className="al-input"
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Your password"
               autoComplete="current-password"
               required
-              style={{ paddingRight: 36 }}
+              style={{ paddingRight: 46 }}
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ccc-muted hover:text-ccc-text"
+              className="al-eye"
               tabIndex={-1}
             >
               {showPassword ? <EyeOffIcon /> : <EyeIcon />}
             </button>
           </div>
         </div>
-
-        {/* Sept 24 2026, updated same day: dropped "Forgot Password?" --
-            Super Admin password reset shipped, so it's no longer a dead
-            end, just not self-service (see the copy above). Keeping it
-            here as a disabled link would have implied a self-serve flow
-            that isn't coming. "Keep me signed in" is still a genuine gap
-            (remember-me isn't built), so it stays as a disabled
-            placeholder. */}
-        <div className="mb-4">
+        <div className="al-row">
+          {/* "Keep me signed in" is still not built, so it stays a disabled
+              placeholder exactly as before (Pau has her own plan for it). */}
           <label
-            className="flex items-center gap-1.5 text-[11px] text-ccc-muted"
+            className="al-keep"
             style={{ cursor: 'not-allowed' }}
             title="Not built yet -- every sign-in behaves the same way until the User Account Module lands."
           >
             <input type="checkbox" disabled />
             Keep me signed in
           </label>
+          <span className="al-forgot">Forgot your password? Ask a Super Admin.</span>
         </div>
-
-        {error && <p className="text-xs text-ccc-red mb-3">{error}</p>}
-
-        {/* Sept 24 2026: matches the uppercase/tracking-wide/bold treatment
-            every other primary button in the admin console already uses
-            (e.g. Add Admin Account's submit button) -- this one had drifted
-            to plain sentence-case semibold, which was the actual
-            inconsistency worth fixing, more than the color itself (kept
-            navy, not Ivy's mockup blue, so it still matches every other
-            button here). The disabled/loading state now greys out the way
-            Ivy's mockup's idle-button state does, instead of just dimming
-            the navy via opacity. */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-lg bg-ccc-navy text-white text-sm font-bold uppercase tracking-wide py-2.5 disabled:!bg-[#D5D9DF] disabled:!text-[#8A9199] disabled:cursor-not-allowed"
-        >
+        <button type="submit" disabled={loading} className="al-submit">
           {loading ? 'Unlocking...' : 'Unlock Console'}
         </button>
-
-        {/* Sept 24 2026: restored now that sign-ins are actually written to
-            audit_log (see app/api/admin-login/route.js) -- this line was
-            deliberately left out of the earlier rebuild because it wasn't
-            true yet. */}
-        <p className="text-center text-[10.5px] text-ccc-muted mt-4">
-          Access is logged. Unauthorized use is prohibited.
-        </p>
+        {/* Sign-ins are written to audit_log (app/api/admin-login/route.js). */}
+        <p className="al-note">Access is logged. Unauthorized use is prohibited.</p>
       </form>
     </div>
   )
@@ -208,7 +190,7 @@ function AdminLoginForm() {
 
 export default function AdminLoginPage() {
   return (
-    <main className="admin-portal min-h-screen flex flex-col" style={{ background: 'var(--ccc-navy)' }}>
+    <main className="admin-portal min-h-screen flex flex-col" style={{ background: 'var(--ccc-off)' }}>
       {/* SiteHeader has no public nav links or Sign Up/Log In buttons built
           into it -- it only renders the logo cluster, college name, and an
           optional badge -- so it's already the "slim branding bar" without
@@ -226,7 +208,7 @@ export default function AdminLoginPage() {
         ]}
       />
 
-      <div className="flex-1 flex items-center justify-center px-4 py-12">
+      <div className="flex-1 flex items-center justify-center px-4 py-14">
         <Suspense fallback={null}>
           <AdminLoginForm />
         </Suspense>

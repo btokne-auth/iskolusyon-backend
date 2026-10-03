@@ -5852,6 +5852,9 @@ function AdminPageInner() {
   const [recomputing, setRecomputing] = useState(false)
   const [adminName, setAdminName] = useState('')
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [adminEmail, setAdminEmail] = useState('')
+  const [confirmLogout, setConfirmLogout] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
   const [overriding, setOverriding] = useState(null)
   const [overrideError, setOverrideError] = useState('')
   const [activePanel, setActivePanel] = useState(initialPanel)
@@ -5890,6 +5893,7 @@ function AdminPageInner() {
         if (data.loggedIn) {
           setAdminName(data.name)
           setIsSuperAdmin(!!data.isSuperAdmin)
+          setAdminEmail(data.email || '')
         }
       })
       .catch(() => {})
@@ -6091,10 +6095,45 @@ function AdminPageInner() {
           activePanel={activePanel}
           onSelectPanel={setActivePanel}
           displayName={adminName}
+          email={adminEmail}
           isSuperAdmin={isSuperAdmin}
           flaggedCount={totalFlagged}
-          onLogout={handleLogout}
+          onLogout={() => setConfirmLogout(true)}
         />
+        {/* Oct 3 2026: log out asks first (was one click). */}
+        {confirmLogout && (
+          <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !loggingOut && setConfirmLogout(false)}>
+            <div className="aa-confirm" role="dialog" aria-modal="true" aria-label="Log out">
+              <div className="aa-confirm-body">
+                <h3 className="aa-confirm-title">Log out?</h3>
+                <p className="aa-confirm-desc">
+                  You&rsquo;ll need your email and password to sign in again. Any applicant you have open is released for
+                  other admins.
+                </p>
+              </div>
+              <div className="aa-confirm-foot">
+                <button type="button" className="cm-btn cm-btn-secondary" disabled={loggingOut} onClick={() => setConfirmLogout(false)} autoFocus>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="cm-btn cm-btn-primary"
+                  disabled={loggingOut}
+                  onClick={async () => {
+                    setLoggingOut(true)
+                    try {
+                      await handleLogout()
+                    } catch {
+                      setLoggingOut(false)
+                    }
+                  }}
+                >
+                  {loggingOut ? 'Logging out...' : 'Log out'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="portal-main">
           {activePanel === 'dashboard' && (

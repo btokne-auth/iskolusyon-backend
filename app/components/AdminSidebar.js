@@ -98,6 +98,50 @@ function IconStatistics() {
   )
 }
 
+// Oct 3 2026 redesign: own icons for Exam Schedules, Admin Accounts and
+// System & Activity (the last two were emoji; Exam Schedules shared the
+// Appeals calendar icon).
+function IconExamCalendar() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}>
+      <rect x="3" y="4" width="18" height="17" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18M8 14h3M8 17h6" />
+    </svg>
+  )
+}
+function IconRequests() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}>
+      <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z" />
+      <path d="M14 3v5h5M9 13h6M9 17h4" />
+    </svg>
+  )
+}
+function IconAccounts() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M19 8v6M22 11h-6" />
+    </svg>
+  )
+}
+function IconSettings() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}>
+      <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+    </svg>
+  )
+}
+function IconLogout() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="m16 17 5-5-5-5M21 12H9" />
+    </svg>
+  )
+}
+
 const NAV_GROUPS = [
   {
     section: 'Overview',
@@ -108,13 +152,13 @@ const NAV_GROUPS = [
     section: 'Communications',
     labelIcon: <IconComms />,
     items: [
-      { key: 'communications', label: 'Announcements', icon: <IconAnnouncements /> },
+      { key: 'communications', label: 'Communications', icon: <IconAnnouncements /> },
       // Sept 30 2026: admin side of the applicants' Rescheduling Request
       // form. Not in Ivy's admin.html (she has no such screen), so it has
       // no mockup source; it reuses the console's existing list styling.
-      { key: 'reschedule', label: 'Appeals & Reschedules', icon: <IconReschedule /> },
+      { key: 'reschedule', label: 'Appeals & Reschedules', icon: <IconRequests /> },
       // Sept 30 2026: Exam Schedule Alerts (Notifications Module).
-      { key: 'exams', label: 'Exam Schedules', icon: <IconReschedule /> },
+      { key: 'exams', label: 'Exam Schedules', icon: <IconExamCalendar /> },
     ],
   },
   // Applicant Information & Results + Statistical Data & Reporting --
@@ -136,8 +180,8 @@ const SUPER_ADMIN_GROUP = {
   section: 'Super Admin',
   labelIcon: <IconSuperAdmin />,
   items: [
-    { key: 'admins', label: 'Admin Accounts', icon: '\u{1F6E1}️' },
-    { key: 'system', label: 'System & Activity', icon: '⚙️' },
+    { key: 'admins', label: 'Admin Accounts', icon: <IconAccounts /> },
+    { key: 'system', label: 'System & Activity', icon: <IconSettings /> },
   ],
 }
 
@@ -155,7 +199,12 @@ function NavButton({ item, active, onSelect, flaggedCount }) {
         <span className="menu-icon">{item.icon}</span>
         {' '}{item.label}{' '}
         {badgeCount != null && (
-          <span className={`menu-badge${badgeCount > 0 ? '' : ' is-empty'}`}>{badgeCount}</span>
+          <span
+            className={`menu-badge${badgeCount > 0 ? '' : ' is-empty'}`}
+            title={`${badgeCount} flagged document${badgeCount === 1 ? '' : 's'} to check`}
+          >
+            {badgeCount}
+          </span>
         )}
       </button>
     </li>
@@ -166,6 +215,7 @@ export default function AdminSidebar({
   activePanel,
   onSelectPanel,
   displayName,
+  email = '',
   isSuperAdmin,
   flaggedCount = 0,
   onLogout,
@@ -174,13 +224,23 @@ export default function AdminSidebar({
 
   return (
     <aside className="sidebar">
-      {/* ---- Profile block ---- */}
-      <div className="sidebar-profile">
-        <div className="admin-avatar" title={displayName || 'Admin'}>
-          <span className="aa-initials">{displayName ? displayName.charAt(0).toUpperCase() : '\u{1F464}'}</span>
+      {/* ---- Profile block ----
+          Oct 3 2026 redesign: initials beside the name, role as plain text.
+          Admin and Super Admin look the same on purpose (no color coding). */}
+      <div className="sidebar-profile sb-profile">
+        <div className="sb-avatar" title={displayName || 'Admin'} aria-hidden="true">
+          {(displayName || 'A')
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((w, i, a) => (i === 0 || i === a.length - 1 ? w.charAt(0) : ''))
+            .join('')
+            .toUpperCase()}
         </div>
-        <div className="admin-name">{displayName || 'Admin'}</div>
-        <div className="admin-role">{isSuperAdmin ? 'Super Admin' : 'Admin'}</div>
+        <div className="sb-who">
+          <div className="sb-name">{displayName || 'Admin'}</div>
+          <div className="sb-role">{isSuperAdmin ? 'Super Admin' : 'Admin'}</div>
+        </div>
       </div>
 
       {/* ---- Nav groups ---- */}
@@ -206,10 +266,12 @@ export default function AdminSidebar({
         ))}
       </ul>
 
-      {/* ---- Log out (real -- the admin login system exists) ---- */}
+      {/* ---- Log out (real -- the admin login system exists). Oct 3 2026:
+          asks first (the confirm pop-up lives in app/admin/page.js). ---- */}
       <div className="sidebar-logout">
+        {email && <div className="sb-signed-in">Signed in as {email}</div>}
         <button type="button" className="logout-btn" onClick={onLogout}>
-          <span className="menu-icon">&#10162;</span> Log Out
+          <span className="menu-icon"><IconLogout /></span> Log out
         </button>
       </div>
     </aside>
