@@ -556,15 +556,6 @@ function formatAplDate(iso) {
   return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function EligibilityBadge({ status }) {
-  const meta = ELIGIBILITY_META[status] || ELIGIBILITY_META.incomplete
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.className}`}>
-      {meta.label}
-    </span>
-  )
-}
-
 // The 3 manual-override choices, restyled Sept 22 2026 as Ivy's mockup's
 // big "Update Application Status" cards (.status-action-grid/.status-btn,
 // already in admin-theme.css, previously unused) instead of small pills --
@@ -1980,44 +1971,28 @@ function getNextStepHint(row) {
   const scholarStatus = row.scholar_status || 'pending_exam'
 
   if (scholarStatus === 'disqualified' || scholarStatus === 'forfeited') {
-    return { text: `No further action -- applicant is ${SCHOLAR_STATUS_META[scholarStatus].label.toLowerCase()}.`, tone: 'stop' }
+    return { text: `No further action. The applicant is ${SCHOLAR_STATUS_META[scholarStatus].label.toLowerCase()}.`, tone: 'stop' }
   }
   if (scholarStatus === 'passer' || scholarStatus === 'qualified_probationary') {
     if (row.distribution_status === 'enrollment_complete') {
-      return { text: 'Enrollment complete -- no further action needed.', tone: 'done' }
+      return { text: 'Enrollment complete. No further action needed.', tone: 'done' }
     }
-    return { text: 'Ready to advance Distribution Status below.', tone: 'go' }
+    return { text: 'Ready to advance Distribution Status in section 4 below.', tone: 'go' }
   }
   if (scholarStatus === 'waitlisted_probationary') {
-    return { text: 'Waitlisted pending an open slot -- re-check later, or use Manual Override if a slot opens.', tone: 'wait' }
+    return { text: 'Waitlisted pending an open slot. Re-check later, or use Change manually if a slot opens.', tone: 'wait' }
   }
   // scholarStatus is 'pending_exam' -- no exam result recorded yet, so
   // whether exam entry even applies depends on eligibility.
   if (eligStatus === 'incomplete') {
-    return { text: "Eligibility: Incomplete -- applicant hasn't finished their profile yet. Exam entry doesn't apply yet.", tone: 'wait' }
+    return { text: "Eligibility: Incomplete. The applicant hasn't finished their profile yet, so exam entry doesn't apply yet.", tone: 'wait' }
   }
   if (eligStatus === 'not_qualified') {
-    return { text: 'Eligibility: Not Qualified -- exam entry only applies here for a real Program Director exception.', tone: 'stop' }
+    return { text: 'Eligibility: Not Qualified. Exam entry only applies here for a real Program Director exception.', tone: 'stop' }
   }
   // pending_exam (automated) or a manual qualified/waitlisted override --
   // either way, this is the point where recording an exam result applies.
-  return { text: `Eligibility: ${ELIGIBILITY_META[eligStatus]?.label || eligStatus} -- ready for exam entry in Step 1 below.`, tone: 'go' }
-}
-
-const NEXT_STEP_TONE_CLASSES = {
-  go: 'border-ccc-blue/30 bg-blue-50 text-ccc-blue',
-  wait: 'border-ccc-gold/40 bg-ccc-gold/10 text-ccc-navy',
-  stop: 'border-ccc-red/30 bg-red-50 text-ccc-red',
-  done: 'border-ccc-green/30 bg-green-50 text-ccc-green',
-}
-
-function NextStepHint({ row }) {
-  const { text, tone } = getNextStepHint(row)
-  return (
-    <div className={`rounded-lg border px-3 py-2 text-[11px] font-semibold ${NEXT_STEP_TONE_CLASSES[tone]}`}>
-      {text}
-    </div>
-  )
+  return { text: `Eligibility: ${ELIGIBILITY_META[eligStatus]?.label || eligStatus}. Ready for exam entry in section 1 below.`, tone: 'go' }
 }
 
 // Distribution steps that have an applicant notice (Sept 30 2026).
@@ -2097,7 +2072,7 @@ function ConfirmActionModal({ eyebrow = 'Confirm', title, message, onConfirm, on
 // message always, plus an email only if the applicant opted in. Follows Ivy's
 // admin.html confirm-and-edit step (Email / Subject / Message, each with an
 // Edit toggle). Nothing is sent until the admin clicks "Send".
-function ResultNoticeBox({ row, onSent, kind = 'result' }) {
+function ResultNoticeBox({ row, onSent, kind = 'result', number = null }) {
   // Sept 30 2026: the same box also sends endorsement notices (kind
   // 'endorsement', progress table row "Real-time Result Notifications
   // (Pass/Fail/Endorsement)"), driven by Distribution Status instead of
@@ -2201,26 +2176,40 @@ function ResultNoticeBox({ row, onSent, kind = 'result' }) {
     try { return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) } catch { return iso }
   }
 
+  // Oct 3 2026 redesign: shown as numbered section 3 ("Result notice") in
+  // the applicant window, or as a sub-block of Distribution Status for the
+  // endorsement notice. Same send flow as before.
+  const isSection = number != null
+  const heading = kind === 'endorsement' ? 'Endorsement notice' : 'Result notice'
   return (
-    <div className="rounded-xl border border-ccc-border p-3.5 space-y-2.5">
-      <div className="modal-section-label" style={{ marginBottom: '4px' }}>
-        <span>{cfg.title}</span>
+    <div className={isSection ? 'rr-sec' : 'rr-subblock'}>
+      <div className={isSection ? 'rr-sec-head' : 'rr-subblock-head'}>
+        <div className="rr-sec-title-wrap">
+          {isSection && <span className={`rr-num${cfg.lastAt ? ' done' : ''}`}>{number}</span>}
+          <h3 className={isSection ? 'rr-sec-title' : 'rr-subblock-title'}>{heading}</h3>
+        </div>
         {releasable && !open && (
-          <button type="button" className="section-edit-btn" onClick={openBox}>
+          <button type="button" className={`rr-btn ${cfg.lastAt ? 'rr-btn-secondary' : 'rr-btn-primary'}`} onClick={openBox}>
             {cfg.lastAt ? 'Send again' : 'Notify applicant'}
           </button>
         )}
       </div>
+      <div className={isSection ? 'rr-sec-body' : 'rr-subblock-body'}>
 
       {cfg.lastAt ? (
-        <p className="text-[11px] text-ccc-muted">
-          Last sent: {cfg.label(cfg.lastStatus)}, {fmt(cfg.lastAt)}
-          {cfg.lastBy ? ' by ' + cfg.lastBy : ''}
-          {cfg.lastEmail ? ' (portal message and email)' : ' (portal message only)'}
-          {cfg.lastStatus && cfg.lastStatus !== cfg.current ? '. The status has changed since then.' : '.'}
+        <p className="rr-sent-line">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          <span>
+            Last sent: <b>{cfg.label(cfg.lastStatus)}</b>, {fmt(cfg.lastAt)}
+            {cfg.lastBy ? ' by ' + cfg.lastBy : ''}
+            {cfg.lastEmail ? ' (portal message and email)' : ' (portal message only)'}
+            {cfg.lastStatus && cfg.lastStatus !== cfg.current ? '. The status has changed since then.' : '.'}
+          </span>
         </p>
       ) : (
-        <p className="text-[11px] text-ccc-muted">
+        <p className="rr-muted-line">
           {releasable ? 'Not sent yet.' : cfg.notReady}
         </p>
       )}
@@ -2291,7 +2280,78 @@ function ResultNoticeBox({ row, onSent, kind = 'result' }) {
           )}
         </div>
       )}
+      </div>
     </div>
+  )
+}
+
+// Oct 3 2026 redesign (approved on the design canvas): short wording for the
+// list's "Next step" column, built from the same branches as
+// getNextStepHint() above so the two can't drift apart.
+function getShortNextStep(row) {
+  const eligStatus = row.eligibility_override || row.eligibility_status || 'incomplete'
+  const scholarStatus = row.scholar_status || 'pending_exam'
+  if (scholarStatus === 'disqualified' || scholarStatus === 'forfeited') return 'No further action'
+  if (scholarStatus === 'passer' || scholarStatus === 'qualified_probationary') {
+    if (row.distribution_status === 'enrollment_complete') return 'Enrollment complete'
+    const i = DISTRIBUTION_STATUS_STEPS.findIndex(([k]) => k === row.distribution_status)
+    const next = DISTRIBUTION_STATUS_STEPS[i + 1] || DISTRIBUTION_STATUS_STEPS[0]
+    return `Move to ${next[1]}`
+  }
+  if (scholarStatus === 'waitlisted_probationary') return 'Waiting for an open slot'
+  if (eligStatus === 'incomplete') return 'Waiting on applicant profile'
+  if (eligStatus === 'not_qualified') return 'Not qualified (exception only)'
+  return 'Record exam result'
+}
+
+const RESULT_RELEASABLE = ['passer', 'waitlisted_probationary', 'qualified_probationary', 'forfeited', 'disqualified']
+
+const EXAM_RESULT_LABELS = { passed: 'Passed', failed: 'Failed', absent: 'Absent' }
+
+const SCHOLAR_PILL_CLASS = {
+  pending_exam: 'apl-pill-blue',
+  passer: 'apl-pill-green',
+  waitlisted_probationary: 'apl-pill-gold',
+  qualified_probationary: 'apl-pill-gold',
+  disqualified: 'apl-pill-red',
+  forfeited: 'apl-pill-red',
+}
+
+const OVERRIDE_CHOICES = [
+  { key: 'qualified_probationary', desc: 'Accepted under a probationary contract.' },
+  { key: 'disqualified', desc: 'Removed for a later disqualification reason.' },
+  { key: 'forfeited', desc: 'Gave up or lost the slot.' },
+]
+
+function rrInitials(name) {
+  const parts = (name || '?').trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  return ((parts[0][0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
+}
+
+function rrDate(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+  } catch {
+    return iso
+  }
+}
+
+function rrShortDate(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
+  } catch {
+    return iso
+  }
+}
+
+function RrCheck() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
   )
 }
 
@@ -2302,6 +2362,11 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
   const [statusReason, setStatusReason] = useState('')
   const [pendingOverride, setPendingOverride] = useState(null) // scholar_status target, or null
   const [pendingClearDistribution, setPendingClearDistribution] = useState(false)
+  // Oct 3 2026 redesign: Manual Override now sits behind "Change manually"
+  // inside section 2, with the choice picked first and applied with one
+  // button (still confirmed by ConfirmActionModal, same as before).
+  const [overrideOpen, setOverrideOpen] = useState(false)
+  const [overridePick, setOverridePick] = useState('')
   const isBusy = busy === row.id
 
   const canDistribute = row.scholar_status === 'passer' || row.scholar_status === 'qualified_probationary'
@@ -2342,24 +2407,64 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
   const handleConfirmed = () => {
     onSetScholarStatus(row.id, pendingOverride, statusReason)
     setPendingOverride(null)
+    setOverrideOpen(false)
+    setOverridePick('')
   }
   const handleClearDistributionConfirmed = () => {
     onAdvanceDistribution(row.id, 'not_applicable')
     setPendingClearDistribution(false)
   }
 
-  // Sept 24 2026: collapsed-row + click-to-open-modal, replacing the old
-  // always-expanded card. Live testing (Pau, Sept 24) found a scrolling
-  // list of fully-expanded Step 1/Step 2/Distribution Status sections per
-  // applicant overwhelming to scan. Mirrors ApplicantGroup's existing
-  // pattern above (Dashboard panel) for consistency across the admin
-  // console -- that panel deliberately moved to this same collapsed-row +
-  // modal shape on Sept 22 for the same reason (an inline accordion with
-  // the first row forced open read as broken/random). No new data fetch
-  // needed here, unlike ApplicantGroup's lazy detail fetch -- ResultsPanel
-  // already loads every field this modal shows up front.
+  // Sept 24 2026: collapsed-row + click-to-open-modal (see ApplicantGroup).
   const { modalOpen, openModal, closeModal, blockedMsg, setBlockedMsg, opening } = useLockedModal(row.id)
   const lockedByOther = !!lockInfo && !lockInfo.mine && !modalOpen
+
+  const scholarStatus = row.scholar_status || 'pending_exam'
+  const scholarLabel = SCHOLAR_STATUS_META[scholarStatus]?.label || scholarStatus
+  const pillClass = SCHOLAR_PILL_CLASS[scholarStatus] || 'apl-pill-blue'
+  const hint = getNextStepHint(row)
+  const examLabel = EXAM_RESULT_LABELS[row.exam_result] || ''
+  const examSummary = row.exam_result
+    ? `${examLabel}${row.exam_score != null && row.exam_score !== '' ? ` · ${row.exam_score}` : ''}`
+    : 'Not recorded'
+  const resultUnsent = RESULT_RELEASABLE.includes(scholarStatus) && !row.result_notified_at
+  const nextIndex = currentStepIndex + 1
+  const nextStep = canDistribute ? DISTRIBUTION_STATUS_STEPS[nextIndex] || null : null
+
+  // Progress strip: 4 stages, each done / current / upcoming / not applicable.
+  const stages = (() => {
+    const out = [
+      {
+        title: 'Entrance exam',
+        value: examSummary,
+        done: !!row.exam_result,
+      },
+      {
+        title: 'Scholar status',
+        value: scholarLabel,
+        done: scholarStatus !== 'pending_exam',
+      },
+      {
+        title: 'Result notice',
+        value: row.result_notified_at
+          ? `Sent ${rrShortDate(row.result_notified_at)}`
+          : RESULT_RELEASABLE.includes(scholarStatus)
+            ? 'Not sent yet'
+            : 'Not yet',
+        done: !!row.result_notified_at,
+      },
+      {
+        title: 'Distribution',
+        value: canDistribute
+          ? DISTRIBUTION_STATUS_STEPS.find(([k]) => k === row.distribution_status)?.[1] || 'Not started'
+          : 'Not applicable',
+        done: row.distribution_status === 'enrollment_complete',
+        na: !canDistribute,
+      },
+    ]
+    const firstOpen = out.findIndex((s) => !s.done && !s.na)
+    return out.map((s, i) => ({ ...s, current: i === firstOpen }))
+  })()
 
   return (
     <>
@@ -2367,30 +2472,53 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         type="button"
         onClick={openModal}
         disabled={opening}
-        className={`w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border border-ccc-border bg-white shadow-sm hover:bg-ccc-off hover:border-ccc-blue/40 transition-colors${lockedByOther ? ' opacity-60' : ''}`}
+        className={`rr-row${lockedByOther ? ' apl-row-locked' : ''}`}
+        title={lockedByOther ? `${lockInfo.admin_name || 'Another admin'} is reviewing this applicant` : `Open ${row.applicant_name || 'applicant'}`}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-full bg-ccc-navy flex items-center justify-center text-sm font-bold text-white shrink-0">
-            {row.applicant_name ? row.applicant_name.charAt(0).toUpperCase() : '?'}
-          </div>
-          <div className="text-left min-w-0">
-            <p className="text-sm font-semibold text-ccc-navy truncate" style={{ fontFamily: 'var(--font-montserrat)' }}>
-              {row.applicant_name || 'Unknown applicant'}
-            </p>
-            <p className="text-[11px] text-ccc-muted truncate">
-              {row.applicant_email || 'No email on file'}
-              {row.application_number && ` · ${row.application_number}`}
-              {row.program_choice_1 && ` · ${row.program_choice_1}`}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {lockedByOther && (
-            <span className="rounded-full border border-ccc-border bg-ccc-off text-ccc-muted text-[10px] font-bold px-2 py-0.5">
-              &#128274; Being reviewed by {lockInfo.admin_name || 'another admin'}
+        <div className="apl-cell apl-who">
+          <span className="apl-avatar">{rrInitials(row.applicant_name)}</span>
+          <span className="apl-who-text">
+            <span className="apl-name">{row.applicant_name || 'Unknown applicant'}</span>
+            <span className="apl-sub">
+              {[row.application_number, row.applicant_email || 'No email on file'].filter(Boolean).join(' · ')}
             </span>
+            {lockedByOther && (
+              <span className="apl-lock-tag">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="5" y="11" width="14" height="9" rx="2" />
+                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+                Being reviewed by {lockInfo.admin_name || 'another admin'}
+              </span>
+            )}
+          </span>
+        </div>
+        <div className="apl-cell apl-stack">
+          <span className="apl-main">{row.program_choice_1 || 'Not yet chosen'}</span>
+          <span className="apl-sub">{row.applying_as || 'Not yet specified'}</span>
+        </div>
+        <div className="apl-cell apl-stack">
+          <span className={`rr-exam-main ${row.exam_result === 'passed' ? 'pass' : row.exam_result ? 'fail' : 'none'}`}>
+            {row.exam_result ? (row.exam_score != null && row.exam_score !== '' ? row.exam_score : examLabel) : 'Not recorded'}
+          </span>
+          {row.exam_result && (
+            <span className="apl-sub">{row.exam_score != null && row.exam_score !== '' ? examLabel : 'No score'}</span>
           )}
-          <ScholarStatusBadge status={row.scholar_status || 'pending_exam'} />
+        </div>
+        <div className="apl-cell">
+          <span className={`apl-pill ${pillClass}`}>{scholarLabel}</span>
+        </div>
+        <div className="apl-cell apl-status rr-next">
+          <span className="rr-next-text">
+            <span className={`rr-next-dot ${hint.tone}`} aria-hidden="true" />
+            <span className="apl-stack">
+              <span className={`rr-next-main ${hint.tone}`}>{getShortNextStep(row)}</span>
+              {resultUnsent && <span className="apl-sub">Result not sent yet</span>}
+            </span>
+          </span>
+          <svg className="apl-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
         </div>
       </button>
       <LockedNotice lockInfo={null} blockedMsg={blockedMsg} onDismiss={() => setBlockedMsg('')} />
@@ -2401,47 +2529,60 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         onClick={() => closeModal()}
       >
         <div
-          className="w-full max-w-2xl rounded-2xl bg-white shadow-xl border border-ccc-border overflow-hidden my-auto"
+          className="rr-window w-full max-w-3xl my-auto"
+          role="dialog"
+          aria-label={`${row.applicant_name || 'Applicant'} results`}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Tinted header band -- same treatment as ApplicantGroup's modal
-              above, for visual consistency between the two panels. */}
-          <div
-            className="flex items-center justify-between gap-3 px-5 py-4 border-b border-ccc-border"
-            style={{ background: 'linear-gradient(135deg, #eef3fd 0%, #ffffff 100%)' }}
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-11 h-11 rounded-full bg-ccc-navy flex items-center justify-center text-base font-bold text-white shrink-0">
-                {row.applicant_name ? row.applicant_name.charAt(0).toUpperCase() : '?'}
-              </div>
-              <div className="min-w-0">
-                <p className="text-base font-bold text-ccc-navy truncate" style={{ fontFamily: 'var(--font-montserrat)' }}>
-                  {row.applicant_name || 'Unknown applicant'}
-                </p>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {row.application_number && (
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue bg-white/70 border border-ccc-blue/30 rounded-full px-2 py-0.5 shrink-0">
-                      {row.application_number}
-                    </span>
-                  )}
-                  <span className="text-[11px] text-ccc-muted truncate">{row.applicant_email || 'No email on file'}</span>
+          <div className="rr-head">
+            <div className="rr-head-top">
+              <div className="rr-head-who">
+                <span className="rr-head-avatar">{rrInitials(row.applicant_name)}</span>
+                <div className="min-w-0">
+                  <div className="rr-head-name-line">
+                    <h2 className="rr-head-name">{row.applicant_name || 'Unknown applicant'}</h2>
+                    <span className={`apl-pill ${pillClass}`}>{scholarLabel}</span>
+                  </div>
+                  <div className="rr-head-meta">
+                    {row.application_number && <span className="rr-appno">{row.application_number}</span>}
+                    <span>{row.applicant_email || 'No email on file'}</span>
+                    {row.program_choice_1 && (
+                      <span>
+                        {row.program_choice_1}
+                        {row.applying_as ? ` · ${row.applying_as}` : ''}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <ScholarStatusBadge status={row.scholar_status || 'pending_exam'} />
-              <button
-                type="button"
-                onClick={() => closeModal()}
-                aria-label="Close"
-                className="w-8 h-8 rounded-full flex items-center justify-center text-ccc-muted hover:bg-white hover:text-ccc-navy transition-colors"
-              >
+              <button type="button" onClick={() => closeModal()} aria-label="Close" className="rr-close">
                 &#10005;
               </button>
             </div>
+
+            <div className="rr-stages">
+              {stages.map((s, i) => (
+                <div key={s.title} className={`rr-stage${s.done ? ' done' : ''}${s.current ? ' current' : ''}${s.na ? ' na' : ''}`}>
+                  <span className="rr-num">{s.done ? <RrCheck /> : i + 1}</span>
+                  <span className="rr-stage-text">
+                    <span className="rr-stage-title">{s.title}</span>
+                    <span className="rr-stage-value">{s.value}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className={`rr-next-line ${hint.tone}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+              <span>
+                <b>Next:</b> {hint.text}
+              </span>
+            </div>
           </div>
 
-          <div className="px-5 pb-5 pt-4 space-y-4 max-h-[75vh] overflow-y-auto">
+          <div className="rr-body">
       {pendingOverride && (
         <ConfirmActionModal
           eyebrow="Confirm Override"
@@ -2475,215 +2616,260 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
         />
       )}
 
-      <NextStepHint row={row} />
-
-      {/* Exam Score Entry and Verification */}
-      <div className="rounded-xl border border-ccc-border bg-ccc-off/40 p-3.5 space-y-2.5">
-        <div>
-          <span className="modal-section-label" style={{ marginBottom: '4px' }}>Step 1 · Entrance Exam</span>
-          <p className="text-[10.5px] text-ccc-muted">
-            Nothing here is saved until you click Save &amp; Verify. Saving auto-sets Scholar Status below (Passed &rarr; Passer, Failed &rarr; Waitlisted, Absent &rarr; Forfeited).
-          </p>
+      {/* 1 · Entrance Exam (Exam Score Entry and Verification) */}
+      <section className="rr-sec">
+        <div className="rr-sec-head">
+          <div className="rr-sec-title-wrap">
+            <span className={`rr-num${row.exam_result ? ' done' : ''}`}>1</span>
+            <h3 className="rr-sec-title">Entrance exam</h3>
+            {hasUnsavedExamChanges && <span className="rr-unsaved">Unsaved changes</span>}
+          </div>
+          {row.exam_verified_by && (
+            <span className="rr-sec-meta">
+              Last verified by {row.exam_verified_by}
+              {row.exam_verified_at ? ` · ${rrDate(row.exam_verified_at)}` : ''}
+            </span>
+          )}
         </div>
-        <div className="flex flex-wrap items-end gap-2.5">
-          <div>
-            <label className="text-[10px] text-ccc-muted block mb-1">Score</label>
-            <input
-              type="number"
-              value={examScore}
-              onChange={(e) => setExamScore(e.target.value)}
-              className="w-24 rounded-lg border border-ccc-border px-2.5 py-1.5 text-sm"
-              placeholder="e.g. 82"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-ccc-muted block mb-1">Date</label>
-            <input
-              type="date"
-              value={examDate || ''}
-              onChange={(e) => setExamDate(e.target.value)}
-              className="rounded-lg border border-ccc-border px-2.5 py-1.5 text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-ccc-muted block mb-1">Result</label>
-            <select
-              value={examResult}
-              onChange={(e) => setExamResult(e.target.value)}
-              className="rounded-lg border border-ccc-border px-2.5 py-1.5 text-sm"
+        <div className="rr-sec-body">
+          <div className="rr-exam-grid">
+            <label className="rr-field">
+              <span className="rr-label">Score</span>
+              <input
+                type="number"
+                value={examScore}
+                onChange={(e) => setExamScore(e.target.value)}
+                className="rr-input"
+                placeholder="e.g. 82"
+              />
+            </label>
+            <label className="rr-field">
+              <span className="rr-label">Exam date</span>
+              <input type="date" value={examDate || ''} onChange={(e) => setExamDate(e.target.value)} className="rr-input" />
+            </label>
+            <label className="rr-field">
+              <span className="rr-label">Result</span>
+              <select value={examResult} onChange={(e) => setExamResult(e.target.value)} className="rr-input">
+                <option value="">Not yet recorded</option>
+                <option value="passed">Passed</option>
+                <option value="failed">Failed</option>
+                <option value="absent">Absent (no-show)</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => onSaveExam(row.id, { examScore, examResult, examDate })}
+              className="rr-btn rr-btn-primary rr-btn-tall"
             >
-              <option value="">Not yet recorded</option>
-              <option value="passed">Passed</option>
-              <option value="failed">Failed</option>
-              <option value="absent">Absent (no-show)</option>
-            </select>
+              {isBusy ? 'Saving…' : 'Save & verify'}
+            </button>
           </div>
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={() => onSaveExam(row.id, { examScore, examResult, examDate })}
-            className="text-xs font-bold px-3.5 py-2 rounded-lg bg-ccc-navy text-white hover:bg-ccc-blue disabled:opacity-50"
-          >
-            {isBusy ? 'Saving…' : 'Save & Verify'}
-          </button>
+          {examSuggestion.threshold != null && (
+            <p className={`rr-hint ${examSuggestion.suggested === 'passed' ? 'pass' : examSuggestion.suggested === 'failed' ? 'fail' : ''}`}>
+              {row.program_choice_1}&rsquo;s passing grade per Appendix J: <strong>{examSuggestion.threshold}</strong>.
+              {examSuggestion.suggested && (
+                <>
+                  {' '}A score of {examScore} suggests <strong>{examSuggestion.suggested === 'passed' ? 'Passed' : 'Failed'}</strong>.
+                  This doesn&rsquo;t auto-fill Result, so pick it above to confirm.
+                </>
+              )}
+            </p>
+          )}
+          <p className="rr-muted-line">
+            Nothing here is saved until you click Save &amp; verify. Saving also sets the Scholar Status: Passed becomes
+            Passer, Failed becomes Waitlisted (Probationary), Absent becomes Forfeited.
+          </p>
         </div>
-        {examSuggestion.threshold != null && (
-          <p
-            className={
-              'text-[10.5px] rounded-lg px-2.5 py-1.5 ' +
-              (examSuggestion.suggested === 'passed'
-                ? 'bg-green-50 text-green-800'
-                : examSuggestion.suggested === 'failed'
-                ? 'bg-red-50 text-red-700'
-                : 'text-ccc-muted')
-            }
-          >
-            {row.program_choice_1}&rsquo;s passing grade per Appendix J: <strong>{examSuggestion.threshold}</strong>.
-            {examSuggestion.suggested && (
-              <>
-                {' '}Score of {examScore} suggests{' '}
-                <strong>{examSuggestion.suggested === 'passed' ? 'Passed' : 'Failed'}</strong>. This doesn&rsquo;t
-                auto-fill Result, so pick it above to confirm.
-              </>
+      </section>
+
+      {/* 2 · Scholar Status (Disqualification/Forfeiture Handling). The
+          manual override is a separate write path from section 1: it fires
+          on its own, after a confirm, and never saves the exam form. */}
+      <section className="rr-sec">
+        <div className="rr-sec-head">
+          <div className="rr-sec-title-wrap">
+            <span className={`rr-num${scholarStatus !== 'pending_exam' ? ' done' : ''}`}>2</span>
+            <h3 className="rr-sec-title">Scholar status</h3>
+          </div>
+          {!overrideOpen && (
+            <button type="button" className="rr-btn rr-btn-secondary" disabled={isBusy} onClick={() => setOverrideOpen(true)}>
+              Change manually
+            </button>
+          )}
+        </div>
+        <div className="rr-sec-body">
+          <div className="rr-status-line">
+            <span className={`apl-pill apl-pill-lg ${pillClass}`}>{scholarLabel}</span>
+            {row.scholar_status_set_by && (
+              <span className="rr-muted-line">
+                Last set by {row.scholar_status_set_by}
+                {row.scholar_status_set_at ? ` · ${rrDate(row.scholar_status_set_at)}` : ''}
+              </span>
             )}
-          </p>
-        )}
-        {row.exam_verified_by && (
-          <p className="text-[10px] text-ccc-muted">
-            Last verified by {row.exam_verified_by}
-            {row.exam_verified_at ? ` on ${new Date(row.exam_verified_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
-          </p>
-        )}
-      </div>
+          </div>
+          {row.scholar_status_reason && <p className="rr-muted-line">Note: {row.scholar_status_reason}</p>}
 
-      {/* Disqualification/Forfeiture Handling -- manual escape hatch for the
-          two statuses the exam result alone can't decide (see matching.js
-          deriveScholarStatus). Redesigned Sept 21 after live testing showed
-          an admin could type "Passed" into the exam form above, forget to
-          click Save & Verify, then click a button here expecting it to
-          somehow combine with the unsaved exam entry -- it doesn't, these
-          are two independent write paths. Now: clearly labeled Step 2,
-          visually set apart (orange-tinted, not the neutral card the exam
-          section uses), a live warning when the exam form above has
-          unsaved edits, and a confirm prompt before any override fires. */}
-      <div className="rounded-xl border border-ccc-orange/30 bg-orange-50/40 p-3.5 space-y-2.5">
-        <div>
-          <span className="modal-section-label" style={{ marginBottom: '4px' }}>Step 2 · Manual Override</span>
-          <p className="text-[10.5px] text-ccc-muted">
-            Only for a real judgment call the exam result itself doesn&rsquo;t decide (Appendix D: a probationary contract, or a
-            later disqualification/forfeiture reason). Fires immediately, independent of Step 1 above.
-          </p>
+          {overrideOpen && (
+            <div className="rr-override">
+              <p className="rr-override-intro">
+                Manual override. Only for a real judgment call the exam result itself doesn&rsquo;t decide (Appendix D: a
+                probationary contract, or a later disqualification or forfeiture reason). It applies right away and does
+                not save anything typed in section 1.
+              </p>
+              {hasUnsavedExamChanges && (
+                <div className="rr-warn">
+                  You have unsaved changes in the Entrance Exam section above. Applying an override will NOT save those,
+                  so save section 1 first if you meant to record an exam result.
+                </div>
+              )}
+              <div className="rr-choices" role="group" aria-label="New scholar status">
+                {OVERRIDE_CHOICES.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    className={`rr-choice rr-choice-${c.key === 'qualified_probationary' ? 'gold' : 'red'}${overridePick === c.key ? ' picked' : ''}`}
+                    aria-pressed={overridePick === c.key}
+                    onClick={() => setOverridePick(c.key)}
+                  >
+                    <span className="rr-choice-title">{SCHOLAR_STATUS_OVERRIDE_LABELS[c.key]}</span>
+                    <span className="rr-choice-desc">{c.desc}</span>
+                  </button>
+                ))}
+              </div>
+              <label className="rr-field">
+                <span className="rr-label">Reason / note (optional)</span>
+                <input
+                  type="text"
+                  value={statusReason}
+                  onChange={(e) => setStatusReason(e.target.value)}
+                  placeholder="e.g. failed a subject under probationary contract"
+                  className="rr-input"
+                />
+              </label>
+              <div className="rr-actions">
+                <button
+                  type="button"
+                  className="rr-btn rr-btn-secondary"
+                  onClick={() => {
+                    setOverrideOpen(false)
+                    setOverridePick('')
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isBusy || !overridePick}
+                  onClick={() => confirmOverride(overridePick)}
+                  className={`rr-btn ${overridePick === 'qualified_probationary' ? 'rr-btn-primary' : 'rr-btn-danger'}`}
+                >
+                  {overridePick ? `Set to ${SCHOLAR_STATUS_OVERRIDE_LABELS[overridePick]}` : 'Pick a status'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-        {hasUnsavedExamChanges && (
-          <div className="rounded-lg border border-ccc-orange/50 bg-orange-100 px-3 py-2 text-[11px] font-semibold text-ccc-orange">
-            You have unsaved changes in the Entrance Exam section above. Clicking a button below will NOT save those, so
-            save Step 1 first if you meant to record an exam result.
-          </div>
-        )}
-        <div className="flex flex-wrap items-end gap-2.5">
-          <div className="flex-1 min-w-[180px]">
-            <label className="text-[10px] text-ccc-muted block mb-1">Reason / note (optional)</label>
-            <input
-              type="text"
-              value={statusReason}
-              onChange={(e) => setStatusReason(e.target.value)}
-              placeholder="e.g. failed a subject under probationary contract"
-              className="w-full rounded-lg border border-ccc-border px-2.5 py-1.5 text-sm"
-            />
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <button type="button" disabled={isBusy} onClick={() => confirmOverride('qualified_probationary')}
-              className="text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-ccc-gold/50 text-ccc-navy hover:bg-ccc-gold/10 disabled:opacity-50">
-              Qualified (Probationary)
-            </button>
-            <button type="button" disabled={isBusy} onClick={() => confirmOverride('disqualified')}
-              className="text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-ccc-red/40 text-ccc-red hover:bg-red-50 disabled:opacity-50">
-              Disqualify
-            </button>
-            <button type="button" disabled={isBusy} onClick={() => confirmOverride('forfeited')}
-              className="text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-ccc-red/40 text-ccc-red hover:bg-red-50 disabled:opacity-50">
-              Forfeit
-            </button>
-          </div>
-        </div>
-        {row.scholar_status_reason && (
-          <p className="text-[11px] text-ccc-muted">Note: {row.scholar_status_reason}</p>
-        )}
-      </div>
+      </section>
 
-      <ResultNoticeBox row={row} onSent={onReload} />
+      {/* 3 · Result notice */}
+      <ResultNoticeBox row={row} onSent={onReload} number={3} />
 
-      {/* Distribution Status Tracking and Statement of Subsequent Actions --
+      {/* 4 · Distribution Status Tracking and Statement of Subsequent Actions --
           only meaningful once a passer/qualified-probationary status exists
           (Appendix D: Registrar -> Medical or Admissions -> enrollment). The
           "statement" itself is the audit_log trail each button click writes. */}
-      <div className="rounded-xl border border-ccc-border p-3.5 space-y-2.5">
-        <div className="modal-section-label" style={{ marginBottom: '4px' }}>
-          <span>Distribution Status</span>
-          {/* Clear button -- Sept 21, added after live testing found no way
-              to reset a leftover distribution_status once Scholar Status no
-              longer qualifies (e.g. an exam result got reset for retesting).
-              Shown whenever there's something to clear, whether or not the
-              stepper itself is currently visible. Data-hygiene only -- see
-              the comment above hasStaleDistribution. */}
+      <section className="rr-sec">
+        <div className="rr-sec-head">
+          <div className="rr-sec-title-wrap">
+            <span className={`rr-num${row.distribution_status === 'enrollment_complete' ? ' done' : ''}`}>4</span>
+            <h3 className="rr-sec-title">Distribution Status</h3>
+            <span className="rr-sec-meta">Endorsement and enrollment</span>
+          </div>
+          {/* Clear button -- Sept 21: data-hygiene reset of a leftover
+              distribution_status; shown whenever there's something to clear. */}
           {row.distribution_status && row.distribution_status !== 'not_applicable' && (
             <button
               type="button"
               disabled={isBusy}
               onClick={() => setPendingClearDistribution(true)}
-              className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-ccc-border text-ccc-muted hover:text-ccc-navy hover:bg-ccc-off disabled:opacity-50"
+              className="rr-link"
             >
               Clear
             </button>
           )}
         </div>
-        {hasStaleDistribution && (
-          <div className="rounded-lg border border-ccc-orange/40 bg-orange-50 px-3 py-2 text-[11px] text-ccc-orange">
-            This applicant&rsquo;s Scholar Status no longer qualifies for distribution tracking, but a stored value
-            (&ldquo;{DISTRIBUTION_STATUS_STEPS.find(([k]) => k === row.distribution_status)?.[1] || row.distribution_status}&rdquo;)
-            is still on file from before. Use Clear above if this should be reset.
-          </div>
-        )}
-        {!canDistribute ? (
-          !hasStaleDistribution && (
-            <p className="text-[11px] text-ccc-muted">
-              Not applicable yet. Becomes available once this applicant is a Passer or Qualified (Probationary).
+        <div className="rr-sec-body">
+          {hasStaleDistribution && (
+            <div className="rr-warn">
+              This applicant&rsquo;s Scholar Status no longer qualifies for distribution tracking, but a stored value
+              (&ldquo;{DISTRIBUTION_STATUS_STEPS.find(([k]) => k === row.distribution_status)?.[1] || row.distribution_status}&rdquo;)
+              is still on file from before. Use Clear above if this should be reset.
+            </div>
+          )}
+          {!canDistribute ? (
+            !hasStaleDistribution && (
+              <p className="rr-muted-line">
+                Not applicable yet. Becomes available once this applicant is a Passer or Qualified (Probationary).
+              </p>
+            )
+          ) : (
+            <>
+              <div className="rr-stepper">
+                <span className="rr-stepper-track" aria-hidden="true" />
+                <span
+                  className="rr-stepper-fill"
+                  aria-hidden="true"
+                  style={{ width: currentStepIndex > 0 ? `${(currentStepIndex / (DISTRIBUTION_STATUS_STEPS.length - 1)) * 80}%` : '0%' }}
+                />
+                {DISTRIBUTION_STATUS_STEPS.map(([key, label], i) => {
+                  const isCurrent = row.distribution_status === key
+                  const isPast = currentStepIndex >= 0 && i < currentStepIndex
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      disabled={isBusy}
+                      aria-current={isCurrent ? 'step' : undefined}
+                      onClick={() => onAdvanceDistribution(row.id, key)}
+                      className={`rr-step${isCurrent ? ' current' : ''}${isPast ? ' past' : ''}`}
+                      title={isCurrent ? `Current: ${label}` : `Set to ${label}`}
+                    >
+                      <span className="rr-step-dot">{isPast ? <RrCheck /> : i + 1}</span>
+                      <span className="rr-step-label">{label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="rr-actions rr-actions-split">
+                <span className="rr-muted-line">
+                  {row.distribution_status_updated_by && row.distribution_status !== 'not_applicable'
+                    ? `Last updated by ${row.distribution_status_updated_by}${row.distribution_status_updated_at ? ` · ${rrDate(row.distribution_status_updated_at)}` : ''}. Click any step to jump to it.`
+                    : 'Not started. Click any step to jump to it.'}
+                </span>
+                {nextStep && (
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    className="rr-btn rr-btn-primary"
+                    onClick={() => onAdvanceDistribution(row.id, nextStep[0])}
+                  >
+                    Move to {nextStep[1]}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+          {!canDistribute && row.distribution_status_updated_by && row.distribution_status !== 'not_applicable' && (
+            <p className="rr-muted-line">
+              Last updated by {row.distribution_status_updated_by}
+              {row.distribution_status_updated_at ? ` · ${rrDate(row.distribution_status_updated_at)}` : ''}
             </p>
-          )
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {DISTRIBUTION_STATUS_STEPS.map(([key, label], i) => {
-              const isCurrent = row.distribution_status === key
-              const isPast = currentStepIndex >= 0 && i < currentStepIndex
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  disabled={isBusy}
-                  onClick={() => onAdvanceDistribution(row.id, key)}
-                  className={`text-[10px] font-bold px-2.5 py-1.5 rounded-full border disabled:opacity-50 ${
-                    isCurrent
-                      ? 'bg-ccc-navy text-white border-ccc-navy'
-                      : isPast
-                      ? 'bg-ccc-off text-ccc-muted border-ccc-border'
-                      : 'border-ccc-blue/40 text-ccc-blue hover:bg-blue-50'
-                  }`}
-                >
-                  {label}
-                </button>
-              )
-            })}
-          </div>
-        )}
-        {row.distribution_status_updated_by && row.distribution_status !== 'not_applicable' && (
-          <p className="text-[10px] text-ccc-muted">
-            Last updated by {row.distribution_status_updated_by}
-            {row.distribution_status_updated_at ? ` on ${new Date(row.distribution_status_updated_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
-          </p>
-        )}
-      </div>
+          )}
 
-      {canDistribute && <ResultNoticeBox row={row} onSent={onReload} kind="endorsement" />}
+          {canDistribute && <ResultNoticeBox row={row} onSent={onReload} kind="endorsement" />}
+        </div>
+      </section>
           </div>
         </div>
       </div>
@@ -2691,6 +2877,24 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
     </>
   )
 }
+
+// Oct 3 2026 redesign: status tabs for the Applicant Results list.
+const RESULT_TABS = [
+  { key: 'all', label: 'All', match: () => true },
+  { key: 'action', label: 'Needs action', match: (r) => getNextStepHint(r).tone === 'go' },
+  { key: 'pending_exam', label: 'Pending Exam', match: (r) => (r.scholar_status || 'pending_exam') === 'pending_exam' },
+  { key: 'passer', label: 'Passer', match: (r) => r.scholar_status === 'passer' },
+  {
+    key: 'probationary',
+    label: 'Probationary',
+    match: (r) => r.scholar_status === 'qualified_probationary' || r.scholar_status === 'waitlisted_probationary',
+  },
+  {
+    key: 'out',
+    label: 'Disqualified / Forfeited',
+    match: (r) => r.scholar_status === 'disqualified' || r.scholar_status === 'forfeited',
+  },
+]
 
 function ResultsPanel() {
   const locks = useApplicantLocks()
@@ -2783,8 +2987,11 @@ function ResultsPanel() {
   // never revoked, so "Documents Complete"/"Documents Incomplete" is an
   // accurate, not just convenient, label for this.
   const [docFilter, setDocFilter] = useState('all') // 'all' | 'complete' | 'incomplete'
+  // Oct 3 2026 redesign: status tabs above the table. "Needs action" uses
+  // getNextStepHint()'s own 'go' tone, same as the default ordering below.
+  const [tab, setTab] = useState('all')
 
-  const filtered = useMemo(() => {
+  const searched = useMemo(() => {
     const term = search.trim().toLowerCase()
     let list = rows
     if (docFilter === 'complete') list = list.filter((r) => !!r.application_number)
@@ -2794,6 +3001,18 @@ function ResultsPanel() {
         `${r.applicant_name || ''} ${r.applicant_email || ''} ${r.application_number || ''}`.toLowerCase().includes(term)
       )
     }
+    return list
+  }, [rows, search, docFilter])
+
+  const resultTabCounts = useMemo(() => {
+    const counts = {}
+    for (const t of RESULT_TABS) counts[t.key] = searched.filter((r) => t.match(r)).length
+    return counts
+  }, [searched])
+
+  const filtered = useMemo(() => {
+    const current = RESULT_TABS.find((t) => t.key === tab) || RESULT_TABS[0]
+    const list = searched.filter((r) => current.match(r))
     // "Needs action first" default ordering, per Pau's Sept 24 request --
     // reuses getNextStepHint()'s own tone classification instead of
     // inventing a second "needs action" definition that could drift out of
@@ -2808,7 +3027,7 @@ function ResultsPanel() {
       if (pa !== pb) return pa - pb
       return (a.applicant_name || '').localeCompare(b.applicant_name || '')
     })
-  }, [rows, search, docFilter])
+  }, [searched, tab])
 
   return (
     <div>
@@ -2830,9 +3049,24 @@ function ResultsPanel() {
           All Applicants
           {!loading && (
             <span className="tag">
-              {filtered.length} applicant{filtered.length === 1 ? '' : 's'}
+              {filtered.length} of {rows.length} applicant{rows.length === 1 ? '' : 's'}
             </span>
           )}
+        </div>
+
+        <div className="apl-tabs" role="group" aria-label="Filter applicants by scholar status">
+          {RESULT_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              className={`apl-tab${tab === t.key ? ' active' : ''}`}
+              aria-pressed={tab === t.key}
+              onClick={() => setTab(t.key)}
+            >
+              {t.label}
+              <span className="apl-tab-count">{resultTabCounts[t.key] || 0}</span>
+            </button>
+          ))}
         </div>
 
         <div className="filter-bar">
@@ -2841,13 +3075,14 @@ function ResultsPanel() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by applicant name, email, or application number..."
+            aria-label="Search applicants"
           />
-          <select className="program-filter-select" value={docFilter} onChange={(e) => setDocFilter(e.target.value)}>
+          <select className="program-filter-select" value={docFilter} onChange={(e) => setDocFilter(e.target.value)} aria-label="Filter by documents">
             <option value="all">All documents</option>
             <option value="complete">Documents Complete</option>
             <option value="incomplete">Documents Incomplete</option>
           </select>
-          {(search.trim() !== '' || docFilter !== 'all') && (
+          {(search.trim() !== '' || docFilter !== 'all' || tab !== 'all') && (
             <>
               <div className="filter-divider" />
               <button
@@ -2856,6 +3091,7 @@ function ResultsPanel() {
                 onClick={() => {
                   setSearch('')
                   setDocFilter('all')
+                  setTab('all')
                 }}
               >
                 &times; Clear filters
@@ -2875,7 +3111,15 @@ function ResultsPanel() {
             {rows.length === 0 ? 'No applications on file yet.' : 'No applicants match your search and filter.'}
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="apl-scroll">
+           <div className="apl-table">
+            <div className="apl-head rr-grid" role="presentation">
+              <span className="apl-th">Applicant</span>
+              <span className="apl-th">Program (1st choice)</span>
+              <span className="apl-th">Exam</span>
+              <span className="apl-th">Scholar status</span>
+              <span className="apl-th">Next step</span>
+            </div>
             {filtered.map((row) => (
             <ResultRow
               key={row.id}
@@ -2888,6 +3132,7 @@ function ResultsPanel() {
               lockInfo={locks[row.id]}
               />
             ))}
+           </div>
           </div>
         )}
       </div>
