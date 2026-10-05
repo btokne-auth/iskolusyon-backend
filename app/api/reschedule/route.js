@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
 import { supabase } from '@/app/supabaseClient'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 
@@ -119,6 +120,10 @@ export async function POST(request) {
     // with no session can only come from outside the app.
     if (!applicantSession) {
       return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
+    }
+    // Oct 5 2026: an archived application is read-only.
+    if (await isApplicantArchived(applicantSession.id)) {
+      return NextResponse.json({ error: ARCHIVED_MESSAGE, archived: true }, { status: 403 })
     }
 
     // Oct 1 2026: attach this applicant's newest Supporting Document that was

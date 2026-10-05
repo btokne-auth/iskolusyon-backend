@@ -40,6 +40,7 @@ export async function GET(request) {
       .select(
         'id, applicant_name, applicant_email, applying_as, program_choice_1, program_choice_2, application_number, eligibility_status, eligibility_reasons, eligibility_override, eligibility_override_by, eligibility_override_at, updated_at, personal_info_submitted_at, academic_submitted_at, fam_financial_submitted_at, health_submitted_at'
       )
+      .is('archived_at', null) // Oct 5 2026: archived applicants leave the Dashboard
       .order('updated_at', { ascending: false })
 
     if (error) {

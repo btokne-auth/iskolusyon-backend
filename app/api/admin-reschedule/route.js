@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { archivedUserIds } from '@/app/lib/archive'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue, verifyAdminCookieFull } from '@/app/lib/adminAuth'
 import { checkLock } from '@/app/lib/applicantLocks'
@@ -73,7 +74,12 @@ export async function GET(request) {
       supporting_document_url: r.supporting_document_path ? linkByPath.get(r.supporting_document_path) || null : null,
     }))
 
-    return NextResponse.json({ success: true, requests: result })
+    // Oct 5 2026: requests from archived applicants leave this list.
+    const archivedUsers = await archivedUserIds()
+    return NextResponse.json({
+      success: true,
+      requests: result.filter((r) => !r.applicant_user_id || !archivedUsers.has(r.applicant_user_id)),
+    })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }

@@ -132,6 +132,9 @@ const ACTIVITY_CATEGORY_STYLE = {
   Eligibility: { icon: IconTarget, className: 'cat-eligibility' },
   Results: { icon: IconBarChart, className: 'cat-results' },
   Communications: { icon: IconMessage, className: 'cat-communications' },
+  // Oct 5 2026: allowance posts and LGU reports reuse existing looks.
+  Allowance: { icon: IconMessage, className: 'cat-communications' },
+  Reports: { icon: IconFile, className: 'cat-documents' },
   'Admin Accounts': { icon: IconShield, className: 'cat-admin' },
   System: { icon: IconGear, className: 'cat-system' },
 }
@@ -1468,6 +1471,7 @@ function DashboardPanel({
   onProfileSaved,
 }) {
   const locks = useApplicantLocks()
+  const [showForm3, setShowForm3] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [programFilter, setProgramFilter] = useState('all')
@@ -1677,15 +1681,22 @@ function DashboardPanel({
             {totalFlagged > 0 && ` · ${totalFlagged} document${totalFlagged === 1 ? '' : 's'} need review`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onRecomputeEligibility}
-          disabled={recomputing}
-          title="Recomputes eligibility for every applicant from their current data. Needed for anyone who fully submitted before this feature existed, since a locked application never triggers a new save on its own."
-          className="mbtn mbtn-ghost mbtn-sm"
-        >
-          {recomputing ? 'Recomputing…' : 'Recompute all'}
-        </button>
+        <span className="cf-header-actions">
+          {/* Oct 5 2026: CHED Form 3 export (Progress Table row 79). */}
+          <button type="button" onClick={() => setShowForm3(true)} className="mbtn mbtn-ghost mbtn-sm">
+            Export CHED Form 3
+          </button>
+          <button
+            type="button"
+            onClick={onRecomputeEligibility}
+            disabled={recomputing}
+            title="Recomputes eligibility for every applicant from their current data. Needed for anyone who fully submitted before this feature existed, since a locked application never triggers a new save on its own."
+            className="mbtn mbtn-ghost mbtn-sm"
+          >
+            {recomputing ? 'Recomputing…' : 'Recompute all'}
+          </button>
+        </span>
+        {showForm3 && <ChedForm3Dialog onClose={() => setShowForm3(false)} />}
       </div>
 
       {/* ── SCHOLARSHIP ELIGIBILITY: stat cards, click-to-filter (a real
@@ -4028,6 +4039,37 @@ function IconTrash() {
 }
 
 
+// Oct 5 2026: role cards for Admin Accounts (Registrar and LGU added).
+const ADMIN_ROLE_OPTIONS = [
+  { key: 'admin', label: 'Admin', desc: 'Reviews applicants, results, schedules, requests and communications.' },
+  { key: 'super_admin', label: 'Super Admin', desc: 'Everything an Admin does, plus Admin Accounts and System & Activity.' },
+  { key: 'registrar', label: 'Office of the Registrar', desc: 'Posts allowances for scholars. Sees Dashboard counts only.' },
+  { key: 'lgu', label: 'LGU (view only)', desc: 'Views and downloads reports CCC releases. Access ends on a set date.' },
+]
+const ADMIN_ROLE_LABEL = Object.fromEntries(ADMIN_ROLE_OPTIONS.map((r) => [r.key, r.label]))
+const ADMIN_ROLE_PHRASE = {
+  admin: 'an Admin',
+  super_admin: 'a Super Admin',
+  registrar: 'the Office of the Registrar',
+  lgu: 'an LGU (view only) account',
+}
+const LGU_DEFAULT_DAYS = 7
+
+// YYYY-MM-DD in Manila, and simple day math on those strings.
+function manilaTodayYmd() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date())
+}
+function addDaysYmd(ymd, days) {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d + days))
+  return dt.toISOString().slice(0, 10)
+}
+function formatYmd(ymd, opts = { month: 'short', day: 'numeric', year: 'numeric' }) {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(String(ymd))) return ''
+  const [y, m, d] = String(ymd).split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { ...opts, timeZone: 'UTC' })
+}
+
 function AdminAccountsPanel() {
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -4043,6 +4085,11 @@ function AdminAccountsPanel() {
   const [newEmail, setNewEmail] = useState('')
   const [newRole, setNewRole] = useState('admin')
   const [formError, setFormError] = useState('')
+  // Oct 5 2026: LGU access window (defaults to today through 7 days later).
+  const [newFrom, setNewFrom] = useState(() => manilaTodayYmd())
+  const [newUntil, setNewUntil] = useState(() => addDaysYmd(manilaTodayYmd(), LGU_DEFAULT_DAYS))
+  const [datesFrom, setDatesFrom] = useState('')
+  const [datesUntil, setDatesUntil] = useState('')
 
   // The pending action waiting for the Super Admin's password:
   // { type: 'invite' | 'reset' | 'remove', account?, title, desc }
@@ -4099,12 +4146,34 @@ function AdminAccountsPanel() {
       setFormError('Please enter a full name and email.')
       return
     }
+    if (newRole === 'lgu') {
+      if (!newFrom || !newUntil) {
+        setFormError('Please set both access dates for the LGU account.')
+        return
+      }
+      if (newUntil < newFrom) {
+        setFormError('The access end date must be on or after the start date.')
+        return
+      }
+    }
     openConfirm({
       type: 'invite',
       title: 'Confirm Invite',
-      desc: `Re-enter your password to invite ${newName.trim()} (${newEmail.trim()}) as ${
-        newRole === 'super_admin' ? 'a Super Admin' : 'an Admin'
+      desc: `Re-enter your password to invite ${newName.trim()} (${newEmail.trim()}) as ${ADMIN_ROLE_PHRASE[newRole]}${
+        newRole === 'lgu' ? `, with access from ${formatYmd(newFrom)} to ${formatYmd(newUntil)}` : ''
       }.`,
+    })
+  }
+
+  const requestDates = (acc) => {
+    setNotice(null)
+    setDatesFrom(acc.access_from || manilaTodayYmd())
+    setDatesUntil(acc.access_until || addDaysYmd(manilaTodayYmd(), LGU_DEFAULT_DAYS))
+    openConfirm({
+      type: 'dates',
+      account: acc,
+      title: 'Change Access Dates',
+      desc: `Set when ${acc.name} can sign in. Re-enter your password to save.`,
     })
   }
 
@@ -4146,6 +4215,10 @@ function AdminAccountsPanel() {
       setConfirmError('Please enter your password.')
       return
     }
+    if (confirmAction.type === 'dates' && (!datesFrom || !datesUntil || datesUntil < datesFrom)) {
+      setConfirmError('Please set a start date and an end date on or after it.')
+      return
+    }
     setConfirmError('')
     setConfirmBusy(true)
     try {
@@ -4157,7 +4230,22 @@ function AdminAccountsPanel() {
           body: JSON.stringify({
             name: newName,
             email: newEmail,
+            role: newRole,
             isSuperAdmin: newRole === 'super_admin',
+            accessFrom: newRole === 'lgu' ? newFrom : undefined,
+            accessUntil: newRole === 'lgu' ? newUntil : undefined,
+            confirmPassword,
+          }),
+        })
+      } else if (confirmAction.type === 'dates') {
+        res = await fetch('/api/admin-accounts', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'dates',
+            email: confirmAction.account.email,
+            accessFrom: datesFrom,
+            accessUntil: datesUntil,
             confirmPassword,
           }),
         })
@@ -4198,6 +4286,14 @@ function AdminAccountsPanel() {
         setNewName('')
         setNewEmail('')
         setNewRole('admin')
+        setNewFrom(manilaTodayYmd())
+        setNewUntil(addDaysYmd(manilaTodayYmd(), LGU_DEFAULT_DAYS))
+      } else if (action.type === 'dates') {
+        setAccounts((prev) => prev.map((a) => (a.email === data.account.email ? { ...a, ...data.account } : a)))
+        setNotice({
+          tone: 'done',
+          text: `${data.account.name} can now sign in from ${formatYmd(data.account.access_from)} to ${formatYmd(data.account.access_until)}.`,
+        })
       } else if (action.type === 'reset') {
         setAccounts((prev) => prev.map((a) => (a.email === data.account.email ? { ...a, ...data.account } : a)))
         setNotice(describeTempResult(data, data.account.name))
@@ -4221,11 +4317,21 @@ function AdminAccountsPanel() {
   // Oct 3 2026 redesign: summary row, invite form beside an accounts table,
   // role picked with two cards, labeled Reset password / Remove buttons and
   // a restyled password check. Same rules and requests as before.
-  const superCount = accounts.filter((a) => a.is_super_admin).length
+  const roleOf = (a) => a.role_key || (a.is_super_admin ? 'super_admin' : 'admin')
+  const superCount = accounts.filter((a) => roleOf(a) === 'super_admin').length
+  const adminCount = accounts.filter((a) => roleOf(a) === 'admin').length
+  const registrarCount = accounts.filter((a) => roleOf(a) === 'registrar').length
+  const lguCount = accounts.filter((a) => roleOf(a) === 'lgu').length
   const waitingCount = accounts.filter((a) => pendingState(a)).length
   const confirmTone = confirmAction?.type === 'remove' ? 'danger' : 'primary'
   const confirmLabel =
-    confirmAction?.type === 'invite' ? 'Invite' : confirmAction?.type === 'reset' ? 'Send new password' : 'Remove'
+    confirmAction?.type === 'invite'
+      ? 'Invite'
+      : confirmAction?.type === 'reset'
+        ? 'Send new password'
+        : confirmAction?.type === 'dates'
+          ? 'Save dates'
+          : 'Remove'
 
   return (
     <div>
@@ -4234,8 +4340,8 @@ function AdminAccountsPanel() {
           <h1>Admin Accounts</h1>
           <p>
             Invite and manage the people who can use this admin console. They&apos;ll get an email with a temporary
-            password and choose their own when they first sign in. Inviting, resetting and removing accounts all ask for
-            your password first.
+            password and choose their own when they first sign in. Inviting, resetting, changing access dates and
+            removing accounts all ask for your password first.
           </p>
         </div>
         <span className="aa-super-chip">
@@ -4276,7 +4382,15 @@ function AdminAccountsPanel() {
           </div>
           <div className="cm-kpi">
             <span className="cm-kpi-label">Admins</span>
-            <span className="cm-kpi-value">{accounts.length - superCount}</span>
+            <span className="cm-kpi-value">{adminCount}</span>
+          </div>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Registrar</span>
+            <span className="cm-kpi-value">{registrarCount}</span>
+          </div>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">LGU (view only)</span>
+            <span className="cm-kpi-value">{lguCount}</span>
           </div>
           <div className="cm-kpi">
             <span className="cm-kpi-label">Waiting to set a password</span>
@@ -4288,12 +4402,12 @@ function AdminAccountsPanel() {
       <div className="cm-layout aa-layout">
         <section className="cm-card">
           <div className="cm-head">
-            <h2 className="cm-title">Invite an admin</h2>
+            <h2 className="cm-title">Invite an account</h2>
           </div>
           <form className="cm-form" onSubmit={requestInvite}>
             {formError && <div className="aa-form-error">{formError}</div>}
             <div className="cm-field">
-              <label className="cm-label" htmlFor="aaName">Full name</label>
+              <label className="cm-label" htmlFor="aaName">Full name or office</label>
               <input id="aaName" className="cm-input" type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
                 placeholder="e.g. Grace Villanueva" required />
             </div>
@@ -4304,11 +4418,8 @@ function AdminAccountsPanel() {
             </div>
             <div className="cm-field">
               <span className="cm-label" id="aaRoleLabel">Role</span>
-              <div className="aa-roles" role="group" aria-labelledby="aaRoleLabel">
-                {[
-                  { key: 'admin', label: 'Admin', desc: 'Reviews applicants, results, schedules, requests and communications.' },
-                  { key: 'super_admin', label: 'Super Admin', desc: 'Everything an Admin does, plus Admin Accounts and System & Activity.' },
-                ].map((r) => (
+              <div className="aa-roles aa-roles-grid" role="group" aria-labelledby="aaRoleLabel">
+                {ADMIN_ROLE_OPTIONS.map((r) => (
                   <button
                     key={r.key}
                     type="button"
@@ -4324,12 +4435,43 @@ function AdminAccountsPanel() {
                 ))}
               </div>
             </div>
+            {newRole === 'lgu' && (
+              <div className="aa-window">
+                <span className="cm-label">Access window</span>
+                <div className="aa-window-row">
+                  <div className="cm-field">
+                    <label className="aa-window-label" htmlFor="aaFrom">Access from</label>
+                    <input
+                      id="aaFrom"
+                      className="cm-input"
+                      type="date"
+                      value={newFrom}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setNewFrom(v)
+                        if (v) setNewUntil(addDaysYmd(v, LGU_DEFAULT_DAYS))
+                      }}
+                      required
+                    />
+                  </div>
+                  <div className="cm-field">
+                    <label className="aa-window-label" htmlFor="aaUntil">Access until</label>
+                    <input id="aaUntil" className="cm-input" type="date" value={newUntil} min={newFrom || undefined}
+                      onChange={(e) => setNewUntil(e.target.value)} required />
+                  </div>
+                </div>
+                <span className="aa-window-note">
+                  Starts as 7 days. Outside these dates their sign-in is refused. They only see reports CCC has released to
+                  the LGU.
+                </span>
+              </div>
+            )}
             <div className="cm-scope muted">
               <IconMail />
               <span>They get an email with a temporary password and choose their own the first time they sign in.</span>
             </div>
             <button type="submit" className="cm-btn cm-btn-primary cm-btn-block">
-              Invite admin
+              Invite
             </button>
           </form>
         </section>
@@ -4367,6 +4509,32 @@ function AdminAccountsPanel() {
                     {accounts.map((acc) => {
                       const isSelf = acc.email.toLowerCase() === myEmail
                       const pending = pendingState(acc)
+                      const role = roleOf(acc)
+                      const isLgu = role === 'lgu'
+                      // Status: invite state first, then (LGU only) the access window.
+                      const status = pending
+                        ? pending
+                        : isLgu && acc.access_state === 'not_started'
+                          ? 'notstarted'
+                          : isLgu && acc.access_state === 'ended'
+                            ? 'ended'
+                            : 'active'
+                      const statusLabel = {
+                        expired: 'Invite expired',
+                        pending: 'Pending setup',
+                        notstarted: 'Access not started',
+                        ended: 'Access ended',
+                        active: 'Active',
+                      }[status]
+                      const statusTitle = {
+                        expired: 'Their temporary password expired. Use Reset password to send a new one.',
+                        pending: 'Invited. Waiting for them to sign in and choose their own password.',
+                        notstarted: 'Their access start date has not come yet.',
+                        ended: 'Their access end date has passed. Use Change dates to give them more time.',
+                        active: 'Signed in with their own password.',
+                      }[status]
+                      const onlyRegistrar = role === 'registrar' && registrarCount <= 1
+                      const removeOff = isSelf || onlyRegistrar
                       return (
                         <tr key={acc.email}>
                           <td>
@@ -4382,27 +4550,34 @@ function AdminAccountsPanel() {
                             </div>
                           </td>
                           <td>
-                            <span className={`aa-chip ${acc.is_super_admin ? 'super' : 'admin'}`}>
-                              {acc.is_super_admin ? 'Super Admin' : 'Admin'}
+                            <span className="aa-role-cell">
+                              <span className={`aa-chip ${role === 'super_admin' ? 'super' : role === 'admin' ? 'admin' : 'limited'}`}>
+                                {ADMIN_ROLE_LABEL[role]}
+                              </span>
+                              {isLgu && (
+                                <span className="aa-access">
+                                  Access {formatYmd(acc.access_from, { month: 'short', day: 'numeric' })} to {formatYmd(acc.access_until)}
+                                </span>
+                              )}
                             </span>
                           </td>
                           <td>
-                            <span
-                              className={`aa-chip status ${pending || 'active'}`}
-                              title={
-                                pending === 'expired'
-                                  ? 'Their temporary password expired. Use Reset password to send a new one.'
-                                  : pending === 'pending'
-                                    ? 'Invited. Waiting for them to sign in and choose their own password.'
-                                    : 'Signed in with their own password.'
-                              }
-                            >
+                            <span className={`aa-chip status ${status}`} title={statusTitle}>
                               <span className="aa-dot" />
-                              {pending === 'expired' ? 'Invite expired' : pending === 'pending' ? 'Pending setup' : 'Active'}
+                              {statusLabel}
                             </span>
                           </td>
                           <td className="r">
                             <span className="aa-actions">
+                              {isLgu && (
+                                <button type="button" onClick={() => requestDates(acc)} className="aa-act" title="Change when this LGU account can sign in">
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                                    <path d="M3 10h18M8 3v4M16 3v4" />
+                                  </svg>
+                                  Change dates
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => requestReset(acc)}
@@ -4420,8 +4595,14 @@ function AdminAccountsPanel() {
                                 type="button"
                                 className="aa-act danger"
                                 onClick={() => requestRemove(acc)}
-                                disabled={isSelf}
-                                title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
+                                disabled={removeOff}
+                                title={
+                                  isSelf
+                                    ? 'You cannot remove your own account while signed in as it.'
+                                    : onlyRegistrar
+                                      ? 'This is the only Registrar account. Invite another Registrar account first.'
+                                      : 'Remove this account'
+                                }
                               >
                                 <IconTrash />
                                 Remove
@@ -4435,8 +4616,10 @@ function AdminAccountsPanel() {
                 </table>
               </div>
               <div className="aa-foot">
-                You can&apos;t reset or remove your own account here. <b>Pending setup</b> means they haven&apos;t signed in to
-                choose a password yet; <b>Invite expired</b> means use Reset password to send a new one.
+                You can&apos;t reset or remove your own account, the last Super Admin, or the only Registrar account.{' '}
+                <b>Pending setup</b> means they haven&apos;t signed in to choose a password yet; <b>Invite expired</b> means use
+                Reset password to send a new one; <b>Access ended</b> means an LGU account&apos;s end date has passed, so use
+                Change dates to give it more time.
               </div>
             </>
           )}
@@ -4457,6 +4640,19 @@ function AdminAccountsPanel() {
               </span>
               <h3 className="aa-confirm-title">{confirmAction.title}</h3>
               <p className="aa-confirm-desc">{confirmAction.desc}</p>
+              {confirmAction.type === 'dates' && (
+                <div className="aa-window-row">
+                  <div className="cm-field">
+                    <label className="cm-label" htmlFor="aaDatesFrom">Access from</label>
+                    <input id="aaDatesFrom" className="cm-input" type="date" value={datesFrom} onChange={(e) => setDatesFrom(e.target.value)} />
+                  </div>
+                  <div className="cm-field">
+                    <label className="cm-label" htmlFor="aaDatesUntil">Access until</label>
+                    <input id="aaDatesUntil" className="cm-input" type="date" value={datesUntil} min={datesFrom || undefined}
+                      onChange={(e) => setDatesUntil(e.target.value)} />
+                  </div>
+                </div>
+              )}
               <label className="cm-label" htmlFor="aaConfirmPw">Your password</label>
               <div style={{ position: 'relative' }}>
                 <input
@@ -4467,7 +4663,7 @@ function AdminAccountsPanel() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Your password"
                   autoComplete="current-password"
-                  autoFocus
+                  autoFocus={confirmAction.type !== 'dates'}
                   style={{ paddingRight: 40 }}
                 />
                 <button
@@ -4509,7 +4705,7 @@ function AdminAccountsPanel() {
 // read/unread flag; Communications posts stay their own separate list in
 // the Communications panel rather than merging into this feed.
 
-const ACTIVITY_CATEGORIES = ['Documents', 'Eligibility', 'Results', 'Communications', 'Admin Accounts', 'System']
+const ACTIVITY_CATEGORIES = ['Documents', 'Eligibility', 'Results', 'Communications', 'Allowance', 'Reports', 'Admin Accounts', 'System']
 
 function CycleSettingsCard() {
   const [settings, setSettings] = useState(null)
@@ -4561,6 +4757,7 @@ function CycleSettingsCard() {
       setSettings(data.settings)
       setDraft(data.settings)
       setSavedNote(true)
+      window.dispatchEvent(new CustomEvent('cycle-settings-saved'))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -4846,6 +5043,277 @@ function ActivityLogCard() {
   )
 }
 
+// ---------- End of cycle: archive applicants (Oct 5 2026) ----------
+// Progress Table row 74 (archive part). Ivy's cell comment: a Super Admin
+// option to archive all applicants once admissions work is done, shown only
+// when Applications Open is off. Pau's conditions: archive, never delete;
+// only after this cycle's CHED Form 3 was released to the LGU; typed
+// confirmation plus the Super Admin's password. The server checks all of it
+// again (app/api/archive-cycle/route.js).
+function ArchiveCycleCard() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [confirmError, setConfirmError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [viewCycle, setViewCycle] = useState(null)
+  const [viewList, setViewList] = useState(null)
+
+  const load = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/archive-cycle')
+      const result = await res.json()
+      if (result.success) setData(result)
+      else setError(result.error || 'Could not load the archive status.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    load()
+    // Re-check when Cycle Settings are saved (the Applications Open switch)
+    // and after any admin action.
+    const onChange = () => load()
+    window.addEventListener('admin-notice', onChange)
+    window.addEventListener('cycle-settings-saved', onChange)
+    return () => {
+      window.removeEventListener('admin-notice', onChange)
+      window.removeEventListener('cycle-settings-saved', onChange)
+    }
+  }, [])
+
+  const ready = !!data && !data.applicationsOpen && !!data.report && data.toArchive > 0
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!confirmPassword) return setConfirmError('Please enter your password.')
+    setBusy(true)
+    setConfirmError('')
+    try {
+      const res = await fetch('/api/archive-cycle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmText, confirmPassword }),
+      })
+      const result = await res.json()
+      if (!res.ok || !result.success) {
+        setConfirmError(result.error || 'Could not archive the applicants.')
+        return
+      }
+      setConfirmOpen(false)
+      setConfirmText('')
+      setConfirmPassword('')
+      showAdminNotice(
+        `${result.count} applicant${result.count === 1 ? ' was' : 's were'} archived as cycle ${result.cycle}. They no longer appear in the admin lists, and they can still view their application, read-only.`
+      )
+    } catch (err) {
+      setConfirmError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const openList = async (cycle) => {
+    setViewCycle(cycle)
+    setViewList(null)
+    try {
+      const res = await fetch(`/api/archive-cycle?cycle=${encodeURIComponent(cycle)}`)
+      const result = await res.json()
+      setViewList(result.success ? result.applicants : [])
+    } catch {
+      setViewList([])
+    }
+  }
+
+  const checks = data
+    ? [
+        {
+          ok: !data.applicationsOpen,
+          title: data.applicationsOpen ? 'Applications Open is still on' : 'Applications Open is turned off',
+          note: data.applicationsOpen ? 'Turn it off in Cycle Settings above first.' : 'Turned off in Cycle Settings.',
+        },
+        {
+          ok: !!data.report,
+          title: data.report ? 'CHED Form 3 released to the LGU' : 'CHED Form 3 not released yet',
+          note: data.report
+            ? `${data.report.reference_number}, released ${new Date(data.report.released_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.`
+            : 'Release it from Dashboard, Export CHED Form 3.',
+        },
+      ]
+    : []
+
+  return (
+    <section className="cm-card ac-card">
+      <div className="cm-head">
+        <h2 className="cm-title">End of cycle: archive applicants</h2>
+        <span className="aa-super-chip">
+          <IconShield className="w-3.5 h-3.5" /> Super Admin only
+        </span>
+      </div>
+      {loading && !data ? (
+        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+      ) : error && !data ? (
+        <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+      ) : (
+        <div className="ac-body">
+          <div className="ac-text">
+            <p>
+              When admissions work for this cycle is done, archive every applicant so the next cycle starts clean.{' '}
+              <b>Nothing is deleted.</b> Archived applicants, their documents and their history are kept and can still be
+              opened from Archived cycles below, read-only.
+            </p>
+            <p>
+              After archiving, they no longer appear in the Dashboard, Applicant Results, Statistics, Exam Schedules, Appeals
+              &amp; Reschedules or the Registrar&apos;s scholar list. Applicants can still sign in and see their application,
+              read-only.
+            </p>
+          </div>
+          <div className="ac-checks">
+            <span className="cm-label">Before you can archive</span>
+            {checks.map((c) => (
+              <div className="ac-check" key={c.title}>
+                <span className={`ac-dot ${c.ok ? 'ok' : 'no'}`} aria-hidden="true">
+                  {c.ok ? '✓' : '✕'}
+                </span>
+                <span className="ac-check-text">
+                  <span className="ac-check-title">{c.title}</span>
+                  <span className="ac-check-note">{c.note}</span>
+                </span>
+              </div>
+            ))}
+            <div className="ac-go">
+              <span>
+                <b>{data?.toArchive ?? 0}</b> applicant{data?.toArchive === 1 ? '' : 's'} will be archived.
+              </span>
+              <button
+                type="button"
+                className="cm-btn cm-btn-danger"
+                disabled={!ready}
+                onClick={() => {
+                  setConfirmText('')
+                  setConfirmPassword('')
+                  setConfirmError('')
+                  setConfirmOpen(true)
+                }}
+              >
+                Archive all applicants
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="ac-archived">
+        <span className="cm-label">Archived cycles</span>
+        {!data?.archived?.length ? (
+          <p className="ac-none">No cycle has been archived yet.</p>
+        ) : (
+          <div className="st-scroll">
+            <table className="st-table ac-table">
+              <thead>
+                <tr>
+                  <th>Cycle</th><th>Applicants</th><th>Archived by</th><th className="r">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.archived.map((c) => (
+                  <tr key={c.cycle}>
+                    <td className="cf-strong">Applications {c.cycle}</td>
+                    <td>{c.count}</td>
+                    <td>
+                      {c.archivedBy || 'Unknown'}, {new Date(c.archivedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </td>
+                    <td className="r">
+                      <button type="button" className="aa-act" onClick={() => openList(c.cycle)}>View list</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {confirmOpen && data && (
+        <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !busy && setConfirmOpen(false)}>
+          <form className="aa-confirm" role="dialog" aria-modal="true" aria-label="Archive all applicants" onSubmit={submit}>
+            <div className="aa-confirm-body">
+              <h3 className="aa-confirm-title">Archive all {data.toArchive} applicants?</h3>
+              <p className="aa-confirm-desc">
+                They leave every list and count in the admin console and move to Archived cycles. Nothing is deleted. This
+                can&apos;t be undone from the console.
+              </p>
+              <label className="cm-label" htmlFor="acType">Type {data.confirmPhrase} to confirm</label>
+              <input id="acType" className="cm-input" type="text" value={confirmText} onChange={(e) => setConfirmText(e.target.value)}
+                placeholder={data.confirmPhrase} autoComplete="off" autoFocus />
+              <label className="cm-label" htmlFor="acPw">Your password</label>
+              <input id="acPw" className="cm-input" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Your password" autoComplete="current-password" />
+              {confirmError && <p className="aa-confirm-error">{confirmError}</p>}
+            </div>
+            <div className="aa-confirm-foot">
+              <button type="button" className="cm-btn cm-btn-secondary" disabled={busy} onClick={() => setConfirmOpen(false)}>Cancel</button>
+              <button
+                type="submit"
+                className="cm-btn cm-btn-danger"
+                disabled={busy || confirmText.trim().toUpperCase() !== data.confirmPhrase.toUpperCase()}
+              >
+                {busy ? 'Archiving...' : 'Archive applicants'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {viewCycle && (
+        <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && setViewCycle(null)}>
+          <div className="cf-dialog ac-list" role="dialog" aria-modal="true" aria-label={`Archived applicants, ${viewCycle}`}>
+            <div className="cf-head">
+              <h2 className="cf-title">Archived applicants: Applications {viewCycle}</h2>
+              <p className="cf-sub">Read-only. These applications can no longer be changed.</p>
+            </div>
+            <div className="cf-released">
+              {viewList === null ? (
+                <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+              ) : viewList.length === 0 ? (
+                <p className="text-sm text-ccc-muted text-center py-8">No applicants found.</p>
+              ) : (
+                <div className="st-scroll">
+                  <table className="st-table">
+                    <thead>
+                      <tr><th>Applicant</th><th>Application no.</th><th>Program</th><th>Scholar status</th></tr>
+                    </thead>
+                    <tbody>
+                      {viewList.map((a) => (
+                        <tr key={a.id}>
+                          <td className="cf-strong">{a.applicant_name || 'Unnamed applicant'}</td>
+                          <td>{a.application_number || ''}</td>
+                          <td>{a.program_choice_1 || ''}</td>
+                          <td>{SCHOLAR_STATUS_META[a.scholar_status]?.label || 'Pending Exam'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="cf-foot cf-foot-end">
+              <button type="button" className="cm-btn cm-btn-secondary" onClick={() => setViewCycle(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function SystemActivityPanel() {
   return (
     <div>
@@ -4854,12 +5322,13 @@ function SystemActivityPanel() {
           System &amp; Activity
         </h1>
         <p className="text-xs text-ccc-muted mt-0.5">
-          Application cycle controls, and a running, auto-recorded timeline of system activity: document uploads,
-          manual overrides, and announcement posts.
+          Application cycle controls, the end-of-cycle archive, and a running, auto-recorded timeline of system
+          activity: document uploads, manual overrides, and announcement posts.
         </p>
       </div>
 
       <CycleSettingsCard />
+      <ArchiveCycleCard />
       <ActivityLogCard />
     </div>
   )
@@ -5839,6 +6308,1065 @@ function RequestReviewDialog({ request: r, note, onNote, saving, onDecide, onClo
 
 const VALID_PANELS = ['dashboard', 'communications', 'reschedule', 'admins', 'system']
 
+// ---------- Office of the Registrar console (Oct 5 2026) ----------
+// Progress Table row 78, Allowance Distribution Monitoring. Behavior from
+// Ivy's admin.html Registrar view (Dashboard counts view-only, an Allowance
+// Distribution page in place of Announcements), rebuilt on real data with
+// Pau's changes: pick the scholar from a list, a Remove button on posts, and
+// a portal message (plus an email if opted in) to the scholar on each post.
+// Design: canvas page "Registrar, LGU and archive (Oct 5)".
+
+const REGISTRAR_STAT_CARDS = DASHBOARD_STAT_CARDS
+
+function RegistrarDashboardPanel({ data, loading, error, onGoAllowance }) {
+  return (
+    <div>
+      <div className="portal-header">
+        <div>
+          <h1>Dashboard</h1>
+          <p>
+            A summary of where applicants are this cycle. The Registrar can view these counts only. Applicant details stay
+            with the Guidance Office.
+          </p>
+        </div>
+      </div>
+      {loading ? (
+        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+      ) : error ? (
+        <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+      ) : (
+        <>
+          <div className="stat-grid ra-stat-grid">
+            {REGISTRAR_STAT_CARDS.map((card) => (
+              <div key={card.key} className={`stat-card ${card.className} ra-stat-static`}>
+                <p className="stat-label">{card.label}</p>
+                <p className="stat-value">{data?.counts?.[card.key] ?? 0}</p>
+                <p className="stat-note">{card.note}</p>
+              </div>
+            ))}
+          </div>
+          <div className="cm-card ra-info">
+            <IconAlert className="w-4 h-4 shrink-0" />
+            <span>
+              To post an allowance, open{' '}
+              <button type="button" className="ra-link" onClick={onGoAllowance}>
+                Allowance Distribution
+              </button>
+              . Scholars with a Passer or Qualified (Probationary) status are listed there.
+            </span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function RegistrarAllowancePanel({ data, loading, error, onReload }) {
+  const [query, setQuery] = useState('')
+  const [listOpen, setListOpen] = useState(false)
+  const [picked, setPicked] = useState(null)
+  const [date, setDate] = useState('')
+  const [type, setType] = useState('Wi-Fi')
+  const [description, setDescription] = useState('')
+  const [formError, setFormError] = useState('')
+  const [posting, setPosting] = useState(false)
+  const [tab, setTab] = useState('all')
+  const [search, setSearch] = useState('')
+  const [removeTarget, setRemoveTarget] = useState(null)
+  const [removing, setRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState('')
+
+  const today = data?.today || manilaTodayYmd()
+  useEffect(() => {
+    if (!date) setDate(today)
+  }, [today, date])
+
+  const scholars = data?.scholars || []
+  const posts = data?.posts || []
+  const q = query.trim().toLowerCase()
+  const matches = scholars.filter(
+    (s) => !q || s.name.toLowerCase().includes(q) || (s.applicationNumber || '').toLowerCase().includes(q)
+  )
+  const s2 = search.trim().toLowerCase()
+  const shown = posts.filter(
+    (p) =>
+      (tab === 'all' || p.allowance_type === tab) &&
+      (!s2 || (p.applicant_name || '').toLowerCase().includes(s2) || (p.application_number || '').toLowerCase().includes(s2))
+  )
+  const tabCount = (key) => posts.filter((p) => key === 'all' || p.allowance_type === key).length
+  const latest = posts.reduce((acc, p) => (!acc || p.distribution_date > acc ? p.distribution_date : acc), '')
+
+  const resetForm = () => {
+    setPicked(null)
+    setQuery('')
+    setDate(today)
+    setType('Wi-Fi')
+    setDescription('')
+  }
+
+  const handlePost = async (e) => {
+    e.preventDefault()
+    setFormError('')
+    if (!picked) return setFormError('Please choose a scholar.')
+    if (!date) return setFormError('Please set the date of distribution.')
+    if (date > today) return setFormError('The date of distribution can be today or an earlier date.')
+    if (type === 'Other' && !description.trim()) return setFormError('Please describe the allowance.')
+    setPosting(true)
+    try {
+      const res = await fetch('/api/registrar-allowance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId: picked.id, distributionDate: date, type, description }),
+      })
+      const result = await res.json()
+      if (!res.ok || !result.success) {
+        setFormError(result.error || 'Could not post this allowance.')
+        return
+      }
+      const what = type === 'Other' ? `An allowance (${description.trim()})` : 'A Wi-Fi allowance'
+      const told = result.emailSent
+        ? 'They were sent a portal message and an email.'
+        : result.emailOptIn
+          ? 'They were sent a portal message. The email could not be sent.'
+          : 'They were sent a portal message. They did not opt in to email updates.'
+      showAdminNotice(
+        `${what} dated ${formatYmd(date)} was posted to ${picked.name}${
+          picked.applicationNumber ? ` (${picked.applicationNumber})` : ''
+        }. It now shows on their Allowance page. ${told}`
+      )
+      resetForm()
+      onReload()
+    } catch (err) {
+      setFormError(
+        isNetworkError(err)
+          ? 'No connection right now, so this allowance was not posted. Try again once you’re back online.'
+          : err.message
+      )
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  const confirmRemove = async () => {
+    if (!removeTarget) return
+    setRemoving(true)
+    setRemoveError('')
+    try {
+      const res = await fetch('/api/registrar-allowance', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: removeTarget.id }),
+      })
+      const result = await res.json()
+      if (!res.ok || !result.success) {
+        setRemoveError(result.error || 'Could not remove this post.')
+        return
+      }
+      const name = removeTarget.applicant_name
+      setRemoveTarget(null)
+      showAdminNotice(`The allowance post was removed from ${name}'s Allowance page.`)
+      onReload()
+    } catch (err) {
+      setRemoveError(err.message)
+    } finally {
+      setRemoving(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="portal-header">
+        <div>
+          <h1>Allowance Distribution</h1>
+          <p>
+            Post allowance distributions for scholars. Only scholars with a Passer or Qualified (Probationary) status whose
+            result was already sent to them are listed. Each post appears right away on the scholar&apos;s Allowance page.
+          </p>
+        </div>
+      </div>
+
+      {loading && !data ? (
+        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+      ) : error && !data ? (
+        <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+      ) : (
+        <>
+          <div className="cm-card cm-kpis">
+            <div className="cm-kpi">
+              <span className="cm-kpi-label">Scholars</span>
+              <span className="cm-kpi-value">{scholars.length}</span>
+            </div>
+            <div className="cm-kpi">
+              <span className="cm-kpi-label">Posts this cycle</span>
+              <span className="cm-kpi-value">{posts.length}</span>
+            </div>
+            <div className="cm-kpi">
+              <span className="cm-kpi-label">Scholars with no post yet</span>
+              <span className="cm-kpi-value">{data?.scholarsWithoutPost ?? 0}</span>
+            </div>
+            <div className="cm-kpi">
+              <span className="cm-kpi-label">Latest distribution</span>
+              <span className="cm-kpi-value ra-kpi-date">{latest ? formatYmd(latest) : 'None yet'}</span>
+            </div>
+          </div>
+
+          <div className="cm-layout ra-layout">
+            <section className="cm-card">
+              <div className="cm-head">
+                <h2 className="cm-title">New post</h2>
+              </div>
+              <form className="cm-form" onSubmit={handlePost}>
+                {formError && <div className="aa-form-error">{formError}</div>}
+                <div className="cm-field">
+                  <label className="cm-label" htmlFor="raScholar">Scholar</label>
+                  {picked ? (
+                    <div className="ra-picked">
+                      <span className="aa-avatar-2">{getInitials(picked.name)}</span>
+                      <span className="ra-picked-text">
+                        <span className="ra-picked-name">{picked.name}</span>
+                        <span className="ra-picked-sub">
+                          {[picked.applicationNumber, picked.program, picked.statusLabel].filter(Boolean).join(' · ')}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        className="cm-btn cm-btn-secondary ra-change"
+                        onClick={() => {
+                          setPicked(null)
+                          setListOpen(true)
+                        }}
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        id="raScholar"
+                        className="cm-input"
+                        type="search"
+                        placeholder="Search by name or application number"
+                        value={query}
+                        onChange={(e) => {
+                          setQuery(e.target.value)
+                          setListOpen(true)
+                        }}
+                        onFocus={() => setListOpen(true)}
+                        autoComplete="off"
+                      />
+                      {listOpen && (
+                        <div className="ra-options" role="listbox" aria-label="Scholars">
+                          {scholars.length === 0 ? (
+                            <div className="ra-empty">
+                              No scholars yet. Scholars appear here once their result (Passer or Qualified (Probationary))
+                              has been sent to them.
+                            </div>
+                          ) : matches.length === 0 ? (
+                            <div className="ra-empty">No scholar matches that search.</div>
+                          ) : (
+                            matches.slice(0, 30).map((s) => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                role="option"
+                                aria-selected="false"
+                                className="ra-option"
+                                onClick={() => {
+                                  setPicked(s)
+                                  setListOpen(false)
+                                }}
+                              >
+                                <span className="aa-avatar-2 ra-option-av">{getInitials(s.name)}</span>
+                                <span className="ra-option-text">
+                                  <span className="ra-option-name">{s.name}</span>
+                                  <span className="ra-option-sub">{[s.applicationNumber, s.program].filter(Boolean).join(' · ')}</span>
+                                </span>
+                                <span className={`aa-chip ${s.status === 'passer' ? 'active' : 'pending'}`}>{s.statusLabel}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <div className="cm-field">
+                  <label className="cm-label" htmlFor="raDate">Date of distribution</label>
+                  <input id="raDate" className="cm-input" type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} required />
+                  <span className="ra-hint">Today or an earlier date.</span>
+                </div>
+
+                <div className="cm-field">
+                  <span className="cm-label" id="raTypeLabel">Type</span>
+                  <div className="cm-type-grid" role="group" aria-labelledby="raTypeLabel">
+                    {[
+                      { key: 'Wi-Fi', desc: 'Wi-Fi allowance' },
+                      { key: 'Other', desc: 'Describe it below' },
+                    ].map((t) => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        className={`cm-type${type === t.key ? ' on' : ''}`}
+                        aria-pressed={type === t.key}
+                        onClick={() => setType(t.key)}
+                      >
+                        <span className="cm-type-text">
+                          <span className="cm-type-name">{t.key}</span>
+                          <span className="cm-type-desc">{t.desc}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {type === 'Other' && (
+                  <div className="cm-field">
+                    <label className="cm-label" htmlFor="raDesc">Description</label>
+                    <input id="raDesc" className="cm-input" type="text" maxLength={200} placeholder="e.g. Monetary allowance"
+                      value={description} onChange={(e) => setDescription(e.target.value)} required />
+                  </div>
+                )}
+
+                <div className="cm-scope info">
+                  <IconMail />
+                  <span>
+                    This posts right away to the scholar&apos;s Allowance page. They also get a portal message, and an email if
+                    they turned on email updates.
+                  </span>
+                </div>
+                <button type="submit" className="cm-btn cm-btn-primary cm-btn-block" disabled={posting || !picked}>
+                  {posting ? 'Disseminating...' : 'Disseminate Allowance'}
+                </button>
+              </form>
+            </section>
+
+            <section className="cm-card">
+              <div className="cm-head cm-head-wrap">
+                <div className="cm-head-left">
+                  <h2 className="cm-title">Posted allowances</h2>
+                </div>
+                <input
+                  type="search"
+                  className="cm-input ra-search"
+                  aria-label="Search posted allowances"
+                  placeholder="Search scholar"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <div className="ra-tabs">
+                <div className="cm-tabs" role="group" aria-label="Filter posts by type">
+                  {[
+                    ['all', 'All'],
+                    ['Wi-Fi', 'Wi-Fi'],
+                    ['Other', 'Other'],
+                  ].map(([key, label]) => (
+                    <button key={key} type="button" className={`cm-tab${tab === key ? ' on' : ''}`} aria-pressed={tab === key} onClick={() => setTab(key)}>
+                      {label} <span className="cm-tab-count">{tabCount(key)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {shown.length === 0 ? (
+                <p className="text-sm text-ccc-muted text-center py-8">
+                  {posts.length === 0 ? 'No allowance has been posted yet.' : 'No post matches this filter.'}
+                </p>
+              ) : (
+                <div className="st-scroll">
+                  <table className="st-table ra-table">
+                    <thead>
+                      <tr>
+                        <th>Scholar</th>
+                        <th>Date of distribution</th>
+                        <th>Type</th>
+                        <th>Posted by</th>
+                        <th className="r">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shown.map((p) => (
+                        <tr key={p.id}>
+                          <td>
+                            <span className="ra-cell">
+                              <span className="ra-cell-main">{p.applicant_name}</span>
+                              <span className="ra-cell-sub">{p.application_number}</span>
+                            </span>
+                          </td>
+                          <td>{formatYmd(p.distribution_date)}</td>
+                          <td>
+                            <span className="ra-cell">
+                              <span className="ra-cell-type">{p.allowance_type}</span>
+                              <span className="ra-cell-sub">{p.description || 'No description'}</span>
+                            </span>
+                          </td>
+                          <td>
+                            <span className="ra-cell">
+                              <span>{p.posted_by}</span>
+                              <span className="ra-cell-sub">Posted {new Date(p.posted_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                            </span>
+                          </td>
+                          <td className="r">
+                            <button
+                              type="button"
+                              className="aa-act danger"
+                              onClick={() => {
+                                setRemoveError('')
+                                setRemoveTarget(p)
+                              }}
+                            >
+                              <IconTrash />
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="aa-foot">Each post and removal is saved in the Activity Log.</div>
+            </section>
+          </div>
+        </>
+      )}
+
+      {removeTarget && (
+        <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !removing && setRemoveTarget(null)}>
+          <div className="aa-confirm" role="dialog" aria-modal="true" aria-label="Remove allowance post">
+            <div className="aa-confirm-body">
+              <h3 className="aa-confirm-title">Remove this allowance post?</h3>
+              <p className="aa-confirm-desc">
+                The {removeTarget.allowance_type === 'Other' ? `allowance (${removeTarget.description})` : 'Wi-Fi allowance'} dated{' '}
+                {formatYmd(removeTarget.distribution_date)} will disappear from {removeTarget.applicant_name}&apos;s Allowance
+                page. The message they already received stays in their Messages.
+              </p>
+              {removeError && <p className="aa-confirm-error">{removeError}</p>}
+            </div>
+            <div className="aa-confirm-foot">
+              <button type="button" className="cm-btn cm-btn-secondary" disabled={removing} onClick={() => setRemoveTarget(null)} autoFocus>
+                Keep it
+              </button>
+              <button type="button" className="cm-btn cm-btn-danger" disabled={removing} onClick={confirmRemove}>
+                {removing ? 'Removing...' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------- CHED Form 3 export (Oct 5 2026, Progress Table row 79) ----------
+// Dashboard "Export CHED Form 3" window. Behavior from Ivy's Patch 5
+// export (reference number + date, then a landscape PDF in the Form 3
+// layout), plus Release to LGU (Super Admin only): a frozen copy the LGU
+// (view only) account can see during its access dates. Design: canvas page
+// "Registrar, LGU and archive (Oct 5)".
+function ChedForm3Dialog({ onClose }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [tab, setTab] = useState('new')
+  const [referenceNumber, setReferenceNumber] = useState('')
+  const [formDate, setFormDate] = useState(() => manilaTodayYmd())
+  const [formError, setFormError] = useState('')
+  const [downloading, setDownloading] = useState(false)
+  // { type: 'release' } | { type: 'withdraw', report }
+  const [confirm, setConfirm] = useState(null)
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [confirmError, setConfirmError] = useState('')
+  const [confirmBusy, setConfirmBusy] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/ched-form3')
+      const result = await res.json()
+      if (result.success) setData(result)
+      else setError(result.error || 'Could not load the report.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    load()
+  }, [])
+
+  const rows = data?.rows || []
+  const counts = data?.counts || {}
+  const released = data?.released || []
+  const activeReleased = released.filter((r) => !r.withdrawn_at)
+
+  const checkForm = () => {
+    if (!referenceNumber.trim()) return 'Please enter the reference number.'
+    if (!formDate) return 'Please set the date on the form.'
+    if (rows.length === 0) return 'There are no rows yet. Record exam results first.'
+    return ''
+  }
+
+  const download = async () => {
+    const problem = checkForm()
+    setFormError(problem)
+    if (problem) return
+    setDownloading(true)
+    try {
+      const { downloadForm3Pdf } = await import('../lib/chedForm3Pdf')
+      await downloadForm3Pdf({ rows, referenceNumber: referenceNumber.trim(), formDate })
+      fetch('/api/ched-form3', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'logDownload', referenceNumber: referenceNumber.trim(), formDate, rowCount: rows.length }),
+      }).catch(() => {})
+    } catch (err) {
+      setFormError(`The PDF could not be made: ${err.message}`)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const downloadReleased = async (report) => {
+    try {
+      const res = await fetch(`/api/ched-form3?report=${report.id}`)
+      const result = await res.json()
+      if (!result.success) {
+        showAdminNotice(result.error || 'Could not load that report.', 'error')
+        return
+      }
+      const { downloadForm3Pdf } = await import('../lib/chedForm3Pdf')
+      await downloadForm3Pdf({ rows: result.report.rows, referenceNumber: result.report.reference_number, formDate: result.report.form_date })
+      fetch('/api/ched-form3', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'logDownload',
+          referenceNumber: result.report.reference_number,
+          rowCount: result.report.row_count,
+          reportId: report.id,
+        }),
+      }).catch(() => {})
+    } catch (err) {
+      showAdminNotice(err.message, 'error')
+    }
+  }
+
+  const askRelease = () => {
+    const problem = checkForm()
+    setFormError(problem)
+    if (problem) return
+    setConfirmPassword('')
+    setConfirmError('')
+    setConfirm({ type: 'release' })
+  }
+
+  const submitConfirm = async (e) => {
+    e.preventDefault()
+    if (!confirmPassword) {
+      setConfirmError('Please enter your password.')
+      return
+    }
+    setConfirmBusy(true)
+    setConfirmError('')
+    try {
+      const body =
+        confirm.type === 'release'
+          ? { action: 'release', referenceNumber: referenceNumber.trim(), formDate, confirmPassword }
+          : { action: 'withdraw', id: confirm.report.id, confirmPassword }
+      const res = await fetch('/api/ched-form3', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const result = await res.json()
+      if (!res.ok || !result.success) {
+        setConfirmError(result.error || 'Something went wrong.')
+        return
+      }
+      const done = confirm
+      setConfirm(null)
+      setConfirmPassword('')
+      await load()
+      if (done.type === 'release') {
+        setTab('released')
+        showAdminNotice(
+          `CHED Form 3 ${result.report.reference_number} (${result.report.row_count} rows) was released to the LGU. LGU accounts can see it during their access dates.`
+        )
+      } else {
+        showAdminNotice(`CHED Form 3 ${done.report.reference_number} was withdrawn. The LGU can no longer see it.`)
+      }
+    } catch (err) {
+      setConfirmError(err.message)
+    } finally {
+      setConfirmBusy(false)
+    }
+  }
+
+  return (
+    <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !confirm && onClose()}>
+      <div className="cf-dialog" role="dialog" aria-modal="true" aria-label="Export CHED Form 3">
+        <div className="cf-head">
+          <h2 className="cf-title">Export CHED Form 3</h2>
+          <p className="cf-sub">Free Higher Education Billing Details, admission fees (Section 7, Rule II of the IRR of RA 10931).</p>
+          <div className="cm-tabs" role="group" aria-label="Export or released reports">
+            {[
+              ['new', 'New export', rows.length],
+              ['released', 'Released to LGU', activeReleased.length],
+            ].map(([key, label, n]) => (
+              <button key={key} type="button" className={`cm-tab${tab === key ? ' on' : ''}`} aria-pressed={tab === key} onClick={() => setTab(key)}>
+                {label} <span className="cm-tab-count">{n}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {loading && !data ? (
+          <p className="text-sm text-ccc-muted text-center py-10">Loading...</p>
+        ) : error && !data ? (
+          <p className="text-sm text-ccc-red text-center py-10">{error}</p>
+        ) : tab === 'new' ? (
+          <>
+            <div className="cf-body">
+              <div className="cf-side">
+                {formError && <div className="aa-form-error">{formError}</div>}
+                <div className="cm-field">
+                  <label className="cm-label" htmlFor="cfRef">Reference number</label>
+                  <input id="cfRef" className="cm-input" type="text" maxLength={60} placeholder="e.g. 04-CCC-2026-1-1"
+                    value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} />
+                  <span className="ra-hint">Required. Printed at the top right of the form.</span>
+                </div>
+                <div className="cm-field">
+                  <label className="cm-label" htmlFor="cfDate">Date</label>
+                  <input id="cfDate" className="cm-input" type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} />
+                </div>
+                <div className="cm-field">
+                  <span className="cm-label">Who&apos;s included</span>
+                  <div className="cf-counts">
+                    <div><span>passed-enrolled</span><b>{counts['passed-enrolled'] || 0}</b></div>
+                    <div><span>passed-did not enrol</span><b>{counts['passed-did not enrol'] || 0}</b></div>
+                    <div><span>failed</span><b>{counts.failed || 0}</b></div>
+                    <div className="cf-total"><span>Total rows</span><b>{rows.length}</b></div>
+                  </div>
+                  <span className="ra-hint">
+                    Everyone with a recorded pass or fail exam result, plus Qualified (Probationary) scholars.
+                    {data?.leftOut ? ` ${data.leftOut} applicant${data.leftOut === 1 ? '' : 's'} marked Absent or with no exam result yet ${data.leftOut === 1 ? 'is' : 'are'} left out.` : ''}
+                  </span>
+                </div>
+              </div>
+              <div className="cf-preview">
+                <span className="cm-label">
+                  Preview {rows.length > 0 ? `(first ${Math.min(rows.length, 8)} of ${rows.length} rows, sorted A to Z by last name)` : ''}
+                </span>
+                {rows.length === 0 ? (
+                  <p className="text-sm text-ccc-muted py-6">No rows yet. Rows appear once exam results are recorded in Applicant Results.</p>
+                ) : (
+                  <div className="st-scroll cf-table-wrap">
+                    <table className="st-table cf-table">
+                      <thead>
+                        <tr>
+                          <th>No.</th><th>Last name</th><th>Given name</th><th>Middle name</th><th>Sex</th><th>Birthdate</th>
+                          <th>Degree program</th><th>Year level</th><th>Email</th><th>Phone</th><th>Fee</th><th>Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.slice(0, 8).map((r) => (
+                          <tr key={r.seq}>
+                            <td>{r.seq}</td><td className="cf-strong">{r.lastName}</td><td>{r.givenName}</td><td>{r.middleName}</td>
+                            <td>{r.sex}</td><td>{r.birthdate}</td><td>{r.program}</td><td>{r.yearLevel}</td><td>{r.email}</td>
+                            <td>{r.phone}</td><td>{r.fee}</td><td className="cf-strong">{r.remarks}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <span className="ra-hint">
+                  Passers and Qualified (Probationary) scholars show as <b>passed</b>: <b>passed-enrolled</b> once Distribution
+                  Status reached Enrollment complete, otherwise <b>passed-did not enrol</b>. The PDF is landscape A4 with the
+                  Form 3 header and no signatures or seals. Sign the printed copy.
+                </span>
+              </div>
+            </div>
+            <div className="cf-foot">
+              <span className="cf-foot-note">
+                Download saves the PDF for you.{' '}
+                {data?.canRelease
+                  ? <>
+                      <b>Release to LGU</b> also saves a frozen copy that LGU accounts can see. Release only after enrollment is
+                      finished.
+                    </>
+                  : 'Only a Super Admin can release it to the LGU.'}
+              </span>
+              <span className="cf-foot-actions">
+                <button type="button" className="cm-btn cm-btn-secondary" onClick={onClose}>Cancel</button>
+                {data?.canRelease && (
+                  <button type="button" className="cm-btn cm-btn-secondary" onClick={askRelease}>Release to LGU</button>
+                )}
+                <button type="button" className="cm-btn cm-btn-primary" onClick={download} disabled={downloading}>
+                  {downloading ? 'Preparing PDF...' : 'Download PDF'}
+                </button>
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="cf-released">
+              <p className="cf-released-note">
+                These frozen copies are what LGU accounts see. Changes in the system after a release don&apos;t change them.
+                {data?.canRelease ? ' Withdraw a report to hide it from the LGU.' : ''}
+              </p>
+              {released.length === 0 ? (
+                <p className="text-sm text-ccc-muted text-center py-8">Nothing has been released to the LGU yet.</p>
+              ) : (
+                <div className="st-scroll">
+                  <table className="st-table cf-rel-table">
+                    <thead>
+                      <tr>
+                        <th>Reference no.</th><th>Date on form</th><th>Rows</th><th>Released by</th><th>LGU downloads</th><th>Status</th>
+                        <th className="r">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {released.map((r) => (
+                        <tr key={r.id}>
+                          <td className="cf-strong">{r.reference_number}</td>
+                          <td>{formatYmd(r.form_date)}</td>
+                          <td>{r.row_count}</td>
+                          <td>
+                            {r.released_by}, {new Date(r.released_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td>{r.download_count || 0}</td>
+                          <td>
+                            <span className={`aa-chip ${r.withdrawn_at ? 'ended' : 'active'}`}>
+                              {r.withdrawn_at ? 'Withdrawn' : 'Visible to LGU'}
+                            </span>
+                          </td>
+                          <td className="r">
+                            <span className="aa-actions">
+                              <button type="button" className="aa-act" onClick={() => downloadReleased(r)}>Download</button>
+                              {data?.canRelease && !r.withdrawn_at && (
+                                <button
+                                  type="button"
+                                  className="aa-act danger"
+                                  onClick={() => {
+                                    setConfirmPassword('')
+                                    setConfirmError('')
+                                    setConfirm({ type: 'withdraw', report: r })
+                                  }}
+                                >
+                                  Withdraw
+                                </button>
+                              )}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="cf-foot cf-foot-end">
+              <button type="button" className="cm-btn cm-btn-secondary" onClick={onClose}>Close</button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {confirm && (
+        <div className="confirm-overlay open" style={{ zIndex: 1600 }} onClick={(e) => e.target === e.currentTarget && !confirmBusy && setConfirm(null)}>
+          <form className="aa-confirm" role="dialog" aria-modal="true" aria-label={confirm.type === 'release' ? 'Release to LGU' : 'Withdraw report'} onSubmit={submitConfirm}>
+            <div className="aa-confirm-body">
+              <h3 className="aa-confirm-title">{confirm.type === 'release' ? 'Release this report to the LGU?' : 'Withdraw this report?'}</h3>
+              <p className="aa-confirm-desc">
+                {confirm.type === 'release'
+                  ? `A frozen copy of ${referenceNumber.trim()} (${rows.length} rows) becomes visible to LGU accounts during their access dates. Release only after enrollment is finished. Re-enter your password to continue.`
+                  : `LGU accounts will no longer see ${confirm.report.reference_number}. It stays listed here for the record. Re-enter your password to continue.`}
+              </p>
+              <label className="cm-label" htmlFor="cfPw">Your password</label>
+              <input id="cfPw" className="cm-input" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Your password" autoComplete="current-password" autoFocus />
+              {confirmError && <p className="aa-confirm-error">{confirmError}</p>}
+            </div>
+            <div className="aa-confirm-foot">
+              <button type="button" className="cm-btn cm-btn-secondary" disabled={confirmBusy} onClick={() => setConfirm(null)}>Cancel</button>
+              <button type="submit" className={`cm-btn ${confirm.type === 'release' ? 'cm-btn-primary' : 'cm-btn-danger'}`} disabled={confirmBusy}>
+                {confirmBusy ? 'Working...' : confirm.type === 'release' ? 'Release to LGU' : 'Withdraw'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------- LGU (view only) console: Released reports (Oct 5 2026) ----------
+function LguReportsPanel() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [busyId, setBusyId] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/lgu-reports')
+      .then(async (res) => {
+        const result = await res.json()
+        if (res.status === 401) {
+          window.location.href = '/admin'
+          return
+        }
+        if (result.success) setData(result)
+        else setError(result.error || 'Could not load reports.')
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const download = async (report) => {
+    setBusyId(report.id)
+    try {
+      const res = await fetch(`/api/lgu-reports?id=${report.id}`)
+      const result = await res.json()
+      if (res.status === 401) {
+        window.location.href = '/admin'
+        return
+      }
+      if (!result.success) {
+        showAdminNotice(result.error || 'Could not download this report.', 'error')
+        return
+      }
+      const { downloadForm3Pdf } = await import('../lib/chedForm3Pdf')
+      await downloadForm3Pdf({ rows: result.report.rows, referenceNumber: result.report.reference_number, formDate: result.report.form_date })
+    } catch (err) {
+      showAdminNotice(err.message, 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const reports = data?.reports || []
+  return (
+    <div>
+      <div className="portal-header">
+        <div>
+          <h1>Released reports</h1>
+          <p>Reports City College of Calamba has released to the LGU. This account can view and download them only.</p>
+        </div>
+      </div>
+      {data?.accessFrom && data?.accessUntil && (
+        <div className="cm-card ra-info lg-access">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="16" rx="2" />
+            <path d="M3 10h18M8 3v4M16 3v4" />
+          </svg>
+          <span>
+            Your access: <b>{formatYmd(data.accessFrom, { month: 'long', day: 'numeric', year: 'numeric' })} to {formatYmd(data.accessUntil, { month: 'long', day: 'numeric', year: 'numeric' })}</b>.
+            After that, this account can no longer sign in.
+          </span>
+        </div>
+      )}
+      <section className="cm-card lg-card">
+        <div className="cm-head">
+          <h2 className="cm-title">CHED Form 3: Free Higher Education Billing Details</h2>
+        </div>
+        {loading ? (
+          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        ) : error ? (
+          <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+        ) : reports.length === 0 ? (
+          <p className="lg-empty">No report has been released yet. City College of Calamba will release the report once enrollment is finished.</p>
+        ) : (
+          <div className="st-scroll">
+            <table className="st-table lg-table">
+              <thead>
+                <tr>
+                  <th>Reference no.</th><th>Date on form</th><th>Rows</th><th>Released on</th><th className="r">File</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.map((r) => (
+                  <tr key={r.id}>
+                    <td className="cf-strong">{r.reference_number}</td>
+                    <td>{formatYmd(r.form_date, { month: 'long', day: 'numeric', year: 'numeric' })}</td>
+                    <td>{r.row_count}</td>
+                    <td>{new Date(r.released_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
+                    <td className="r">
+                      <button type="button" className="cm-btn cm-btn-primary lg-dl" onClick={() => download(r)} disabled={busyId === r.id}>
+                        {busyId === r.id ? 'Preparing...' : 'Download PDF'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="aa-foot">Every sign-in and download is recorded by City College of Calamba.</div>
+      </section>
+    </div>
+  )
+}
+
+// ---------- Limited consoles: shell (Oct 5 2026) ----------
+// Office of the Registrar and LGU (view only) accounts see this instead of
+// the full console. Same header, sidebar look and log-out confirm.
+function LimitedConsole({ session }) {
+  const role = session.role
+  const [activePanel, setActivePanel] = useState(role === 'registrar' ? 'allowance' : 'reports')
+  const [confirmLogout, setConfirmLogout] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const [regData, setRegData] = useState(null)
+  const [regLoading, setRegLoading] = useState(role === 'registrar')
+  const [regError, setRegError] = useState('')
+
+  const handleLogout = async () => {
+    await fetch('/api/admin-logout', { method: 'POST' })
+    window.location.href = '/admin/login'
+  }
+
+  const loadRegistrar = async () => {
+    setRegLoading(true)
+    setRegError('')
+    try {
+      const res = await fetch('/api/registrar-allowance')
+      const data = await res.json()
+      if (res.status === 401) {
+        window.location.href = '/admin/login'
+        return
+      }
+      if (data.success) setRegData(data)
+      else setRegError(data.error || 'Could not load allowance data.')
+    } catch (err) {
+      setRegError(err.message)
+    } finally {
+      setRegLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (role === 'registrar') loadRegistrar()
+  }, [role])
+
+  const sessionLabel = role === 'registrar' ? 'Registrar Session' : 'LGU View-only Session'
+
+  return (
+    <main className="admin-portal">
+      <AdminNoticeHost />
+      <SiteHeader
+        topbarLabel="Iskolusyon Admin Console"
+        topbarRight={
+          <span className="flex items-center gap-1.5 font-extrabold uppercase tracking-wide text-[10.2px] text-ccc-gold">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            {sessionLabel}
+          </span>
+        }
+        portalBadge="Admin Console"
+        logos={[
+          { src: '/LOGO_CCC.png', alt: 'City College of Calamba Logo' },
+          { src: '/LOGO_CCC_Admissions.png', alt: 'CCC Admissions Logo' },
+          { src: '/LOGO_CCC_Registrar.png', alt: 'CCC Registrar Logo' },
+        ]}
+      />
+      <div className="portal-shell">
+        <AdminSidebar
+          activePanel={activePanel}
+          onSelectPanel={setActivePanel}
+          displayName={session.name}
+          email={session.email}
+          isSuperAdmin={false}
+          role={role}
+          onLogout={() => setConfirmLogout(true)}
+        />
+        {confirmLogout && (
+          <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !loggingOut && setConfirmLogout(false)}>
+            <div className="aa-confirm" role="dialog" aria-modal="true" aria-label="Log out">
+              <div className="aa-confirm-body">
+                <h3 className="aa-confirm-title">Log out?</h3>
+                <p className="aa-confirm-desc">You&rsquo;ll need your email and password to sign in again.</p>
+              </div>
+              <div className="aa-confirm-foot">
+                <button type="button" className="cm-btn cm-btn-secondary" disabled={loggingOut} onClick={() => setConfirmLogout(false)} autoFocus>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="cm-btn cm-btn-primary"
+                  disabled={loggingOut}
+                  onClick={async () => {
+                    setLoggingOut(true)
+                    try {
+                      await handleLogout()
+                    } catch {
+                      setLoggingOut(false)
+                    }
+                  }}
+                >
+                  {loggingOut ? 'Logging out...' : 'Log out'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="portal-main">
+          {role === 'registrar' && activePanel === 'dashboard' && (
+            <RegistrarDashboardPanel data={regData} loading={regLoading && !regData} error={regError} onGoAllowance={() => setActivePanel('allowance')} />
+          )}
+          {role === 'registrar' && activePanel === 'allowance' && (
+            <RegistrarAllowancePanel data={regData} loading={regLoading} error={regError} onReload={loadRegistrar} />
+          )}
+          {role === 'lgu' && activePanel === 'reports' && <LguReportsPanel session={session} />}
+        </div>
+      </div>
+    </main>
+  )
+}
+
+// Picks the console for whoever is signed in. Admins and Super Admins get the
+// full console exactly as before.
+function AdminRoleGate() {
+  const [session, setSession] = useState(undefined)
+  useEffect(() => {
+    fetch('/api/admin-session')
+      .then((res) => res.json())
+      .then((data) => setSession(data || {}))
+      .catch(() => setSession({}))
+  }, [])
+
+  if (session === undefined) return null
+  if (!session.loggedIn && session.accessEnded) {
+    return (
+      <main className="admin-portal">
+        <div className="ra-ended">
+          <div className="cm-card ra-ended-card">
+            <h1 className="cm-title">Your access has ended</h1>
+            <p>{session.error || 'Your access has ended. Please contact City College of Calamba.'}</p>
+            <button
+              type="button"
+              className="cm-btn cm-btn-primary"
+              onClick={async () => {
+                await fetch('/api/admin-logout', { method: 'POST' })
+                window.location.href = '/admin/login'
+              }}
+            >
+              Back to sign in
+            </button>
+          </div>
+        </div>
+      </main>
+    )
+  }
+  if (session.loggedIn && (session.role === 'registrar' || session.role === 'lgu')) {
+    return <LimitedConsole session={session} />
+  }
+  return <AdminPageInner />
+}
+
 function AdminPageInner() {
   const searchParams = useSearchParams()
   const initialPanel = VALID_PANELS.includes(searchParams.get('panel')) ? searchParams.get('panel') : 'dashboard'
@@ -6169,7 +7697,7 @@ function AdminPageInner() {
 export default function AdminPage() {
   return (
     <Suspense fallback={null}>
-      <AdminPageInner />
+      <AdminRoleGate />
     </Suspense>
   )
 }

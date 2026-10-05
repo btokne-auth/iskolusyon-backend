@@ -19,6 +19,87 @@ import {
 
 // ---------- Small building blocks ----------
 
+// Oct 5 2026: Allowance page (Progress Table row 78). Ivy's applicant.html
+// Allowance panel (Date of Distribution / Type / Description table, empty
+// note until the scholarship is approved), now reading the real posts the
+// Office of the Registrar makes in the admin console.
+function formatAllowanceDate(ymd) {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(String(ymd))) return String(ymd || '')
+  const [y, m, d] = String(ymd).split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+}
+
+function AllowancePanel() {
+  const [state, setState] = useState({ loading: true, error: '', posts: [], isScholar: false })
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/allowance')
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data.success) setState({ loading: false, error: '', posts: data.posts || [], isScholar: !!data.isScholar })
+        else setState({ loading: false, error: data.error || 'Could not load your allowance.', posts: [], isScholar: false })
+      })
+      .catch((err) => !cancelled && setState({ loading: false, error: err.message, posts: [], isScholar: false }))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const { loading, error, posts } = state
+  return (
+    <div>
+      <div className="portal-header">
+        <p className="portal-eyebrow">Scholarship Services &middot; Enrolled</p>
+        <h1>Allowance</h1>
+        <p>Your allowance distributions from the Office of the College Registrar appear here.</p>
+      </div>
+      <div className="card">
+        <div className="card-title">
+          Allowance Distribution
+          {posts.length > 0 && <span className="tag">{posts.length} {posts.length === 1 ? 'post' : 'posts'}</span>}
+        </div>
+        {loading ? (
+          <p style={{ fontSize: '12.75px', color: 'var(--muted)' }}>Loading...</p>
+        ) : error ? (
+          <p style={{ fontSize: '12.75px', color: 'var(--red)' }}>{error}</p>
+        ) : posts.length === 0 ? (
+          <p style={{ fontSize: '12.75px', color: 'var(--muted)' }}>
+            You don&rsquo;t have an active allowance disbursement yet. This becomes available once your application is
+            approved and endorsed.
+          </p>
+        ) : (
+          <>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="doc-table" style={{ minWidth: 480 }}>
+                <thead>
+                  <tr>
+                    <th>Date of Distribution</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {posts.map((p) => (
+                    <tr key={p.id}>
+                      <td>{formatAllowanceDate(p.distribution_date)}</td>
+                      <td style={{ fontWeight: 600 }}>{p.allowance_type}</td>
+                      <td style={p.description ? undefined : { color: 'var(--muted)' }}>{p.description || 'None'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 14 }}>
+              Newest first. For questions about your allowance, contact the Office of the College Registrar.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function IconUpload(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" {...props}>
@@ -1354,6 +1435,8 @@ function PortalApp({ accountSession, onLogout }) {
   const [releasedStatus, setReleasedStatus] = useState(null)
   // Sept 30 2026: the applicant's exam schedule, once an admin has sent it.
   const [examSchedule, setExamSchedule] = useState(null)
+  // Oct 5 2026: end-of-cycle archive. The application is read-only.
+  const [archived, setArchived] = useState(false)
   const [personalSectionState, setPersonalSectionState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'submitting' | 'submitted' | 'error'
   const [academicSectionState, setAcademicSectionState] = useState('idle')
   const [healthSectionState, setHealthSectionState] = useState('idle')
@@ -1958,6 +2041,7 @@ function PortalApp({ accountSession, onLogout }) {
         setApplicationNumber(data.application.application_number || null)
         setReleasedStatus(data.application.scholar_status || null)
         setExamSchedule(data.application.exam_schedule || null)
+        setArchived(!!data.application.archived)
         // Keeps `applicantName` in sync with whatever this row is actually
         // saved under, so every save/submit for the rest of this session
         // targets the exact same row instead of depending on the name
@@ -2510,6 +2594,13 @@ function PortalApp({ accountSession, onLogout }) {
         />
 
         <div ref={formCardRef} className="portal-main space-y-6">
+          {archived && (
+            <div className="card" role="status" style={{ borderColor: '#F0D9A8', background: '#FDF6E7', color: '#6b4e00', fontSize: '12.75px', lineHeight: 1.6 }}>
+              <strong style={{ display: 'block', fontFamily: "'Montserrat', sans-serif", marginBottom: 4 }}>This application cycle has closed</strong>
+              Your application was archived at the end of the cycle. You can still view everything here, but it can no
+              longer be changed. For questions, contact the CCC Guidance Office.
+            </div>
+          )}
           {/* ══════════ DASHBOARD — rebuilt to applicant.html's exact structure
               (design-parity pass 4, Sept 19 2026): .status-hero card,
               .section-divider chip, .stat-grid with locked/unlocked cards,
@@ -3617,23 +3708,8 @@ function PortalApp({ accountSession, onLogout }) {
             </div>
           )}
 
-          {/* ══════════ ALLOWANCE (stub — not built yet) ══════════ */}
-          {activePanel === 'allowance' && (
-            <div>
-              <div className="portal-header">
-                <p className="portal-eyebrow">Scholarship Services &middot; Enrolled</p>
-                <h1>Allowance</h1>
-                <p>Once your scholarship is approved, your allowance distribution schedule and history will appear here.</p>
-              </div>
-              <div className="card">
-                <div className="card-title">Distribution Status</div>
-                <p style={{ fontSize: '12.75px', color: 'var(--muted)' }}>
-                  You don&rsquo;t have an active allowance disbursement yet. This becomes available once your
-                  application is approved and endorsed.
-                </p>
-              </div>
-            </div>
-          )}
+          {/* ══════════ ALLOWANCE (Oct 5 2026, Progress Table row 78) ══════════ */}
+          {activePanel === 'allowance' && <AllowancePanel />}
 
           {/* ══════════ DOCUMENTS & STATUS (built — status table is real; the
               upload dropzone below is an interim home for document types

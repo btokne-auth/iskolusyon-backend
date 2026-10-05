@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
+import { ADMIN_COOKIE_NAME, verifyAnyAdminCookie } from '@/app/lib/adminAuth'
 
 // Placeholder gate for the shared admin account — see app/lib/adminAuth.js
 // for what this is and isn't. Protects every /admin page except the login
@@ -15,10 +15,13 @@ export async function middleware(request) {
     return NextResponse.next()
   }
 
+  // Oct 5 2026: Registrar and LGU (view only) sessions may open /admin too;
+  // the page shows them their own limited console, and every admin /api
+  // route still refuses them on the server.
   const cookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value
-  const adminName = await verifyAdminCookieValue(cookie)
+  const session = await verifyAnyAdminCookie(cookie)
 
-  if (!adminName) {
+  if (!session) {
     const loginUrl = new URL('/admin/login', request.url)
     loginUrl.searchParams.set('next', pathname)
     return NextResponse.redirect(loginUrl)

@@ -8,11 +8,9 @@
 // pass, same "approved shape, real logic behind it" treatment as
 // PortalSidebar.js on the applicant side.
 //
-// Deliberately NOT ported from Patch 5: the "Office of the Registrar"
-// role and its Allowance nav item (.registrar-only in the mockup). That
-// role doesn't exist in this app yet and isn't in the manuscript's
-// committed scope -- see admin-theme.css's header comment. This sidebar
-// only ever renders Super Admin / Admin, same as before.
+// Oct 5 2026: Patch 5's "Office of the Registrar" role and its Allowance
+// nav item (.registrar-only in the mockup) are now built, plus an LGU (view
+// only) role. Each limited role sees only its own items (`role` prop).
 //
 // admin.html gates "Admin Accounts" and "System & Activity" behind a
 // Super Admin role -- see app/lib/adminAuth.js and the Sept 18 migration
@@ -176,6 +174,29 @@ const NAV_GROUPS = [
   },
 ]
 
+function IconAllowance() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px' }}>
+      <rect x="2" y="6" width="20" height="13" rx="2" />
+      <path d="M2 10h20M6 15h4" />
+    </svg>
+  )
+}
+
+// Oct 5 2026: limited roles.
+const REGISTRAR_GROUPS = [
+  { section: 'Overview', labelIcon: <IconOverview />, items: [{ key: 'dashboard', label: 'Dashboard', icon: <IconDashboard /> }] },
+  {
+    section: 'Office of the Registrar',
+    labelIcon: <IconResults />,
+    items: [{ key: 'allowance', label: 'Allowance Distribution', icon: <IconAllowance /> }],
+  },
+]
+const LGU_GROUPS = [
+  { section: 'Reports', labelIcon: <IconResults />, items: [{ key: 'reports', label: 'Released reports', icon: <IconRequests /> }] },
+]
+const ROLE_TEXT = { super_admin: 'Super Admin', admin: 'Admin', registrar: 'Registrar', lgu: 'LGU (view only)' }
+
 const SUPER_ADMIN_GROUP = {
   section: 'Super Admin',
   labelIcon: <IconSuperAdmin />,
@@ -217,10 +238,19 @@ export default function AdminSidebar({
   displayName,
   email = '',
   isSuperAdmin,
+  role,
   flaggedCount = 0,
   onLogout,
 }) {
-  const groups = isSuperAdmin ? [...NAV_GROUPS, SUPER_ADMIN_GROUP] : NAV_GROUPS
+  const groups =
+    role === 'registrar'
+      ? REGISTRAR_GROUPS
+      : role === 'lgu'
+        ? LGU_GROUPS
+        : isSuperAdmin
+          ? [...NAV_GROUPS, SUPER_ADMIN_GROUP]
+          : NAV_GROUPS
+  const roleText = ROLE_TEXT[role] || (isSuperAdmin ? 'Super Admin' : 'Admin')
 
   return (
     <aside className="sidebar">
@@ -239,7 +269,7 @@ export default function AdminSidebar({
         </div>
         <div className="sb-who">
           <div className="sb-name">{displayName || 'Admin'}</div>
-          <div className="sb-role">{isSuperAdmin ? 'Super Admin' : 'Admin'}</div>
+          <div className="sb-role">{roleText}</div>
         </div>
       </div>
 

@@ -84,17 +84,29 @@ async function hmacHex(message, secret) {
 // story as the Sept 18 change: an old cookie without `e` just fails
 // typeof-checking below and forces a re-login, and sessions are only
 // 8 hours anyway.
-export async function createAdminCookieValue(name, isSuperAdmin, email) {
+//
+// Oct 5 2026: limited roles. A Registrar or LGU (view only) session carries
+// `r` in its payload. verifyAdminCookieFull() below REFUSES those sessions,
+// so every existing admin page and /api route keeps working only for Admins
+// and Super Admins without each route having to remember a new rule. The few
+// routes built for the limited roles use verifyAnyAdminCookie() plus
+// app/lib/adminRoles.js instead.
+export const LIMITED_ROLES = new Set(['registrar', 'lgu'])
+
+export async function createAdminCookieValue(name, isSuperAdmin, email, role) {
   const secret = getSecret()
-  const encodedPayload = toBase64Url(JSON.stringify({ n: name, s: !!isSuperAdmin, e: email }))
+  const payload = { n: name, s: !!isSuperAdmin, e: email }
+  if (LIMITED_ROLES.has(role)) {
+    payload.s = false
+    payload.r = role
+  }
+  const encodedPayload = toBase64Url(JSON.stringify(payload))
   const signature = await hmacHex(encodedPayload, secret)
   return { value: `${encodedPayload}.${signature}`, maxAge: COOKIE_MAX_AGE_SECONDS }
 }
 
-// Verifies a cookie value and returns { name, isSuperAdmin, email }, or
-// null if the cookie is missing, malformed, tampered, or from before the
-// Sept 18 (role) / Sept 22 (email) payload-format changes.
-export async function verifyAdminCookieFull(cookieValue) {
+// Checks the signature and returns the raw payload, or null.
+async function readSignedPayload(cookieValue) {
   if (!cookieValue || !cookieValue.includes('.')) return null
   const [encodedPayload, signature] = cookieValue.split('.')
   if (!encodedPayload || !signature) return null
@@ -111,10 +123,32 @@ export async function verifyAdminCookieFull(cookieValue) {
 
     const payload = JSON.parse(fromBase64Url(encodedPayload))
     if (!payload || typeof payload.n !== 'string' || typeof payload.e !== 'string') return null
-    return { name: payload.n, isSuperAdmin: !!payload.s, email: payload.e }
+    return payload
   } catch {
     return null
   }
+}
+
+// Verifies a cookie value and returns { name, isSuperAdmin, email }, or
+// null if the cookie is missing, malformed, tampered, or from before the
+// Sept 18 (role) / Sept 22 (email) payload-format changes.
+// Oct 5 2026: also null for a Registrar or LGU session (see LIMITED_ROLES).
+export async function verifyAdminCookieFull(cookieValue) {
+  const payload = await readSignedPayload(cookieValue)
+  if (!payload) return null
+  if (payload.r !== undefined) return null
+  return { name: payload.n, isSuperAdmin: !!payload.s, email: payload.e }
+}
+
+// Oct 5 2026: any signed-in console account, including the limited roles.
+// Returns { name, isSuperAdmin, email, role } or null. Only the middleware,
+// /api/admin-session and the routes built for the limited roles use this.
+export async function verifyAnyAdminCookie(cookieValue) {
+  const payload = await readSignedPayload(cookieValue)
+  if (!payload) return null
+  if (payload.r !== undefined && !LIMITED_ROLES.has(payload.r)) return null
+  const role = payload.r || (payload.s ? 'super_admin' : 'admin')
+  return { name: payload.n, isSuperAdmin: role === 'super_admin', email: payload.e, role }
 }
 
 // Back-compat convenience for callers (middleware.js, the override route)

@@ -34,6 +34,7 @@ export async function GET(request) {
         'result_notified_status, result_notified_at, result_notified_by, result_email_sent, email_updates_opt_in, ' +
         'endorsement_notified_status, endorsement_notified_at, endorsement_notified_by, endorsement_email_sent, updated_at'
       )
+      .is('archived_at', null) // Oct 5 2026: archived applicants leave Applicant Results
       .order('updated_at', { ascending: false })
 
     if (error) {

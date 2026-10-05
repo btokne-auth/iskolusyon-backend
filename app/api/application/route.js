@@ -6,6 +6,7 @@ import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/app
 import { computeEligibility } from '@/app/lib/matching'
 import { getSystemSettings, submitBlockedReason } from '@/app/lib/systemSettings'
 import { resultsVisible, applicantSafeRow } from '@/app/lib/resultVisibility'
+import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -241,6 +242,11 @@ export async function GET(request) {
 
     const visible = await resultsVisible()
     const application = applicantSafeRow(mergeApplicationRows(rows), visible)
+    // Oct 5 2026: end-of-cycle archive. The portal shows a read-only notice.
+    application.archived = rows.some((r) => !!r.archived_at)
+    delete application.archived_at
+    delete application.archived_by
+    delete application.archive_cycle
 
     // Sept 30 2026: Exam Schedule Alerts. The applicant sees their exam
     // schedule only once an admin has sent it (sent_at set).
@@ -293,6 +299,11 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
     }
 
+    // Oct 5 2026: an archived application is read-only.
+    if (await isApplicantArchived(session.id)) {
+      return NextResponse.json({ error: ARCHIVED_MESSAGE, archived: true }, { status: 403 })
+    }
+
     const body = await request.json()
     const applicantName = (body.applicantName || '').trim()
     const applicantEmail = session.email.trim()
@@ -318,6 +329,7 @@ export async function POST(request) {
               .from('applications')
               .select('id', { count: 'exact', head: true })
               .eq('status', 'submitted')
+              .is('archived_at', null) // Oct 5 2026: only this cycle's applicants take a slot
             if (error) throw new Error(error.message)
             return count || 0
           },
