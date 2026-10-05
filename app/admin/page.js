@@ -7,6 +7,7 @@ import AdminSidebar from '../components/AdminSidebar'
 import LoadingScreen from '../components/LoadingScreen'
 import { Skeleton, SkeletonRows, SkeletonList, SkeletonForm, SkeletonText, SkeletonStatGrid } from '../components/Skeleton'
 import { getDocTypeLabel } from '../lib/documentTypes'
+import { peek, keep, forgetAll } from '../lib/panelCache'
 import { onConnectivityChange, isNetworkError } from '../lib/offlineSync'
 import { suggestExamResult } from '../lib/matching'
 import { PROFILE_CATEGORIES, formatFieldValue } from '../lib/applicantProfileSchema'
@@ -1484,8 +1485,8 @@ function DashboardPanel({
   const applicantListRef = useRef(null)
   // Sept 30 2026: real appeal count for the Appealed card (applicants with
   // at least one Appeal request). Best effort: 0 if it can't load.
-  const [appealCount, setAppealCount] = useState(0)
-  const [appealLoaded, setAppealLoaded] = useState(false)
+  const [appealCount, setAppealCount] = useState(() => peek('appealCount') ?? 0)
+  const [appealLoaded, setAppealLoaded] = useState(() => peek('appealCount') !== undefined)
   useEffect(() => {
     fetch('/api/admin-reschedule')
       .then((res) => res.json())
@@ -1496,7 +1497,7 @@ function DashboardPanel({
             .filter((r) => (r.request_type || '').startsWith('Appeal'))
             .map((r) => r.applicant_user_id || r.applicant_email || r.applicant_name)
         )
-        setAppealCount(who.size)
+        setAppealCount(keep('appealCount', who.size))
       })
       .catch(() => {})
       .finally(() => setAppealLoaded(true))
@@ -2928,8 +2929,8 @@ const RESULT_TABS = [
 
 function ResultsPanel() {
   const locks = useApplicantLocks()
-  const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [rows, setRows] = useState(() => peek('results') ?? [])
+  const [loading, setLoading] = useState(() => peek('results') === undefined)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState(null)
@@ -2943,7 +2944,7 @@ function ResultsPanel() {
   // both endpoints already select) rather than making the admin flip
   // between Dashboard and here to piece the sequence together themselves.
   const load = async (silent) => {
-    if (!silent) setLoading(true)
+    if (!silent && peek('results') === undefined) setLoading(true)
     setError('')
     try {
       const [resultsRes, eligRes] = await Promise.all([
@@ -2955,7 +2956,7 @@ function ResultsPanel() {
       if (!resultsData.success) throw new Error(resultsData.error || 'Failed to load applicant results.')
       if (!eligData.success) throw new Error(eligData.error || 'Failed to load eligibility data.')
       const eligById = new Map(eligData.applications.map((r) => [r.id, r]))
-      setRows(resultsData.applications.map((r) => ({ ...eligById.get(r.id), ...r })))
+      setRows(keep('results', resultsData.applications.map((r) => ({ ...eligById.get(r.id), ...r }))))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -3274,21 +3275,21 @@ function StatSplitPanel({ title, items, total, foot, keyLabel = 'Status' }) {
 }
 
 function AnalyticsPanel() {
-  const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [rows, setRows] = useState(() => peek('stats') ?? [])
+  const [loading, setLoading] = useState(() => peek('stats') === undefined)
   const [error, setError] = useState('')
   const [refreshError, setRefreshError] = useState(false)
-  const [loadedAt, setLoadedAt] = useState(null)
+  const [loadedAt, setLoadedAt] = useState(() => peek('statsAt') ?? null)
   const [now, setNow] = useState(() => Date.now())
   const [department, setDepartment] = useState('all')
   const [showEmptyPrograms, setShowEmptyPrograms] = useState(false)
   // Sept 30 2026: appeals count (progress table "... Appeals, and Waitlisted
   // Analytics"). Best effort, 0 if it can't load.
-  const [appealCount, setAppealCount] = useState(0)
+  const [appealCount, setAppealCount] = useState(() => peek('appealCount') ?? 0)
 
   const load = async ({ quiet = false } = {}) => {
     if (!quiet) {
-      setLoading(true)
+      if (peek('stats') === undefined) setLoading(true)
       setError('')
     }
     try {
@@ -3304,8 +3305,8 @@ function AnalyticsPanel() {
       // just different column subsets, so this is a straight join on the
       // one shared key rather than another name-based match.
       const byId = new Map(eligData.applications.map((r) => [r.id, r]))
-      setRows(resultsData.applications.map((r) => ({ ...byId.get(r.id), ...r })))
-      setLoadedAt(Date.now())
+      setRows(keep('stats', resultsData.applications.map((r) => ({ ...byId.get(r.id), ...r }))))
+      setLoadedAt(keep('statsAt', Date.now()))
       setRefreshError(false)
     } catch (err) {
       // A failed background refresh keeps the numbers already on screen.
@@ -3323,7 +3324,7 @@ function AnalyticsPanel() {
             .filter((r) => (r.request_type || '').startsWith('Appeal'))
             .map((r) => r.applicant_user_id || r.applicant_email || r.applicant_name)
         )
-        setAppealCount(who.size)
+        setAppealCount(keep('appealCount', who.size))
       })
       .catch(() => {})
   }
@@ -3623,10 +3624,10 @@ const COMM_CATEGORY_LABELS = {
 const COMM_ELIGIBILITY_CATEGORIES = ['incomplete', 'pending_exam', 'qualified', 'waitlisted', 'not_qualified']
 
 function CommunicationsPanel() {
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState(() => peek('announcements') ?? [])
+  const [loading, setLoading] = useState(() => peek('announcements') === undefined)
   const [error, setError] = useState('')
-  const [applicants, setApplicants] = useState([])
+  const [applicants, setApplicants] = useState(() => peek('commApplicants') ?? [])
 
   const [commType, setCommType] = useState('')
   const [title, setTitle] = useState('')
@@ -3645,12 +3646,12 @@ function CommunicationsPanel() {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
 
   const load = async () => {
-    setLoading(true)
+    if (peek('announcements') === undefined) setLoading(true)
     setError('')
     try {
       const res = await fetch('/api/announcements')
       const data = await res.json()
-      if (data.success) setItems(data.announcements)
+      if (data.success) setItems(keep('announcements', data.announcements))
       else setError(data.error || 'Failed to load announcements.')
     } catch (err) {
       setError(err.message)
@@ -3664,7 +3665,7 @@ function CommunicationsPanel() {
     fetch('/api/admin-eligibility')
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) setApplicants(data.applications)
+        if (data.success) setApplicants(keep('commApplicants', data.applications))
       })
       .catch(() => {})
   }, [])
@@ -4123,8 +4124,8 @@ function formatYmd(ymd, opts = { month: 'short', day: 'numeric', year: 'numeric'
 }
 
 function AdminAccountsPanel() {
-  const [accounts, setAccounts] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [accounts, setAccounts] = useState(() => peek('accounts') ?? [])
+  const [loading, setLoading] = useState(() => peek('accounts') === undefined)
   const [error, setError] = useState('')
   const [myEmail, setMyEmail] = useState('')
 
@@ -4155,11 +4156,11 @@ function AdminAccountsPanel() {
   const [notice, setNotice] = useState(null)
 
   const loadAccounts = () => {
-    setLoading(true)
+    if (peek('accounts') === undefined) setLoading(true)
     fetch('/api/admin-accounts')
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) setAccounts(data.accounts)
+        if (data.success) setAccounts(keep('accounts', data.accounts))
         else setError(data.error || 'Failed to load admin accounts.')
       })
       .catch((err) => setError(err.message))
@@ -4761,20 +4762,26 @@ function AdminAccountsPanel() {
 const ACTIVITY_CATEGORIES = ['Documents', 'Eligibility', 'Results', 'Communications', 'Allowance', 'Reports', 'Admin Accounts', 'System']
 
 function CycleSettingsCard() {
-  const [settings, setSettings] = useState(null)
-  const [draft, setDraft] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [settings, setSettings] = useState(() => peek('settings') ?? null)
+  const [draft, setDraft] = useState(() => peek('settings') ?? null)
+  const [loading, setLoading] = useState(() => peek('settings') === undefined)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [savedNote, setSavedNote] = useState(false)
 
   useEffect(() => {
+    const shownFirst = peek('settings')
     fetch('/api/system-settings')
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
+          keep('settings', data.settings)
           setSettings(data.settings)
-          setDraft(data.settings)
+          // Don't overwrite changes the admin already started making to the
+          // remembered copy while the fresh one was loading.
+          setDraft((current) =>
+            current && shownFirst && JSON.stringify(current) !== JSON.stringify(shownFirst) ? current : data.settings
+          )
         } else {
           setError(data.error || 'Failed to load settings.')
         }
@@ -4807,7 +4814,7 @@ function CycleSettingsCard() {
         setError(data.error || 'Failed to save settings.')
         return
       }
-      setSettings(data.settings)
+      setSettings(keep('settings', data.settings))
       setDraft(data.settings)
       setSavedNote(true)
       window.dispatchEvent(new CustomEvent('cycle-settings-saved'))
@@ -4983,8 +4990,8 @@ function TimelineItem({ entry }) {
 }
 
 function ActivityLogCard() {
-  const [entries, setEntries] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [entries, setEntries] = useState(() => peek('audit:all') ?? [])
+  const [loading, setLoading] = useState(() => peek('audit:all') === undefined)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -4994,9 +5001,10 @@ function ActivityLogCard() {
   filterRef.current = categoryFilter
 
   const load = async ({ quiet = false } = {}) => {
-    if (quiet) setRefreshing(true)
-    else setLoading(true)
     const want = filterRef.current
+    if (quiet) setRefreshing(true)
+    else if (peek(`audit:${want}`) === undefined) setLoading(true)
+    else setEntries(peek(`audit:${want}`))
     try {
       const params = new URLSearchParams()
       if (want !== 'all') params.set('category', want)
@@ -5005,7 +5013,7 @@ function ActivityLogCard() {
       const data = await res.json()
       if (want !== filterRef.current) return // the filter changed meanwhile
       if (data.success) {
-        setEntries(data.entries)
+        setEntries(keep(`audit:${want}`, data.entries))
         setError(null)
         setUpdatedAt(Date.now())
       } else if (!quiet) setError(data.error || 'Failed to load audit log.')
@@ -5104,8 +5112,8 @@ function ActivityLogCard() {
 // confirmation plus the Super Admin's password. The server checks all of it
 // again (app/api/archive-cycle/route.js).
 function ArchiveCycleCard() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(() => peek('archive') ?? null)
+  const [loading, setLoading] = useState(() => peek('archive') === undefined)
   const [error, setError] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
@@ -5116,12 +5124,12 @@ function ArchiveCycleCard() {
   const [viewList, setViewList] = useState(null)
 
   const load = async () => {
-    setLoading(true)
+    if (peek('archive') === undefined) setLoading(true)
     setError('')
     try {
       const res = await fetch('/api/archive-cycle')
       const result = await res.json()
-      if (result.success) setData(result)
+      if (result.success) setData(keep('archive', result))
       else setError(result.error || 'Could not load the archive status.')
     } catch (err) {
       setError(err.message)
@@ -5395,8 +5403,8 @@ function SystemActivityPanel() {
 // an email to those who opted in. Same confirm-and-edit step as sending a
 // result (Ivy's admin.html status email flow).
 function ExamSchedulesPanel() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(() => peek('exams') ?? null)
+  const [loading, setLoading] = useState(() => peek('exams') === undefined)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
@@ -5410,7 +5418,7 @@ function ExamSchedulesPanel() {
       const res = await fetch('/api/admin-exam-schedules')
       const json = await res.json()
       if (!res.ok || !json.success) throw new Error(json.error || 'Failed to load exam schedules.')
-      setData(json)
+      setData(keep('exams', json))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -5848,8 +5856,8 @@ function ExamSchedulesPanel() {
 // "All Applicants" card (search + filter bar above an applicant-table with the
 // avatar / name / id cell) to sit naturally next to the Dashboard.
 function ReschedulePanel() {
-  const [requests, setRequests] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [requests, setRequests] = useState(() => peek('requests') ?? [])
+  const [loading, setLoading] = useState(() => peek('requests') === undefined)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -5911,7 +5919,7 @@ function ReschedulePanel() {
     fetch('/api/admin-reschedule')
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) setRequests(data.requests)
+        if (data.success) setRequests(keep('requests', data.requests))
         else setError(data.error || 'Failed to load reschedule requests.')
       })
       .catch((err) => setError(err.message))
@@ -6823,8 +6831,8 @@ function RegistrarAllowancePanel({ data, loading, error, onReload }) {
 // (view only) account can see during its access dates. Design: canvas page
 // "Registrar, LGU and archive (Oct 5)".
 function ChedForm3Dialog({ onClose }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(() => peek('form3') ?? null)
+  const [loading, setLoading] = useState(() => peek('form3') === undefined)
   const [error, setError] = useState('')
   const [tab, setTab] = useState('new')
   const [referenceNumber, setReferenceNumber] = useState('')
@@ -6838,12 +6846,12 @@ function ChedForm3Dialog({ onClose }) {
   const [confirmBusy, setConfirmBusy] = useState(false)
 
   const load = async () => {
-    setLoading(true)
+    if (peek('form3') === undefined) setLoading(true)
     setError('')
     try {
       const res = await fetch('/api/ched-form3')
       const result = await res.json()
-      if (result.success) setData(result)
+      if (result.success) setData(keep('form3', result))
       else setError(result.error || 'Could not load the report.')
     } catch (err) {
       setError(err.message)
@@ -7164,8 +7172,8 @@ function ChedForm3Dialog({ onClose }) {
 
 // ---------- LGU (view only) console: Released reports (Oct 5 2026) ----------
 function LguReportsPanel() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(() => peek('lgu') ?? null)
+  const [loading, setLoading] = useState(() => peek('lgu') === undefined)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
 
@@ -7177,7 +7185,7 @@ function LguReportsPanel() {
           window.location.href = '/admin'
           return
         }
-        if (result.success) setData(result)
+        if (result.success) setData(keep('lgu', result))
         else setError(result.error || 'Could not load reports.')
       })
       .catch((err) => setError(err.message))
@@ -7283,6 +7291,7 @@ function LimitedConsole({ session }) {
 
   const handleLogout = async () => {
     await fetch('/api/admin-logout', { method: 'POST' })
+    forgetAll()
     window.location.href = '/admin/login'
   }
 
@@ -7411,6 +7420,7 @@ function AdminRoleGate() {
               className="cm-btn cm-btn-primary"
               onClick={async () => {
                 await fetch('/api/admin-logout', { method: 'POST' })
+                forgetAll()
                 window.location.href = '/admin/login'
               }}
             >
@@ -7544,6 +7554,7 @@ function AdminPageInner() {
 
   const handleLogout = async () => {
     await fetch('/api/admin-logout', { method: 'POST' })
+    forgetAll()
     window.location.href = '/admin/login'
   }
 
