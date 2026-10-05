@@ -115,7 +115,7 @@ const CATEGORY_HEADER_STYLE = {
   borderBottom: '2px solid var(--border)',
 }
 
-export default function DocumentStatusTable({ groups, docs, applicantName, onReupload }) {
+export default function DocumentStatusTable({ groups, docs, applicantName, onReupload, uploadPlaces }) {
   const total = groups.reduce((n, g) => n + g.options.length, 0)
   const verifiedCount = groups.reduce(
     (n, g) => n + g.options.filter((opt) => {
@@ -147,10 +147,10 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
                 in another ended up with Status/Notes/action sitting at
                 different x-positions from table to table. Sept 19 2026. */}
             <colgroup>
-              <col style={{ width: '38%' }} />
-              <col style={{ width: '18%' }} />
-              <col style={{ width: '30%' }} />
-              <col style={{ width: '14%' }} />
+              <col style={{ width: '33%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '25%' }} />
+              <col style={{ width: '26%' }} />
             </colgroup>
             <thead>
               <tr>
@@ -186,6 +186,7 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
                       {state !== 'verified' && state !== 'processing' ? (
                         <button type="button" className="reupload-link" onClick={() => onReupload(opt.value)}>
                           {state === 'not_uploaded' ? 'Upload' : 'Re-upload'}
+                          {uploadPlaces?.[opt.value] ? ` in ${uploadPlaces[opt.value].label}` : ''} &rarr;
                         </button>
                       ) : (
                         ''
