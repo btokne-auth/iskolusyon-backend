@@ -180,12 +180,57 @@ async function fetchUploadedDocumentTypes({ userId, email, name }) {
   return uploadedTypes
 }
 
+// The documents an applicant must have uploaded: the ones each section's
+// Submit Section already asks for, plus Grades (CCC's Appendix J lists the
+// report card for freshmen). Proof of Employment only for a working student.
+function requiredDocumentTypes(workingStudent) {
+  const requiredTypes = ['profilepic', 'birthcert', 'voterid', 'parentid', 'form138']
+  if (workingStudent === 'Yes') requiredTypes.push('employmentcert')
+  return requiredTypes
+}
+
+const REQUIRED_DOC_LABELS = {
+  profilepic: 'Profile Picture',
+  birthcert: 'Birth Certificate',
+  voterid: "Voter's ID",
+  parentid: "Parent/Guardian's Voter's ID",
+  form138: 'Grades (Form 138)',
+  employmentcert: 'Proof of Employment',
+}
+
+// Oct 6 2026: what is still missing before the final Submit Application.
+// CCC only counts an application as submitted once its requirements are
+// complete (Appendix D, interview #2: "If kumpleto ang requirements may
+// application number. If kulang... wala"), so the final Submit now waits
+// for Personal Information, Educational Background and Family & Financial
+// Information to be submitted, plus the required documents. Health &
+// Wellness is completed during enrollment, so it isn't needed here.
+function missingForFinalSubmit(row, uploadedTypes) {
+  const missing = []
+  if (!row?.personal_info_submitted_at) missing.push('submit Personal Information')
+  if (!row?.academic_submitted_at) missing.push('submit Educational Background')
+  if (!row?.fam_financial_submitted_at) missing.push('submit Family & Financial Information')
+  for (const t of requiredDocumentTypes(row?.fam_working_student)) {
+    if (!uploadedTypes.has(t)) missing.push(`upload your ${REQUIRED_DOC_LABELS[t]}`)
+  }
+  return missing
+}
+
+async function countSubmittedThisCycle() {
+  const { count, error } = await supabase
+    .from('applications')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'submitted')
+    .is('archived_at', null) // Oct 5 2026: only this cycle's applicants take a slot
+  if (error) throw new Error(error.message)
+  return count || 0
+}
+
 function maybeAssignApplicationNumber(existingRow, updates, uploadedTypes) {
   if (existingRow.application_number) return {}
 
-  const requiredTypes = ['profilepic', 'birthcert', 'voterid', 'parentid', 'form138']
   const workingStudent = updates.fam_working_student ?? existingRow.fam_working_student
-  if (workingStudent === 'Yes') requiredTypes.push('employmentcert')
+  const requiredTypes = requiredDocumentTypes(workingStudent)
 
   const isComplete = requiredTypes.every((t) => uploadedTypes.has(t))
   if (!isComplete) return {}
@@ -230,8 +275,21 @@ export async function GET(request) {
 
     const rows = await findOwnRows(session)
 
+    // Oct 6 2026: whether the final Submit is open right now (Applications
+    // Open, the acceptance dates, applicant slots), so the portal can say so
+    // before the applicant presses it. Same check the submit itself uses.
+    let submitBlocked = null
+    try {
+      submitBlocked = await submitBlockedReason(await getSystemSettings(), {
+        alreadySubmitted: rows.some((r) => r.status === 'submitted'),
+        countSubmitted: countSubmittedThisCycle,
+      })
+    } catch (gateErr) {
+      console.error('Could not read the submit gate (showing it as open):', gateErr)
+    }
+
     if (rows.length === 0) {
-      return NextResponse.json({ success: true, application: null })
+      return NextResponse.json({ success: true, application: null, submitBlocked })
     }
 
     if (rows.length > 1) {
@@ -268,7 +326,7 @@ export async function GET(request) {
       }
     }
 
-    return NextResponse.json({ success: true, application })
+    return NextResponse.json({ success: true, application, submitBlocked })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
@@ -324,19 +382,27 @@ export async function POST(request) {
         const ownRows = await findOwnRows(session)
         const blocked = await submitBlockedReason(settings, {
           alreadySubmitted: ownRows.some((r) => r.status === 'submitted'),
-          countSubmitted: async () => {
-            const { count, error } = await supabase
-              .from('applications')
-              .select('id', { count: 'exact', head: true })
-              .eq('status', 'submitted')
-              .is('archived_at', null) // Oct 5 2026: only this cycle's applicants take a slot
-            if (error) throw new Error(error.message)
-            return count || 0
-          },
+          countSubmitted: countSubmittedThisCycle,
         })
         if (blocked) return NextResponse.json({ error: blocked }, { status: 403 })
       } catch (settingsErr) {
         console.error('Failed to read system settings (allowing submit):', settingsErr)
+      }
+
+      // Oct 6 2026: the final Submit needs the required sections and
+      // documents first (see missingForFinalSubmit above). Checked here on
+      // the server too, not only by the portal's button.
+      const ownRows = await findOwnRows(session)
+      if (!ownRows.some((r) => r.status === 'submitted')) {
+        const merged = ownRows.length ? mergeApplicationRows(ownRows) : null
+        const uploadedTypes = await fetchUploadedDocumentTypes({ userId: session.id, email: session.email, name: merged?.applicant_name })
+        const missing = missingForFinalSubmit(merged, uploadedTypes)
+        if (missing.length) {
+          return NextResponse.json(
+            { error: `Before submitting your application, please ${missing.join(', ')}.`, missing },
+            { status: 400 }
+          )
+        }
       }
     }
     const personalInfoColumns = personalInfoToColumns(body.personalInfo)
