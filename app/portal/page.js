@@ -162,35 +162,6 @@ function IconX(props) {
     </svg>
   )
 }
-function IconExternal(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-    </svg>
-  )
-}
-function IconCopy(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
-      <rect x="9" y="9" width="11" height="11" rx="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1" />
-    </svg>
-  )
-}
-function IconCheck(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-    </svg>
-  )
-}
-function IconClock(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
 function IconAlertTriangle(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
@@ -337,100 +308,11 @@ function mapDbRowToAcademicInfo(row) {
   }
 }
 
-// Shows the OCR/text-detection result in a scrollable box, with a copy button.
-function ExtractedTextField({ text, method, processing }) {
-  const [copied, setCopied] = useState(false)
-
-  const methodLabel = {
-    'pdf-embedded-text': 'Read from PDF text layer',
-    'ocr-scanned-pdf': 'Detected via OCR (scanned PDF)',
-    'ocr-image': 'Detected via OCR (image)',
-  }[method] || null
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch (e) {
-      // clipboard unavailable — silently ignore
-    }
-  }
-
-  if (!text && processing) {
-    return (
-      <div className="rounded-lg border border-ccc-border bg-ccc-off px-3 py-3 text-xs text-ccc-muted italic">
-        Reading your document. This can take up to a minute, and the detected text will show here by itself.
-      </div>
-    )
-  }
-
-  if (!text) {
-    return (
-      <div className="rounded-lg border border-ccc-border bg-ccc-off px-3 py-3 text-xs text-ccc-muted italic">
-        No text detected in this document.
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        {methodLabel && <span className="text-[10px] text-ccc-muted">{methodLabel}</span>}
-        <button
-          type="button"
-          onClick={copy}
-          className="ml-auto flex items-center gap-1 text-[10px] text-ccc-muted hover:text-ccc-navy transition-colors"
-        >
-          {copied ? <IconCheck className="w-3 h-3 text-ccc-green" /> : <IconCopy className="w-3 h-3" />}
-          {copied ? 'Copied' : 'Copy'}
-        </button>
-      </div>
-      <div className="max-h-40 overflow-y-auto rounded-lg border border-ccc-border bg-ccc-off p-3 text-xs text-ccc-text whitespace-pre-wrap leading-relaxed">
-        {text}
-      </div>
-    </div>
-  )
-}
-
 // Sept 29: the applicant-side HashField (masked SHA-256 with reveal/copy)
 // was removed. The hash meant nothing to applicants, a revealed hash
 // overflowed the Recent uploads panel, and Ivy's applicant.html spec never
 // shows it. Every upload is still hashed and stored server-side, and admins
 // still see it (Copy hash in the admin applicant window).
-
-// Small status pill used on the current result panel and in the history list —
-// the visible surface of the Deficiency Alert flow. A document is either
-// confidently verified, or flagged so a human (applicant re-upload / admin
-// review) makes the call instead of the system silently trusting garbled OCR.
-// Sept 29: a fresh upload sits in review_status 'processing' (with
-// needs_review false and no text yet) until the OCR worker on Render picks
-// it up, which can take up to ~1.5 min if the worker was asleep. Checking
-// needs_review alone showed "Verified" during that window.
-function ReviewStatusBadge({ needsReview, reviewStatus }) {
-  if (reviewStatus === 'processing') {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-blue/40 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-blue shrink-0 whitespace-nowrap">
-        <IconClock className="w-3 h-3" />
-        Processing
-      </span>
-    )
-  }
-  if (needsReview) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-orange/50 bg-orange-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-orange shrink-0 whitespace-nowrap">
-        <IconAlertTriangle className="w-3 h-3" />
-        Needs review
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-ccc-green/40 bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-green shrink-0 whitespace-nowrap">
-      <IconCheck className="w-3 h-3" />
-      Verified
-    </span>
-  )
-}
 
 // Shown when the image-quality precheck rejects a file outright, before OCR
 // or storage ever ran. Deliberately distinct from a flagged upload: that one
@@ -1117,7 +999,70 @@ function SecuredChip() {
   )
 }
 
-function InlineUploadRow({ label, sublabel, required, status, onFileSelected, disabled, docType, progress, reading, rejectionInside, id }) {
+function formatUploadedAt(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })
+  } catch {
+    return ''
+  }
+}
+
+// Oct 6 2026: replaces the old History drawer. Each upload row shows its own
+// file (with View in a popup), the earlier uploads of the same document
+// folded underneath, and what was read from it.
+function UploadRowFiles({ files, onView }) {
+  const [showOld, setShowOld] = useState(false)
+  const [showText, setShowText] = useState(false)
+  const latest = files[0]
+  const older = files.slice(1)
+  const hasText = !!(latest?.extracted_text || '').trim()
+  if (!older.length && !hasText) return null
+  return (
+    <div className="up-files">
+      <div className="up-file-links">
+        {older.length > 0 && (
+          <button type="button" className="up-fold" aria-expanded={showOld} onClick={() => setShowOld((v) => !v)}>
+            {showOld ? 'Hide' : 'Show'} earlier uploads ({older.length})
+          </button>
+        )}
+        {hasText && (
+          <button type="button" className="up-fold" aria-expanded={showText} onClick={() => setShowText((v) => !v)}>
+            {showText ? 'Hide what we read' : 'See what we read'}
+          </button>
+        )}
+      </div>
+      {showOld && older.length > 0 && (
+        <>
+          <ul className="up-old-list">
+            {older.map((doc) => (
+              <li key={doc.file_path}>
+                <span className="up-old-name" title={getCleanFileName(doc.file_path)}>{getCleanFileName(doc.file_path)}</span>
+                <span className="up-old-when">{formatUploadedAt(doc.created_at)}</span>
+                <span className="up-old-tag">Replaced</span>
+                <button type="button" className="up-view" onClick={() => onView(doc, true)}>
+                  View
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="up-files-note">Only your latest upload is reviewed. Earlier ones stay on file for CCC&rsquo;s records.</p>
+        </>
+      )}
+      {showText && hasText && (
+        <>
+          <div className="up-read-text">{latest.extracted_text}</div>
+          <p className="up-files-note">
+            This is the text we read to fill in your details. If something looks wrong, correct the field above or upload a
+            clearer copy.
+          </p>
+        </>
+      )}
+    </div>
+  )
+}
+
+function InlineUploadRow({ label, sublabel, required, status, onFileSelected, disabled, docType, progress, reading, rejectionInside, id, files = [], onView }) {
   const hasFile = ['done', 'flagged', 'uploading', 'queued'].includes(status)
   const readable = !NOT_READ_TYPES.includes(docType)
   const busy = status === 'uploading'
@@ -1139,7 +1084,9 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected, di
           {stillReading && <UploadSteps phase="reading" readable />}
           {status === 'done' && !stillReading && (
             <div className="up-done">
-              <span className="u-filename">Uploaded &#x2713;</span>
+              <span className="u-filename">
+                {files[0] ? `${getCleanFileName(files[0].file_path)} \u00b7 ${formatUploadedAt(files[0].created_at)}` : 'Uploaded \u2713'}
+              </span>
               <SecuredChip />
             </div>
           )}
@@ -1165,6 +1112,11 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected, di
             </div>
           )}
         </div>
+        {!busy && files[0]?.publicUrl && onView && (status === 'done' || status === 'flagged' || stillReading) && (
+          <button type="button" className="up-view" onClick={() => onView(files[0], false)}>
+            View
+          </button>
+        )}
         {!busy && (
           <label className="upload-btn-label" style={disabled ? { cursor: 'not-allowed' } : undefined}>
             {/* Says "Change" once a file is already there, so it reads as a
@@ -1183,6 +1135,7 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected, di
           </label>
         )}
       </div>
+      {!busy && files.length > 0 && onView && <UploadRowFiles files={files} onView={onView} />}
       {justSecured && !stillReading && (status === 'done' || status === 'flagged') && (
         <p className="up-secured-note">
           <b>Secured</b> means we saved a digital fingerprint of this file when it arrived and checked that it matches the
@@ -1503,6 +1456,75 @@ function FinalSubmitCard({ submitted, submittedAt, checks, blocked, saving, erro
   )
 }
 
+// Oct 6 2026: View opens the file in a popup inside the portal instead of
+// sending the applicant to the storage link. Same idea as the admin's
+// document preview: images show as images, PDFs in a frame.
+function FilePreviewModal({ preview, onClose }) {
+  useEffect(() => {
+    if (!preview) return undefined
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [preview, onClose])
+  if (!preview) return null
+  const { doc, old } = preview
+  const name = getCleanFileName(doc.file_path)
+  const isPdf = /\.pdf$/i.test(doc.file_path || '')
+  const isImage = /\.(png|jpe?g|webp|gif)$/i.test(doc.file_path || '')
+  const status = old
+    ? { label: 'Replaced', cls: 'is-old' }
+    : doc.review_status === 'processing' && !doc.needs_review
+      ? { label: 'Processing', cls: 'is-wait' }
+      : doc.needs_review
+        ? { label: 'Needs review', cls: 'is-warn' }
+        : { label: 'Verified', cls: 'is-ok' }
+  return (
+    <div
+      className="fp-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="fp-box" role="dialog" aria-modal="true" aria-labelledby="fpTitle">
+        <div className="fp-head">
+          <div className="fp-titles">
+            <span id="fpTitle" className="fp-title">{getDocTypeLabel(doc.document_type)}</span>
+            <span className="fp-sub">
+              {name} &middot; {formatUploadedAt(doc.created_at)} <span className={`fp-chip ${status.cls}`}>{status.label}</span>
+            </span>
+          </div>
+          {doc.publicUrl && (
+            <a className="fp-download" href={doc.publicUrl} download={name} target="_blank" rel="noreferrer">
+              Download
+            </a>
+          )}
+          <button type="button" className="fp-close" aria-label="Close" onClick={onClose}>
+            <IconX className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="fp-body">
+          {isImage && doc.publicUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={doc.publicUrl} alt={name} className="fp-img" />
+          ) : isPdf && doc.publicUrl ? (
+            <iframe src={doc.publicUrl} title={name} className="fp-frame" />
+          ) : (
+            <div className="fp-none">
+              <IconFile className="w-10 h-10" />
+              <span>Preview isn&rsquo;t available for this file. You can still download it.</span>
+            </div>
+          )}
+        </div>
+        <div className="fp-foot">
+          {old
+            ? 'An earlier copy, kept for CCC\u2019s records. Only your latest upload is reviewed.'
+            : 'This is the copy CCC reviews. Press Esc or click outside to close.'}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SubmitConfirmModal({ open, onCancel, onConfirm }) {
   if (!open) return null
   return (
@@ -1633,7 +1655,9 @@ function PortalApp({ accountSession, onLogout }) {
   // "Step 2 of 6" and every milestone Locked before the real progress loads.
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const [appLoaded, setAppLoaded] = useState(false)
-  const [historyOpen, setHistoryOpen] = useState(false)
+  // Oct 6 2026: the file shown in the View popup ({ doc, old }).
+  const [preview, setPreview] = useState(null)
+  const openPreview = (doc, old) => setPreview({ doc, old })
   const [statusRequested, setStatusRequested] = useState(false)
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
   const [activePanel, setActivePanel] = useState('personal') // sidebar panel key — replaces the old linear step wizard
@@ -1938,7 +1962,6 @@ function PortalApp({ accountSession, onLogout }) {
       .finally(() => setMessagesLoading(false))
   }, [])
 
-  const panelRef = useRef(null)
   const formCardRef = useRef(null)
 
   // Documents already uploaded under the name currently typed in the form —
@@ -2003,6 +2026,14 @@ function PortalApp({ accountSession, onLogout }) {
     }
     return latest
   })()
+  // Oct 6 2026: every upload per document type, newest first (myDocs is
+  // already newest first). Shown in each section's upload row.
+  const docsByType = {}
+  for (const doc of myDocs) {
+    if (!doc.document_type) continue
+    ;(docsByType[doc.document_type] = docsByType[doc.document_type] || []).push(doc)
+  }
+
   // Oct 6 2026: what's left before the final Submit Application. Mirrors the
   // server's check in /api/application (sections submitted + required
   // documents, Proof of Employment only for a working student).
@@ -2590,12 +2621,6 @@ function PortalApp({ accountSession, onLogout }) {
   }
 
   // Close the history drawer on outside click / Escape
-  useEffect(() => {
-    if (!historyOpen) return
-    const onKey = (e) => e.key === 'Escape' && setHistoryOpen(false)
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [historyOpen])
 
   // Shared upload call used by both the Step 2 upload form (below) and the
   // three inline uploads in the Step 1 Personal Information cards (Profile
@@ -2839,8 +2864,6 @@ function PortalApp({ accountSession, onLogout }) {
           messagesCount={messages.length}
           flaggedCount={flaggedCount}
           onLogout={() => setLogoutConfirmOpen(true)}
-          onOpenHistory={() => setHistoryOpen(true)}
-          historyCount={applicantName.trim() ? visibleHistory.length : 0}
         />
 
         <SubmitConfirmModal
@@ -3325,6 +3348,8 @@ function PortalApp({ accountSession, onLogout }) {
                 <InlineUploadRow
                   id="up-profilepic"
                   docType="profilepic"
+                  files={docsByType.profilepic || []}
+                  onView={openPreview}
                   progress={uploadProgress.profilepic}
                   reading={readingTypes.has('profilepic')}
                   label="Profile Picture"
@@ -3382,6 +3407,8 @@ function PortalApp({ accountSession, onLogout }) {
                   <InlineUploadRow
                     id="up-birthcert"
                     docType="birthcert"
+                    files={docsByType.birthcert || []}
+                    onView={openPreview}
                     progress={uploadProgress.birthcert}
                     reading={readingTypes.has('birthcert')}
                     label="Birth Certificate / PSA / NSO"
@@ -3430,6 +3457,8 @@ function PortalApp({ accountSession, onLogout }) {
                   <InlineUploadRow
                     id="up-voterid"
                     docType="voterid"
+                    files={docsByType.voterid || []}
+                    onView={openPreview}
                     progress={uploadProgress.voterid}
                     reading={readingTypes.has('voterid')}
                     label="Voter's ID / Certification of Applicant"
@@ -3690,6 +3719,8 @@ function PortalApp({ accountSession, onLogout }) {
                   <InlineUploadRow
                     id="up-form138"
                     docType="form138"
+                    files={docsByType.form138 || []}
+                    onView={openPreview}
                     progress={uploadProgress.form138}
                     reading={readingTypes.has('form138')}
                     rejectionInside
@@ -3837,6 +3868,8 @@ function PortalApp({ accountSession, onLogout }) {
                   <InlineUploadRow
                     id="up-parentid"
                     docType="parentid"
+                    files={docsByType.parentid || []}
+                    onView={openPreview}
                     progress={uploadProgress.parentid}
                     reading={readingTypes.has('parentid')}
                     label="Voter's ID / Certification of Parent/Guardian"
@@ -3867,6 +3900,8 @@ function PortalApp({ accountSession, onLogout }) {
                     <InlineUploadRow
                       id="up-employmentcert"
                       docType="employmentcert"
+                      files={docsByType.employmentcert || []}
+                      onView={openPreview}
                       progress={uploadProgress.employmentcert}
                       reading={readingTypes.has('employmentcert')}
                       rejectionInside
@@ -3898,6 +3933,8 @@ function PortalApp({ accountSession, onLogout }) {
                     <InlineUploadRow
                       id="up-indigency"
                       docType="indigency"
+                      files={docsByType.indigency || []}
+                      onView={openPreview}
                       progress={uploadProgress.indigency}
                       reading={readingTypes.has('indigency')}
                       rejectionInside
@@ -3961,6 +3998,8 @@ function PortalApp({ accountSession, onLogout }) {
                 <InlineUploadRow
                   id="up-supportdoc"
                   docType="supportdoc"
+                  files={docsByType.supportdoc || []}
+                  onView={openPreview}
                   progress={uploadProgress.supportdoc}
                   reading={readingTypes.has('supportdoc')}
                   label="Supporting Document"
@@ -4038,6 +4077,8 @@ function PortalApp({ accountSession, onLogout }) {
                 <InlineUploadRow
                   id="up-medcert"
                   docType="medcert"
+                  files={docsByType.medcert || []}
+                  onView={openPreview}
                   progress={uploadProgress.medcert}
                   reading={readingTypes.has('medcert')}
                   rejectionInside
@@ -4147,93 +4188,7 @@ function PortalApp({ accountSession, onLogout }) {
       </div>
 
       {/* History drawer — tucked away, opened deliberately */}
-      {historyOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setHistoryOpen(false)}
-          />
-          <div
-            ref={panelRef}
-            className="relative w-full max-w-md h-full bg-white border-l border-ccc-border shadow-2xl flex flex-col animate-[slideIn_0.2s_ease-out]"
-          >
-            <div className="flex items-center justify-between px-6 py-5 border-b border-ccc-border">
-              <div>
-                <h3 className="text-base font-bold text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>Recent uploads</h3>
-                <p className="text-xs text-ccc-muted mt-0.5">
-                  {applicantName.trim()
-                    ? `${visibleHistory.length} document${visibleHistory.length === 1 ? '' : 's'} for "${applicantName.trim()}"`
-                    : 'Type your name above to see your documents'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setHistoryOpen(false)}
-                className="p-2 rounded-lg hover:bg-ccc-off text-ccc-muted hover:text-ccc-navy transition-colors"
-                aria-label="Close history"
-              >
-                <IconX className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-5">
-              {!applicantName.trim() ? (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-60 py-16">
-                  <IconFile className="w-12 h-12 text-ccc-muted mb-4" />
-                  <p className="text-sm text-ccc-muted">Type your name in the field above,<br />then reopen History to view your documents.</p>
-                </div>
-              ) : visibleHistory.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-60 py-16">
-                  <IconFile className="w-12 h-12 text-ccc-muted mb-4" />
-                  <p className="text-sm text-ccc-muted">No documents found for "{applicantName.trim()}".</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {visibleHistory.map((doc, index) => (
-                    <div
-                      key={index}
-                      className={`p-4 bg-ccc-off border rounded-xl space-y-3 ${
-                        doc.needs_review ? 'border-l-4 border-l-ccc-orange border-y-ccc-border border-r-ccc-border' : 'border-ccc-border'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-lg bg-white border border-ccc-border flex items-center justify-center shrink-0">
-                            <IconFile className="w-4.5 h-4.5 text-ccc-muted" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm text-ccc-text font-medium truncate" title={doc.file_path}>
-                              {getCleanFileName(doc.file_path)}
-                            </p>
-                            {(doc.applicant_name || doc.document_type) && (
-                              <p className="text-[11px] text-ccc-muted truncate">
-                                {doc.applicant_name || 'Unknown applicant'}
-                                {doc.document_type ? ` · ${getDocTypeLabel(doc.document_type)}` : ''}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <a
-                          href={doc.publicUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-2 bg-blue-50 text-ccc-blue rounded-lg hover:bg-blue-100 hover:text-ccc-navy transition-colors shrink-0"
-                          title="View document"
-                          aria-label="View document"
-                        >
-                          <IconExternal className="w-4 h-4" />
-                        </a>
-                      </div>
-                      <ReviewStatusBadge needsReview={doc.needs_review} reviewStatus={doc.review_status} />
-                      <ExtractedTextField text={doc.extracted_text} method={doc.extraction_method} processing={doc.review_status === 'processing'} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <FilePreviewModal preview={preview} onClose={() => setPreview(null)} />
       {uploadNotice && (
         <UploadNoticeDialog
           notice={uploadNotice}
