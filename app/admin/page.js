@@ -132,6 +132,9 @@ const ACTIVITY_CATEGORY_STYLE = {
   Eligibility: { icon: IconTarget, className: 'cat-eligibility' },
   Results: { icon: IconBarChart, className: 'cat-results' },
   Communications: { icon: IconMessage, className: 'cat-communications' },
+  // Oct 5 2026: allowance posts and LGU reports reuse existing looks.
+  Allowance: { icon: IconMessage, className: 'cat-communications' },
+  Reports: { icon: IconFile, className: 'cat-documents' },
   'Admin Accounts': { icon: IconShield, className: 'cat-admin' },
   System: { icon: IconGear, className: 'cat-system' },
 }
@@ -4691,7 +4694,7 @@ function AdminAccountsPanel() {
 // read/unread flag; Communications posts stay their own separate list in
 // the Communications panel rather than merging into this feed.
 
-const ACTIVITY_CATEGORIES = ['Documents', 'Eligibility', 'Results', 'Communications', 'Admin Accounts', 'System']
+const ACTIVITY_CATEGORIES = ['Documents', 'Eligibility', 'Results', 'Communications', 'Allowance', 'Reports', 'Admin Accounts', 'System']
 
 function CycleSettingsCard() {
   const [settings, setSettings] = useState(null)
@@ -6021,6 +6024,617 @@ function RequestReviewDialog({ request: r, note, onNote, saving, onDecide, onClo
 
 const VALID_PANELS = ['dashboard', 'communications', 'reschedule', 'admins', 'system']
 
+// ---------- Office of the Registrar console (Oct 5 2026) ----------
+// Progress Table row 78, Allowance Distribution Monitoring. Behavior from
+// Ivy's admin.html Registrar view (Dashboard counts view-only, an Allowance
+// Distribution page in place of Announcements), rebuilt on real data with
+// Pau's changes: pick the scholar from a list, a Remove button on posts, and
+// a portal message (plus an email if opted in) to the scholar on each post.
+// Design: canvas page "Registrar, LGU and archive (Oct 5)".
+
+const REGISTRAR_STAT_CARDS = DASHBOARD_STAT_CARDS
+
+function RegistrarDashboardPanel({ data, loading, error, onGoAllowance }) {
+  return (
+    <div>
+      <div className="portal-header">
+        <div>
+          <h1>Dashboard</h1>
+          <p>
+            A summary of where applicants are this cycle. The Registrar can view these counts only. Applicant details stay
+            with the Guidance Office.
+          </p>
+        </div>
+      </div>
+      {loading ? (
+        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+      ) : error ? (
+        <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+      ) : (
+        <>
+          <div className="stat-grid ra-stat-grid">
+            {REGISTRAR_STAT_CARDS.map((card) => (
+              <div key={card.key} className={`stat-card ${card.className} ra-stat-static`}>
+                <p className="stat-label">{card.label}</p>
+                <p className="stat-value">{data?.counts?.[card.key] ?? 0}</p>
+                <p className="stat-note">{card.note}</p>
+              </div>
+            ))}
+          </div>
+          <div className="cm-card ra-info">
+            <IconAlert className="w-4 h-4 shrink-0" />
+            <span>
+              To post an allowance, open{' '}
+              <button type="button" className="ra-link" onClick={onGoAllowance}>
+                Allowance Distribution
+              </button>
+              . Scholars with a Passer or Qualified (Probationary) status are listed there.
+            </span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function RegistrarAllowancePanel({ data, loading, error, onReload }) {
+  const [query, setQuery] = useState('')
+  const [listOpen, setListOpen] = useState(false)
+  const [picked, setPicked] = useState(null)
+  const [date, setDate] = useState('')
+  const [type, setType] = useState('Wi-Fi')
+  const [description, setDescription] = useState('')
+  const [formError, setFormError] = useState('')
+  const [posting, setPosting] = useState(false)
+  const [tab, setTab] = useState('all')
+  const [search, setSearch] = useState('')
+  const [removeTarget, setRemoveTarget] = useState(null)
+  const [removing, setRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState('')
+
+  const today = data?.today || manilaTodayYmd()
+  useEffect(() => {
+    if (!date) setDate(today)
+  }, [today, date])
+
+  const scholars = data?.scholars || []
+  const posts = data?.posts || []
+  const q = query.trim().toLowerCase()
+  const matches = scholars.filter(
+    (s) => !q || s.name.toLowerCase().includes(q) || (s.applicationNumber || '').toLowerCase().includes(q)
+  )
+  const s2 = search.trim().toLowerCase()
+  const shown = posts.filter(
+    (p) =>
+      (tab === 'all' || p.allowance_type === tab) &&
+      (!s2 || (p.applicant_name || '').toLowerCase().includes(s2) || (p.application_number || '').toLowerCase().includes(s2))
+  )
+  const tabCount = (key) => posts.filter((p) => key === 'all' || p.allowance_type === key).length
+  const latest = posts.reduce((acc, p) => (!acc || p.distribution_date > acc ? p.distribution_date : acc), '')
+
+  const resetForm = () => {
+    setPicked(null)
+    setQuery('')
+    setDate(today)
+    setType('Wi-Fi')
+    setDescription('')
+  }
+
+  const handlePost = async (e) => {
+    e.preventDefault()
+    setFormError('')
+    if (!picked) return setFormError('Please choose a scholar.')
+    if (!date) return setFormError('Please set the date of distribution.')
+    if (date > today) return setFormError('The date of distribution can be today or an earlier date.')
+    if (type === 'Other' && !description.trim()) return setFormError('Please describe the allowance.')
+    setPosting(true)
+    try {
+      const res = await fetch('/api/registrar-allowance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId: picked.id, distributionDate: date, type, description }),
+      })
+      const result = await res.json()
+      if (!res.ok || !result.success) {
+        setFormError(result.error || 'Could not post this allowance.')
+        return
+      }
+      const what = type === 'Other' ? description.trim() : 'Wi-Fi'
+      const told = result.emailSent
+        ? 'They were sent a portal message and an email.'
+        : result.emailOptIn
+          ? 'They were sent a portal message. The email could not be sent.'
+          : 'They were sent a portal message. They did not opt in to email updates.'
+      showAdminNotice(
+        `A ${what} allowance dated ${formatYmd(date)} was posted to ${picked.name}${
+          picked.applicationNumber ? ` (${picked.applicationNumber})` : ''
+        }. It now shows on their Allowance page. ${told}`
+      )
+      resetForm()
+      onReload()
+    } catch (err) {
+      setFormError(
+        isNetworkError(err)
+          ? 'No connection right now, so this allowance was not posted. Try again once you’re back online.'
+          : err.message
+      )
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  const confirmRemove = async () => {
+    if (!removeTarget) return
+    setRemoving(true)
+    setRemoveError('')
+    try {
+      const res = await fetch('/api/registrar-allowance', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: removeTarget.id }),
+      })
+      const result = await res.json()
+      if (!res.ok || !result.success) {
+        setRemoveError(result.error || 'Could not remove this post.')
+        return
+      }
+      const name = removeTarget.applicant_name
+      setRemoveTarget(null)
+      showAdminNotice(`The allowance post was removed from ${name}'s Allowance page.`)
+      onReload()
+    } catch (err) {
+      setRemoveError(err.message)
+    } finally {
+      setRemoving(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="portal-header">
+        <div>
+          <h1>Allowance Distribution</h1>
+          <p>
+            Post allowance distributions for scholars. Only scholars with a Passer or Qualified (Probationary) status whose
+            result was already sent to them are listed. Each post appears right away on the scholar&apos;s Allowance page.
+          </p>
+        </div>
+      </div>
+
+      {loading && !data ? (
+        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+      ) : error && !data ? (
+        <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+      ) : (
+        <>
+          <div className="cm-card cm-kpis">
+            <div className="cm-kpi">
+              <span className="cm-kpi-label">Scholars</span>
+              <span className="cm-kpi-value">{scholars.length}</span>
+            </div>
+            <div className="cm-kpi">
+              <span className="cm-kpi-label">Posts this cycle</span>
+              <span className="cm-kpi-value">{posts.length}</span>
+            </div>
+            <div className="cm-kpi">
+              <span className="cm-kpi-label">Scholars with no post yet</span>
+              <span className="cm-kpi-value">{data?.scholarsWithoutPost ?? 0}</span>
+            </div>
+            <div className="cm-kpi">
+              <span className="cm-kpi-label">Latest distribution</span>
+              <span className="cm-kpi-value ra-kpi-date">{latest ? formatYmd(latest) : 'None yet'}</span>
+            </div>
+          </div>
+
+          <div className="cm-layout ra-layout">
+            <section className="cm-card">
+              <div className="cm-head">
+                <h2 className="cm-title">New post</h2>
+              </div>
+              <form className="cm-form" onSubmit={handlePost}>
+                {formError && <div className="aa-form-error">{formError}</div>}
+                <div className="cm-field">
+                  <label className="cm-label" htmlFor="raScholar">Scholar</label>
+                  {picked ? (
+                    <div className="ra-picked">
+                      <span className="aa-avatar-2">{getInitials(picked.name)}</span>
+                      <span className="ra-picked-text">
+                        <span className="ra-picked-name">{picked.name}</span>
+                        <span className="ra-picked-sub">
+                          {[picked.applicationNumber, picked.program, picked.statusLabel].filter(Boolean).join(' · ')}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        className="cm-btn cm-btn-secondary ra-change"
+                        onClick={() => {
+                          setPicked(null)
+                          setListOpen(true)
+                        }}
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        id="raScholar"
+                        className="cm-input"
+                        type="search"
+                        placeholder="Search by name or application number"
+                        value={query}
+                        onChange={(e) => {
+                          setQuery(e.target.value)
+                          setListOpen(true)
+                        }}
+                        onFocus={() => setListOpen(true)}
+                        autoComplete="off"
+                      />
+                      {listOpen && (
+                        <div className="ra-options" role="listbox" aria-label="Scholars">
+                          {scholars.length === 0 ? (
+                            <div className="ra-empty">
+                              No scholars yet. Scholars appear here once their result (Passer or Qualified (Probationary))
+                              has been sent to them.
+                            </div>
+                          ) : matches.length === 0 ? (
+                            <div className="ra-empty">No scholar matches that search.</div>
+                          ) : (
+                            matches.slice(0, 30).map((s) => (
+                              <button
+                                key={s.id}
+                                type="button"
+                                role="option"
+                                aria-selected="false"
+                                className="ra-option"
+                                onClick={() => {
+                                  setPicked(s)
+                                  setListOpen(false)
+                                }}
+                              >
+                                <span className="aa-avatar-2 ra-option-av">{getInitials(s.name)}</span>
+                                <span className="ra-option-text">
+                                  <span className="ra-option-name">{s.name}</span>
+                                  <span className="ra-option-sub">{[s.applicationNumber, s.program].filter(Boolean).join(' · ')}</span>
+                                </span>
+                                <span className={`aa-chip ${s.status === 'passer' ? 'active' : 'pending'}`}>{s.statusLabel}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <div className="cm-field">
+                  <label className="cm-label" htmlFor="raDate">Date of distribution</label>
+                  <input id="raDate" className="cm-input" type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} required />
+                  <span className="ra-hint">Today or an earlier date.</span>
+                </div>
+
+                <div className="cm-field">
+                  <span className="cm-label" id="raTypeLabel">Type</span>
+                  <div className="cm-type-grid" role="group" aria-labelledby="raTypeLabel">
+                    {[
+                      { key: 'Wi-Fi', desc: 'Wi-Fi allowance' },
+                      { key: 'Other', desc: 'Describe it below' },
+                    ].map((t) => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        className={`cm-type${type === t.key ? ' on' : ''}`}
+                        aria-pressed={type === t.key}
+                        onClick={() => setType(t.key)}
+                      >
+                        <span className="cm-type-text">
+                          <span className="cm-type-name">{t.key}</span>
+                          <span className="cm-type-desc">{t.desc}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {type === 'Other' && (
+                  <div className="cm-field">
+                    <label className="cm-label" htmlFor="raDesc">Description</label>
+                    <input id="raDesc" className="cm-input" type="text" maxLength={200} placeholder="e.g. Monetary allowance"
+                      value={description} onChange={(e) => setDescription(e.target.value)} required />
+                  </div>
+                )}
+
+                <div className="cm-scope info">
+                  <IconMail />
+                  <span>
+                    This posts right away to the scholar&apos;s Allowance page. They also get a portal message, and an email if
+                    they turned on email updates.
+                  </span>
+                </div>
+                <button type="submit" className="cm-btn cm-btn-primary cm-btn-block" disabled={posting || !picked}>
+                  {posting ? 'Disseminating...' : 'Disseminate Allowance'}
+                </button>
+              </form>
+            </section>
+
+            <section className="cm-card">
+              <div className="cm-head cm-head-wrap">
+                <div className="cm-head-left">
+                  <h2 className="cm-title">Posted allowances</h2>
+                </div>
+                <input
+                  type="search"
+                  className="cm-input ra-search"
+                  aria-label="Search posted allowances"
+                  placeholder="Search scholar"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <div className="ra-tabs">
+                <div className="cm-tabs" role="group" aria-label="Filter posts by type">
+                  {[
+                    ['all', 'All'],
+                    ['Wi-Fi', 'Wi-Fi'],
+                    ['Other', 'Other'],
+                  ].map(([key, label]) => (
+                    <button key={key} type="button" className={`cm-tab${tab === key ? ' on' : ''}`} aria-pressed={tab === key} onClick={() => setTab(key)}>
+                      {label} <span className="cm-tab-count">{tabCount(key)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {shown.length === 0 ? (
+                <p className="text-sm text-ccc-muted text-center py-8">
+                  {posts.length === 0 ? 'No allowance has been posted yet.' : 'No post matches this filter.'}
+                </p>
+              ) : (
+                <div className="st-scroll">
+                  <table className="st-table ra-table">
+                    <thead>
+                      <tr>
+                        <th>Scholar</th>
+                        <th>Date of distribution</th>
+                        <th>Type</th>
+                        <th>Posted by</th>
+                        <th className="r">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shown.map((p) => (
+                        <tr key={p.id}>
+                          <td>
+                            <span className="ra-cell">
+                              <span className="ra-cell-main">{p.applicant_name}</span>
+                              <span className="ra-cell-sub">{p.application_number}</span>
+                            </span>
+                          </td>
+                          <td>{formatYmd(p.distribution_date)}</td>
+                          <td>
+                            <span className="ra-cell">
+                              <span className="ra-cell-type">{p.allowance_type}</span>
+                              <span className="ra-cell-sub">{p.description || 'No description'}</span>
+                            </span>
+                          </td>
+                          <td>
+                            <span className="ra-cell">
+                              <span>{p.posted_by}</span>
+                              <span className="ra-cell-sub">Posted {new Date(p.posted_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                            </span>
+                          </td>
+                          <td className="r">
+                            <button
+                              type="button"
+                              className="aa-act danger"
+                              onClick={() => {
+                                setRemoveError('')
+                                setRemoveTarget(p)
+                              }}
+                            >
+                              <IconTrash />
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className="aa-foot">Each post and removal is saved in the Activity Log.</div>
+            </section>
+          </div>
+        </>
+      )}
+
+      {removeTarget && (
+        <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !removing && setRemoveTarget(null)}>
+          <div className="aa-confirm" role="dialog" aria-modal="true" aria-label="Remove allowance post">
+            <div className="aa-confirm-body">
+              <h3 className="aa-confirm-title">Remove this allowance post?</h3>
+              <p className="aa-confirm-desc">
+                The {removeTarget.allowance_type === 'Other' ? removeTarget.description : 'Wi-Fi'} allowance dated{' '}
+                {formatYmd(removeTarget.distribution_date)} will disappear from {removeTarget.applicant_name}&apos;s Allowance
+                page. The message they already received stays in their Messages.
+              </p>
+              {removeError && <p className="aa-confirm-error">{removeError}</p>}
+            </div>
+            <div className="aa-confirm-foot">
+              <button type="button" className="cm-btn cm-btn-secondary" disabled={removing} onClick={() => setRemoveTarget(null)} autoFocus>
+                Keep it
+              </button>
+              <button type="button" className="cm-btn cm-btn-danger" disabled={removing} onClick={confirmRemove}>
+                {removing ? 'Removing...' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// LGU (view only) reports page: added in the next change.
+function LguReportsPanel() {
+  return null
+}
+
+// ---------- Limited consoles: shell (Oct 5 2026) ----------
+// Office of the Registrar and LGU (view only) accounts see this instead of
+// the full console. Same header, sidebar look and log-out confirm.
+function LimitedConsole({ session }) {
+  const role = session.role
+  const [activePanel, setActivePanel] = useState(role === 'registrar' ? 'allowance' : 'reports')
+  const [confirmLogout, setConfirmLogout] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const [regData, setRegData] = useState(null)
+  const [regLoading, setRegLoading] = useState(role === 'registrar')
+  const [regError, setRegError] = useState('')
+
+  const handleLogout = async () => {
+    await fetch('/api/admin-logout', { method: 'POST' })
+    window.location.href = '/admin/login'
+  }
+
+  const loadRegistrar = async () => {
+    setRegLoading(true)
+    setRegError('')
+    try {
+      const res = await fetch('/api/registrar-allowance')
+      const data = await res.json()
+      if (res.status === 401) {
+        window.location.href = '/admin/login'
+        return
+      }
+      if (data.success) setRegData(data)
+      else setRegError(data.error || 'Could not load allowance data.')
+    } catch (err) {
+      setRegError(err.message)
+    } finally {
+      setRegLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (role === 'registrar') loadRegistrar()
+  }, [role])
+
+  const sessionLabel = role === 'registrar' ? 'Registrar Session' : 'LGU View-only Session'
+
+  return (
+    <main className="admin-portal">
+      <AdminNoticeHost />
+      <SiteHeader
+        topbarLabel="Iskolusyon Admin Console"
+        topbarRight={
+          <span className="flex items-center gap-1.5 font-extrabold uppercase tracking-wide text-[10.2px] text-ccc-gold">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            {sessionLabel}
+          </span>
+        }
+        portalBadge="Admin Console"
+        logos={[
+          { src: '/LOGO_CCC.png', alt: 'City College of Calamba Logo' },
+          { src: '/LOGO_CCC_Admissions.png', alt: 'CCC Admissions Logo' },
+          { src: '/LOGO_CCC_Registrar.png', alt: 'CCC Registrar Logo' },
+        ]}
+      />
+      <div className="portal-shell">
+        <AdminSidebar
+          activePanel={activePanel}
+          onSelectPanel={setActivePanel}
+          displayName={session.name}
+          email={session.email}
+          isSuperAdmin={false}
+          role={role}
+          onLogout={() => setConfirmLogout(true)}
+        />
+        {confirmLogout && (
+          <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !loggingOut && setConfirmLogout(false)}>
+            <div className="aa-confirm" role="dialog" aria-modal="true" aria-label="Log out">
+              <div className="aa-confirm-body">
+                <h3 className="aa-confirm-title">Log out?</h3>
+                <p className="aa-confirm-desc">You&rsquo;ll need your email and password to sign in again.</p>
+              </div>
+              <div className="aa-confirm-foot">
+                <button type="button" className="cm-btn cm-btn-secondary" disabled={loggingOut} onClick={() => setConfirmLogout(false)} autoFocus>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="cm-btn cm-btn-primary"
+                  disabled={loggingOut}
+                  onClick={async () => {
+                    setLoggingOut(true)
+                    try {
+                      await handleLogout()
+                    } catch {
+                      setLoggingOut(false)
+                    }
+                  }}
+                >
+                  {loggingOut ? 'Logging out...' : 'Log out'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="portal-main">
+          {role === 'registrar' && activePanel === 'dashboard' && (
+            <RegistrarDashboardPanel data={regData} loading={regLoading && !regData} error={regError} onGoAllowance={() => setActivePanel('allowance')} />
+          )}
+          {role === 'registrar' && activePanel === 'allowance' && (
+            <RegistrarAllowancePanel data={regData} loading={regLoading} error={regError} onReload={loadRegistrar} />
+          )}
+          {role === 'lgu' && activePanel === 'reports' && <LguReportsPanel session={session} />}
+        </div>
+      </div>
+    </main>
+  )
+}
+
+// Picks the console for whoever is signed in. Admins and Super Admins get the
+// full console exactly as before.
+function AdminRoleGate() {
+  const [session, setSession] = useState(undefined)
+  useEffect(() => {
+    fetch('/api/admin-session')
+      .then((res) => res.json())
+      .then((data) => setSession(data || {}))
+      .catch(() => setSession({}))
+  }, [])
+
+  if (session === undefined) return null
+  if (!session.loggedIn && session.accessEnded) {
+    return (
+      <main className="admin-portal">
+        <div className="ra-ended">
+          <div className="cm-card ra-ended-card">
+            <h1 className="cm-title">Your access has ended</h1>
+            <p>{session.error || 'Your access has ended. Please contact City College of Calamba.'}</p>
+            <button
+              type="button"
+              className="cm-btn cm-btn-primary"
+              onClick={async () => {
+                await fetch('/api/admin-logout', { method: 'POST' })
+                window.location.href = '/admin/login'
+              }}
+            >
+              Back to sign in
+            </button>
+          </div>
+        </div>
+      </main>
+    )
+  }
+  if (session.loggedIn && (session.role === 'registrar' || session.role === 'lgu')) {
+    return <LimitedConsole session={session} />
+  }
+  return <AdminPageInner />
+}
+
 function AdminPageInner() {
   const searchParams = useSearchParams()
   const initialPanel = VALID_PANELS.includes(searchParams.get('panel')) ? searchParams.get('panel') : 'dashboard'
@@ -6351,7 +6965,7 @@ function AdminPageInner() {
 export default function AdminPage() {
   return (
     <Suspense fallback={null}>
-      <AdminPageInner />
+      <AdminRoleGate />
     </Suspense>
   )
 }
