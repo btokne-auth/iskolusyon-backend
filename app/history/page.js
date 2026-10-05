@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import SiteHeader from '../components/SiteHeader'
+import LoadingScreen from '../components/LoadingScreen'
+import { SkeletonList } from '../components/Skeleton'
 import { getDocTypeLabel } from '../lib/documentTypes'
 
 // ---------- Application History & Activity Logs ----------
@@ -154,11 +156,7 @@ export default function HistoryPage() {
   })
 
   if (accountSession === undefined) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-ccc-off text-ccc-muted text-sm">
-        Loading…
-      </div>
-    )
+    return <LoadingScreen />
   }
 
   if (accountSession === null) {
@@ -200,7 +198,7 @@ export default function HistoryPage() {
 
         {/* Activity list */}
         {loading ? (
-          <p className="text-sm text-ccc-muted text-center py-10">Loading...</p>
+          <SkeletonList items={4} chips={false} label="Loading your activity..." />
         ) : myActivity.length === 0 ? (
           <div className="text-center opacity-60 py-16">
             <IconFile className="w-12 h-12 text-ccc-muted mx-auto mb-4" />

@@ -4,6 +4,8 @@ import { useSearchParams } from 'next/navigation'
 import '../admin-theme.css'
 import SiteHeader from '../components/SiteHeader'
 import AdminSidebar from '../components/AdminSidebar'
+import LoadingScreen from '../components/LoadingScreen'
+import { Skeleton, SkeletonRows, SkeletonList, SkeletonForm, SkeletonText, SkeletonStatGrid } from '../components/Skeleton'
 import { getDocTypeLabel } from '../lib/documentTypes'
 import { onConnectivityChange, isNetworkError } from '../lib/offlineSync'
 import { suggestExamResult } from '../lib/matching'
@@ -979,6 +981,9 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
   const [detail, setDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
+  // Oct 5 2026: skeletons in the General Information fields until the
+  // first detail load finishes, instead of blank boxes or "Not on file".
+  const detailPending = !detail && !detailError && (detailLoading || !!eligibilityRow?.id)
   const [activeCat, setActiveCat] = useState(PROFILE_CATEGORIES[0].key)
   const flaggedCount = docs.filter((d) => d.needs_review).length
   // Sept 29: documents still waiting on the OCR worker are neither.
@@ -1196,7 +1201,6 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               <div>
                 <div className="modal-section-label">
                   General Information
-                  {detailLoading && <span className="tag">Loading…</span>}
                 </div>
                 {detailError && (
                   <p className="text-[11px] text-ccc-red mb-2 flex items-center gap-2">
@@ -1213,35 +1217,35 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                 <div className="edit-grid">
                   <div className="efield">
                     <label>Last Name</label>
-                    <input value={formatFieldValue(detail, { key: 'last_name' })} disabled readOnly />
+                    {detailPending ? <Skeleton width="100%" height={38} radius={8} /> : <input value={formatFieldValue(detail, { key: 'last_name' })} disabled readOnly />}
                   </div>
                   <div className="efield">
                     <label>First Name</label>
-                    <input value={formatFieldValue(detail, { key: 'first_name' })} disabled readOnly />
+                    {detailPending ? <Skeleton width="100%" height={38} radius={8} /> : <input value={formatFieldValue(detail, { key: 'first_name' })} disabled readOnly />}
                   </div>
                   <div className="efield">
                     <label>Email Address</label>
-                    <input value={detail?.applicant_email || email || 'Not on file'} disabled readOnly />
+                    {detailPending ? <Skeleton width="100%" height={38} radius={8} /> : <input value={detail?.applicant_email || email || 'Not on file'} disabled readOnly />}
                   </div>
                   <div className="efield">
                     <label>Contact Number</label>
-                    <input value={formatFieldValue(detail, { key: 'contact_number' })} disabled readOnly />
+                    {detailPending ? <Skeleton width="100%" height={38} radius={8} /> : <input value={formatFieldValue(detail, { key: 'contact_number' })} disabled readOnly />}
                   </div>
                   <div className="efield">
                     <label>Applying As</label>
-                    <input value={formatFieldValue(detail, { key: 'applying_as' })} disabled readOnly />
+                    {detailPending ? <Skeleton width="100%" height={38} radius={8} /> : <input value={formatFieldValue(detail, { key: 'applying_as' })} disabled readOnly />}
                   </div>
                   <div className="efield">
                     <label>Term Applying In</label>
-                    <input value={formatFieldValue(detail, { key: 'term_applying' })} disabled readOnly />
+                    {detailPending ? <Skeleton width="100%" height={38} radius={8} /> : <input value={formatFieldValue(detail, { key: 'term_applying' })} disabled readOnly />}
                   </div>
                   <div className="efield">
                     <label>First Priority Program</label>
-                    <input value={formatFieldValue(detail, { key: 'program_choice_1' })} disabled readOnly />
+                    {detailPending ? <Skeleton width="100%" height={38} radius={8} /> : <input value={formatFieldValue(detail, { key: 'program_choice_1' })} disabled readOnly />}
                   </div>
                   <div className="efield">
                     <label>Second Priority Program</label>
-                    <input value={formatFieldValue(detail, { key: 'program_choice_2' })} disabled readOnly />
+                    {detailPending ? <Skeleton width="100%" height={38} radius={8} /> : <input value={formatFieldValue(detail, { key: 'program_choice_2' })} disabled readOnly />}
                   </div>
                 </div>
               </div>
@@ -1463,6 +1467,7 @@ function DashboardPanel({
   overriding,
   overrideError,
   eligibility,
+  eligibilityLoading,
   onEligibilityOverride,
   eligibilityOverriding,
   eligibilityError,
@@ -1480,6 +1485,7 @@ function DashboardPanel({
   // Sept 30 2026: real appeal count for the Appealed card (applicants with
   // at least one Appeal request). Best effort: 0 if it can't load.
   const [appealCount, setAppealCount] = useState(0)
+  const [appealLoaded, setAppealLoaded] = useState(false)
   useEffect(() => {
     fetch('/api/admin-reschedule')
       .then((res) => res.json())
@@ -1493,6 +1499,7 @@ function DashboardPanel({
         setAppealCount(who.size)
       })
       .catch(() => {})
+      .finally(() => setAppealLoaded(true))
   }, [])
   const [deptOpen, setDeptOpen] = useState(false)
   const [yearOpen, setYearOpen] = useState(false)
@@ -1715,7 +1722,15 @@ function DashboardPanel({
             }}
           >
             <p className="stat-label">{card.label}</p>
-            <p className="stat-value">{statCardCounts[card.key]}</p>
+            {/* Oct 5 2026: a skeleton until the count has loaded, instead of
+                a misleading 0. */}
+            {(card.key === 'appealed' ? !appealLoaded : eligibilityLoading) ? (
+              <p className="stat-value" aria-label="Loading">
+                <Skeleton width={46} height={30} radius={7} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
+              </p>
+            ) : (
+              <p className="stat-value">{statCardCounts[card.key]}</p>
+            )}
             <p className="stat-note">{card.note}</p>
             {card.key !== 'appealed' && (
               <p className="stat-card-hint">
@@ -1749,7 +1764,8 @@ function DashboardPanel({
       <div className="card" ref={applicantListRef} style={{ scrollMarginTop: '16px' }}>
         <div className="card-title">
           All Applicants
-          {!loading && !error && (
+          {(loading || eligibilityLoading) && !error && <Skeleton width={110} height={20} radius={20} />}
+          {!loading && !eligibilityLoading && !error && (
             <span className="tag">
               {groups.length} of {searchedGroups.length} applicant{searchedGroups.length === 1 ? '' : 's'}
             </span>
@@ -1768,7 +1784,11 @@ function DashboardPanel({
               onClick={() => setStatusFilter(tab.key)}
             >
               {tab.label}
-              <span className="apl-tab-count">{tabCounts[tab.key] || 0}</span>
+              {loading || eligibilityLoading ? (
+                <Skeleton width={16} height={14} radius={10} style={{ display: 'inline-block' }} />
+              ) : (
+                <span className="apl-tab-count">{tabCounts[tab.key] || 0}</span>
+              )}
             </button>
           ))}
         </div>
@@ -1805,8 +1825,8 @@ function DashboardPanel({
           </select>
         </div>
 
-        {loading ? (
-          <div className="text-center py-20 text-ccc-muted text-sm">Loading documents...</div>
+        {loading || eligibilityLoading ? (
+          <SkeletonRows rows={6} label="Loading applicants..." />
         ) : error ? (
           <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
         ) : groups.length === 0 ? (
@@ -3057,6 +3077,7 @@ function ResultsPanel() {
       <div className="card">
         <div className="card-title">
           All Applicants
+          {loading && <Skeleton width={110} height={20} radius={20} />}
           {!loading && (
             <span className="tag">
               {filtered.length} of {rows.length} applicant{rows.length === 1 ? '' : 's'}
@@ -3074,7 +3095,7 @@ function ResultsPanel() {
               onClick={() => setTab(t.key)}
             >
               {t.label}
-              <span className="apl-tab-count">{resultTabCounts[t.key] || 0}</span>
+              {loading ? <Skeleton width={16} height={14} radius={10} style={{ display: 'inline-block' }} /> : <span className="apl-tab-count">{resultTabCounts[t.key] || 0}</span>}
             </button>
           ))}
         </div>
@@ -3115,7 +3136,7 @@ function ResultsPanel() {
         )}
 
         {loading ? (
-          <div className="text-center py-20 text-ccc-muted text-sm">Loading applicants...</div>
+          <SkeletonRows rows={6} label="Loading applicants..." />
         ) : filtered.length === 0 ? (
           <div className="text-center py-20 text-ccc-muted text-sm">
             {rows.length === 0 ? 'No applications on file yet.' : 'No applicants match your search and filter.'}
@@ -3378,7 +3399,40 @@ function AnalyticsPanel() {
     }
   }, [visibleRows, department])
 
-  if (loading) return <div className="text-center py-20 text-ccc-muted text-sm">Loading statistics...</div>
+  // Oct 5 2026: the page's own header and card shapes, with skeletons where
+  // the numbers will go.
+  if (loading)
+    return (
+      <div className="st-wrap">
+        <div className="st-header">
+          <div>
+            <h1 className="st-title">Statistics</h1>
+            <p className="st-subtitle">Scholarship applications, as of today</p>
+          </div>
+        </div>
+        <div className="st-card st-kpis" role="status" aria-live="polite">
+          <span className="sk-sr">Loading statistics...</span>
+          {['Total applications', 'Profile complete', 'Pending exam result', 'Qualified', 'Appeals filed'].map((label) => (
+            <div key={label} className="st-kpi">
+              <span className="st-kpi-label">{label}</span>
+              <span className="st-kpi-value">
+                <Skeleton width={56} height={28} radius={7} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
+              </span>
+              <span className="st-kpi-sub">
+                <Skeleton width="70%" height={9} style={{ display: 'inline-block' }} />
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="st-panels">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="st-card" style={{ padding: 20 }}>
+              <SkeletonText lines={5} label="" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   if (error) return <div className="p-4 rounded-xl border border-ccc-red/40 bg-red-50 text-sm text-ccc-red">{error}</div>
 
   const programRowsShown = showEmptyPrograms ? stats.programRows : stats.programRows.filter((p) => p.total > 0)
@@ -3873,7 +3927,7 @@ function CommunicationsPanel() {
           <div className="cm-head cm-head-wrap">
             <div className="cm-head-left">
               <h2 className="cm-title">Posted</h2>
-              <span className="tag">{items.length} total</span>
+              {loading ? <Skeleton width={60} height={20} radius={20} /> : <span className="tag">{items.length} total</span>}
             </div>
             <div className="cm-tabs" role="group" aria-label="Filter posts by type">
               {[
@@ -3888,7 +3942,12 @@ function CommunicationsPanel() {
                   aria-pressed={feedType === key}
                   onClick={() => setFeedType(key)}
                 >
-                  {label} <span className="cm-tab-count">{feedTypeCount(key)}</span>
+                  {label}{' '}
+                  {loading ? (
+                    <Skeleton width={16} height={14} radius={10} style={{ display: 'inline-block' }} />
+                  ) : (
+                    <span className="cm-tab-count">{feedTypeCount(key)}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -3916,7 +3975,7 @@ function CommunicationsPanel() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-ccc-muted text-center py-8">Loading…</p>
+            <SkeletonList items={4} label="Loading posts..." />
           ) : error ? (
             <p className="text-sm text-ccc-red text-center py-8">{error}</p>
           ) : items.length === 0 ? (
@@ -4363,6 +4422,7 @@ function AdminAccountsPanel() {
         </div>
       )}
 
+      {loading && <SkeletonStatGrid cards={6} label="" />}
       {!loading && !error && (
         <div className="cm-card cm-kpis">
           <div className="cm-kpi">
@@ -4481,7 +4541,7 @@ function AdminAccountsPanel() {
             </div>
           </div>
           {loading ? (
-            <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+            <SkeletonRows rows={4} label="Loading accounts..." />
           ) : error ? (
             <p className="text-sm text-ccc-red text-center py-8">{error}</p>
           ) : accounts.length === 0 ? (
@@ -4762,7 +4822,7 @@ function CycleSettingsCard() {
     return (
       <div className="card">
         <div className="card-title">Application Cycle Settings</div>
-        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        <SkeletonForm fields={3} label="Loading cycle settings..." />
       </div>
     )
   }
@@ -5011,7 +5071,7 @@ function ActivityLogCard() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        <SkeletonRows rows={6} avatar={false} label="Loading activity..." />
       ) : error ? (
         <p className="text-sm text-ccc-red text-center py-8">{error}</p>
       ) : entries.length === 0 ? (
@@ -5151,7 +5211,7 @@ function ArchiveCycleCard() {
         </span>
       </div>
       {loading && !data ? (
-        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        <SkeletonText lines={4} label="Loading archive status..." />
       ) : error && !data ? (
         <p className="text-sm text-ccc-red text-center py-8">{error}</p>
       ) : (
@@ -5274,7 +5334,7 @@ function ArchiveCycleCard() {
             </div>
             <div className="cf-released">
               {viewList === null ? (
-                <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+                <SkeletonRows rows={4} label="Loading archived applicants..." />
               ) : viewList.length === 0 ? (
                 <p className="text-sm text-ccc-muted text-center py-8">No applicants found.</p>
               ) : (
@@ -5509,6 +5569,7 @@ function ExamSchedulesPanel() {
       {error && <p className="text-sm text-ccc-red mb-3">{error}</p>}
       <AdminToast message={notice} onDone={() => setNotice('')} />
 
+      {!data && loading && <SkeletonStatGrid cards={4} label="" />}
       {data && (
         <div className="cm-card cm-kpis">
           <div className="cm-kpi">
@@ -5603,7 +5664,7 @@ function ExamSchedulesPanel() {
           </div>
 
           {loading ? (
-            <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+            <SkeletonList items={3} label="Loading exam batches..." />
           ) : schedules.length === 0 ? (
             <p className="text-sm text-ccc-muted text-center py-8">No exam batches yet.</p>
           ) : (
@@ -5916,9 +5977,13 @@ function ReschedulePanel() {
               onClick={() => setStatusFilter(key)}
             >
               {label}
-              <span className="apl-tab-count">
-                {key === 'all' ? requests.length : requests.filter((r) => r.status === key).length}
-              </span>
+              {loading ? (
+                <Skeleton width={16} height={14} radius={10} style={{ display: 'inline-block' }} />
+              ) : (
+                <span className="apl-tab-count">
+                  {key === 'all' ? requests.length : requests.filter((r) => r.status === key).length}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -5980,7 +6045,7 @@ function ReschedulePanel() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+          <SkeletonList items={4} label="Loading requests..." />
         ) : error ? (
           <p className="text-sm text-ccc-red text-center py-8">{error}</p>
         ) : requests.length === 0 ? (
@@ -6324,7 +6389,7 @@ function RegistrarDashboardPanel({ data, loading, error, onGoAllowance }) {
         </div>
       </div>
       {loading ? (
-        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        <SkeletonStatGrid cards={4} label="Loading the summary..." />
       ) : error ? (
         <p className="text-sm text-ccc-red text-center py-8">{error}</p>
       ) : (
@@ -6479,7 +6544,7 @@ function RegistrarAllowancePanel({ data, loading, error, onReload }) {
       </div>
 
       {loading && !data ? (
-        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        <SkeletonRows rows={5} label="Loading scholars..." />
       ) : error && !data ? (
         <p className="text-sm text-ccc-red text-center py-8">{error}</p>
       ) : (
@@ -6917,7 +6982,7 @@ function ChedForm3Dialog({ onClose }) {
         </div>
 
         {loading && !data ? (
-          <p className="text-sm text-ccc-muted text-center py-10">Loading...</p>
+          <SkeletonRows rows={5} avatar={false} label="Loading the report..." />
         ) : error && !data ? (
           <p className="text-sm text-ccc-red text-center py-10">{error}</p>
         ) : tab === 'new' ? (
@@ -7167,7 +7232,7 @@ function LguReportsPanel() {
           <h2 className="cm-title">CHED Form 3: Free Higher Education Billing Details</h2>
         </div>
         {loading ? (
-          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+          <SkeletonRows rows={2} avatar={false} label="Loading reports..." />
         ) : error ? (
           <p className="text-sm text-ccc-red text-center py-8">{error}</p>
         ) : reports.length === 0 ? (
@@ -7331,7 +7396,9 @@ function AdminRoleGate() {
       .catch(() => setSession({}))
   }, [])
 
-  if (session === undefined) return null
+  // Oct 5 2026: the branded loading screen while the session check runs
+  // (it used to be a blank page for that moment).
+  if (session === undefined) return <LoadingScreen />
   if (!session.loggedIn && session.accessEnded) {
     return (
       <main className="admin-portal">
@@ -7368,6 +7435,9 @@ function AdminPageInner() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [eligibility, setEligibility] = useState([])
+  // Oct 5 2026: false until the first eligibility load finishes, so the
+  // Dashboard shows skeletons instead of counts of 0 in the meantime.
+  const [eligibilityLoaded, setEligibilityLoaded] = useState(false)
   const [eligibilityOverriding, setEligibilityOverriding] = useState(null)
   const [eligibilityError, setEligibilityError] = useState('')
   const [recomputing, setRecomputing] = useState(false)
@@ -7435,6 +7505,8 @@ function AdminPageInner() {
       if (data.success) setEligibility(data.applications)
     } catch (err) {
       console.error('Failed to load eligibility:', err)
+    } finally {
+      setEligibilityLoaded(true)
     }
   }
 
@@ -7666,6 +7738,7 @@ function AdminPageInner() {
               overriding={overriding}
               overrideError={overrideError}
               eligibility={eligibility}
+              eligibilityLoading={!eligibilityLoaded}
               onEligibilityOverride={handleEligibilityOverride}
               eligibilityOverriding={eligibilityOverriding}
               eligibilityError={eligibilityError}
