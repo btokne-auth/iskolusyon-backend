@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import ApplicantAuth from '../components/ApplicantAuth'
+import LoadingScreen from '../components/LoadingScreen'
 
 // Sept 23, 2026: split out of what used to be the site root ("/"). The
 // public welcome page now lives at "/" (app/page.js) and links here for
@@ -37,9 +38,7 @@ function LoginPageInner() {
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-ccc-off text-ccc-muted text-sm">
-        Loading…
-      </div>
+      <LoadingScreen />
     )
   }
 
@@ -57,9 +56,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-ccc-off text-ccc-muted text-sm">
-          Loading…
-        </div>
+        <LoadingScreen />
       }
     >
       <LoginPageInner />
