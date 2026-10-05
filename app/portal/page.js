@@ -1330,7 +1330,7 @@ function UploadNoticeDialog({ notice, autofillNote, onClose }) {
       icon = '!'
       iconStyle = { background: '#FDF3E1', color: '#B7791F' }
     }
-    title = warn ? `We couldn\u2019t read your ${label}` : `${label} read`
+    title = warn ? (notice.note?.slow ? `Still reading your ${label}` : `We couldn\u2019t read your ${label}`) : `${label} read`
     body = notice.note?.text
   } else if (notice.kind === 'submit') {
     title = 'Application submitted'
@@ -1366,7 +1366,7 @@ function UploadNoticeDialog({ notice, autofillNote, onClose }) {
       icon = '!'
       iconStyle = { background: '#FDF3E1', color: '#B7791F' }
     }
-    title = warn ? `We couldn\u2019t read your ${label}` : `${label} read`
+    title = warn ? (autofillNote?.slow ? `Still reading your ${label}` : `We couldn\u2019t read your ${label}`) : `${label} read`
     body = autofillNote?.text
   } else if (notice.reviewStatus === 'processing') {
     title = `${label} uploaded`
@@ -2696,7 +2696,9 @@ function PortalApp({ accountSession, onLogout }) {
       return
     }
     if (autofillRunRef.current[docType] === filePath) {
-      const slowNote = { tone: 'warn', text: 'Reading your document is taking longer than usual. You can fill in the fields above manually.' }
+      // Oct 6 2026: "still reading", not "couldn't read": the document is
+      // saved and the reading service finishes it later by itself.
+      const slowNote = { tone: 'warn', slow: true, text: 'Reading your document is taking longer than usual. It is saved and will finish by itself; you can fill in the fields above yourself meanwhile.' }
       setAutofillNote(docType, slowNote)
       showAutofillResult(docType, slowNote)
     }

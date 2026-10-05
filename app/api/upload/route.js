@@ -10,6 +10,7 @@ import { supabase } from '@/app/supabaseClient'
 import crypto from 'crypto'
 import { VALID_DOCUMENT_TYPES, AUTOFILL_SCOPED_TYPES } from '@/app/lib/documentTypes'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
+import { wakeOcrWorker } from '@/app/lib/ocrWorker'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { getSystemSettings } from '@/app/lib/systemSettings'
 
@@ -293,28 +294,11 @@ export async function POST(request) {
     // long, misconfigured, down), the row stays 'processing' and the worker
     // picks it up the next time it wakes, since it also sweeps on startup.
     if (!isProfilePic) {
+      // Oct 6 2026: wakeOcrWorker (app/lib/ocrWorker.js) also sends a GET
+      // when the POST isn't answered, since a sleeping free Render service
+      // only wakes for a GET now.
       after(async () => {
-        const workerUrl = process.env.OCR_WORKER_URL
-        const workerSecret = process.env.OCR_WORKER_SECRET
-        if (!workerUrl || !workerSecret) {
-          console.error('OCR worker not configured (OCR_WORKER_URL / OCR_WORKER_SECRET missing); document left in processing:', data.path)
-          return
-        }
-        try {
-          const res = await fetch(`${workerUrl.replace(/\/+$/, '')}/wake`, {
-            method: 'POST',
-            headers: { 'x-ocr-worker-secret': workerSecret },
-            // A sleeping free Render instance can take about a minute to
-            // wake; give up just before this route's own 60s limit. The
-            // worker still processes the row once it's up.
-            signal: AbortSignal.timeout(55000),
-          })
-          if (!res.ok) {
-            console.error(`OCR worker wake-up returned ${res.status}; document left in processing:`, data.path)
-          }
-        } catch (wakeErr) {
-          console.error('OCR worker wake-up failed (worker will catch up on next wake):', wakeErr.message)
-        }
+        await wakeOcrWorker(`(upload ${data.path})`)
       })
     }
 
