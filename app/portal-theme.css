@@ -381,3 +381,54 @@
   .applicant-portal .pmsg-top{flex-direction:column;gap:2px}
   .applicant-portal .preq-head{flex-direction:column}
 }
+
+/* Oct 6 2026: upload steps inside each section's upload row, the final
+   Submit card on Documents & Status, and its confirmation popup. */
+.applicant-portal .upload-row.is-busy{border-style:solid;border-color:#9DB4E8;background:#F4F7FD}
+.applicant-portal .upload-row.is-reading{border-style:solid;border-color:#E3C27A;background:#FDF8EC}
+.applicant-portal .up-steps{display:flex;align-items:center;flex-wrap:wrap;row-gap:6px;margin-top:8px}
+.applicant-portal .up-step-wrap{display:inline-flex;align-items:center}
+.applicant-portal .up-step{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#8C99AE;white-space:nowrap}
+.applicant-portal .up-dot{width:16px;height:16px;border-radius:50%;border:1.5px solid #C9D3E3;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.applicant-portal .up-step.done{color:var(--green)}
+.applicant-portal .up-step.done .up-dot{background:var(--green);border-color:var(--green);color:#fff}
+.applicant-portal .up-step.now{color:var(--ccc-blue)}
+.applicant-portal .up-step.now .up-dot{border-color:var(--ccc-blue);border-top-color:transparent;animation:up-spin .8s linear infinite}
+.applicant-portal .upload-row.is-reading .up-step.now{color:#8a6100}
+.applicant-portal .upload-row.is-reading .up-step.now .up-dot{border-color:#C8A84B;border-top-color:transparent}
+.applicant-portal .up-sep{width:20px;height:1.5px;background:#D5DDEA;margin:0 8px}
+.applicant-portal .up-sep.done{background:var(--green)}
+@keyframes up-spin{to{transform:rotate(360deg)}}
+.applicant-portal .up-done{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:3px}
+.applicant-portal .up-done .u-filename{margin-top:0}
+.applicant-portal .up-chip{display:inline-flex;align-items:center;gap:4px;font-family:'Montserrat',sans-serif;font-weight:700;font-size:9.6px;letter-spacing:.3px;color:#1a5c3a;background:#E6F4EC;border-radius:20px;padding:2px 9px;cursor:help}
+.applicant-portal .up-secured-note{font-size:11px;color:var(--muted);line-height:1.55;margin:-4px 2px 10.5px}
+.applicant-portal .up-secured-note b{color:var(--text)}
+.applicant-portal .submit-closed-note{display:flex;gap:12px;align-items:flex-start;padding:14px 18px;border-radius:10px;background:#FDF6E7;border:1px solid #F0D9A8;color:#6b4e00;font-size:12.75px;line-height:1.6;margin-bottom:18.75px}
+.applicant-portal .submit-closed-note svg{flex-shrink:0;margin-top:2px}
+.applicant-portal .final-card.is-ready{border-color:var(--green)}
+.applicant-portal .final-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end}
+.applicant-portal .final-checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.applicant-portal .final-checks li{display:flex;align-items:flex-start;gap:10px;font-size:12.6px;padding:6px 0;color:var(--text)}
+.applicant-portal .final-mark{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:800;background:#FDF0DC;color:#7a4f0c}
+.applicant-portal .final-checks li.ok .final-mark{background:var(--green);color:#fff}
+.applicant-portal .final-note{color:var(--muted)}
+.applicant-portal .final-go{background:none;border:none;padding:0;font-family:'Montserrat',sans-serif;font-weight:700;font-size:11px;color:var(--ccc-blue);cursor:pointer;text-decoration:underline}
+.applicant-portal .final-action{display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+.applicant-portal .final-submit{background:var(--green);color:#fff;min-width:200px}
+.applicant-portal .final-submit:hover:not(:disabled){background:var(--green-dark)}
+.applicant-portal .final-submit:disabled{background:#E6EBF2;color:#8C99AE;cursor:not-allowed}
+.applicant-portal .final-hint{font-size:11px;color:var(--muted);max-width:270px;text-align:right;line-height:1.5}
+.applicant-portal .final-error{margin:14px 0 0;padding:10px 14px;border-radius:8px;background:#FBE7E7;border:1px solid #F2C9C4;color:#902020;font-size:12.3px;line-height:1.5}
+.applicant-portal .final-done{display:flex;gap:12px;align-items:center}
+.applicant-portal .final-done-icon{width:28px;height:28px;border-radius:50%;background:var(--green);color:#fff;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.applicant-portal .final-done-title{font-family:'Montserrat',sans-serif;font-weight:800;font-size:14px;color:#1a5c3a}
+.applicant-portal .final-done-sub{font-size:12.3px;color:var(--muted);margin-top:3px}
+.applicant-portal .confirm-icon-submit{background:#E6F4EC;color:var(--green)}
+.applicant-portal .confirm-box.wide,.applicant-portal .confirm-box[aria-labelledby="submitConfirmTitle"]{max-width:440px}
+@media (max-width:720px){
+  .applicant-portal .final-grid{grid-template-columns:1fr}
+  .applicant-portal .final-action{align-items:stretch}
+  .applicant-portal .final-hint{text-align:left;max-width:none}
+}
+@media (prefers-reduced-motion: reduce){.applicant-portal .up-step.now .up-dot{animation:none;border-top-color:currentColor}}

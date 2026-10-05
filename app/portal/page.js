@@ -432,40 +432,8 @@ function ReviewStatusBadge({ needsReview, reviewStatus }) {
   )
 }
 
-// The Deficiency Alert itself: shown in place of the plain success banner
-// when the uploaded document's OCR confidence came back too low to trust.
-// Gives the applicant a concrete next step (re-upload) instead of leaving
-// a silently-degraded document in the system.
-function DeficiencyAlert({ confidence, onReupload }) {
-  return (
-    <div className="p-4 rounded-xl border border-ccc-orange/50 bg-orange-50 space-y-3">
-      <div className="flex items-start gap-3">
-        <IconAlertTriangle className="w-5 h-5 text-ccc-orange shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <p className="text-sm font-bold text-ccc-orange">Document flagged for review</p>
-          <p className="text-xs text-ccc-text/80 leading-relaxed">
-            The document uploaded successfully, but text detection confidence was low
-            {typeof confidence === 'number' ? ` (${Math.round(confidence)}%)` : ''}, so the
-            detected text above may be incomplete or inaccurate. This usually happens with
-            blurry photos, glare, or an angled shot. It's been marked <strong>needs review</strong> so
-            an admin can check it before it's used for verification. You can continue, or
-            re-upload a clearer copy now to avoid delays.
-          </p>
-        </div>
-      </div>
-      <button
-        type="button"
-        onClick={onReupload}
-        className="text-xs font-semibold text-ccc-orange hover:text-ccc-navy underline underline-offset-2"
-      >
-        Re-upload a clearer copy
-      </button>
-    </div>
-  )
-}
-
 // Shown when the image-quality precheck rejects a file outright, before OCR
-// or storage ever ran. Deliberately distinct from DeficiencyAlert: that one
+// or storage ever ran. Deliberately distinct from a flagged upload: that one
 // means "we read it but aren't confident" (document is stored, flagged,
 // admin can still review it); this one means "we couldn't even attempt to
 // read it" (nothing was stored — there is no record to review, just a photo
@@ -1068,41 +1036,165 @@ function SiblingIncomeTable({ siblings, onChangeCell, onAddColumn, onRemoveColum
 // .upload-icon is display:none (no icon actually shown), so the icon
 // that used to sit here was dropped rather than kept as an extra
 // element spec doesn't have.
-function InlineUploadRow({ label, sublabel, required, status, onFileSelected, disabled }) {
-  const hasFile = ['done', 'flagged', 'uploading', 'queued'].includes(status)
+// Oct 6 2026: the row now shows the real steps of an upload as they happen:
+// Checking file (type and size, in the browser), Securing (the browser
+// computes the file's SHA-256 fingerprint), Uploading (the server checks
+// photo quality, computes its own SHA-256 and saves the file), then Reading
+// (the OCR worker) for documents that get read. The upload only counts as
+// Secured when the two fingerprints match, i.e. the file arrived unchanged.
+// The fingerprint itself is never shown to the applicant (it stays on the
+// admin side).
+const UPLOAD_STEPS = [
+  { key: 'checking', now: 'Checking file', done: 'Checked' },
+  { key: 'securing', now: 'Securing', done: 'Secured' },
+  { key: 'uploading', now: 'Uploading', done: 'Uploaded' },
+  { key: 'reading', now: 'Reading', done: 'Read' },
+]
+const NOT_READ_TYPES = ['profilepic'] // saved as verified right away, nothing to read
+const CLIENT_ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'] // same list as /api/upload
+const CLIENT_MAX_FILE_SIZE = 10 * 1024 * 1024 // same 10MB limit as /api/upload
+
+// SHA-256 of a file, computed in the browser. Returns null if the browser
+// can't (very old browsers, or a page not served over HTTPS); the upload
+// still goes through and the server still fingerprints it.
+async function sha256OfFile(file) {
+  try {
+    if (typeof crypto === 'undefined' || !crypto.subtle) return null
+    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+  } catch {
+    return null
+  }
+}
+
+// Which section each document is uploaded in (the Documents & Status links
+// go there now that the separate upload card is gone).
+const DOC_UPLOAD_PLACE = {
+  profilepic: { panel: 'personal', label: 'Personal Information' },
+  birthcert: { panel: 'personal', label: 'Personal Information' },
+  voterid: { panel: 'personal', label: 'Personal Information' },
+  form138: { panel: 'academic', label: 'Educational Background' },
+  parentid: { panel: 'financial', label: 'Family & Financial Information' },
+  employmentcert: { panel: 'financial', label: 'Family & Financial Information' },
+  indigency: { panel: 'financial', label: 'Family & Financial Information' },
+  supportdoc: { panel: 'appeals', label: 'Appeals & Rescheduling' },
+  medcert: { panel: 'health', label: 'Health & Wellness' },
+}
+
+function UploadSteps({ phase, readable }) {
+  const steps = readable ? UPLOAD_STEPS : UPLOAD_STEPS.slice(0, 3)
+  const at = steps.findIndex((s) => s.key === phase)
   return (
-    <div
-      className={`upload-row${hasFile ? ' has-file' : ''}${required ? ' required' : ''}`}
-      style={disabled ? { opacity: 0.6 } : undefined}
-    >
-      <div className="upload-info">
-        <div className="u-title">
-          {label} {required && <span className="req-mark">*</span>}
-        </div>
-        {sublabel && <div className="u-sub">{sublabel}</div>}
-        {status === 'uploading' && <div className="u-sub" style={{ color: 'var(--ccc-blue)' }}>Uploading&hellip;</div>}
-        {status === 'done' && <div className="u-filename">Uploaded &#x2713;</div>}
-        {status === 'flagged' && <div className="u-sub" style={{ color: 'var(--gold)' }}>Uploaded, flagged for review</div>}
-        {status === 'rejected' && <div className="u-sub" style={{ color: 'var(--red)' }}>Photo rejected. See details below.</div>}
-        {status === 'error' && <div className="u-sub" style={{ color: 'var(--red)' }}>Upload failed. Please try again.</div>}
-        {status === 'queued' && (
-          <div className="u-sub" style={{ color: 'var(--gold)' }}>
-            No connection. Saved on this device, will upload automatically once you&rsquo;re back online.
+    <div className="up-steps" role="status" aria-live="polite">
+      {steps.map((s, i) => {
+        const state = i < at ? 'done' : i === at ? 'now' : 'todo'
+        return (
+          <span key={s.key} className="up-step-wrap">
+            {i > 0 && <span className={`up-sep${i <= at ? ' done' : ''}`} aria-hidden="true" />}
+            <span className={`up-step ${state}`}>
+              <span className="up-dot" aria-hidden="true">
+                {state === 'done' && (
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                )}
+              </span>
+              {state === 'done' ? s.done : s.now}
+            </span>
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+function SecuredChip() {
+  return (
+    <span className="up-chip" title="We saved a digital fingerprint of this file when it arrived. CCC uses it to confirm the document hasn't been changed.">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z" /><path d="M8.5 12.2l2.4 2.3 4.6-4.8" /></svg>
+      Secured
+    </span>
+  )
+}
+
+function InlineUploadRow({ label, sublabel, required, status, onFileSelected, disabled, docType, progress, reading, rejectionInside, id }) {
+  const hasFile = ['done', 'flagged', 'uploading', 'queued'].includes(status)
+  const readable = !NOT_READ_TYPES.includes(docType)
+  const busy = status === 'uploading'
+  const stillReading = !busy && reading && (status === 'done' || status === 'flagged')
+  const justSecured = progress?.phase === 'done'
+  const rowClass = busy ? ' is-busy' : stillReading ? ' is-reading' : hasFile ? ' has-file' : ''
+  return (
+    <div id={id} className="upload-row-wrap">
+      <div
+        className={`upload-row${rowClass}${required ? ' required' : ''}`}
+        style={disabled ? { opacity: 0.6 } : undefined}
+      >
+        <div className="upload-info">
+          <div className="u-title">
+            {label} {required && <span className="req-mark">*</span>}
           </div>
+          {sublabel && !busy && !stillReading && status !== 'done' && status !== 'flagged' && <div className="u-sub">{sublabel}</div>}
+          {busy && <UploadSteps phase={progress?.phase || 'checking'} readable={readable} />}
+          {stillReading && <UploadSteps phase="reading" readable />}
+          {status === 'done' && !stillReading && (
+            <div className="up-done">
+              <span className="u-filename">Uploaded &#x2713;</span>
+              <SecuredChip />
+            </div>
+          )}
+          {status === 'flagged' && !stillReading && (
+            <div className="up-done">
+              <span className="u-sub" style={{ color: 'var(--gold)', marginTop: 0 }}>
+                Uploaded. The text was hard to read, so an admin will check it. A clearer copy avoids delays.
+              </span>
+              <SecuredChip />
+            </div>
+          )}
+          {status === 'rejected' && (
+            rejectionInside && progress?.message
+              ? <div className="u-sub" style={{ color: 'var(--red)', fontWeight: 600 }}>{progress.message}</div>
+              : <div className="u-sub" style={{ color: 'var(--red)' }}>Not accepted. See the note below.</div>
+          )}
+          {status === 'error' && (
+            <div className="u-sub" style={{ color: 'var(--red)' }}>{progress?.message || 'Upload failed. Please try again.'}</div>
+          )}
+          {status === 'queued' && (
+            <div className="u-sub" style={{ color: 'var(--gold)' }}>
+              No connection. Saved on this device, will upload automatically once you&rsquo;re back online.
+            </div>
+          )}
+        </div>
+        {!busy && (
+          <label className="upload-btn-label" style={disabled ? { cursor: 'not-allowed' } : undefined}>
+            {/* Says "Change" once a file is already there, so it reads as a
+                replace rather than a first upload. */}
+            {status === 'done' || status === 'flagged' ? 'Change' : status === 'rejected' || status === 'error' ? 'Try again' : 'Upload'}
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              disabled={disabled}
+              onChange={(e) => {
+                const f = e.target.files[0]
+                e.target.value = ''
+                if (f) onFileSelected(f)
+              }}
+            />
+          </label>
         )}
       </div>
-      <label className="upload-btn-label" style={disabled ? { cursor: 'not-allowed' } : undefined}>
-        {/* Re-selecting a file here always worked (nothing blocked a second
-            upload), but the button still said "Upload" even once one
-            already existed, reading like a first-time action rather than
-            a replace. Now says "Change" once there's something to change. */}
-        {status === 'done' || status === 'flagged' ? 'Change' : 'Upload'}
-        <input
-          type="file"
-          disabled={disabled}
-          onChange={(e) => e.target.files[0] && onFileSelected(e.target.files[0])}
-        />
-      </label>
+      {justSecured && !stillReading && (status === 'done' || status === 'flagged') && (
+        <p className="up-secured-note">
+          <b>Secured</b> means we saved a digital fingerprint of this file when it arrived and checked that it matches the
+          file you sent. CCC uses it to confirm the document hasn&rsquo;t been changed.
+        </p>
+      )}
+      {stillReading && (
+        <p className="up-secured-note">
+          Your file is saved and secured. Reading it can take up to a minute; this updates by itself, and you can keep
+          filling in the form meanwhile.
+        </p>
+      )}
     </div>
   )
 }
@@ -1340,6 +1432,108 @@ function SectionFormActions({ saveState, sectionState, error, disabled, submitDi
 // #logoutOverlay/.confirm-box markup (design-parity pass 4, Sept 19 2026).
 // Previously "Log Out" logged the applicant out immediately with no
 // confirmation step at all; spec always confirms first.
+// Oct 6 2026: the final step of the application, at the top of Documents &
+// Status. Shows what's left before Submit Application (the server checks the
+// same things), and the confirmation popup before it's sent.
+function FinalSubmitCard({ submitted, submittedAt, checks, blocked, saving, error, onSubmit }) {
+  const ready = checks.every((c) => c.ok)
+  if (submitted) {
+    return (
+      <div className="card final-card is-done">
+        <div className="card-title">
+          Application submitted <span className="tag">Final step</span>
+        </div>
+        <div className="final-done">
+          <span className="final-done-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+          </span>
+          <div>
+            <div className="final-done-title">
+              Application submitted
+              {submittedAt
+                ? ` on ${new Date(submittedAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Manila' })}`
+                : ''}
+            </div>
+            <div className="final-done-sub">Your documents are on file. This page keeps tracking their review status.</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className={`card final-card${ready && !blocked ? ' is-ready' : ''}`}>
+      <div className="card-title">
+        Submit your application <span className="tag">Final step</span>
+      </div>
+      <div className="final-grid">
+        <ul className="final-checks">
+          {checks.map((c) => (
+            <li key={c.title} className={c.ok ? 'ok' : ''}>
+              <span className="final-mark" aria-hidden="true">{c.ok ? '\u2713' : '\u2022'}</span>
+              <span>
+                <b>{c.title}</b>
+                <span className="final-note"> &middot; {c.note}</span>
+                {!c.ok && c.onGo && (
+                  <>
+                    {' '}
+                    <button type="button" className="final-go" onClick={c.onGo}>
+                      Go there &rarr;
+                    </button>
+                  </>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div className="final-action">
+          <button type="button" className="mbtn final-submit" disabled={!ready || blocked || saving} onClick={onSubmit}>
+            {saving ? 'Submitting\u2026' : 'Submit Application'}
+          </button>
+          <span className="final-hint">
+            {blocked
+              ? 'Paused while applications are closed.'
+              : ready
+                ? 'Health & Wellness is completed during enrollment, so it isn\u2019t needed here.'
+                : 'Finish the items on the left first.'}
+          </span>
+        </div>
+      </div>
+      {error && <p className="final-error" role="alert">{error}</p>}
+    </div>
+  )
+}
+
+function SubmitConfirmModal({ open, onCancel, onConfirm }) {
+  if (!open) return null
+  return (
+    <div
+      className="confirm-overlay open"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel()
+      }}
+    >
+      <div className="confirm-box" role="dialog" aria-modal="true" aria-labelledby="submitConfirmTitle">
+        <div className="confirm-icon confirm-icon-submit" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4z" /></svg>
+        </div>
+        <h3 id="submitConfirmTitle">Submit your application?</h3>
+        <p>
+          Please check your answers and documents first. Once you submit, CCC will review your application and place you
+          in the next exam schedule. This can&rsquo;t be undone.
+        </p>
+        <div className="confirm-actions">
+          <button type="button" className="mbtn mbtn-ghost" onClick={onCancel}>
+            Go back and check
+          </button>
+          <button type="button" className="mbtn mbtn-primary" onClick={onConfirm}>
+            Yes, submit
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function LogoutConfirmModal({ open, onCancel, onConfirm }) {
   if (!open) return null
   return (
@@ -1431,21 +1625,14 @@ export default function PortalPage() {
 }
 
 function PortalApp({ accountSession, onLogout }) {
-  const [file, setFile] = useState(null)
-  const [status, setStatus] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [details, setDetails] = useState(null)
-  const [qualityRejection, setQualityRejection] = useState(null)
   const [applicantName, setApplicantName] = useState(accountSession.name || '')
   const [applicantEmail, setApplicantEmail] = useState(accountSession.email || '')
-  const [documentType, setDocumentType] = useState('')
   const [docHistory, setDocHistory] = useState([])
   // Oct 5 2026: false until the first document and application loads have
   // finished, so the Dashboard shows skeletons instead of briefly showing
   // "Step 2 of 6" and every milestone Locked before the real progress loads.
   const [historyLoaded, setHistoryLoaded] = useState(false)
   const [appLoaded, setAppLoaded] = useState(false)
-  const [isDragging, setIsDragging] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [statusRequested, setStatusRequested] = useState(false)
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
@@ -1713,6 +1900,14 @@ function PortalApp({ accountSession, onLogout }) {
   const [rescheduleSaveState, setRescheduleSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error'
   const [rescheduleHistory, setRescheduleHistory] = useState([])
   const [supportDocStatus, setSupportDocStatus] = useState('idle')
+  // Oct 6 2026: the current step of each section upload, per document type:
+  // { phase: 'checking' | 'securing' | 'uploading' | 'done' | null, message }
+  const [uploadProgress, setUploadProgress] = useState({})
+  // Oct 6 2026: why the final Submit is closed right now (Applications Open
+  // off, outside the acceptance dates, or slots full), from /api/application.
+  const [submitBlocked, setSubmitBlocked] = useState(null)
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false)
+  const [submitError, setSubmitError] = useState('')
   const [uploadNotice, setUploadNotice] = useState(null) // Oct 1 2026: { kind: 'upload' | 'autofill-result' | 'section' | 'submit', ... }
   const uploadNoticeRef = useRef(null)
   useEffect(() => { uploadNoticeRef.current = uploadNotice }, [uploadNotice])
@@ -1808,6 +2003,36 @@ function PortalApp({ accountSession, onLogout }) {
     }
     return latest
   })()
+  // Oct 6 2026: what's left before the final Submit Application. Mirrors the
+  // server's check in /api/application (sections submitted + required
+  // documents, Proof of Employment only for a working student).
+  const requiredDocsForSubmit = ['profilepic', 'birthcert', 'voterid', 'form138', 'parentid']
+  if (familyInfo.workingStudent === 'Yes') requiredDocsForSubmit.push('employmentcert')
+  const missingDocsForSubmit = requiredDocsForSubmit.filter((t) => !hasUploaded(t))
+  const goToSection = (panel) => () => {
+    setActivePanel(panel)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  const finalSubmitChecks = [
+    { title: 'Personal Information', ok: !!personalSubmittedAt, note: personalSubmittedAt ? 'submitted' : 'not submitted yet', onGo: goToSection('personal') },
+    { title: 'Educational Background', ok: !!academicSubmittedAt, note: academicSubmittedAt ? 'submitted' : 'not submitted yet', onGo: goToSection('academic') },
+    { title: 'Family & Financial Information', ok: !!financialSubmittedAt, note: financialSubmittedAt ? 'submitted' : 'not submitted yet', onGo: goToSection('financial') },
+    {
+      title: 'Required documents',
+      ok: missingDocsForSubmit.length === 0,
+      note:
+        missingDocsForSubmit.length === 0
+          ? 'all uploaded'
+          : `still needed: ${missingDocsForSubmit.map((t) => getDocTypeLabel(t)).join(', ')}`,
+      onGo: missingDocsForSubmit.length ? () => jumpToUploadFor(missingDocsForSubmit[0]) : null,
+    },
+  ]
+
+  // Oct 6 2026: document types whose latest upload is still being read, so
+  // each section's upload row can show its Reading step.
+  const readingTypes = new Set(
+    latestDocsByType.filter((d) => d.review_status === 'processing' && !d.needs_review).map((d) => d.document_type)
+  )
   const flaggedCount = latestDocsByType.filter((doc) => doc.needs_review).length
   // Sept 29: still waiting on the OCR worker, so neither verified nor flagged yet.
   const processingCount = latestDocsByType.filter((doc) => doc.review_status === 'processing' && !doc.needs_review).length
@@ -1828,11 +2053,18 @@ function PortalApp({ accountSession, onLogout }) {
 
   // Used by the status table's "Upload" / "Re-upload" buttons: pre-selects
   // that document type in the form below and scrolls it into view.
+  // Oct 6 2026: the Documents & Status "Upload" links open the section the
+  // document belongs to and scroll to its upload row (the separate upload
+  // card was removed; every document has its own spot in its section).
   const jumpToUploadFor = (typeValue) => {
-    setDocumentType(typeValue)
-    setFile(null)
-    setActivePanel('status')
-    formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const place = DOC_UPLOAD_PLACE[typeValue]
+    if (!place) return
+    setActivePanel(place.panel)
+    setTimeout(() => {
+      const row = document.getElementById(`up-${typeValue}`)
+      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      else formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 80)
   }
 
   // Saves current progress (name/email/step) as a draft. Called both
@@ -2001,7 +2233,14 @@ function PortalApp({ accountSession, onLogout }) {
         }),
       })
       const data = await res.json()
-      if (!res.ok || data.error) throw new Error(data.error || 'Submit failed')
+      if (!res.ok || data.error) {
+        // Oct 6 2026: show the server's reason (closed, missing sections or
+        // documents) on the Submit card instead of failing silently.
+        setSubmitError(res.status >= 400 && res.status < 500 && data.error ? data.error : 'Something went wrong while submitting. Please try again.')
+        if (res.status === 403) setSubmitBlocked(data.error || null)
+        throw new Error(data.error || 'Submit failed')
+      }
+      setSubmitError('')
       setSaveState('idle')
       setSubmitted(true)
       setSubmittedAt(data.application.submitted_at || null)
@@ -2071,6 +2310,7 @@ function PortalApp({ accountSession, onLogout }) {
         if (accountSession.email) params.set('email', accountSession.email)
         const res = await fetch(`/api/application?${params.toString()}`)
         const data = await res.json()
+        if (!cancelled) setSubmitBlocked(data.submitBlocked || null)
         if (cancelled || !data.application) return
         setPersonalInfo(mapDbRowToPersonalInfo(data.application))
         setAcademicInfo(mapDbRowToAcademicInfo(data.application))
@@ -2273,25 +2513,23 @@ function PortalApp({ accountSession, onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasProcessingDoc])
 
-  // Keep the Step 2 upload result box in step with the re-checked status.
+  // Oct 6 2026: if a document is still being read after about 30 seconds,
+  // send the reading service another wake-up call (and once more at about
+  // 90 seconds). The upload already wakes it once; this covers the times
+  // that first call doesn't get through, so documents never sit waiting
+  // until someone restarts the service. /api/ocr-wake only does anything
+  // when this applicant really has a document waiting.
   useEffect(() => {
-    if (!details?.filePath) return
-    const doc = docHistory.find((d) => d.file_path === details.filePath)
-    if (!doc || doc.review_status === details.reviewStatus) return
-    setDetails((d) =>
-      d && d.filePath === doc.file_path
-        ? {
-            ...d,
-            reviewStatus: doc.review_status,
-            needsReview: Boolean(doc.needs_review),
-            extractedText: doc.extracted_text ?? d.extractedText,
-            extractionMethod: doc.extraction_method ?? d.extractionMethod,
-            extractionConfidence: doc.ocr_confidence ?? d.extractionConfidence,
-          }
-        : d
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [docHistory])
+    if (!hasProcessingDoc) return undefined
+    const nudge = () => fetch('/api/ocr-wake', { method: 'POST' }).catch(() => {})
+    const first = setTimeout(nudge, 30000)
+    const second = setTimeout(nudge, 90000)
+    return () => {
+      clearTimeout(first)
+      clearTimeout(second)
+    }
+  }, [hasProcessingDoc])
+
 
   // Reschedule request history — fetched whenever the Appeals panel is open
   // and a name is typed in, same lazy-fetch pattern as the rest of the app
@@ -2359,22 +2597,6 @@ function PortalApp({ accountSession, onLogout }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [historyOpen])
 
-  const handleDrag = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.type === 'dragenter' || e.type === 'dragover') setIsDragging(true)
-    else if (e.type === 'dragleave') setIsDragging(false)
-  }
-
-  const handleDrop = (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFile(e.dataTransfer.files[0])
-    }
-  }
-
   // Shared upload call used by both the Step 2 upload form (below) and the
   // three inline uploads in the Step 1 Personal Information cards (Profile
   // Picture, Birth Certificate, Voter's ID) — previously duplicated inline
@@ -2393,6 +2615,7 @@ function PortalApp({ accountSession, onLogout }) {
 
     if (!res.ok) {
       const err = new Error(data.error || 'Upload failed')
+      err.status = res.status
       err.rejected = data.rejected
       err.reason = data.reason
       err.rejectionMessage = data.message
@@ -2401,56 +2624,7 @@ function PortalApp({ accountSession, onLogout }) {
     return data
   }
 
-  const handleUpload = async (e) => {
-    e.preventDefault()
-    if (!file || !documentType || !applicantName.trim()) return
 
-    setLoading(true)
-    setStatus('Uploading your document securely...')
-    setQualityRejection(null)
-
-    try {
-      const data = await uploadDocument(documentType, file)
-      setStatus(
-        data.reviewStatus === 'processing'
-          ? 'Document uploaded. We are reading it now, this can take up to a minute.'
-          : data.needsReview
-            ? 'Document uploaded, but flagged for review.'
-            : 'Document uploaded and verified successfully.'
-      )
-      setDetails(data)
-      fetchHistory()
-      setUploadNotice({ kind: 'upload', docType: documentType, reviewStatus: data.reviewStatus })
-      if (AUTOFILL_FIELD_MAP[documentType] && data.filePath) watchAutofill(documentType, data.filePath)
-      setFile(null)
-      setDocumentType('')
-    } catch (err) {
-      if (err.rejected) {
-        // Image-quality precheck rejection: nothing was stored, so there's
-        // no `details` to show — just the reason, and the file stays
-        // cleared so the applicant picks a fresh (better) photo.
-        setStatus('')
-        setDetails(null)
-        setQualityRejection({ reason: err.reason, message: err.rejectionMessage })
-        setFile(null)
-      } else if (isNetworkError(err)) {
-        // Couldn't reach the server at all — hold onto the actual file and
-        // retry automatically once back online, instead of making the
-        // applicant notice the failure and redo it later.
-        await queueUpload({ docType: documentType, file, applicantName: applicantName.trim(), applicantEmail: applicantEmail.trim() })
-        setQueuedUploadCount((c) => c + 1)
-        setDetails(null)
-        setStatus('No connection right now. This file is saved on your device and will upload automatically once you\u2019re back online.')
-        setFile(null)
-        setDocumentType('')
-      } else {
-        setDetails(null)
-        setStatus(`Error: ${err.message}`)
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
 
   // Inline upload handler for the Personal Information cards — same
   // uploadDocument() call as Step 2, but reports through a compact
@@ -2539,10 +2713,42 @@ function PortalApp({ accountSession, onLogout }) {
 
   const handleInlineUpload = async (docType, uploadFile, setInlineStatus, setInlineRejection) => {
     if (!uploadFile || !applicantName.trim()) return
+    const setStep = (value) => setUploadProgress((m) => ({ ...m, [docType]: value }))
     setInlineStatus('uploading')
     setInlineRejection(null)
+
+    // 1. Checking file: the same type and size rules as the server, so a
+    // wrong file is caught right away with a clear reason.
+    setStep({ phase: 'checking' })
+    let notAccepted = ''
+    if (!CLIENT_ALLOWED_TYPES.includes(uploadFile.type)) notAccepted = 'This file type isn\u2019t accepted. Please upload a PDF, JPG or PNG.'
+    else if (uploadFile.size > CLIENT_MAX_FILE_SIZE) notAccepted = 'This file is larger than 10MB. Please upload a smaller copy.'
+    if (notAccepted) {
+      setInlineStatus('rejected')
+      setInlineRejection(notAccepted)
+      setStep({ phase: null, message: notAccepted })
+      return
+    }
+
     try {
+      // 2. Securing: the browser's own SHA-256 of the file.
+      setStep({ phase: 'securing' })
+      const clientHash = await sha256OfFile(uploadFile)
+
+      // 3. Uploading: the server checks photo quality, computes its own
+      // SHA-256 and saves the file.
+      setStep({ phase: 'uploading' })
       const data = await uploadDocument(docType, uploadFile)
+
+      // Secured only if both fingerprints match (the file arrived unchanged).
+      if (clientHash && data.sha256Hash && clientHash !== data.sha256Hash) {
+        const msg = 'Your file didn\u2019t arrive exactly as sent. Please upload it again.'
+        setStep({ phase: null, message: msg })
+        setInlineStatus('error')
+        fetchHistory()
+        return
+      }
+      setStep({ phase: 'done' })
       setInlineStatus(data.needsReview ? 'flagged' : 'done')
       fetchHistory()
       setUploadNotice({ kind: 'upload', docType, reviewStatus: data.reviewStatus })
@@ -2552,6 +2758,7 @@ function PortalApp({ accountSession, onLogout }) {
         // A specific, actionable quality-precheck rejection (too small,
         // too blurry, etc.) — not a real failure, nothing was stored.
         // Surface the actual reason instead of a blind "try again."
+        setStep({ phase: null, message: err.rejectionMessage })
         setInlineStatus('rejected')
         setInlineRejection(err.rejectionMessage)
       } else if (isNetworkError(err)) {
@@ -2559,8 +2766,12 @@ function PortalApp({ accountSession, onLogout }) {
         // automatically once connectivity returns.
         await queueUpload({ docType, file: uploadFile, applicantName: applicantName.trim(), applicantEmail: applicantEmail.trim() })
         setQueuedUploadCount((c) => c + 1)
+        setStep(null)
         setInlineStatus('queued')
       } else {
+        // Only the server's own plain messages (wrong type, too large,
+        // uploads closed) are shown; anything unexpected stays generic.
+        setStep({ phase: null, message: err.status >= 400 && err.status < 500 && err.message !== 'Upload failed' ? err.message : '' })
         setInlineStatus('error')
       }
     }
@@ -2628,6 +2839,15 @@ function PortalApp({ accountSession, onLogout }) {
           onLogout={() => setLogoutConfirmOpen(true)}
           onOpenHistory={() => setHistoryOpen(true)}
           historyCount={applicantName.trim() ? visibleHistory.length : 0}
+        />
+
+        <SubmitConfirmModal
+          open={submitConfirmOpen}
+          onCancel={() => setSubmitConfirmOpen(false)}
+          onConfirm={() => {
+            setSubmitConfirmOpen(false)
+            submitApplication()
+          }}
         />
 
         <LogoutConfirmModal
@@ -3101,6 +3321,10 @@ function PortalApp({ accountSession, onLogout }) {
                   )
                 })()}
                 <InlineUploadRow
+                  id="up-profilepic"
+                  docType="profilepic"
+                  progress={uploadProgress.profilepic}
+                  reading={readingTypes.has('profilepic')}
                   label="Profile Picture"
                   sublabel="A clear, recent 2x2 photo of yourself (white background)"
                   required
@@ -3154,6 +3378,10 @@ function PortalApp({ accountSession, onLogout }) {
                     Verifying Document <span className="tdl-count">1 required</span>
                   </div>
                   <InlineUploadRow
+                    id="up-birthcert"
+                    docType="birthcert"
+                    progress={uploadProgress.birthcert}
+                    reading={readingTypes.has('birthcert')}
                     label="Birth Certificate / PSA / NSO"
                     sublabel="Issued by the Philippine Statistics Authority"
                     required
@@ -3198,6 +3426,10 @@ function PortalApp({ accountSession, onLogout }) {
                     Verifying Document <span className="tdl-count">1 required</span>
                   </div>
                   <InlineUploadRow
+                    id="up-voterid"
+                    docType="voterid"
+                    progress={uploadProgress.voterid}
+                    reading={readingTypes.has('voterid')}
                     label="Voter's ID / Certification of Applicant"
                     sublabel="Issued by the Commission on Elections (COMELEC)"
                     required
@@ -3454,6 +3686,11 @@ function PortalApp({ accountSession, onLogout }) {
                     Verifying Documents <span className="tdl-count">1 required</span>
                   </div>
                   <InlineUploadRow
+                    id="up-form138"
+                    docType="form138"
+                    progress={uploadProgress.form138}
+                    reading={readingTypes.has('form138')}
+                    rejectionInside
                     label="Grades (Proof of Grades / Form 138 / Report Card)"
                     sublabel="Latest grading period / semester, certified true copy"
                     required
@@ -3596,6 +3833,10 @@ function PortalApp({ accountSession, onLogout }) {
                 <div className="topic-doc-section">
                   <div className="topic-doc-label">Verifying Document <span className="tdl-count">1 required</span></div>
                   <InlineUploadRow
+                    id="up-parentid"
+                    docType="parentid"
+                    progress={uploadProgress.parentid}
+                    reading={readingTypes.has('parentid')}
                     label="Voter's ID / Certification of Parent/Guardian"
                     sublabel="Issued by the Commission on Elections (COMELEC)"
                     required
@@ -3622,6 +3863,11 @@ function PortalApp({ accountSession, onLogout }) {
                   <div className="topic-doc-section">
                     <div className="topic-doc-label">Verifying Document <span className="tdl-count">1 required</span></div>
                     <InlineUploadRow
+                      id="up-employmentcert"
+                      docType="employmentcert"
+                      progress={uploadProgress.employmentcert}
+                      reading={readingTypes.has('employmentcert')}
+                      rejectionInside
                       label="Proof of Employment"
                       sublabel="Accepted documents include an ID, certificate, or any document provided by your employer"
                       required
@@ -3648,6 +3894,11 @@ function PortalApp({ accountSession, onLogout }) {
                   <div className="topic-doc-section">
                     <div className="topic-doc-label">Verifying Document <span className="tdl-count">Optional</span></div>
                     <InlineUploadRow
+                      id="up-indigency"
+                      docType="indigency"
+                      progress={uploadProgress.indigency}
+                      reading={readingTypes.has('indigency')}
+                      rejectionInside
                       label="Proof of Income (Family / Guardian)"
                       sublabel="Certificate of Indigency / Income issued by your Barangay or the City Social Welfare Office"
                       status={indigencyStatus === 'idle' && hasUploaded('indigency') ? 'done' : indigencyStatus}
@@ -3706,6 +3957,10 @@ function PortalApp({ accountSession, onLogout }) {
                   />
                 </div>
                 <InlineUploadRow
+                  id="up-supportdoc"
+                  docType="supportdoc"
+                  progress={uploadProgress.supportdoc}
+                  reading={readingTypes.has('supportdoc')}
                   label="Supporting Document"
                   required={rescheduleType === 'Reschedule Examination (Absence)'}
                   sublabel={
@@ -3779,6 +4034,11 @@ function PortalApp({ accountSession, onLogout }) {
                   Required Document <span className="tag">After applicant examination</span>
                 </div>
                 <InlineUploadRow
+                  id="up-medcert"
+                  docType="medcert"
+                  progress={uploadProgress.medcert}
+                  reading={readingTypes.has('medcert')}
+                  rejectionInside
                   label="Medical Examination Results / Certificate"
                   sublabel="To be completed only once you have passed the applicant examination"
                   status={medcertStatus === 'idle' && hasUploaded('medcert') ? 'done' : medcertStatus}
@@ -3815,8 +4075,33 @@ function PortalApp({ accountSession, onLogout }) {
               <div className="portal-header">
                 <p className="portal-eyebrow">Admission &middot; Application</p>
                 <h1>Documents &amp; Verification Status</h1>
-                <p>Track the review status of every document you&rsquo;ve submitted.</p>
+                <p>Track every document and submit your application when everything is ready.</p>
               </div>
+
+              {/* Oct 6 2026: the final step now sits at the top of this panel,
+                  with what's left to do, the Applications Open state, and a
+                  confirmation before submitting. */}
+              {!submitted && submitBlocked && (
+                <div className="submit-closed-note" role="status">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 8v5M12 16h.01" /></svg>
+                  <span>
+                    <b>{submitBlocked}</b> You can still finish and submit each section and upload your documents, and
+                    everything is saved. Only the final Submit Application is paused for now.
+                  </span>
+                </div>
+              )}
+              <FinalSubmitCard
+                submitted={submitted}
+                submittedAt={submittedAt}
+                checks={finalSubmitChecks}
+                blocked={!!submitBlocked}
+                saving={saveState === 'saving'}
+                error={submitError}
+                onSubmit={() => {
+                  setSubmitError('')
+                  setSubmitConfirmOpen(true)
+                }}
+              />
 
               {historyLoaded ? (
                 <DocumentStatusTable
@@ -3824,6 +4109,7 @@ function PortalApp({ accountSession, onLogout }) {
                   docs={myDocs}
                   applicantName={applicantName}
                   onReupload={jumpToUploadFor}
+                  uploadPlaces={DOC_UPLOAD_PLACE}
                 />
               ) : (
                 <div className="card">
@@ -3852,181 +4138,6 @@ function PortalApp({ accountSession, onLogout }) {
                 )}
               </div>
 
-              {/* Real upload form — no direct spec equivalent (spec's version is
-                  a single static upload row); wrapped in a .card shell so it
-                  sits visually consistent with the rest of the panel, but the
-                  dropzone/preview/OCR-detail internals below keep their own
-                  Tailwind styling since there's nothing in applicant.html to
-                  match them against. */}
-              <div className="card" style={{ marginTop: '18.75px' }}>
-                <div className="card-title">Upload a Document</div>
-                <p className="topic-card-intro" style={{ marginTop: '-6px' }}>
-                  Profile Picture, Birth Certificate, and Voter&rsquo;s ID upload from the Personal
-                  Information panel; Grades from Educational Background; Parent/Guardian ID, Proof of
-                  Employment, and Proof of Income from Family &amp; Financial Information; Medical
-                  Certificate from Health &amp; Wellness. Supporting Document uploads here or from
-                  Appeals &amp; Rescheduling.
-                </p>
-
-                <form onSubmit={handleUpload} className="space-y-5">
-                  <div className="space-y-1.5">
-                    <label htmlFor="documentType" className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
-                      Document type
-                    </label>
-                    <select
-                      id="documentType"
-                      value={documentType}
-                      onChange={(e) => setDocumentType(e.target.value)}
-                      className="w-full rounded-lg border border-ccc-border bg-white px-3 py-2.5 text-sm text-ccc-text focus:outline-none focus:ring-2 focus:ring-ccc-blue/40"
-                    >
-                      <option value="" disabled>Select which document this is&hellip;</option>
-                      {DOCUMENT_TYPE_OPTIONS.map((group) => (
-                        <optgroup key={group.group} label={group.group}>
-                          {group.options.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </div>
-
-                  {!file ? (
-                    <div
-                      onDragEnter={handleDrag}
-                      onDragLeave={handleDrag}
-                      onDragOver={handleDrag}
-                      onDrop={handleDrop}
-                      className={`relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center space-y-4
-                        ${isDragging ? 'border-ccc-blue bg-blue-50' : 'border-ccc-border bg-ccc-off hover:border-ccc-blue/50 hover:bg-blue-50/40'}`}
-                    >
-                      <input
-                        type="file"
-                        onChange={(e) => setFile(e.target.files[0])}
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
-                      />
-                      <div className="w-16 h-16 rounded-full bg-white border border-ccc-border flex items-center justify-center text-ccc-navy shadow-sm mb-2">
-                        <IconUpload className="w-8 h-8" />
-                      </div>
-                      <div>
-                        <p className="text-base font-semibold text-ccc-navy">Click to upload or drag and drop</p>
-                        <p className="text-sm text-ccc-muted mt-1">Supports PDF, PNG, and JPG formats up to 10MB</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between p-5 bg-blue-50 border border-ccc-blue/30 rounded-2xl">
-                      <div className="flex items-center space-x-4 overflow-hidden">
-                        <div className="w-12 h-12 rounded-xl bg-white border border-ccc-blue/30 flex items-center justify-center text-ccc-blue shrink-0">
-                          <IconFile className="w-6 h-6" />
-                        </div>
-                        <div className="truncate pr-4">
-                          <p className="text-sm font-semibold text-ccc-text truncate">{file.name}</p>
-                          <p className="text-xs text-ccc-muted mt-0.5">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setFile(null)}
-                        className="p-2 rounded-lg hover:bg-white text-ccc-muted hover:text-ccc-navy transition-colors shrink-0"
-                        aria-label="Remove file"
-                      >
-                        <IconX className="w-5 h-5" />
-                      </button>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={loading || !file || !documentType || !applicantName.trim()}
-                    className="w-full py-4 px-4 bg-ccc-blue hover:bg-ccc-navy disabled:bg-ccc-border disabled:text-ccc-muted text-white font-bold rounded-xl transition-all shadow-md text-sm flex items-center justify-center space-x-2 cursor-pointer disabled:cursor-not-allowed"
-                    style={{ fontFamily: 'var(--font-montserrat)' }}
-                  >
-                    {loading ? (
-                      <>
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        <span>Securing & uploading...</span>
-                      </>
-                    ) : (
-                      <span>Upload & verify document</span>
-                    )}
-                  </button>
-                </form>
-
-                {qualityRejection && <QualityRejectionAlert message={qualityRejection.message} />}
-
-                {status && (
-                  <div className={`p-4 rounded-xl text-sm font-medium flex items-center space-x-3 ${
-                    details
-                      ? (details.needsReview
-                          ? 'bg-orange-50 border border-ccc-orange/40 text-ccc-orange'
-                          : 'bg-green-50 border border-ccc-green/40 text-ccc-green')
-                      : 'bg-ccc-off border border-ccc-border text-ccc-text'
-                  }`}>
-                    {details && (details.reviewStatus === 'processing'
-                      ? <IconClock className="w-5 h-5 text-ccc-blue shrink-0" />
-                      : details.needsReview
-                        ? <IconAlertTriangle className="w-5 h-5 text-ccc-orange shrink-0" />
-                        : <IconCheck className="w-5 h-5 text-ccc-green shrink-0" />)}
-                    <span>{status}</span>
-                  </div>
-                )}
-
-                {details && details.needsReview && (
-                  <DeficiencyAlert
-                    confidence={details.extractionConfidence}
-                    onReupload={() => { setDetails(null); setStatus(''); setFile(null) }}
-                  />
-                )}
-
-                {details && (
-                  <div className="bg-ccc-off border border-ccc-border rounded-2xl p-6 space-y-5">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">Detected text</span>
-                        <ReviewStatusBadge needsReview={details.needsReview} reviewStatus={details.reviewStatus} />
-                      </div>
-                      <ExtractedTextField text={details.extractedText} method={details.extractionMethod} processing={details.reviewStatus === 'processing'} />
-                    </div>
-                    <a
-                      href={details.publicUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center w-full py-3 bg-ccc-navy hover:bg-ccc-blue text-white font-semibold rounded-xl transition-colors space-x-2 text-sm"
-                    >
-                      <span>View uploaded document</span>
-                      <IconExternal className="w-4 h-4" />
-                    </a>
-                  </div>
-                )}
-              </div>
-
-              <div className="card" style={{ marginTop: '18.75px' }}>
-                <div className="card-title">Submit Application</div>
-                {submitted ? (
-                  <p style={{ fontSize: '12.75px', color: 'var(--green)', fontWeight: 700 }}>
-                    &#x2713; Application submitted for review. {applicantName.trim()}, your documents are on file. This panel will keep tracking their status.
-                  </p>
-                ) : (
-                  <>
-                    <p className="topic-card-intro" style={{ marginTop: 0 }}>
-                      This confirms your documents are ready for review. A per-section Save/Submit flow
-                      like Ivy&rsquo;s (instead of one final submit) is a possible future refinement, not built yet.
-                    </p>
-                    <div className="form-actions">
-                      <button
-                        type="button"
-                        onClick={submitApplication}
-                        disabled={saveState === 'saving' || myDocs.length === 0}
-                        className="mbtn mbtn-secondary"
-                      >
-                        {saveState === 'saving' ? 'Submitting…' : myDocs.length === 0 ? 'Upload at least one document to submit' : 'Submit Application'}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
             </div>
           )}
 
