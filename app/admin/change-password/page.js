@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import SiteHeader from '../../components/SiteHeader'
+import { Skeleton } from '../../components/Skeleton'
 import '../../admin-theme.css'
 
 // Sept 29 2026: first sign-in on a temporary password (new invite or a
@@ -112,7 +113,15 @@ function ChangePasswordForm() {
   }
 
   if (name === null) {
-    return <p className="text-sm" style={{ color: 'rgba(255,255,255,.8)' }}>Loading...</p>
+    return (
+      <div role="status" aria-live="polite" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <span className="sk-sr">Loading...</span>
+        <Skeleton dark width="55%" height={16} />
+        <Skeleton dark width="85%" height={11} />
+        <Skeleton dark width="100%" height={42} radius={8} />
+        <Skeleton dark width="100%" height={42} radius={8} />
+      </div>
+    )
   }
 
   return (

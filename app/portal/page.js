@@ -5,6 +5,8 @@ import '../portal-theme.css'
 import SiteHeader from '../components/SiteHeader'
 import DocumentStatusTable from '../components/DocumentStatusTable'
 import PortalSidebar from '../components/PortalSidebar'
+import LoadingScreen from '../components/LoadingScreen'
+import { Skeleton, SkeletonRows, SkeletonList, SkeletonText } from '../components/Skeleton'
 import { DOCUMENT_TYPE_OPTIONS, getDocTypeLabel } from '../lib/documentTypes'
 import {
   saveDraftLocal,
@@ -27,6 +29,45 @@ function formatAllowanceDate(ymd) {
   if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(String(ymd))) return String(ymd || '')
   const [y, m, d] = String(ymd).split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+}
+
+// Oct 5 2026: while the saved application is still loading, the profile
+// sections show this instead of empty fields. Besides looking better, it
+// stops someone from typing into a field that the saved answer would then
+// overwrite a second later.
+const PROFILE_PANEL_HEADERS = {
+  personal: ['Admission \u00b7 My Profile (Softcopy)', 'Personal Information'],
+  academic: ['Admission \u00b7 My Profile (Softcopy)', 'Educational Background'],
+  financial: ['Admission \u00b7 My Profile (Softcopy)', 'Family & Financial Information'],
+  health: ['Scholarship Services \u00b7 During Enrollment', 'Health & Wellness'],
+}
+
+function ProfilePanelSkeleton({ panel }) {
+  const [eyebrow, title] = PROFILE_PANEL_HEADERS[panel] || ['', '']
+  return (
+    <div>
+      <div className="portal-header">
+        <p className="portal-eyebrow">{eyebrow}</p>
+        <h1>{title}</h1>
+      </div>
+      {[6, 4].map((fields, c) => (
+        <div className="card" key={c} role={c === 0 ? 'status' : undefined} aria-live={c === 0 ? 'polite' : undefined}>
+          {c === 0 && <span className="sk-sr">Loading your saved answers...</span>}
+          <div className="card-title">
+            <Skeleton width={c === 0 ? 180 : 140} height={14} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '6px 16px' }} aria-hidden="true">
+            {Array.from({ length: fields }, (_, i) => (
+              <div className="sk-field" key={i}>
+                <Skeleton width={[90, 120, 70, 110, 100, 80][i % 6]} height={10} />
+                <Skeleton width="100%" height={40} radius={8} />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function AllowancePanel() {
@@ -60,7 +101,7 @@ function AllowancePanel() {
           {posts.length > 0 && <span className="tag">{posts.length} {posts.length === 1 ? 'post' : 'posts'}</span>}
         </div>
         {loading ? (
-          <p style={{ fontSize: '12.75px', color: 'var(--muted)' }}>Loading...</p>
+          <SkeletonRows rows={3} avatar={false} label="Loading your allowance..." />
         ) : error ? (
           <p style={{ fontSize: '12.75px', color: 'var(--red)' }}>{error}</p>
         ) : posts.length === 0 ? (
@@ -1375,11 +1416,7 @@ export default function PortalPage() {
   }, [accountSession, router])
 
   if (accountSession === undefined || accountSession === null) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-ccc-off text-ccc-muted text-sm">
-        Loading…
-      </div>
-    )
+    return <LoadingScreen />
   }
 
   return (
@@ -1403,6 +1440,11 @@ function PortalApp({ accountSession, onLogout }) {
   const [applicantEmail, setApplicantEmail] = useState(accountSession.email || '')
   const [documentType, setDocumentType] = useState('')
   const [docHistory, setDocHistory] = useState([])
+  // Oct 5 2026: false until the first document and application loads have
+  // finished, so the Dashboard shows skeletons instead of briefly showing
+  // "Step 2 of 6" and every milestone Locked before the real progress loads.
+  const [historyLoaded, setHistoryLoaded] = useState(false)
+  const [appLoaded, setAppLoaded] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [statusRequested, setStatusRequested] = useState(false)
@@ -2058,6 +2100,8 @@ function PortalApp({ accountSession, onLogout }) {
         setSubmittedAt(data.application.submitted_at || null)
       } catch (err) {
         console.error('Auto-load of saved application failed (will retry via manual resume banner if needed):', err)
+      } finally {
+        if (!cancelled) setAppLoaded(true)
       }
     })()
     return () => {
@@ -2201,6 +2245,8 @@ function PortalApp({ accountSession, onLogout }) {
       }
     } catch (error) {
       console.error('Failed to fetch history:', error)
+    } finally {
+      setHistoryLoaded(true)
     }
   }
 
@@ -2640,6 +2686,53 @@ function PortalApp({ accountSession, onLogout }) {
               ? { label: 'Submit your documents for review', panel: 'status' }
               : null
 
+            if (!appLoaded || !historyLoaded) {
+              return (
+                <div>
+                  <div className="portal-header">
+                    <h1>Welcome back{applicantName.trim() ? `, ${applicantName.trim().split(' ')[0]}` : ''}!</h1>
+                    <p>Here&rsquo;s a quick look at your scholarship application progress with the City College of Calamba.</p>
+                  </div>
+                  <div className="card status-hero" role="status" aria-live="polite">
+                    <span className="sk-sr">Loading your application progress...</span>
+                    <p className="status-hero-eyebrow">Application Status</p>
+                    <div className="status-hero-value">
+                      <Skeleton width={250} height={28} radius={20} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 21 }}>
+                      <Skeleton width="85%" height={11} />
+                      <Skeleton width="62%" height={11} />
+                    </div>
+                    <div className="status-hero-next">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <Skeleton width={70} height={9} />
+                        <Skeleton width={220} height={13} />
+                      </div>
+                      <Skeleton width={110} height={38} radius={8} />
+                    </div>
+                  </div>
+                  <div className="section-divider">
+                    <div className="section-divider-chip">
+                      <span className="divider-icon">&#128275;</span> Progress Milestones
+                    </div>
+                  </div>
+                  <p className="section-divider-sub">Each milestone below unlocks as you clear the corresponding step in the application process.</p>
+                  <div className="stat-grid" aria-hidden="true">
+                    {['Profile Completion', 'Document Verification', 'Exam Schedule', 'Medical Status', 'Admission'].map((label) => (
+                      <div key={label} className="stat-card">
+                        <div className="stat-label">{label}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+                          <Skeleton width={150} height={18} />
+                          <Skeleton width="90%" height={10} />
+                          <Skeleton width="60%" height={10} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            }
+
             return (
               <div>
                 <div className="portal-header">
@@ -2919,7 +3012,7 @@ function PortalApp({ accountSession, onLogout }) {
                   if (messagesLoading) {
                     return (
                       <div style={{ textAlign: 'center', padding: '30px 15px' }}>
-                        <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--muted)' }}>Loading…</p>
+                        <SkeletonList items={3} chips={false} label="Loading your messages..." />
                       </div>
                     )
                   }
@@ -2956,7 +3049,9 @@ function PortalApp({ accountSession, onLogout }) {
           )}
 
           {/* ══════════ PERSONAL INFORMATION (built — cards 1-6 ported as-is) ══════════ */}
-          {activePanel === 'personal' && (
+          {!appLoaded && PROFILE_PANEL_HEADERS[activePanel] && <ProfilePanelSkeleton panel={activePanel} />}
+
+          {activePanel === 'personal' && appLoaded && (
             <div>
               <div className="portal-header">
                 <p className="portal-eyebrow">Admission &middot; My Profile (Softcopy)</p>
@@ -3244,7 +3339,7 @@ function PortalApp({ accountSession, onLogout }) {
           {/* ══════════ EDUCATIONAL BACKGROUND (built — Program Application,
               Preferred Program, 3-tier school table, Tech-Voc, and the
               Grades/Form 138 upload, ported from Ivy's academic panel) ══════════ */}
-          {activePanel === 'academic' && (
+          {activePanel === 'academic' && appLoaded && (
             <div>
               <div className="portal-header">
                 <p className="portal-eyebrow">Admission &middot; My Profile (Softcopy)</p>
@@ -3397,7 +3492,7 @@ function PortalApp({ accountSession, onLogout }) {
               Guardian table, only-child branch, emergency contact,
               working-student branch, sibling income table, ported from
               Ivy's panel-financial) ══════════ */}
-          {activePanel === 'financial' && (
+          {activePanel === 'financial' && appLoaded && (
             <div>
               <div className="portal-header">
                 <p className="portal-eyebrow">Admission &middot; My Profile (Softcopy)</p>
@@ -3658,7 +3753,7 @@ function PortalApp({ accountSession, onLogout }) {
           {/* ══════════ HEALTH & WELLNESS (built — Medical Status + the
               Medical Examination Results/Certificate upload, ported from
               Ivy's health panel) ══════════ */}
-          {activePanel === 'health' && (
+          {activePanel === 'health' && appLoaded && (
             <div>
               <div className="portal-header">
                 <p className="portal-eyebrow">Scholarship Services &middot; During Enrollment</p>
@@ -3723,28 +3818,38 @@ function PortalApp({ accountSession, onLogout }) {
                 <p>Track the review status of every document you&rsquo;ve submitted.</p>
               </div>
 
-              <DocumentStatusTable
-                groups={DOCUMENT_TYPE_OPTIONS}
-                docs={myDocs}
-                applicantName={applicantName}
-                onReupload={jumpToUploadFor}
-              />
+              {historyLoaded ? (
+                <DocumentStatusTable
+                  groups={DOCUMENT_TYPE_OPTIONS}
+                  docs={myDocs}
+                  applicantName={applicantName}
+                  onReupload={jumpToUploadFor}
+                />
+              ) : (
+                <div className="card">
+                  <SkeletonRows rows={5} avatar={false} label="Loading your documents..." />
+                </div>
+              )}
 
               {/* Application History & Activity Log — spec has this card
                   right here too, but scripted with fake data; this one is
                   built from real events (see buildActivityLog() above). */}
               <div className="card">
                 <div className="card-title">Application History &amp; Activity Log</div>
-                <ActivityLog
-                  events={buildActivityLog({
-                    myDocs,
-                    personalSubmittedAt,
-                    academicSubmittedAt,
-                    healthSubmittedAt,
-                    financialSubmittedAt,
-                    submittedAt,
-                  })}
-                />
+                {historyLoaded && appLoaded ? (
+                  <ActivityLog
+                    events={buildActivityLog({
+                      myDocs,
+                      personalSubmittedAt,
+                      academicSubmittedAt,
+                      healthSubmittedAt,
+                      financialSubmittedAt,
+                      submittedAt,
+                    })}
+                  />
+                ) : (
+                  <SkeletonText lines={3} label="Loading your activity..." />
+                )}
               </div>
 
               {/* Real upload form — no direct spec equivalent (spec's version is
