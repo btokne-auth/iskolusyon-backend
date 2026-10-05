@@ -27,6 +27,79 @@ import { scryptSync, randomBytes, randomInt, timingSafeEqual } from 'crypto'
 import { supabase } from '@/app/supabaseClient'
 
 const KEY_LENGTH = 64
+
+// Oct 5 2026: the roster columns (never password_hash).
+const ACCOUNT_COLUMNS =
+  'name, email, is_super_admin, role, access_from, access_until, created_at, must_change_password, temp_password_expires_at'
+
+// ---------- Roles (Oct 5 2026) ----------
+// 'super_admin' and 'admin' run the console. 'registrar' (Office of the
+// Registrar) only posts allowances and sees Dashboard counts. 'lgu' (view
+// only) only sees CHED Form 3 reports released to the LGU, and only between
+// access_from and access_until (inclusive, Manila dates).
+export const ROLE_KEYS = ['admin', 'super_admin', 'registrar', 'lgu']
+export const ROLE_LABELS = {
+  admin: 'Admin',
+  super_admin: 'Super Admin',
+  registrar: 'Office of the Registrar',
+  lgu: 'LGU (view only)',
+}
+
+// is_super_admin stays the source of truth for Super Admins (older code and
+// the seed script only set that column).
+export function effectiveRole(row) {
+  if (!row) return null
+  if (row.is_super_admin) return 'super_admin'
+  if (row.role === 'registrar' || row.role === 'lgu') return row.role
+  return 'admin'
+}
+
+// Today's date in Manila as YYYY-MM-DD, the same day boundary the
+// Acceptance Start/End dates use.
+export function manilaToday() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date())
+}
+
+export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+// 'active' | 'not_started' | 'ended' for an LGU account; always 'active'
+// for every other role.
+export function accessState(row) {
+  if (effectiveRole(row) !== 'lgu') return 'active'
+  const today = manilaToday()
+  if (!row.access_from || !row.access_until) return 'ended'
+  if (today < String(row.access_from)) return 'not_started'
+  if (today > String(row.access_until)) return 'ended'
+  return 'active'
+}
+
+export function formatAccessDate(ymd) {
+  if (!ymd || !DATE_RE.test(String(ymd))) return String(ymd || '')
+  const [y, m, d] = String(ymd).split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  })
+}
+
+// The sign-in refusal shown to an LGU account outside its window, or null.
+export function accessRefusal(row) {
+  const state = accessState(row)
+  if (state === 'not_started') return `Your access starts on ${formatAccessDate(row.access_from)}.`
+  if (state === 'ended') return 'Your access has ended. Please contact City College of Calamba.'
+  return null
+}
+
+export async function getAdminAccount(email) {
+  const normalizedEmail = (email || '').trim().toLowerCase()
+  if (!normalizedEmail) return null
+  const { data, error } = await supabase
+    .from('admin_accounts')
+    .select(ACCOUNT_COLUMNS)
+    .eq('email', normalizedEmail)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return data || null
+}
 export const TEMP_PASSWORD_DAYS = 7
 export const MIN_PASSWORD_LENGTH = 8
 
@@ -69,7 +142,7 @@ export async function verifyAdminCredentials(email, password) {
 
   const { data, error } = await supabase
     .from('admin_accounts')
-    .select('name, email, password_hash, is_super_admin, must_change_password, temp_password_expires_at')
+    .select('name, email, password_hash, is_super_admin, role, access_from, access_until, must_change_password, temp_password_expires_at')
     .eq('email', normalizedEmail)
     .maybeSingle()
 
@@ -86,6 +159,10 @@ export async function verifyAdminCredentials(email, password) {
     name: data.name,
     email: data.email,
     isSuperAdmin: !!data.is_super_admin,
+    role: effectiveRole(data),
+    accessFrom: data.access_from || null,
+    accessUntil: data.access_until || null,
+    accessRefusal: accessRefusal(data),
     mustChangePassword,
     tempExpired,
   }
@@ -102,7 +179,7 @@ export async function confirmOwnPassword(email, password) {
 export async function listAdminAccounts() {
   const { data, error } = await supabase
     .from('admin_accounts')
-    .select('name, email, is_super_admin, created_at, must_change_password, temp_password_expires_at')
+    .select(ACCOUNT_COLUMNS)
     .order('created_at', { ascending: true })
 
   if (error) throw new Error(error.message)
@@ -118,12 +195,27 @@ export async function listAdminAccounts() {
 // password (the Super Admin never types one), and the account must set
 // its own password on first sign-in. Returns the plain temporary password
 // once so the route can email it; it is never stored in plain text.
-export async function inviteAdminAccount({ name, email, isSuperAdmin }) {
+// Oct 5 2026: `role` is one of ROLE_KEYS (`isSuperAdmin` still works for
+// older callers). An LGU account needs accessFrom/accessUntil (YYYY-MM-DD).
+export function checkAccessDates(accessFrom, accessUntil) {
+  if (!DATE_RE.test(String(accessFrom || '')) || !DATE_RE.test(String(accessUntil || ''))) {
+    return 'Please set both access dates for the LGU account.'
+  }
+  if (String(accessUntil) < String(accessFrom)) return 'The access end date must be on or after the start date.'
+  return null
+}
+
+export async function inviteAdminAccount({ name, email, isSuperAdmin, role, accessFrom, accessUntil }) {
   const normalizedEmail = (email || '').trim().toLowerCase()
   const trimmedName = (name || '').trim()
+  const finalRole = ROLE_KEYS.includes(role) ? role : isSuperAdmin ? 'super_admin' : 'admin'
 
   if (!trimmedName) return { error: 'Full name is required.' }
   if (!normalizedEmail) return { error: 'Email is required.' }
+  if (finalRole === 'lgu') {
+    const dateProblem = checkAccessDates(accessFrom, accessUntil)
+    if (dateProblem) return { error: dateProblem }
+  }
 
   const { data: existing, error: lookupError } = await supabase
     .from('admin_accounts')
@@ -141,12 +233,15 @@ export async function inviteAdminAccount({ name, email, isSuperAdmin }) {
         name: trimmedName,
         email: normalizedEmail,
         password_hash: hashPassword(tempPassword),
-        is_super_admin: !!isSuperAdmin,
+        is_super_admin: finalRole === 'super_admin',
+        role: finalRole,
+        access_from: finalRole === 'lgu' ? accessFrom : null,
+        access_until: finalRole === 'lgu' ? accessUntil : null,
         must_change_password: true,
         temp_password_expires_at: tempExpiryIso(),
       },
     ])
-    .select('name, email, is_super_admin, created_at, must_change_password, temp_password_expires_at')
+    .select(ACCOUNT_COLUMNS)
     .single()
 
   if (error) return { error: error.message }
@@ -169,7 +264,7 @@ export async function resetAdminToTempPassword(email) {
       temp_password_expires_at: tempExpiryIso(),
     })
     .eq('email', normalizedEmail)
-    .select('name, email, is_super_admin, created_at, must_change_password, temp_password_expires_at')
+    .select(ACCOUNT_COLUMNS)
     .maybeSingle()
 
   if (error) return { error: error.message }
@@ -190,7 +285,7 @@ export async function setOwnPasswordFromTemp(email, newPassword) {
 
   const { data: account, error: lookupError } = await supabase
     .from('admin_accounts')
-    .select('name, email, password_hash, is_super_admin, must_change_password, temp_password_expires_at')
+    .select('name, email, password_hash, is_super_admin, role, access_from, access_until, must_change_password, temp_password_expires_at')
     .eq('email', normalizedEmail)
     .maybeSingle()
   if (lookupError) return { error: lookupError.message }
@@ -209,7 +304,44 @@ export async function setOwnPasswordFromTemp(email, newPassword) {
     .eq('email', normalizedEmail)
   if (error) return { error: error.message }
 
-  return { account: { name: account.name, email: account.email, isSuperAdmin: !!account.is_super_admin } }
+  return {
+    account: {
+      name: account.name,
+      email: account.email,
+      isSuperAdmin: !!account.is_super_admin,
+      role: effectiveRole(account),
+      accessRefusal: accessRefusal(account),
+    },
+  }
+}
+
+// Oct 5 2026: a Super Admin changes an LGU account's access window.
+export async function updateLguAccess(email, accessFrom, accessUntil) {
+  const normalizedEmail = (email || '').trim().toLowerCase()
+  const dateProblem = checkAccessDates(accessFrom, accessUntil)
+  if (dateProblem) return { error: dateProblem }
+  const current = await getAdminAccount(normalizedEmail)
+  if (!current) return { error: 'That account no longer exists.' }
+  if (effectiveRole(current) !== 'lgu') return { error: 'Only LGU accounts have access dates.' }
+  const { data, error } = await supabase
+    .from('admin_accounts')
+    .update({ access_from: accessFrom, access_until: accessUntil })
+    .eq('email', normalizedEmail)
+    .select(ACCOUNT_COLUMNS)
+    .maybeSingle()
+  if (error) return { error: error.message }
+  return { account: data }
+}
+
+// Oct 5 2026: guards "the only Registrar account can't be removed".
+export async function countRole(role) {
+  const { count, error } = await supabase
+    .from('admin_accounts')
+    .select('email', { count: 'exact', head: true })
+    .eq('role', role)
+    .eq('is_super_admin', false)
+  if (error) throw new Error(error.message)
+  return count || 0
 }
 
 // Sept 22, 2026: removal. Two guards live here rather than only in the route so any future caller gets
@@ -231,7 +363,7 @@ export async function deleteAdminAccount(email) {
     .from('admin_accounts')
     .delete()
     .eq('email', email)
-    .select('name, email, is_super_admin')
+    .select('name, email, is_super_admin, role')
     .maybeSingle()
 
   if (error) throw new Error(error.message)

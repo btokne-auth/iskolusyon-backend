@@ -4028,6 +4028,37 @@ function IconTrash() {
 }
 
 
+// Oct 5 2026: role cards for Admin Accounts (Registrar and LGU added).
+const ADMIN_ROLE_OPTIONS = [
+  { key: 'admin', label: 'Admin', desc: 'Reviews applicants, results, schedules, requests and communications.' },
+  { key: 'super_admin', label: 'Super Admin', desc: 'Everything an Admin does, plus Admin Accounts and System & Activity.' },
+  { key: 'registrar', label: 'Office of the Registrar', desc: 'Posts allowances for scholars. Sees Dashboard counts only.' },
+  { key: 'lgu', label: 'LGU (view only)', desc: 'Views and downloads reports CCC releases. Access ends on a set date.' },
+]
+const ADMIN_ROLE_LABEL = Object.fromEntries(ADMIN_ROLE_OPTIONS.map((r) => [r.key, r.label]))
+const ADMIN_ROLE_PHRASE = {
+  admin: 'an Admin',
+  super_admin: 'a Super Admin',
+  registrar: 'the Office of the Registrar',
+  lgu: 'an LGU (view only) account',
+}
+const LGU_DEFAULT_DAYS = 7
+
+// YYYY-MM-DD in Manila, and simple day math on those strings.
+function manilaTodayYmd() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date())
+}
+function addDaysYmd(ymd, days) {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d + days))
+  return dt.toISOString().slice(0, 10)
+}
+function formatYmd(ymd, opts = { month: 'short', day: 'numeric', year: 'numeric' }) {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(String(ymd))) return ''
+  const [y, m, d] = String(ymd).split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', { ...opts, timeZone: 'UTC' })
+}
+
 function AdminAccountsPanel() {
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -4043,6 +4074,11 @@ function AdminAccountsPanel() {
   const [newEmail, setNewEmail] = useState('')
   const [newRole, setNewRole] = useState('admin')
   const [formError, setFormError] = useState('')
+  // Oct 5 2026: LGU access window (defaults to today through 7 days later).
+  const [newFrom, setNewFrom] = useState(() => manilaTodayYmd())
+  const [newUntil, setNewUntil] = useState(() => addDaysYmd(manilaTodayYmd(), LGU_DEFAULT_DAYS))
+  const [datesFrom, setDatesFrom] = useState('')
+  const [datesUntil, setDatesUntil] = useState('')
 
   // The pending action waiting for the Super Admin's password:
   // { type: 'invite' | 'reset' | 'remove', account?, title, desc }
@@ -4099,12 +4135,34 @@ function AdminAccountsPanel() {
       setFormError('Please enter a full name and email.')
       return
     }
+    if (newRole === 'lgu') {
+      if (!newFrom || !newUntil) {
+        setFormError('Please set both access dates for the LGU account.')
+        return
+      }
+      if (newUntil < newFrom) {
+        setFormError('The access end date must be on or after the start date.')
+        return
+      }
+    }
     openConfirm({
       type: 'invite',
       title: 'Confirm Invite',
-      desc: `Re-enter your password to invite ${newName.trim()} (${newEmail.trim()}) as ${
-        newRole === 'super_admin' ? 'a Super Admin' : 'an Admin'
+      desc: `Re-enter your password to invite ${newName.trim()} (${newEmail.trim()}) as ${ADMIN_ROLE_PHRASE[newRole]}${
+        newRole === 'lgu' ? `, with access from ${formatYmd(newFrom)} to ${formatYmd(newUntil)}` : ''
       }.`,
+    })
+  }
+
+  const requestDates = (acc) => {
+    setNotice(null)
+    setDatesFrom(acc.access_from || manilaTodayYmd())
+    setDatesUntil(acc.access_until || addDaysYmd(manilaTodayYmd(), LGU_DEFAULT_DAYS))
+    openConfirm({
+      type: 'dates',
+      account: acc,
+      title: 'Change Access Dates',
+      desc: `Set when ${acc.name} can sign in. Re-enter your password to save.`,
     })
   }
 
@@ -4146,6 +4204,10 @@ function AdminAccountsPanel() {
       setConfirmError('Please enter your password.')
       return
     }
+    if (confirmAction.type === 'dates' && (!datesFrom || !datesUntil || datesUntil < datesFrom)) {
+      setConfirmError('Please set a start date and an end date on or after it.')
+      return
+    }
     setConfirmError('')
     setConfirmBusy(true)
     try {
@@ -4157,7 +4219,22 @@ function AdminAccountsPanel() {
           body: JSON.stringify({
             name: newName,
             email: newEmail,
+            role: newRole,
             isSuperAdmin: newRole === 'super_admin',
+            accessFrom: newRole === 'lgu' ? newFrom : undefined,
+            accessUntil: newRole === 'lgu' ? newUntil : undefined,
+            confirmPassword,
+          }),
+        })
+      } else if (confirmAction.type === 'dates') {
+        res = await fetch('/api/admin-accounts', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'dates',
+            email: confirmAction.account.email,
+            accessFrom: datesFrom,
+            accessUntil: datesUntil,
             confirmPassword,
           }),
         })
@@ -4198,6 +4275,14 @@ function AdminAccountsPanel() {
         setNewName('')
         setNewEmail('')
         setNewRole('admin')
+        setNewFrom(manilaTodayYmd())
+        setNewUntil(addDaysYmd(manilaTodayYmd(), LGU_DEFAULT_DAYS))
+      } else if (action.type === 'dates') {
+        setAccounts((prev) => prev.map((a) => (a.email === data.account.email ? { ...a, ...data.account } : a)))
+        setNotice({
+          tone: 'done',
+          text: `${data.account.name} can now sign in from ${formatYmd(data.account.access_from)} to ${formatYmd(data.account.access_until)}.`,
+        })
       } else if (action.type === 'reset') {
         setAccounts((prev) => prev.map((a) => (a.email === data.account.email ? { ...a, ...data.account } : a)))
         setNotice(describeTempResult(data, data.account.name))
@@ -4221,11 +4306,21 @@ function AdminAccountsPanel() {
   // Oct 3 2026 redesign: summary row, invite form beside an accounts table,
   // role picked with two cards, labeled Reset password / Remove buttons and
   // a restyled password check. Same rules and requests as before.
-  const superCount = accounts.filter((a) => a.is_super_admin).length
+  const roleOf = (a) => a.role_key || (a.is_super_admin ? 'super_admin' : 'admin')
+  const superCount = accounts.filter((a) => roleOf(a) === 'super_admin').length
+  const adminCount = accounts.filter((a) => roleOf(a) === 'admin').length
+  const registrarCount = accounts.filter((a) => roleOf(a) === 'registrar').length
+  const lguCount = accounts.filter((a) => roleOf(a) === 'lgu').length
   const waitingCount = accounts.filter((a) => pendingState(a)).length
   const confirmTone = confirmAction?.type === 'remove' ? 'danger' : 'primary'
   const confirmLabel =
-    confirmAction?.type === 'invite' ? 'Invite' : confirmAction?.type === 'reset' ? 'Send new password' : 'Remove'
+    confirmAction?.type === 'invite'
+      ? 'Invite'
+      : confirmAction?.type === 'reset'
+        ? 'Send new password'
+        : confirmAction?.type === 'dates'
+          ? 'Save dates'
+          : 'Remove'
 
   return (
     <div>
@@ -4234,8 +4329,8 @@ function AdminAccountsPanel() {
           <h1>Admin Accounts</h1>
           <p>
             Invite and manage the people who can use this admin console. They&apos;ll get an email with a temporary
-            password and choose their own when they first sign in. Inviting, resetting and removing accounts all ask for
-            your password first.
+            password and choose their own when they first sign in. Inviting, resetting, changing access dates and
+            removing accounts all ask for your password first.
           </p>
         </div>
         <span className="aa-super-chip">
@@ -4276,7 +4371,15 @@ function AdminAccountsPanel() {
           </div>
           <div className="cm-kpi">
             <span className="cm-kpi-label">Admins</span>
-            <span className="cm-kpi-value">{accounts.length - superCount}</span>
+            <span className="cm-kpi-value">{adminCount}</span>
+          </div>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Registrar</span>
+            <span className="cm-kpi-value">{registrarCount}</span>
+          </div>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">LGU (view only)</span>
+            <span className="cm-kpi-value">{lguCount}</span>
           </div>
           <div className="cm-kpi">
             <span className="cm-kpi-label">Waiting to set a password</span>
@@ -4288,12 +4391,12 @@ function AdminAccountsPanel() {
       <div className="cm-layout aa-layout">
         <section className="cm-card">
           <div className="cm-head">
-            <h2 className="cm-title">Invite an admin</h2>
+            <h2 className="cm-title">Invite an account</h2>
           </div>
           <form className="cm-form" onSubmit={requestInvite}>
             {formError && <div className="aa-form-error">{formError}</div>}
             <div className="cm-field">
-              <label className="cm-label" htmlFor="aaName">Full name</label>
+              <label className="cm-label" htmlFor="aaName">Full name or office</label>
               <input id="aaName" className="cm-input" type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
                 placeholder="e.g. Grace Villanueva" required />
             </div>
@@ -4304,11 +4407,8 @@ function AdminAccountsPanel() {
             </div>
             <div className="cm-field">
               <span className="cm-label" id="aaRoleLabel">Role</span>
-              <div className="aa-roles" role="group" aria-labelledby="aaRoleLabel">
-                {[
-                  { key: 'admin', label: 'Admin', desc: 'Reviews applicants, results, schedules, requests and communications.' },
-                  { key: 'super_admin', label: 'Super Admin', desc: 'Everything an Admin does, plus Admin Accounts and System & Activity.' },
-                ].map((r) => (
+              <div className="aa-roles aa-roles-grid" role="group" aria-labelledby="aaRoleLabel">
+                {ADMIN_ROLE_OPTIONS.map((r) => (
                   <button
                     key={r.key}
                     type="button"
@@ -4324,12 +4424,43 @@ function AdminAccountsPanel() {
                 ))}
               </div>
             </div>
+            {newRole === 'lgu' && (
+              <div className="aa-window">
+                <span className="cm-label">Access window</span>
+                <div className="aa-window-row">
+                  <div className="cm-field">
+                    <label className="aa-window-label" htmlFor="aaFrom">Access from</label>
+                    <input
+                      id="aaFrom"
+                      className="cm-input"
+                      type="date"
+                      value={newFrom}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setNewFrom(v)
+                        if (v) setNewUntil(addDaysYmd(v, LGU_DEFAULT_DAYS))
+                      }}
+                      required
+                    />
+                  </div>
+                  <div className="cm-field">
+                    <label className="aa-window-label" htmlFor="aaUntil">Access until</label>
+                    <input id="aaUntil" className="cm-input" type="date" value={newUntil} min={newFrom || undefined}
+                      onChange={(e) => setNewUntil(e.target.value)} required />
+                  </div>
+                </div>
+                <span className="aa-window-note">
+                  Starts as 7 days. Outside these dates their sign-in is refused. They only see reports CCC has released to
+                  the LGU.
+                </span>
+              </div>
+            )}
             <div className="cm-scope muted">
               <IconMail />
               <span>They get an email with a temporary password and choose their own the first time they sign in.</span>
             </div>
             <button type="submit" className="cm-btn cm-btn-primary cm-btn-block">
-              Invite admin
+              Invite
             </button>
           </form>
         </section>
@@ -4359,6 +4490,7 @@ function AdminAccountsPanel() {
                     <tr>
                       <th>Account</th>
                       <th>Role</th>
+                      <th>Access</th>
                       <th>Status</th>
                       <th className="r">Actions</th>
                     </tr>
@@ -4367,6 +4499,32 @@ function AdminAccountsPanel() {
                     {accounts.map((acc) => {
                       const isSelf = acc.email.toLowerCase() === myEmail
                       const pending = pendingState(acc)
+                      const role = roleOf(acc)
+                      const isLgu = role === 'lgu'
+                      // Status: invite state first, then (LGU only) the access window.
+                      const status = pending
+                        ? pending
+                        : isLgu && acc.access_state === 'not_started'
+                          ? 'notstarted'
+                          : isLgu && acc.access_state === 'ended'
+                            ? 'ended'
+                            : 'active'
+                      const statusLabel = {
+                        expired: 'Invite expired',
+                        pending: 'Pending setup',
+                        notstarted: 'Access not started',
+                        ended: 'Access ended',
+                        active: 'Active',
+                      }[status]
+                      const statusTitle = {
+                        expired: 'Their temporary password expired. Use Reset password to send a new one.',
+                        pending: 'Invited. Waiting for them to sign in and choose their own password.',
+                        notstarted: 'Their access start date has not come yet.',
+                        ended: 'Their access end date has passed. Use Change dates to give them more time.',
+                        active: 'Signed in with their own password.',
+                      }[status]
+                      const onlyRegistrar = role === 'registrar' && registrarCount <= 1
+                      const removeOff = isSelf || onlyRegistrar
                       return (
                         <tr key={acc.email}>
                           <td>
@@ -4382,27 +4540,30 @@ function AdminAccountsPanel() {
                             </div>
                           </td>
                           <td>
-                            <span className={`aa-chip ${acc.is_super_admin ? 'super' : 'admin'}`}>
-                              {acc.is_super_admin ? 'Super Admin' : 'Admin'}
+                            <span className={`aa-chip ${role === 'super_admin' ? 'super' : role === 'admin' ? 'admin' : 'limited'}`}>
+                              {ADMIN_ROLE_LABEL[role]}
                             </span>
                           </td>
+                          <td className="aa-access">
+                            {isLgu ? `${formatYmd(acc.access_from, { month: 'short', day: 'numeric' })} to ${formatYmd(acc.access_until)}` : 'No end date'}
+                          </td>
                           <td>
-                            <span
-                              className={`aa-chip status ${pending || 'active'}`}
-                              title={
-                                pending === 'expired'
-                                  ? 'Their temporary password expired. Use Reset password to send a new one.'
-                                  : pending === 'pending'
-                                    ? 'Invited. Waiting for them to sign in and choose their own password.'
-                                    : 'Signed in with their own password.'
-                              }
-                            >
+                            <span className={`aa-chip status ${status}`} title={statusTitle}>
                               <span className="aa-dot" />
-                              {pending === 'expired' ? 'Invite expired' : pending === 'pending' ? 'Pending setup' : 'Active'}
+                              {statusLabel}
                             </span>
                           </td>
                           <td className="r">
                             <span className="aa-actions">
+                              {isLgu && (
+                                <button type="button" onClick={() => requestDates(acc)} className="aa-act" title="Change when this LGU account can sign in">
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                                    <path d="M3 10h18M8 3v4M16 3v4" />
+                                  </svg>
+                                  Change dates
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => requestReset(acc)}
@@ -4420,8 +4581,14 @@ function AdminAccountsPanel() {
                                 type="button"
                                 className="aa-act danger"
                                 onClick={() => requestRemove(acc)}
-                                disabled={isSelf}
-                                title={isSelf ? 'You cannot remove your own account while signed in as it.' : 'Remove this admin account'}
+                                disabled={removeOff}
+                                title={
+                                  isSelf
+                                    ? 'You cannot remove your own account while signed in as it.'
+                                    : onlyRegistrar
+                                      ? 'This is the only Registrar account. Invite another Registrar account first.'
+                                      : 'Remove this account'
+                                }
                               >
                                 <IconTrash />
                                 Remove
@@ -4435,8 +4602,10 @@ function AdminAccountsPanel() {
                 </table>
               </div>
               <div className="aa-foot">
-                You can&apos;t reset or remove your own account here. <b>Pending setup</b> means they haven&apos;t signed in to
-                choose a password yet; <b>Invite expired</b> means use Reset password to send a new one.
+                You can&apos;t reset or remove your own account, the last Super Admin, or the only Registrar account.{' '}
+                <b>Pending setup</b> means they haven&apos;t signed in to choose a password yet; <b>Invite expired</b> means use
+                Reset password to send a new one; <b>Access ended</b> means an LGU account&apos;s end date has passed, so use
+                Change dates to give it more time.
               </div>
             </>
           )}
@@ -4457,6 +4626,19 @@ function AdminAccountsPanel() {
               </span>
               <h3 className="aa-confirm-title">{confirmAction.title}</h3>
               <p className="aa-confirm-desc">{confirmAction.desc}</p>
+              {confirmAction.type === 'dates' && (
+                <div className="aa-window-row">
+                  <div className="cm-field">
+                    <label className="cm-label" htmlFor="aaDatesFrom">Access from</label>
+                    <input id="aaDatesFrom" className="cm-input" type="date" value={datesFrom} onChange={(e) => setDatesFrom(e.target.value)} />
+                  </div>
+                  <div className="cm-field">
+                    <label className="cm-label" htmlFor="aaDatesUntil">Access until</label>
+                    <input id="aaDatesUntil" className="cm-input" type="date" value={datesUntil} min={datesFrom || undefined}
+                      onChange={(e) => setDatesUntil(e.target.value)} />
+                  </div>
+                </div>
+              )}
               <label className="cm-label" htmlFor="aaConfirmPw">Your password</label>
               <div style={{ position: 'relative' }}>
                 <input
@@ -4467,7 +4649,7 @@ function AdminAccountsPanel() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Your password"
                   autoComplete="current-password"
-                  autoFocus
+                  autoFocus={confirmAction.type !== 'dates'}
                   style={{ paddingRight: 40 }}
                 />
                 <button

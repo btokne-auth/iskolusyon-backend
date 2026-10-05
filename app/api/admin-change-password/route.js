@@ -46,7 +46,20 @@ export async function POST(request) {
       console.error('Audit log insert failed (non-blocking):', auditErr)
     }
 
-    const { value, maxAge } = await createAdminCookieValue(result.account.name, result.account.isSuperAdmin, result.account.email)
+    // Oct 5 2026: an LGU account outside its access dates keeps its new
+    // password but isn't signed in.
+    if (result.account.accessRefusal) {
+      const res = NextResponse.json({ error: result.account.accessRefusal, accessEnded: true }, { status: 403 })
+      res.cookies.set(ADMIN_PWCHANGE_COOKIE_NAME, '', { path: '/', maxAge: 0 })
+      return res
+    }
+
+    const { value, maxAge } = await createAdminCookieValue(
+      result.account.name,
+      result.account.isSuperAdmin,
+      result.account.email,
+      result.account.role
+    )
     const res = NextResponse.json({ success: true })
     res.cookies.set(ADMIN_COOKIE_NAME, value, {
       httpOnly: true,

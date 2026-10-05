@@ -86,6 +86,25 @@ export async function POST(request) {
     // Correct password: forget this email's earlier failures.
     await clearAttempts(emailKey)
 
+    // Oct 5 2026: an LGU (view only) account can only sign in between its
+    // access dates. Checked only after the password matched, so the dates
+    // are never shown to someone guessing.
+    if (account.accessRefusal) {
+      try {
+        await supabase.from('audit_log').insert([
+          {
+            actor: account.name,
+            action: 'Sign-in refused: outside the LGU account access dates',
+            kind: 'warn',
+            category: 'System',
+          },
+        ])
+      } catch (auditErr) {
+        console.error('Audit log insert failed (non-blocking):', auditErr)
+      }
+      return NextResponse.json({ error: account.accessRefusal, accessEnded: true }, { status: 403 })
+    }
+
     // Sept 29 2026: temporary password (new invite or Super Admin reset).
     // No console access yet: the admin gets a short-lived cookie that only
     // lets them choose their own password at /admin/change-password.
@@ -108,7 +127,7 @@ export async function POST(request) {
       return res
     }
 
-    const { value, maxAge } = await createAdminCookieValue(account.name, account.isSuperAdmin, account.email)
+    const { value, maxAge } = await createAdminCookieValue(account.name, account.isSuperAdmin, account.email, account.role)
 
     // Sept 24 2026: real sign-in logging -- the admin login page's footer
     // used to claim "Access is logged" without this ever actually
@@ -128,7 +147,7 @@ export async function POST(request) {
       console.error('Audit log insert failed (non-blocking):', auditErr)
     }
 
-    const res = NextResponse.json({ success: true, name: account.name, isSuperAdmin: account.isSuperAdmin })
+    const res = NextResponse.json({ success: true, name: account.name, isSuperAdmin: account.isSuperAdmin, role: account.role })
     res.cookies.set(ADMIN_COOKIE_NAME, value, {
       httpOnly: true,
       sameSite: 'lax',

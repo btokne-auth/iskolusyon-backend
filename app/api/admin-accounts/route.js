@@ -8,6 +8,13 @@ import {
   inviteAdminAccount,
   resetAdminToTempPassword,
   confirmOwnPassword,
+  effectiveRole,
+  accessState,
+  updateLguAccess,
+  countRole,
+  formatAccessDate,
+  ROLE_KEYS,
+  ROLE_LABELS,
 } from '@/app/lib/adminAccounts'
 import { sendAdminTempPasswordEmail } from '@/app/lib/adminEmails'
 
@@ -63,12 +70,26 @@ function loginUrlFor(request) {
   return `${new URL(request.url).origin}/admin/login`
 }
 
+// Oct 5 2026: each account also carries role_key (super_admin, admin,
+// registrar, lgu) and access_state (active, not_started, ended; only LGU
+// accounts can be anything but active).
+function withRole(row) {
+  return row ? { ...row, role_key: effectiveRole(row), access_state: accessState(row) } : row
+}
+
+function roleLabelWithArticle(role) {
+  if (role === 'admin') return 'an Admin'
+  if (role === 'lgu') return 'an LGU (view only) account'
+  if (role === 'registrar') return 'the Office of the Registrar'
+  return 'a Super Admin'
+}
+
 // Roster. Never returns password hashes.
 export async function GET(request) {
   try {
     const { session, response } = await requireSuperAdmin(request)
     if (!session) return response
-    const accounts = await listAdminAccounts()
+    const accounts = (await listAdminAccounts()).map(withRole)
     return NextResponse.json({ success: true, accounts })
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 })
@@ -87,34 +108,46 @@ export async function POST(request) {
     const denied = await requireOwnPassword(session, body.confirmPassword, 'invite admin')
     if (denied) return denied
 
+    // Oct 5 2026: `role` (admin, super_admin, registrar, lgu); older
+    // clients still send isSuperAdmin.
+    const role = ROLE_KEYS.includes(body.role) ? body.role : body.isSuperAdmin ? 'super_admin' : 'admin'
     const result = await inviteAdminAccount({
       name: body.name,
       email: body.email,
-      isSuperAdmin: !!body.isSuperAdmin,
+      role,
+      accessFrom: body.accessFrom,
+      accessUntil: body.accessUntil,
     })
     if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
 
+    const accountRole = effectiveRole(result.account)
     const mail = await sendAdminTempPasswordEmail({
       kind: 'invite',
       name: result.account.name,
       email: result.account.email,
-      role: result.account.is_super_admin ? 'super_admin' : 'admin',
+      role: accountRole,
+      accessFrom: result.account.access_from,
+      accessUntil: result.account.access_until,
       tempPassword: result.tempPassword,
       loginUrl: loginUrlFor(request),
       invitedBy: session.name,
     })
 
+    const accessNote =
+      accountRole === 'lgu'
+        ? `, access ${formatAccessDate(result.account.access_from)} to ${formatAccessDate(result.account.access_until)}`
+        : ''
     await logAudit(
       session.name,
-      `Invited admin account: ${result.account.name} (${result.account.email})${
-        result.account.is_super_admin ? ', Super Admin' : ''
-      }${mail.error ? '. Invite email failed to send' : ''}`,
+      `Invited ${ROLE_LABELS[accountRole]} account: ${result.account.name} (${result.account.email})${accessNote}${
+        mail.error ? '. Invite email failed to send' : ''
+      }`,
       mail.error ? 'warn' : 'info'
     )
 
     return NextResponse.json({
       success: true,
-      account: result.account,
+      account: withRole(result.account),
       emailSent: !mail.error,
       emailError: mail.error || null,
       tempPassword: mail.error ? result.tempPassword : undefined,
@@ -126,6 +159,8 @@ export async function POST(request) {
 
 // Reset { email, confirmPassword }: issues and emails a new temporary
 // password; the admin sets their own on next sign-in.
+// Oct 5 2026: { action: 'dates', email, accessFrom, accessUntil,
+// confirmPassword } changes an LGU account's access dates instead.
 export async function PATCH(request) {
   try {
     const { session, response } = await requireSuperAdmin(request)
@@ -134,6 +169,21 @@ export async function PATCH(request) {
     const body = await request.json()
     const email = (body.email || '').trim().toLowerCase()
     if (!email) return NextResponse.json({ error: 'Missing email.' }, { status: 400 })
+
+    if (body.action === 'dates') {
+      const deniedDates = await requireOwnPassword(session, body.confirmPassword, 'change LGU access dates')
+      if (deniedDates) return deniedDates
+      const updated = await updateLguAccess(email, body.accessFrom, body.accessUntil)
+      if (updated.error) return NextResponse.json({ error: updated.error }, { status: 400 })
+      await logAudit(
+        session.name,
+        `Changed access dates for LGU account: ${updated.account.name} (${updated.account.email}) to ${formatAccessDate(
+          updated.account.access_from
+        )} through ${formatAccessDate(updated.account.access_until)}`,
+        'info'
+      )
+      return NextResponse.json({ success: true, account: withRole(updated.account) })
+    }
 
     const denied = await requireOwnPassword(session, body.confirmPassword, 'reset admin password')
     if (denied) return denied
@@ -152,7 +202,7 @@ export async function PATCH(request) {
       kind: 'reset',
       name: result.account.name,
       email: result.account.email,
-      role: result.account.is_super_admin ? 'super_admin' : 'admin',
+      role: effectiveRole(result.account),
       tempPassword: result.tempPassword,
       loginUrl: loginUrlFor(request),
       invitedBy: session.name,
@@ -160,7 +210,7 @@ export async function PATCH(request) {
 
     await logAudit(
       session.name,
-      `Reset password for admin account: ${result.account.name} (${result.account.email})${
+      `Reset password for ${ROLE_LABELS[effectiveRole(result.account)]} account: ${result.account.name} (${result.account.email})${
         mail.error ? '. Reset email failed to send' : ''
       }`,
       'warn'
@@ -168,7 +218,7 @@ export async function PATCH(request) {
 
     return NextResponse.json({
       success: true,
-      account: result.account,
+      account: withRole(result.account),
       emailSent: !mail.error,
       emailError: mail.error || null,
       tempPassword: mail.error ? result.tempPassword : undefined,
@@ -198,7 +248,7 @@ export async function DELETE(request) {
 
     const { data: target, error: lookupError } = await supabase
       .from('admin_accounts')
-      .select('name, email, is_super_admin')
+      .select('name, email, is_super_admin, role')
       .eq('email', email)
       .maybeSingle()
     if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 })
@@ -214,10 +264,22 @@ export async function DELETE(request) {
       }
     }
 
+    // Oct 5 2026: keep at least one Office of the Registrar account (Ivy's
+    // mockup: the Registrar account can't be deleted).
+    if (effectiveRole(target) === 'registrar') {
+      const registrarCount = await countRole('registrar')
+      if (registrarCount <= 1) {
+        return NextResponse.json(
+          { error: 'This is the only Office of the Registrar account. Invite another Registrar account before removing this one.' },
+          { status: 400 }
+        )
+      }
+    }
+
     const deleted = await deleteAdminAccount(email)
     if (!deleted) return NextResponse.json({ error: 'That admin account no longer exists.' }, { status: 404 })
 
-    await logAudit(session.name, `Removed admin account: ${deleted.name} (${deleted.email})`, 'warn')
+    await logAudit(session.name, `Removed ${ROLE_LABELS[effectiveRole(deleted)]} account: ${deleted.name} (${deleted.email})`, 'warn')
 
     return NextResponse.json({ success: true })
   } catch (err) {

@@ -3,7 +3,7 @@
 // verified sending domain, so these can reach any inbox.
 
 import { Resend } from 'resend'
-import { TEMP_PASSWORD_DAYS } from '@/app/lib/adminAccounts'
+import { TEMP_PASSWORD_DAYS, formatAccessDate } from '@/app/lib/adminAccounts'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 const EMAIL_FROM = process.env.RESEND_FROM_EMAIL || 'Iskolusyon <noreply@iskolusyon.dev>'
@@ -19,7 +19,16 @@ function escapeHtml(text) {
 // kind: 'invite' for a new account, 'reset' when a Super Admin resets an
 // existing admin's password. Returns { success } or { error }, never
 // throws, so a failed email never undoes the account change itself.
-export async function sendAdminTempPasswordEmail({ kind, name, email, role, tempPassword, loginUrl, invitedBy }) {
+// Oct 5 2026: role can also be 'registrar' or 'lgu'. LGU invites mention
+// what the account is for and its access dates.
+const ROLE_PHRASE = {
+  super_admin: 'a Super Admin',
+  admin: 'an Admin',
+  registrar: 'the Office of the Registrar',
+  lgu: 'a view-only LGU account',
+}
+
+export async function sendAdminTempPasswordEmail({ kind, name, email, role, accessFrom, accessUntil, tempPassword, loginUrl, invitedBy }) {
   const isReset = kind === 'reset'
   const subject = isReset
     ? 'Your Iskolusyon admin password was reset'
@@ -27,7 +36,14 @@ export async function sendAdminTempPasswordEmail({ kind, name, email, role, temp
 
   const intro = isReset
     ? `${escapeHtml(invitedBy)} reset the password for your Iskolusyon admin account.`
-    : `${escapeHtml(invitedBy)} added you to the Iskolusyon Admin Console as ${role === 'super_admin' ? 'a Super Admin' : 'an Admin'}.`
+    : `${escapeHtml(invitedBy)} added you to the Iskolusyon Admin Console as ${ROLE_PHRASE[role] || 'an Admin'}.`
+
+  const lguNote =
+    role === 'lgu' && accessFrom && accessUntil
+      ? `<p>This account can view and download reports City College of Calamba releases to the LGU. You can sign in from ${escapeHtml(
+          formatAccessDate(accessFrom)
+        )} to ${escapeHtml(formatAccessDate(accessUntil))}.</p>`
+      : ''
 
   try {
     const result = await resend.emails.send({
@@ -37,6 +53,7 @@ export async function sendAdminTempPasswordEmail({ kind, name, email, role, temp
       html: `
         <p>Hi ${escapeHtml(name)},</p>
         <p>${intro}</p>
+        ${lguNote}
         <p>Sign in with this temporary password:</p>
         <p style="font-size:22px;font-weight:800;letter-spacing:2px;font-family:monospace;">${escapeHtml(tempPassword)}</p>
         <p>
