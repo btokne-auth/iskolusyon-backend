@@ -26,7 +26,7 @@ export async function POST(request) {
 
     const { data: waiting, error } = await supabase
       .from('documents')
-      .select('id')
+      .select('file_path') // the documents table has no id column
       .eq('applicant_user_id', session.id)
       .eq('review_status', 'processing')
       .limit(1)
