@@ -5670,3 +5670,54 @@
 @media (max-width: 900px) {
   .admin-portal .ra-layout { grid-template-columns: 1fr; }
 }
+
+/* ── Oct 5 2026: Export CHED Form 3 window (Dashboard) and the LGU
+   (view only) Released reports page. ── */
+.admin-portal .cf-header-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.admin-portal .cf-dialog {
+  width: 100%;
+  max-width: 1080px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(13, 47, 110, 0.35);
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.admin-portal .cf-head { padding: 20px 24px 0; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+.admin-portal .cf-title { margin: 0; font-family: "Montserrat", sans-serif; font-size: 17px; font-weight: 800; color: var(--navy); }
+.admin-portal .cf-sub { margin: 0 0 10px; font-size: 12.3px; color: #5a6b85; }
+.admin-portal .cf-body { display: flex; flex-wrap: wrap; gap: 22px; padding: 20px 24px; }
+.admin-portal .cf-side { flex: 1 1 260px; max-width: 320px; display: flex; flex-direction: column; gap: 16px; }
+.admin-portal .cf-preview { flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.admin-portal .cf-counts { display: flex; flex-direction: column; }
+.admin-portal .cf-counts > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #eef1f6; font-size: 12.3px; }
+.admin-portal .cf-counts > div.cf-total { border-bottom: none; font-weight: 700; }
+.admin-portal .cf-table-wrap { border: 1px solid var(--border); border-radius: 10px; }
+.admin-portal .cf-table { min-width: 980px; }
+.admin-portal .cf-table th,
+.admin-portal .cf-table td { padding: 8px 10px; font-size: 11.3px; white-space: nowrap; }
+.admin-portal .cf-strong { font-weight: 700; }
+.admin-portal .cf-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 24px;
+  background: #fafbfc;
+  border-top: 1px solid var(--border);
+}
+.admin-portal .cf-foot-end { justify-content: flex-end; }
+.admin-portal .cf-foot-note { font-size: 11.5px; color: #5a6b85; max-width: 460px; line-height: 1.5; }
+.admin-portal .cf-foot-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.admin-portal .cf-released { padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; }
+.admin-portal .cf-released-note { margin: 0; font-size: 12.3px; color: #4f5f78; line-height: 1.6; }
+.admin-portal .cf-rel-table { min-width: 760px; }
+.admin-portal .lg-access { margin: 0 0 18px; }
+.admin-portal .lg-access b { color: var(--navy); }
+.admin-portal .lg-table { min-width: 640px; }
+.admin-portal .lg-dl { min-height: 36px; }
+.admin-portal .lg-empty { padding: 28px 20px; font-size: 12.5px; color: #5a6b85; line-height: 1.6; margin: 0; }

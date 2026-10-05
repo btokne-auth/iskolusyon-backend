@@ -1471,6 +1471,7 @@ function DashboardPanel({
   onProfileSaved,
 }) {
   const locks = useApplicantLocks()
+  const [showForm3, setShowForm3] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [programFilter, setProgramFilter] = useState('all')
@@ -1680,15 +1681,22 @@ function DashboardPanel({
             {totalFlagged > 0 && ` · ${totalFlagged} document${totalFlagged === 1 ? '' : 's'} need review`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onRecomputeEligibility}
-          disabled={recomputing}
-          title="Recomputes eligibility for every applicant from their current data. Needed for anyone who fully submitted before this feature existed, since a locked application never triggers a new save on its own."
-          className="mbtn mbtn-ghost mbtn-sm"
-        >
-          {recomputing ? 'Recomputing…' : 'Recompute all'}
-        </button>
+        <span className="cf-header-actions">
+          {/* Oct 5 2026: CHED Form 3 export (Progress Table row 79). */}
+          <button type="button" onClick={() => setShowForm3(true)} className="mbtn mbtn-ghost mbtn-sm">
+            Export CHED Form 3
+          </button>
+          <button
+            type="button"
+            onClick={onRecomputeEligibility}
+            disabled={recomputing}
+            title="Recomputes eligibility for every applicant from their current data. Needed for anyone who fully submitted before this feature existed, since a locked application never triggers a new save on its own."
+            className="mbtn mbtn-ghost mbtn-sm"
+          >
+            {recomputing ? 'Recomputing…' : 'Recompute all'}
+          </button>
+        </span>
+        {showForm3 && <ChedForm3Dialog onClose={() => setShowForm3(false)} />}
       </div>
 
       {/* ── SCHOLARSHIP ELIGIBILITY: stat cards, click-to-filter (a real
@@ -6474,9 +6482,457 @@ function RegistrarAllowancePanel({ data, loading, error, onReload }) {
   )
 }
 
-// LGU (view only) reports page: added in the next change.
+// ---------- CHED Form 3 export (Oct 5 2026, Progress Table row 79) ----------
+// Dashboard "Export CHED Form 3" window. Behavior from Ivy's Patch 5
+// export (reference number + date, then a landscape PDF in the Form 3
+// layout), plus Release to LGU (Super Admin only): a frozen copy the LGU
+// (view only) account can see during its access dates. Design: canvas page
+// "Registrar, LGU and archive (Oct 5)".
+function ChedForm3Dialog({ onClose }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [tab, setTab] = useState('new')
+  const [referenceNumber, setReferenceNumber] = useState('')
+  const [formDate, setFormDate] = useState(() => manilaTodayYmd())
+  const [formError, setFormError] = useState('')
+  const [downloading, setDownloading] = useState(false)
+  // { type: 'release' } | { type: 'withdraw', report }
+  const [confirm, setConfirm] = useState(null)
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [confirmError, setConfirmError] = useState('')
+  const [confirmBusy, setConfirmBusy] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/ched-form3')
+      const result = await res.json()
+      if (result.success) setData(result)
+      else setError(result.error || 'Could not load the report.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    load()
+  }, [])
+
+  const rows = data?.rows || []
+  const counts = data?.counts || {}
+  const released = data?.released || []
+  const activeReleased = released.filter((r) => !r.withdrawn_at)
+
+  const checkForm = () => {
+    if (!referenceNumber.trim()) return 'Please enter the reference number.'
+    if (!formDate) return 'Please set the date on the form.'
+    if (rows.length === 0) return 'There are no rows yet. Record exam results first.'
+    return ''
+  }
+
+  const download = async () => {
+    const problem = checkForm()
+    setFormError(problem)
+    if (problem) return
+    setDownloading(true)
+    try {
+      const { downloadForm3Pdf } = await import('../lib/chedForm3Pdf')
+      await downloadForm3Pdf({ rows, referenceNumber: referenceNumber.trim(), formDate })
+      fetch('/api/ched-form3', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'logDownload', referenceNumber: referenceNumber.trim(), formDate, rowCount: rows.length }),
+      }).catch(() => {})
+    } catch (err) {
+      setFormError(`The PDF could not be made: ${err.message}`)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const downloadReleased = async (report) => {
+    try {
+      const res = await fetch(`/api/ched-form3?report=${report.id}`)
+      const result = await res.json()
+      if (!result.success) {
+        showAdminNotice(result.error || 'Could not load that report.', 'error')
+        return
+      }
+      const { downloadForm3Pdf } = await import('../lib/chedForm3Pdf')
+      await downloadForm3Pdf({ rows: result.report.rows, referenceNumber: result.report.reference_number, formDate: result.report.form_date })
+      fetch('/api/ched-form3', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'logDownload',
+          referenceNumber: result.report.reference_number,
+          rowCount: result.report.row_count,
+          reportId: report.id,
+        }),
+      }).catch(() => {})
+    } catch (err) {
+      showAdminNotice(err.message, 'error')
+    }
+  }
+
+  const askRelease = () => {
+    const problem = checkForm()
+    setFormError(problem)
+    if (problem) return
+    setConfirmPassword('')
+    setConfirmError('')
+    setConfirm({ type: 'release' })
+  }
+
+  const submitConfirm = async (e) => {
+    e.preventDefault()
+    if (!confirmPassword) {
+      setConfirmError('Please enter your password.')
+      return
+    }
+    setConfirmBusy(true)
+    setConfirmError('')
+    try {
+      const body =
+        confirm.type === 'release'
+          ? { action: 'release', referenceNumber: referenceNumber.trim(), formDate, confirmPassword }
+          : { action: 'withdraw', id: confirm.report.id, confirmPassword }
+      const res = await fetch('/api/ched-form3', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const result = await res.json()
+      if (!res.ok || !result.success) {
+        setConfirmError(result.error || 'Something went wrong.')
+        return
+      }
+      const done = confirm
+      setConfirm(null)
+      setConfirmPassword('')
+      await load()
+      if (done.type === 'release') {
+        setTab('released')
+        showAdminNotice(
+          `CHED Form 3 ${result.report.reference_number} (${result.report.row_count} rows) was released to the LGU. LGU accounts can see it during their access dates.`
+        )
+      } else {
+        showAdminNotice(`CHED Form 3 ${done.report.reference_number} was withdrawn. The LGU can no longer see it.`)
+      }
+    } catch (err) {
+      setConfirmError(err.message)
+    } finally {
+      setConfirmBusy(false)
+    }
+  }
+
+  return (
+    <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !confirm && onClose()}>
+      <div className="cf-dialog" role="dialog" aria-modal="true" aria-label="Export CHED Form 3">
+        <div className="cf-head">
+          <h2 className="cf-title">Export CHED Form 3</h2>
+          <p className="cf-sub">Free Higher Education Billing Details, admission fees (Section 7, Rule II of the IRR of RA 10931).</p>
+          <div className="cm-tabs" role="group" aria-label="Export or released reports">
+            {[
+              ['new', 'New export', rows.length],
+              ['released', 'Released to LGU', activeReleased.length],
+            ].map(([key, label, n]) => (
+              <button key={key} type="button" className={`cm-tab${tab === key ? ' on' : ''}`} aria-pressed={tab === key} onClick={() => setTab(key)}>
+                {label} <span className="cm-tab-count">{n}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {loading && !data ? (
+          <p className="text-sm text-ccc-muted text-center py-10">Loading...</p>
+        ) : error && !data ? (
+          <p className="text-sm text-ccc-red text-center py-10">{error}</p>
+        ) : tab === 'new' ? (
+          <>
+            <div className="cf-body">
+              <div className="cf-side">
+                {formError && <div className="aa-form-error">{formError}</div>}
+                <div className="cm-field">
+                  <label className="cm-label" htmlFor="cfRef">Reference number</label>
+                  <input id="cfRef" className="cm-input" type="text" maxLength={60} placeholder="e.g. 04-CCC-2026-1-1"
+                    value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} />
+                  <span className="ra-hint">Required. Printed at the top right of the form.</span>
+                </div>
+                <div className="cm-field">
+                  <label className="cm-label" htmlFor="cfDate">Date</label>
+                  <input id="cfDate" className="cm-input" type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} />
+                </div>
+                <div className="cm-field">
+                  <span className="cm-label">Who&apos;s included</span>
+                  <div className="cf-counts">
+                    <div><span>passed-enrolled</span><b>{counts['passed-enrolled'] || 0}</b></div>
+                    <div><span>passed-did not enrol</span><b>{counts['passed-did not enrol'] || 0}</b></div>
+                    <div><span>failed</span><b>{counts.failed || 0}</b></div>
+                    <div className="cf-total"><span>Total rows</span><b>{rows.length}</b></div>
+                  </div>
+                  <span className="ra-hint">
+                    Everyone with a recorded pass or fail exam result, plus Qualified (Probationary) scholars.
+                    {data?.leftOut ? ` ${data.leftOut} applicant${data.leftOut === 1 ? '' : 's'} marked Absent or with no exam result yet ${data.leftOut === 1 ? 'is' : 'are'} left out.` : ''}
+                  </span>
+                </div>
+              </div>
+              <div className="cf-preview">
+                <span className="cm-label">
+                  Preview {rows.length > 0 ? `(first ${Math.min(rows.length, 8)} of ${rows.length} rows, sorted A to Z by last name)` : ''}
+                </span>
+                {rows.length === 0 ? (
+                  <p className="text-sm text-ccc-muted py-6">No rows yet. Rows appear once exam results are recorded in Applicant Results.</p>
+                ) : (
+                  <div className="st-scroll cf-table-wrap">
+                    <table className="st-table cf-table">
+                      <thead>
+                        <tr>
+                          <th>No.</th><th>Last name</th><th>Given name</th><th>Middle name</th><th>Sex</th><th>Birthdate</th>
+                          <th>Degree program</th><th>Year level</th><th>Email</th><th>Phone</th><th>Fee</th><th>Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.slice(0, 8).map((r) => (
+                          <tr key={r.seq}>
+                            <td>{r.seq}</td><td className="cf-strong">{r.lastName}</td><td>{r.givenName}</td><td>{r.middleName}</td>
+                            <td>{r.sex}</td><td>{r.birthdate}</td><td>{r.program}</td><td>{r.yearLevel}</td><td>{r.email}</td>
+                            <td>{r.phone}</td><td>{r.fee}</td><td className="cf-strong">{r.remarks}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <span className="ra-hint">
+                  Passers and Qualified (Probationary) scholars show as <b>passed</b>: <b>passed-enrolled</b> once Distribution
+                  Status reached Enrollment complete, otherwise <b>passed-did not enrol</b>. The PDF is landscape A4 with the
+                  Form 3 header and no signatures or seals. Sign the printed copy.
+                </span>
+              </div>
+            </div>
+            <div className="cf-foot">
+              <span className="cf-foot-note">
+                Download saves the PDF for you.{' '}
+                {data?.canRelease
+                  ? <>
+                      <b>Release to LGU</b> also saves a frozen copy that LGU accounts can see. Release only after enrollment is
+                      finished.
+                    </>
+                  : 'Only a Super Admin can release it to the LGU.'}
+              </span>
+              <span className="cf-foot-actions">
+                <button type="button" className="cm-btn cm-btn-secondary" onClick={onClose}>Cancel</button>
+                {data?.canRelease && (
+                  <button type="button" className="cm-btn cm-btn-secondary" onClick={askRelease}>Release to LGU</button>
+                )}
+                <button type="button" className="cm-btn cm-btn-primary" onClick={download} disabled={downloading}>
+                  {downloading ? 'Preparing PDF...' : 'Download PDF'}
+                </button>
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="cf-released">
+              <p className="cf-released-note">
+                These frozen copies are what LGU accounts see. Changes in the system after a release don&apos;t change them.
+                {data?.canRelease ? ' Withdraw a report to hide it from the LGU.' : ''}
+              </p>
+              {released.length === 0 ? (
+                <p className="text-sm text-ccc-muted text-center py-8">Nothing has been released to the LGU yet.</p>
+              ) : (
+                <div className="st-scroll">
+                  <table className="st-table cf-rel-table">
+                    <thead>
+                      <tr>
+                        <th>Reference no.</th><th>Date on form</th><th>Rows</th><th>Released by</th><th>LGU downloads</th><th>Status</th>
+                        <th className="r">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {released.map((r) => (
+                        <tr key={r.id}>
+                          <td className="cf-strong">{r.reference_number}</td>
+                          <td>{formatYmd(r.form_date)}</td>
+                          <td>{r.row_count}</td>
+                          <td>
+                            {r.released_by}, {new Date(r.released_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td>{r.download_count || 0}</td>
+                          <td>
+                            <span className={`aa-chip ${r.withdrawn_at ? 'ended' : 'active'}`}>
+                              {r.withdrawn_at ? 'Withdrawn' : 'Visible to LGU'}
+                            </span>
+                          </td>
+                          <td className="r">
+                            <span className="aa-actions">
+                              <button type="button" className="aa-act" onClick={() => downloadReleased(r)}>Download</button>
+                              {data?.canRelease && !r.withdrawn_at && (
+                                <button
+                                  type="button"
+                                  className="aa-act danger"
+                                  onClick={() => {
+                                    setConfirmPassword('')
+                                    setConfirmError('')
+                                    setConfirm({ type: 'withdraw', report: r })
+                                  }}
+                                >
+                                  Withdraw
+                                </button>
+                              )}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="cf-foot cf-foot-end">
+              <button type="button" className="cm-btn cm-btn-secondary" onClick={onClose}>Close</button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {confirm && (
+        <div className="confirm-overlay open" style={{ zIndex: 1600 }} onClick={(e) => e.target === e.currentTarget && !confirmBusy && setConfirm(null)}>
+          <form className="aa-confirm" role="dialog" aria-modal="true" aria-label={confirm.type === 'release' ? 'Release to LGU' : 'Withdraw report'} onSubmit={submitConfirm}>
+            <div className="aa-confirm-body">
+              <h3 className="aa-confirm-title">{confirm.type === 'release' ? 'Release this report to the LGU?' : 'Withdraw this report?'}</h3>
+              <p className="aa-confirm-desc">
+                {confirm.type === 'release'
+                  ? `A frozen copy of ${referenceNumber.trim()} (${rows.length} rows) becomes visible to LGU accounts during their access dates. Release only after enrollment is finished. Re-enter your password to continue.`
+                  : `LGU accounts will no longer see ${confirm.report.reference_number}. It stays listed here for the record. Re-enter your password to continue.`}
+              </p>
+              <label className="cm-label" htmlFor="cfPw">Your password</label>
+              <input id="cfPw" className="cm-input" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Your password" autoComplete="current-password" autoFocus />
+              {confirmError && <p className="aa-confirm-error">{confirmError}</p>}
+            </div>
+            <div className="aa-confirm-foot">
+              <button type="button" className="cm-btn cm-btn-secondary" disabled={confirmBusy} onClick={() => setConfirm(null)}>Cancel</button>
+              <button type="submit" className={`cm-btn ${confirm.type === 'release' ? 'cm-btn-primary' : 'cm-btn-danger'}`} disabled={confirmBusy}>
+                {confirmBusy ? 'Working...' : confirm.type === 'release' ? 'Release to LGU' : 'Withdraw'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------- LGU (view only) console: Released reports (Oct 5 2026) ----------
 function LguReportsPanel() {
-  return null
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [busyId, setBusyId] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/lgu-reports')
+      .then(async (res) => {
+        const result = await res.json()
+        if (res.status === 401) {
+          window.location.href = '/admin'
+          return
+        }
+        if (result.success) setData(result)
+        else setError(result.error || 'Could not load reports.')
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const download = async (report) => {
+    setBusyId(report.id)
+    try {
+      const res = await fetch(`/api/lgu-reports?id=${report.id}`)
+      const result = await res.json()
+      if (res.status === 401) {
+        window.location.href = '/admin'
+        return
+      }
+      if (!result.success) {
+        showAdminNotice(result.error || 'Could not download this report.', 'error')
+        return
+      }
+      const { downloadForm3Pdf } = await import('../lib/chedForm3Pdf')
+      await downloadForm3Pdf({ rows: result.report.rows, referenceNumber: result.report.reference_number, formDate: result.report.form_date })
+    } catch (err) {
+      showAdminNotice(err.message, 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const reports = data?.reports || []
+  return (
+    <div>
+      <div className="portal-header">
+        <div>
+          <h1>Released reports</h1>
+          <p>Reports City College of Calamba has released to the LGU. This account can view and download them only.</p>
+        </div>
+      </div>
+      {data?.accessFrom && data?.accessUntil && (
+        <div className="cm-card ra-info lg-access">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="16" rx="2" />
+            <path d="M3 10h18M8 3v4M16 3v4" />
+          </svg>
+          <span>
+            Your access: <b>{formatYmd(data.accessFrom, { month: 'long', day: 'numeric', year: 'numeric' })} to {formatYmd(data.accessUntil, { month: 'long', day: 'numeric', year: 'numeric' })}</b>.
+            After that, this account can no longer sign in.
+          </span>
+        </div>
+      )}
+      <section className="cm-card lg-card">
+        <div className="cm-head">
+          <h2 className="cm-title">CHED Form 3: Free Higher Education Billing Details</h2>
+        </div>
+        {loading ? (
+          <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+        ) : error ? (
+          <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+        ) : reports.length === 0 ? (
+          <p className="lg-empty">No report has been released yet. City College of Calamba will release the report once enrollment is finished.</p>
+        ) : (
+          <div className="st-scroll">
+            <table className="st-table lg-table">
+              <thead>
+                <tr>
+                  <th>Reference no.</th><th>Date on form</th><th>Rows</th><th>Released on</th><th className="r">File</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.map((r) => (
+                  <tr key={r.id}>
+                    <td className="cf-strong">{r.reference_number}</td>
+                    <td>{formatYmd(r.form_date, { month: 'long', day: 'numeric', year: 'numeric' })}</td>
+                    <td>{r.row_count}</td>
+                    <td>{new Date(r.released_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
+                    <td className="r">
+                      <button type="button" className="cm-btn cm-btn-primary lg-dl" onClick={() => download(r)} disabled={busyId === r.id}>
+                        {busyId === r.id ? 'Preparing...' : 'Download PDF'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="aa-foot">Every sign-in and download is recorded by City College of Calamba.</div>
+      </section>
+    </div>
+  )
 }
 
 // ---------- Limited consoles: shell (Oct 5 2026) ----------
