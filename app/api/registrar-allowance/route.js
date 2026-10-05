@@ -200,7 +200,7 @@ export async function POST(request) {
 
     await logAudit(
       session.name,
-      `Posted a ${what} allowance dated ${when} to ${app.applicant_name || 'an applicant'}${
+      `Posted ${type === 'Other' ? `an allowance (${description})` : 'a Wi-Fi allowance'} dated ${when} to ${app.applicant_name || 'an applicant'}${
         app.application_number ? ` (${app.application_number})` : ''
       }${emailSent ? '. Email sent' : app.email_updates_opt_in ? '. Email failed to send' : ''}`,
       'done'
@@ -244,7 +244,7 @@ export async function DELETE(request) {
       .maybeSingle()
     await logAudit(
       session.name,
-      `Removed a ${post.allowance_type === 'Other' ? post.description : 'Wi-Fi'} allowance post dated ${formatAccessDate(
+      `Removed ${post.allowance_type === 'Other' ? `an allowance post (${post.description})` : 'a Wi-Fi allowance post'} dated ${formatAccessDate(
         post.distribution_date
       )} from ${app?.applicant_name || 'an applicant'}${app?.application_number ? ` (${app.application_number})` : ''}`,
       'warn'

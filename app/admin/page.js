@@ -4501,7 +4501,6 @@ function AdminAccountsPanel() {
                     <tr>
                       <th>Account</th>
                       <th>Role</th>
-                      <th>Access</th>
                       <th>Status</th>
                       <th className="r">Actions</th>
                     </tr>
@@ -4551,12 +4550,16 @@ function AdminAccountsPanel() {
                             </div>
                           </td>
                           <td>
-                            <span className={`aa-chip ${role === 'super_admin' ? 'super' : role === 'admin' ? 'admin' : 'limited'}`}>
-                              {ADMIN_ROLE_LABEL[role]}
+                            <span className="aa-role-cell">
+                              <span className={`aa-chip ${role === 'super_admin' ? 'super' : role === 'admin' ? 'admin' : 'limited'}`}>
+                                {ADMIN_ROLE_LABEL[role]}
+                              </span>
+                              {isLgu && (
+                                <span className="aa-access">
+                                  Access {formatYmd(acc.access_from, { month: 'short', day: 'numeric' })} to {formatYmd(acc.access_until)}
+                                </span>
+                              )}
                             </span>
-                          </td>
-                          <td className="aa-access">
-                            {isLgu ? `${formatYmd(acc.access_from, { month: 'short', day: 'numeric' })} to ${formatYmd(acc.access_until)}` : 'No end date'}
                           </td>
                           <td>
                             <span className={`aa-chip status ${status}`} title={statusTitle}>
@@ -6420,14 +6423,14 @@ function RegistrarAllowancePanel({ data, loading, error, onReload }) {
         setFormError(result.error || 'Could not post this allowance.')
         return
       }
-      const what = type === 'Other' ? description.trim() : 'Wi-Fi'
+      const what = type === 'Other' ? `An allowance (${description.trim()})` : 'A Wi-Fi allowance'
       const told = result.emailSent
         ? 'They were sent a portal message and an email.'
         : result.emailOptIn
           ? 'They were sent a portal message. The email could not be sent.'
           : 'They were sent a portal message. They did not opt in to email updates.'
       showAdminNotice(
-        `A ${what} allowance dated ${formatYmd(date)} was posted to ${picked.name}${
+        `${what} dated ${formatYmd(date)} was posted to ${picked.name}${
           picked.applicationNumber ? ` (${picked.applicationNumber})` : ''
         }. It now shows on their Allowance page. ${told}`
       )
@@ -6734,7 +6737,7 @@ function RegistrarAllowancePanel({ data, loading, error, onReload }) {
             <div className="aa-confirm-body">
               <h3 className="aa-confirm-title">Remove this allowance post?</h3>
               <p className="aa-confirm-desc">
-                The {removeTarget.allowance_type === 'Other' ? removeTarget.description : 'Wi-Fi'} allowance dated{' '}
+                The {removeTarget.allowance_type === 'Other' ? `allowance (${removeTarget.description})` : 'Wi-Fi allowance'} dated{' '}
                 {formatYmd(removeTarget.distribution_date)} will disappear from {removeTarget.applicant_name}&apos;s Allowance
                 page. The message they already received stays in their Messages.
               </p>

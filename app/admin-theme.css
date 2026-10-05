@@ -5598,8 +5598,8 @@
 .admin-portal .aa-chip.limited { background: #f1f4f9; color: #2c3e50; }
 .admin-portal .aa-chip.notstarted { background: #fdf0dc; color: #7a4f0c; }
 .admin-portal .aa-chip.ended { background: #fbe7e7; color: #902020; }
-.admin-portal .aa-access { font-size: 11.8px; white-space: nowrap; }
-.admin-portal .aa-table { min-width: 760px; }
+.admin-portal .aa-role-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+.admin-portal .aa-access { font-size: 11px; color: #5a6b85; white-space: nowrap; }
 @media (max-width: 520px) {
   .admin-portal .aa-roles-grid,
   .admin-portal .aa-window-row { grid-template-columns: 1fr; }
