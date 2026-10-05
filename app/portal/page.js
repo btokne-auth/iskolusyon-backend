@@ -1435,6 +1435,8 @@ function PortalApp({ accountSession, onLogout }) {
   const [releasedStatus, setReleasedStatus] = useState(null)
   // Sept 30 2026: the applicant's exam schedule, once an admin has sent it.
   const [examSchedule, setExamSchedule] = useState(null)
+  // Oct 5 2026: end-of-cycle archive. The application is read-only.
+  const [archived, setArchived] = useState(false)
   const [personalSectionState, setPersonalSectionState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'submitting' | 'submitted' | 'error'
   const [academicSectionState, setAcademicSectionState] = useState('idle')
   const [healthSectionState, setHealthSectionState] = useState('idle')
@@ -2039,6 +2041,7 @@ function PortalApp({ accountSession, onLogout }) {
         setApplicationNumber(data.application.application_number || null)
         setReleasedStatus(data.application.scholar_status || null)
         setExamSchedule(data.application.exam_schedule || null)
+        setArchived(!!data.application.archived)
         // Keeps `applicantName` in sync with whatever this row is actually
         // saved under, so every save/submit for the rest of this session
         // targets the exact same row instead of depending on the name
@@ -2591,6 +2594,13 @@ function PortalApp({ accountSession, onLogout }) {
         />
 
         <div ref={formCardRef} className="portal-main space-y-6">
+          {archived && (
+            <div className="card" role="status" style={{ borderColor: '#F0D9A8', background: '#FDF6E7', color: '#6b4e00', fontSize: '12.75px', lineHeight: 1.6 }}>
+              <strong style={{ display: 'block', fontFamily: "'Montserrat', sans-serif", marginBottom: 4 }}>This application cycle has closed</strong>
+              Your application was archived at the end of the cycle. You can still view everything here, but it can no
+              longer be changed. For questions, contact the CCC Guidance Office.
+            </div>
+          )}
           {/* ══════════ DASHBOARD — rebuilt to applicant.html's exact structure
               (design-parity pass 4, Sept 19 2026): .status-hero card,
               .section-divider chip, .stat-grid with locked/unlocked cards,

@@ -28,7 +28,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
     }
 
-    const { data: rows, error: rowsError } = await supabase.from('applications').select('*')
+    // Oct 5 2026: archived applications are left as they were.
+    const { data: rows, error: rowsError } = await supabase.from('applications').select('*').is('archived_at', null)
     if (rowsError) return NextResponse.json({ error: rowsError.message }, { status: 500 })
 
     // One query for every document instead of three queries per applicant

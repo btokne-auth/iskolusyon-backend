@@ -4754,6 +4754,7 @@ function CycleSettingsCard() {
       setSettings(data.settings)
       setDraft(data.settings)
       setSavedNote(true)
+      window.dispatchEvent(new CustomEvent('cycle-settings-saved'))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -5039,6 +5040,277 @@ function ActivityLogCard() {
   )
 }
 
+// ---------- End of cycle: archive applicants (Oct 5 2026) ----------
+// Progress Table row 74 (archive part). Ivy's cell comment: a Super Admin
+// option to archive all applicants once admissions work is done, shown only
+// when Applications Open is off. Pau's conditions: archive, never delete;
+// only after this cycle's CHED Form 3 was released to the LGU; typed
+// confirmation plus the Super Admin's password. The server checks all of it
+// again (app/api/archive-cycle/route.js).
+function ArchiveCycleCard() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [confirmError, setConfirmError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [viewCycle, setViewCycle] = useState(null)
+  const [viewList, setViewList] = useState(null)
+
+  const load = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/archive-cycle')
+      const result = await res.json()
+      if (result.success) setData(result)
+      else setError(result.error || 'Could not load the archive status.')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+  useEffect(() => {
+    load()
+    // Re-check when Cycle Settings are saved (the Applications Open switch)
+    // and after any admin action.
+    const onChange = () => load()
+    window.addEventListener('admin-notice', onChange)
+    window.addEventListener('cycle-settings-saved', onChange)
+    return () => {
+      window.removeEventListener('admin-notice', onChange)
+      window.removeEventListener('cycle-settings-saved', onChange)
+    }
+  }, [])
+
+  const ready = !!data && !data.applicationsOpen && !!data.report && data.toArchive > 0
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!confirmPassword) return setConfirmError('Please enter your password.')
+    setBusy(true)
+    setConfirmError('')
+    try {
+      const res = await fetch('/api/archive-cycle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmText, confirmPassword }),
+      })
+      const result = await res.json()
+      if (!res.ok || !result.success) {
+        setConfirmError(result.error || 'Could not archive the applicants.')
+        return
+      }
+      setConfirmOpen(false)
+      setConfirmText('')
+      setConfirmPassword('')
+      showAdminNotice(
+        `${result.count} applicant${result.count === 1 ? ' was' : 's were'} archived as cycle ${result.cycle}. They no longer appear in the admin lists, and they can still view their application, read-only.`
+      )
+    } catch (err) {
+      setConfirmError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const openList = async (cycle) => {
+    setViewCycle(cycle)
+    setViewList(null)
+    try {
+      const res = await fetch(`/api/archive-cycle?cycle=${encodeURIComponent(cycle)}`)
+      const result = await res.json()
+      setViewList(result.success ? result.applicants : [])
+    } catch {
+      setViewList([])
+    }
+  }
+
+  const checks = data
+    ? [
+        {
+          ok: !data.applicationsOpen,
+          title: data.applicationsOpen ? 'Applications Open is still on' : 'Applications Open is turned off',
+          note: data.applicationsOpen ? 'Turn it off in Cycle Settings above first.' : 'Turned off in Cycle Settings.',
+        },
+        {
+          ok: !!data.report,
+          title: data.report ? 'CHED Form 3 released to the LGU' : 'CHED Form 3 not released yet',
+          note: data.report
+            ? `${data.report.reference_number}, released ${new Date(data.report.released_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.`
+            : 'Release it from Dashboard, Export CHED Form 3.',
+        },
+      ]
+    : []
+
+  return (
+    <section className="cm-card ac-card">
+      <div className="cm-head">
+        <h2 className="cm-title">End of cycle: archive applicants</h2>
+        <span className="aa-super-chip">
+          <IconShield className="w-3.5 h-3.5" /> Super Admin only
+        </span>
+      </div>
+      {loading && !data ? (
+        <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+      ) : error && !data ? (
+        <p className="text-sm text-ccc-red text-center py-8">{error}</p>
+      ) : (
+        <div className="ac-body">
+          <div className="ac-text">
+            <p>
+              When admissions work for this cycle is done, archive every applicant so the next cycle starts clean.{' '}
+              <b>Nothing is deleted.</b> Archived applicants, their documents and their history are kept and can still be
+              opened from Archived cycles below, read-only.
+            </p>
+            <p>
+              After archiving, they no longer appear in the Dashboard, Applicant Results, Statistics, Exam Schedules, Appeals
+              &amp; Reschedules or the Registrar&apos;s scholar list. Applicants can still sign in and see their application,
+              read-only.
+            </p>
+          </div>
+          <div className="ac-checks">
+            <span className="cm-label">Before you can archive</span>
+            {checks.map((c) => (
+              <div className="ac-check" key={c.title}>
+                <span className={`ac-dot ${c.ok ? 'ok' : 'no'}`} aria-hidden="true">
+                  {c.ok ? '✓' : '✕'}
+                </span>
+                <span className="ac-check-text">
+                  <span className="ac-check-title">{c.title}</span>
+                  <span className="ac-check-note">{c.note}</span>
+                </span>
+              </div>
+            ))}
+            <div className="ac-go">
+              <span>
+                <b>{data?.toArchive ?? 0}</b> applicant{data?.toArchive === 1 ? '' : 's'} will be archived.
+              </span>
+              <button
+                type="button"
+                className="cm-btn cm-btn-danger"
+                disabled={!ready}
+                onClick={() => {
+                  setConfirmText('')
+                  setConfirmPassword('')
+                  setConfirmError('')
+                  setConfirmOpen(true)
+                }}
+              >
+                Archive all applicants
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="ac-archived">
+        <span className="cm-label">Archived cycles</span>
+        {!data?.archived?.length ? (
+          <p className="ac-none">No cycle has been archived yet.</p>
+        ) : (
+          <div className="st-scroll">
+            <table className="st-table ac-table">
+              <thead>
+                <tr>
+                  <th>Cycle</th><th>Applicants</th><th>Archived by</th><th className="r">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.archived.map((c) => (
+                  <tr key={c.cycle}>
+                    <td className="cf-strong">Applications {c.cycle}</td>
+                    <td>{c.count}</td>
+                    <td>
+                      {c.archivedBy || 'Unknown'}, {new Date(c.archivedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </td>
+                    <td className="r">
+                      <button type="button" className="aa-act" onClick={() => openList(c.cycle)}>View list</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {confirmOpen && data && (
+        <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !busy && setConfirmOpen(false)}>
+          <form className="aa-confirm" role="dialog" aria-modal="true" aria-label="Archive all applicants" onSubmit={submit}>
+            <div className="aa-confirm-body">
+              <h3 className="aa-confirm-title">Archive all {data.toArchive} applicants?</h3>
+              <p className="aa-confirm-desc">
+                They leave every list and count in the admin console and move to Archived cycles. Nothing is deleted. This
+                can&apos;t be undone from the console.
+              </p>
+              <label className="cm-label" htmlFor="acType">Type {data.confirmPhrase} to confirm</label>
+              <input id="acType" className="cm-input" type="text" value={confirmText} onChange={(e) => setConfirmText(e.target.value)}
+                placeholder={data.confirmPhrase} autoComplete="off" autoFocus />
+              <label className="cm-label" htmlFor="acPw">Your password</label>
+              <input id="acPw" className="cm-input" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Your password" autoComplete="current-password" />
+              {confirmError && <p className="aa-confirm-error">{confirmError}</p>}
+            </div>
+            <div className="aa-confirm-foot">
+              <button type="button" className="cm-btn cm-btn-secondary" disabled={busy} onClick={() => setConfirmOpen(false)}>Cancel</button>
+              <button
+                type="submit"
+                className="cm-btn cm-btn-danger"
+                disabled={busy || confirmText.trim().toUpperCase() !== data.confirmPhrase.toUpperCase()}
+              >
+                {busy ? 'Archiving...' : 'Archive applicants'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {viewCycle && (
+        <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && setViewCycle(null)}>
+          <div className="cf-dialog ac-list" role="dialog" aria-modal="true" aria-label={`Archived applicants, ${viewCycle}`}>
+            <div className="cf-head">
+              <h2 className="cf-title">Archived applicants: Applications {viewCycle}</h2>
+              <p className="cf-sub">Read-only. These applications can no longer be changed.</p>
+            </div>
+            <div className="cf-released">
+              {viewList === null ? (
+                <p className="text-sm text-ccc-muted text-center py-8">Loading...</p>
+              ) : viewList.length === 0 ? (
+                <p className="text-sm text-ccc-muted text-center py-8">No applicants found.</p>
+              ) : (
+                <div className="st-scroll">
+                  <table className="st-table">
+                    <thead>
+                      <tr><th>Applicant</th><th>Application no.</th><th>Program</th><th>Scholar status</th></tr>
+                    </thead>
+                    <tbody>
+                      {viewList.map((a) => (
+                        <tr key={a.id}>
+                          <td className="cf-strong">{a.applicant_name || 'Unnamed applicant'}</td>
+                          <td>{a.application_number || ''}</td>
+                          <td>{a.program_choice_1 || ''}</td>
+                          <td>{SCHOLAR_STATUS_META[a.scholar_status]?.label || 'Pending Exam'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="cf-foot cf-foot-end">
+              <button type="button" className="cm-btn cm-btn-secondary" onClick={() => setViewCycle(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function SystemActivityPanel() {
   return (
     <div>
@@ -5047,12 +5319,13 @@ function SystemActivityPanel() {
           System &amp; Activity
         </h1>
         <p className="text-xs text-ccc-muted mt-0.5">
-          Application cycle controls, and a running, auto-recorded timeline of system activity: document uploads,
-          manual overrides, and announcement posts.
+          Application cycle controls, the end-of-cycle archive, and a running, auto-recorded timeline of system
+          activity: document uploads, manual overrides, and announcement posts.
         </p>
       </div>
 
       <CycleSettingsCard />
+      <ArchiveCycleCard />
       <ActivityLogCard />
     </div>
   )

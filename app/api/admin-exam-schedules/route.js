@@ -37,13 +37,14 @@ async function loadSchedule(id) {
 }
 
 async function loadMembers(scheduleId) {
-  const { data, error } = await supabase.from('applications').select(APP_FIELDS).eq('exam_schedule_id', scheduleId)
+  // Oct 5 2026: archived applicants are left out of batches.
+  const { data, error } = await supabase.from('applications').select(APP_FIELDS).eq('exam_schedule_id', scheduleId).is('archived_at', null)
   if (error) throw new Error(error.message)
   return (data || []).sort((a, b) => new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0))
 }
 
 async function waitingApplicants() {
-  const { data, error } = await supabase.from('applications').select(APP_FIELDS).eq('status', 'submitted')
+  const { data, error } = await supabase.from('applications').select(APP_FIELDS).eq('status', 'submitted').is('archived_at', null)
   if (error) throw new Error(error.message)
   return (data || [])
     .filter(isSchedulable)
@@ -98,6 +99,7 @@ export async function GET(request) {
       .from('applications')
       .select(APP_FIELDS)
       .not('exam_schedule_id', 'is', null)
+      .is('archived_at', null)
     if (appsError) return NextResponse.json({ error: appsError.message }, { status: 500 })
 
     const bySchedule = new Map()

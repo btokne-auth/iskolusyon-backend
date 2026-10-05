@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieFull } from '@/app/lib/adminAuth'
+import { isApplicationArchived } from '@/app/lib/archive'
 
 export const LOCK_TTL_MS = 90 * 1000
 
@@ -73,6 +74,17 @@ export async function releaseLock(applicationId, email) {
 // can't be read, so a missing migration never blocks admin work.
 export async function checkLock(request, applicationId) {
   if (!applicationId) return null
+  // Oct 5 2026: archived applications can't be changed by any admin.
+  try {
+    if (await isApplicationArchived(applicationId)) {
+      return NextResponse.json(
+        { error: 'This applicant was archived at the end of the cycle, so their application can no longer be changed.', archived: true },
+        { status: 409 }
+      )
+    }
+  } catch (err) {
+    console.error('Archive check failed (allowing):', err.message)
+  }
   try {
     const session = await verifyAdminCookieFull(request.cookies.get(ADMIN_COOKIE_NAME)?.value)
     if (!session) return null

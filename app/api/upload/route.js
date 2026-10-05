@@ -4,6 +4,7 @@
 export const maxDuration = 60
 
 import sharp from 'sharp'
+import { archivedUserIds, isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
 import { NextResponse, after } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import crypto from 'crypto'
@@ -137,6 +138,10 @@ export async function POST(request) {
     }
     const applicantUserId = applicantSession.id
     applicantEmail = applicantSession.email
+    // Oct 5 2026: an archived application is read-only.
+    if (await isApplicantArchived(applicantUserId)) {
+      return NextResponse.json({ error: ARCHIVED_MESSAGE, archived: true }, { status: 403 })
+    }
     const { data: ownApplicationRow } = await supabase
       .from('applications')
       .select('applicant_name')
@@ -397,8 +402,16 @@ export async function GET(request) {
       return NextResponse.json({ error: dbError.message }, { status: 500 })
     }
 
+    // Oct 5 2026: in the admin console, archived applicants' documents are
+    // left out (the applicant still sees their own).
+    let listDocs = docs || []
+    if (adminName) {
+      const archivedUsers = await archivedUserIds()
+      if (archivedUsers.size > 0) listDocs = listDocs.filter((doc) => !doc.applicant_user_id || !archivedUsers.has(doc.applicant_user_id))
+    }
+
     // 2. Loop through the records and generate fresh signed URLs for each
-    const docsWithUrls = await Promise.all(docs.map(async (doc) => {
+    const docsWithUrls = await Promise.all(listDocs.map(async (doc) => {
       const { data } = await supabase.storage
         .from('scholarship-documents')
         .createSignedUrl(doc.file_path, 3600)
