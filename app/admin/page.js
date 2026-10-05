@@ -1863,9 +1863,7 @@ function DashboardPanel({
             <span className="dept-divider-arrow">&#9662;</span>
           </div>
           <p className="dept-helper-text">
-            &ldquo;Department&rdquo; isn&rsquo;t a field this system collects, so this is grouped by the same
-            program-to-department mapping as the approved mockup, applied to each applicant&rsquo;s Program (Course)
-            choices.
+            Grouped by the department each applicant&rsquo;s Program (Course) choice belongs to.
           </p>
           <div className={`dept-section-body${deptOpen ? '' : ' collapsed'}`}>
             <div className="breakdown-table-wrap">
@@ -1909,7 +1907,8 @@ function DashboardPanel({
             <span className="dept-divider-arrow">&#9662;</span>
           </div>
           <p className="dept-helper-text">
-            No literal &ldquo;Year Level&rdquo; field exists yet, so this is grouped by Applying As, the closest real proxy.
+            Year level at admission, as classified on CCC&apos;s application form (Applying As): First Year,
+            Transferee, or Old Curriculum &amp; ALS Completer.
           </p>
           <div className={`dept-section-body${yearOpen ? '' : ' collapsed'}`}>
             <div className="breakdown-table-wrap">
@@ -3155,23 +3154,17 @@ function ResultsPanel() {
 // Ivy's other former module. Built to the two Roles-PDF bullets that are
 // actually in scope for this capstone version -- Demographic Distribution
 // Charts and the ongoing/qualified/not-qualified/waitlisted/appealed status
-// analytics. Allowance Distribution Monitoring and Exportable PDF/CSV
-// Reports for LGU Compliance are NOT built here: the manuscript's own
-// Chapter 1 (Scope and Delimitations) states "full allowance distribution
-// monitoring and exportable LGU compliance reports remain to-follow
-// modules" -- confirmed by direct text search of the manuscript, not
-// assumption. Building those now would be scope creep past what the
-// document being defended actually commits to.
+// analytics. (Oct 5 2026: Allowance Distribution Monitoring and the CHED
+// Form 3 export for the LGU are now built too, in the Registrar console and
+// on the Dashboard, PR #26; they don't live in this panel.)
 //
-// "Department" and "Year Level" (also named in the Roles PDF bullet) have
-// no backing field anywhere in this system -- Educational Background only
-// collects a program choice and an Applying As value (Freshman/Transferee/
-// Old Curriculum-ALS), never a department or literal year level. Rather
-// than invent a mapping with no source, this panel charts Program (the
-// closest real equivalent of "Course") and Applying As (the closest real
-// proxy this system has for "Year Level" -- most new applicants enter at
-// 1st year, but transferees don't), and says so on the card instead of
-// silently pretending the other two exist.
+// "Department" is derived from the program (DASHBOARD_DEPARTMENTS). "Year
+// Level" is the applicant's classification at admission, the Applying As
+// value (First Year / Transferee / Old Curriculum & ALS Completer). That is
+// what CCC's own application form records ("Classification: Freshman",
+// Appendix I) and how Ivy's approved admin.html groups its "per Year Level"
+// table (Pau chose this on Oct 5 2026 instead of adding a separate year
+// field, so the Progress Table and manuscript wording stay as they are).
 
 // Oct 3 2026 redesign (Statistics v2, approved on the design canvas):
 // one KPI strip, three status panels with a "% of applicants" column, and
@@ -3456,7 +3449,7 @@ function AnalyticsPanel() {
           }
         />
         <StatSplitPanel
-          title="Applying as"
+          title="Year Level (Applying As)"
           keyLabel="Applying as"
           total={stats.total}
           items={stats.applying.map(([label, count], i) => ({
@@ -3464,7 +3457,7 @@ function AnalyticsPanel() {
             count,
             color: STAT_APPLYING_COLORS[i % STAT_APPLYING_COLORS.length],
           }))}
-          foot="Used in place of Year Level, which the application form does not collect."
+          foot="Year level at admission: First Year, Transferee, or Old Curriculum & ALS Completer, as chosen on the application form."
         />
       </div>
 
@@ -3539,8 +3532,8 @@ function AnalyticsPanel() {
       </section>
 
       <p className="st-footnote">
-        Department is derived from the program. Year Level is not collected, so Applying As is used instead. Allowance
-        Distribution Monitoring and exportable LGU reports are to-follow modules, out of scope for this version.
+        Department is derived from the program. Year Level is the applicant&apos;s classification at admission (Applying
+        As).
       </p>
     </div>
   )
