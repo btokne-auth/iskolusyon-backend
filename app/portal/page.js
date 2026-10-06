@@ -2109,6 +2109,25 @@ function PortalApp({ accountSession, onLogout }) {
     },
   ]
 
+  // Oct 6 2026: Documents & Status rows for documents that don't apply to
+  // this applicant (yet). Their upload areas only show when they apply:
+  // Proof of Employment for a working student, Proof of Income in the
+  // siblings' income card (not an only child). Neither is in CCC's list of
+  // requirements (Appendix D, interview #2). The medical certificate comes
+  // after passing the exam; a supporting document only with a request.
+  const docRowRules = {
+    employmentcert:
+      familyInfo.workingStudent === 'Yes'
+        ? {}
+        : { badge: 'Not needed', note: 'Only for working students.', noLink: true, notCounted: true },
+    indigency:
+      familyInfo.onlyChild === 'No'
+        ? { badge: 'Optional', note: 'Optional. You can add it in the family income card.' }
+        : { badge: 'Not needed', note: 'Optional, and only asked when you have siblings.', noLink: true, notCounted: true },
+    medcert: { badge: 'Later', note: 'After you pass the exam, during enrollment.', notCounted: true },
+    supportdoc: { badge: 'Optional', note: 'Only for appeals or reschedule requests.', notCounted: true },
+  }
+
   // Oct 6 2026: document types whose latest upload is still being read, so
   // each section's upload row can show its Reading step.
   const readingTypes = new Set(
@@ -2971,7 +2990,10 @@ function PortalApp({ accountSession, onLogout }) {
             // no field-completeness bar to clear like the other three —
             // "done" here just means the applicant explicitly submitted it.
             const healthDone = !!healthSubmittedAt
-            const profileSectionsDone = [personalDone, academicDone, familyDone, healthDone].filter(Boolean).length
+            // Oct 6 2026: Health & Wellness is done during enrollment, after
+            // passing the exam (Appendix D: passers are recommended for the
+            // medical exam and enrollment), so it isn't counted here.
+            const profileSectionsDone = [personalDone, academicDone, familyDone].filter(Boolean).length
             // Oct 6 2026: the status line and Next step follow the final
             // Submit's own checklist (finalSubmitChecks, same as the Final
             // step card), not Health & Wellness, which is only needed during
@@ -3090,11 +3112,11 @@ function PortalApp({ accountSession, onLogout }) {
                   {/* Profile Completion — real, and the connector's active card */}
                   <div className="stat-card unlocked-clickable tab-active" onClick={() => setActivePanel('personal')} role="button" tabIndex={0}>
                     <div className="stat-label">Profile Completion</div>
-                    <div className="stat-value">{profileSectionsDone} of 4 sections done</div>
+                    <div className="stat-value">{profileSectionsDone} of 3 required sections done</div>
                     <div className="stat-progress">
-                      <div className="stat-progress-bar" style={{ width: `${(profileSectionsDone / 4) * 100}%` }} />
+                      <div className="stat-progress-bar" style={{ width: `${(profileSectionsDone / 3) * 100}%` }} />
                     </div>
-                    <div className="stat-note">Personal Information, Educational Background, Family &amp; Financial Information, and Health &amp; Wellness.</div>
+                    <div className="stat-note">Personal Information, Educational Background, and Family &amp; Financial Information. Health &amp; Wellness comes later, during enrollment.</div>
                     <div className="stat-card-hint">&#9660; Viewing details below</div>
                   </div>
 
@@ -3240,22 +3262,15 @@ function PortalApp({ accountSession, onLogout }) {
                         </div>
                       </div>
                       <div className="timeline-item">
-                        <div className={`timeline-dot ${healthDone ? 'step-done' : familyDone ? 'step-ongoing' : 'step-notstarted'}`}>
+                        <div className={`timeline-dot ${healthDone ? 'step-done' : 'step-notstarted'}`}>
                           {healthDone ? '✓' : 4}
                         </div>
                         <div className="timeline-body">
                           <h4>Health &amp; Wellness</h4>
                           <p>
-                            {healthDone ? (
-                              'Completed.'
-                            ) : (
-                              <>
-                                {familyDone ? 'Currently ongoing' : 'Not yet started'} ,{' '}
-                                <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('health') }}>
-                                  {familyDone ? 'continue' : 'complete now'} &rarr;
-                                </a>
-                              </>
-                            )}
+                            {/* Oct 6 2026: not needed to submit; it comes during
+                                enrollment, after passing the exam. */}
+                            {healthDone ? 'Completed.' : 'During enrollment, after you pass the exam. Not needed to submit your application.'}
                           </p>
                         </div>
                       </div>
@@ -4217,6 +4232,7 @@ function PortalApp({ accountSession, onLogout }) {
                   applicantName={applicantName}
                   onReupload={jumpToUploadFor}
                   uploadPlaces={DOC_UPLOAD_PLACE}
+                  rowRules={docRowRules}
                 />
               ) : (
                 <div className="card">

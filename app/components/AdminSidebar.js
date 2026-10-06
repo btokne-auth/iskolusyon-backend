@@ -1,5 +1,7 @@
 'use client'
 
+import useMobileDrawer, { MobileNavBar, DrawerHead } from './MobileDrawer'
+
 // Sidebar navigation for the admin console shell. Structure (groups,
 // section labels, icons, item order) is now ported to match Ivy's live
 // admin.html sidebar markup on the front-end repo's `main` branch as of
@@ -241,6 +243,7 @@ export default function AdminSidebar({
   role,
   flaggedCount = 0,
   onLogout,
+  portalLink = false,
 }) {
   const groups =
     role === 'registrar'
@@ -251,21 +254,34 @@ export default function AdminSidebar({
           ? [...NAV_GROUPS, SUPER_ADMIN_GROUP]
           : NAV_GROUPS
   const roleText = ROLE_TEXT[role] || (isSuperAdmin ? 'Super Admin' : 'Admin')
+  const initials = (displayName || 'A')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w, i, a) => (i === 0 || i === a.length - 1 ? w.charAt(0) : ''))
+    .join('')
+    .toUpperCase()
+  // Oct 6 2026: on phones and tablets (960px and below) this sidebar becomes
+  // a menu that slides in from the left, opened by the Menu button in the
+  // slim bar above the page. Computers are unchanged. Same items and rules.
+  const drawer = useMobileDrawer()
+  const select = (key) => {
+    drawer.close()
+    onSelectPanel(key)
+  }
 
   return (
-    <aside className="sidebar">
+    <>
+    <MobileNavBar drawer={drawer} avatar={initials} name={displayName || 'Admin'} sub={roleText} />
+    {drawer.open && <div className="mnav-scrim" onClick={drawer.close} aria-hidden="true" />}
+    <aside id={drawer.id} className={`sidebar sb-drawer${drawer.open ? ' is-open' : ''}`} aria-label="Main menu">
+      <DrawerHead drawer={drawer} avatar={initials} name={displayName || 'Admin'} sub={roleText} />
       {/* ---- Profile block ----
           Oct 3 2026 redesign: initials beside the name, role as plain text.
           Admin and Super Admin look the same on purpose (no color coding). */}
       <div className="sidebar-profile sb-profile">
         <div className="sb-avatar" title={displayName || 'Admin'} aria-hidden="true">
-          {(displayName || 'A')
-            .trim()
-            .split(/\s+/)
-            .filter(Boolean)
-            .map((w, i, a) => (i === 0 || i === a.length - 1 ? w.charAt(0) : ''))
-            .join('')
-            .toUpperCase()}
+          {initials}
         </div>
         <div className="sb-who">
           <div className="sb-name">{displayName || 'Admin'}</div>
@@ -287,7 +303,7 @@ export default function AdminSidebar({
                   key={item.key}
                   item={item}
                   active={activePanel === item.key}
-                  onSelect={onSelectPanel}
+                  onSelect={select}
                   flaggedCount={flaggedCount}
                 />
               ))}
@@ -300,10 +316,18 @@ export default function AdminSidebar({
           asks first (the confirm pop-up lives in app/admin/page.js). ---- */}
       <div className="sidebar-logout">
         {email && <div className="sb-signed-in">Signed in as {email}</div>}
-        <button type="button" className="logout-btn" onClick={onLogout}>
+        {portalLink && (
+          // Phones and tablets only: the header's "Back to applicant portal"
+          // link is hidden there to keep the header from overlapping.
+          <a href="/portal" className="logout-btn mnav-only" style={{ color: '#c9d6ee' }}>
+            Back to applicant portal
+          </a>
+        )}
+        <button type="button" className="logout-btn" onClick={() => { drawer.close(); onLogout() }}>
           <span className="menu-icon"><IconLogout /></span> Log out
         </button>
       </div>
     </aside>
+    </>
   )
 }

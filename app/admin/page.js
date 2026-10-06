@@ -7702,6 +7702,7 @@ function AdminPageInner() {
           isSuperAdmin={isSuperAdmin}
           flaggedCount={totalFlagged}
           onLogout={() => setConfirmLogout(true)}
+          portalLink
         />
         {/* Oct 3 2026: log out asks first (was one click). */}
         {confirmLogout && (
