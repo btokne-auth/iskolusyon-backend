@@ -3012,11 +3012,10 @@ function ResultsPanel() {
 
   // Sept 24 2026, per Pau's live testing feedback: a filter for whether an
   // applicant has an application_number, labeled by what that actually
-  // means rather than the raw column name. application_number is only ever
-  // assigned once every required document is on file (see
-  // maybeAssignApplicationNumber() in app/api/application/route.js) and
-  // never revoked, so "Documents Complete"/"Documents Incomplete" is an
-  // accurate, not just convenient, label for this.
+  // means rather than the raw column name. Oct 6 2026: the number is now
+  // given at the final Submit (which needs the sections and the required
+  // documents), so the labels say "Submitted (has application no.)" and
+  // "Not submitted yet" instead of "Documents Complete/Incomplete".
   const [docFilter, setDocFilter] = useState('all') // 'all' | 'complete' | 'incomplete'
   // Oct 3 2026 redesign: status tabs above the table. "Needs action" uses
   // getNextStepHint()'s own 'go' tone, same as the default ordering below.
@@ -3109,10 +3108,10 @@ function ResultsPanel() {
             placeholder="Search by applicant name, email, or application number..."
             aria-label="Search applicants"
           />
-          <select className="program-filter-select" value={docFilter} onChange={(e) => setDocFilter(e.target.value)} aria-label="Filter by documents">
-            <option value="all">All documents</option>
-            <option value="complete">Documents Complete</option>
-            <option value="incomplete">Documents Incomplete</option>
+          <select className="program-filter-select" value={docFilter} onChange={(e) => setDocFilter(e.target.value)} aria-label="Filter by submission">
+            <option value="all">All applicants</option>
+            <option value="complete">Submitted (has application no.)</option>
+            <option value="incomplete">Not submitted yet</option>
           </select>
           {(search.trim() !== '' || docFilter !== 'all' || tab !== 'all') && (
             <>
@@ -7703,6 +7702,7 @@ function AdminPageInner() {
           isSuperAdmin={isSuperAdmin}
           flaggedCount={totalFlagged}
           onLogout={() => setConfirmLogout(true)}
+          portalLink
         />
         {/* Oct 3 2026: log out asks first (was one click). */}
         {confirmLogout && (

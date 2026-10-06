@@ -216,6 +216,19 @@ function missingForFinalSubmit(row, uploadedTypes) {
   return missing
 }
 
+// Oct 6 2026: once the final Submit is done, the three profile sections
+// that were reviewed (Personal, Educational, Family & Financial) can't be
+// changed by the applicant any more. Changes go through the Guidance
+// Office, where an admin can edit the submitted data (PR #18, logged and
+// the applicant is notified). Health & Wellness stays open because it is
+// completed during enrollment, and the email/SMS update choices stay open
+// too. Before the final Submit every section stays editable, including
+// Educational Background (its old lock after Submit Section only greyed
+// out the screen and came from the HTML mockup).
+const PROFILE_LOCKED_SECTIONS = ['personal', 'academic', 'financial']
+const PROFILE_LOCKED_MESSAGE =
+  'Your application has been submitted, so this section can no longer be changed here. If something needs to change, please contact the CCC Guidance Office.'
+
 async function countSubmittedThisCycle() {
   const { count, error } = await supabase
     .from('applications')
@@ -226,8 +239,16 @@ async function countSubmittedThisCycle() {
   return count || 0
 }
 
+// Oct 6 2026: the application number is now given at the final Submit, not
+// as soon as the documents are uploaded. CCC (Appendix D, interview #2):
+// "Sino lang nag submit sila lang may application number. Dapat ganoon den
+// sa system." and "If kumpleto ang requirements may application number."
+// The final Submit already requires the sections and documents, so both
+// hold. Numbers already given before this change are kept.
 function maybeAssignApplicationNumber(existingRow, updates, uploadedTypes) {
   if (existingRow.application_number) return {}
+  const submittedNow = updates.status === 'submitted' || existingRow.status === 'submitted'
+  if (!submittedNow) return {}
 
   const workingStudent = updates.fam_working_student ?? existingRow.fam_working_student
   const requiredTypes = requiredDocumentTypes(workingStudent)
@@ -405,10 +426,31 @@ export async function POST(request) {
         }
       }
     }
-    const personalInfoColumns = personalInfoToColumns(body.personalInfo)
-    const academicInfoColumns = academicInfoToColumns(body.academicInfo)
+    // Oct 6 2026: after the final Submit, Personal, Educational and
+    // Family & Financial are locked on the server too (see
+    // PROFILE_LOCKED_SECTIONS above). A save from the portal sends every
+    // section at once, so the locked sections' fields are simply left out
+    // of the update and Health & Wellness still saves; re-submitting a
+    // locked section is refused.
+    let profileLocked = false
+    try {
+      profileLocked = (await findOwnRows(session)).some((r) => r.status === 'submitted')
+    } catch (lockErr) {
+      return NextResponse.json({ error: lockErr.message }, { status: 500 })
+    }
+    if (profileLocked && action === 'submit-section' && PROFILE_LOCKED_SECTIONS.includes(section)) {
+      return NextResponse.json({ error: PROFILE_LOCKED_MESSAGE, locked: true }, { status: 409 })
+    }
+
+    // The email/SMS update choices are notification settings, not reviewed
+    // answers, so they can still be changed after the final Submit.
+    const allPersonalColumns = personalInfoToColumns(body.personalInfo)
+    const personalInfoColumns = profileLocked
+      ? { email_updates_opt_in: allPersonalColumns.email_updates_opt_in, sms_updates_opt_in: allPersonalColumns.sms_updates_opt_in }
+      : allPersonalColumns
+    const academicInfoColumns = profileLocked ? {} : academicInfoToColumns(body.academicInfo)
     const healthInfoColumns = healthInfoToColumns(body.healthInfo)
-    const familyInfoColumns = familyInfoToColumns(body.familyInfo)
+    const familyInfoColumns = profileLocked ? {} : familyInfoToColumns(body.familyInfo)
 
     // Sept 19 2026 fix: every save used to go through purely on the typed
     // applicant name, never stamping `applicant_user_id` — so a row saved
@@ -460,7 +502,7 @@ export async function POST(request) {
         // silently drifted out of sync with what the applicant actually
         // typed, and any lookup that keys off applicant_name (a direct
         // SQL check, or a document upload matched by name) would miss it.
-        applicant_name: applicantName || existing.applicant_name,
+        applicant_name: (!profileLocked && applicantName) || existing.applicant_name,
         applicant_email: applicantEmail || existing.applicant_email,
         applicant_user_id: applicantUserId || existing.applicant_user_id,
         current_step: step,
@@ -575,7 +617,7 @@ export async function POST(request) {
       }
 
       const updates = {
-        applicant_name: applicantName || raceExisting.applicant_name,
+        applicant_name: (!profileLocked && applicantName) || raceExisting.applicant_name,
         applicant_email: applicantEmail || raceExisting.applicant_email,
         applicant_user_id: applicantUserId || raceExisting.applicant_user_id,
         current_step: step,

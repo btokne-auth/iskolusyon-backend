@@ -40,7 +40,9 @@ export default function SiteHeader({
           spread apart. Fixed as part of design-parity pass 5, Sept 19 2026.
           admin.html's own topbar is space-between instead (see topbarRight
           above) -- only switches when a caller passes it. */}
-      <div className="bg-ccc-blue text-white text-xs py-1.5" style={{ fontFamily: 'var(--font-montserrat)' }}>
+      {/* Oct 6 2026: the top strip is hidden on phones (below 640px), where
+          its phone numbers / session label wrapped and pushed into the logos. */}
+      <div className="hidden sm:block bg-ccc-blue text-white text-xs py-1.5" style={{ fontFamily: 'var(--font-montserrat)' }}>
         <div className={`max-w-[1400px] mx-auto px-4 md:px-8 flex items-center gap-6 ${topbarRight ? 'justify-between' : 'justify-end'}`}>
           <span className="font-bold">{topbarLabel}</span>
           {(topbarLink || topbarRight) && (
@@ -63,7 +65,7 @@ export default function SiteHeader({
 
       {/* Navbar */}
       <nav className="bg-white border-b-[3px] border-ccc-gold sticky top-0 z-30 shadow-sm">
-        <div className="w-full px-4 md:px-10 flex items-center justify-between h-[72px] gap-4">
+        <div className="w-full px-3.5 sm:px-4 md:px-10 flex items-center justify-between h-[60px] sm:h-[72px] gap-3 sm:gap-4">
           {/* Sept 24 2026: brought pixel-for-pixel in line with the mockup's
               own .brand/.brand-logos/.brand-text CSS (index.html) -- this
               component was noticeably off from it in several ways: logos
@@ -75,36 +77,39 @@ export default function SiteHeader({
               SiteHeader is shared by every page -- applicant and admin
               alike -- so this one fix restores consistency everywhere at
               once instead of needing to be redone per page. */}
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               {logos.map((logo) => (
                 <img
                   key={logo.src}
                   src={logo.src}
                   alt={logo.alt}
-                  className="h-[52px] w-auto object-contain"
+                  className="h-[32px] sm:h-[52px] w-auto object-contain"
                 />
               ))}
             </div>
             <div
-              className="pl-2.5 border-l-2 border-ccc-border"
+              className="pl-2 sm:pl-2.5 border-l-2 border-ccc-border min-w-0"
               style={{ fontFamily: 'var(--font-montserrat)' }}
             >
               <div
-                className="text-[15px] font-black text-ccc-navy uppercase leading-[1.1]"
+                className="text-[12px] sm:text-[15px] font-black text-ccc-navy uppercase leading-[1.1]"
                 style={{ letterSpacing: '0.5px' }}
               >
                 City College of Calamba
               </div>
               <div
-                className="text-[8.7px] font-semibold text-ccc-muted uppercase mt-px"
+                className="text-[7.5px] sm:text-[8.7px] font-semibold text-ccc-muted uppercase mt-px"
                 style={{ letterSpacing: '1.2px' }}
               >
                 {subtitle}
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          {/* Oct 6 2026: on phones and tablets the badge and the right-side
+              link move out of the header (the admin menu has "Back to
+              applicant portal"), so the title never overlaps the logos. */}
+          <div className="hidden md:flex items-center gap-3">
             {portalBadge && (
               <div className="text-xs font-bold uppercase tracking-wide text-white bg-ccc-blue px-3 py-1.5 rounded-full">
                 {portalBadge}

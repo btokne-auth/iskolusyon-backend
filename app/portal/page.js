@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { useRouter } from 'next/navigation'
 import '../portal-theme.css'
 import SiteHeader from '../components/SiteHeader'
@@ -618,7 +618,16 @@ function sanitizeDateTextInput(value, allowNA) {
 // navy, not gray, and inputs use a 6px radius + inset focus glow instead of
 // an outer ring. `full` lets a caller span both columns of a parent
 // .form-grid without a separate wrapper div (spec's .mfield.full).
+// Oct 6 2026: after the final Submit, Personal Information, Educational
+// Background and Family & Financial Information are read-only (the server
+// refuses changes too, see app/api/application/route.js). Each of those
+// panels wraps its fields in this provider, so every field inside turns
+// read-only without passing a prop to each one. Upload rows don't use it,
+// so re-upload requests still work.
+const FieldsLockedContext = createContext(false)
+
 function TextField({ label, required, type = 'text', value, onChange, placeholder, disabled, full }) {
+  const locked = useContext(FieldsLockedContext)
   return (
     <div className={`mfield${full ? ' full' : ''}`}>
       <label>
@@ -629,19 +638,20 @@ function TextField({ label, required, type = 'text', value, onChange, placeholde
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        disabled={disabled}
+        disabled={disabled || locked}
       />
     </div>
   )
 }
 
 function SelectField({ label, required, value, onChange, options, disabled, full }) {
+  const locked = useContext(FieldsLockedContext)
   return (
     <div className={`mfield${full ? ' full' : ''}`}>
       <label>
         {label} {required && <span className="req-mark">*</span>}
       </label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
+      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || locked}>
         <option value="">Select</option>
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
@@ -650,12 +660,13 @@ function SelectField({ label, required, value, onChange, options, disabled, full
 }
 
 function TextAreaField({ label, required, value, onChange, placeholder, full }) {
+  const locked = useContext(FieldsLockedContext)
   return (
     <div className={`mfield${full ? ' full' : ''}`}>
       <label>
         {label} {required && <span className="req-mark">*</span>}
       </label>
-      <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={3} />
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={3} disabled={locked} />
     </div>
   )
 }
@@ -671,6 +682,7 @@ function TextAreaField({ label, required, value, onChange, placeholder, full }) 
 // table with none of spec's full cell grid, navy header text, or inset
 // focus highlight.
 function OrganizationsTable({ rows, onChangeRow, onAddRow, onRemoveRow }) {
+  const locked = useContext(FieldsLockedContext)
   return (
     <div className="edu-table-wrap">
       <table className="edu-table org-table">
@@ -689,22 +701,22 @@ function OrganizationsTable({ rows, onChangeRow, onAddRow, onRemoveRow }) {
             return (
               <tr key={i}>
                 <td>
-                  <input type="text" value={row.name} onChange={(e) => onChangeRow(i, 'name', e.target.value)} placeholder="e.g. Organization Name" />
+                  <input type="text" value={row.name} disabled={locked} onChange={(e) => onChangeRow(i, 'name', e.target.value)} placeholder="e.g. Organization Name" />
                 </td>
                 <td>
-                  <input type="text" value={row.position} onChange={(e) => onChangeRow(i, 'position', e.target.value)} placeholder="e.g. President" />
+                  <input type="text" value={row.position} disabled={locked} onChange={(e) => onChangeRow(i, 'position', e.target.value)} placeholder="e.g. President" />
                 </td>
                 <td>
-                  <input type="text" value={row.nature} onChange={(e) => onChangeRow(i, 'nature', e.target.value)} placeholder="e.g. Non-profit Organization" />
+                  <input type="text" value={row.nature} disabled={locked} onChange={(e) => onChangeRow(i, 'nature', e.target.value)} placeholder="e.g. Non-profit Organization" />
                 </td>
                 <td>
-                  <input type="text" value={row.year} onChange={(e) => onChangeRow(i, 'year', e.target.value)} placeholder="e.g. 2025-2026" />
+                  <input type="text" value={row.year} disabled={locked} onChange={(e) => onChangeRow(i, 'year', e.target.value)} placeholder="e.g. 2025-2026" />
                 </td>
                 <td className="org-row-action">
                   {isLast ? (
-                    <button type="button" onClick={onAddRow} title="Add row" className="org-row-btn org-row-add">+</button>
+                    <button type="button" onClick={onAddRow} title="Add row" className="org-row-btn org-row-add" disabled={locked}>+</button>
                   ) : (
-                    <button type="button" onClick={() => onRemoveRow(i)} title="Remove row" className="org-row-btn org-row-remove">&times;</button>
+                    <button type="button" onClick={() => onRemoveRow(i)} title="Remove row" className="org-row-btn org-row-remove" disabled={locked}>&times;</button>
                   )}
                 </td>
               </tr>
@@ -733,7 +745,9 @@ const EDU_LEVELS = ['prim', 'sec', 'tert']
 // Uses applicant.html's .edu-table classes (design-parity pass 5,
 // Sept 19 2026) — was a plain gray-header Tailwind table with none of
 // spec's full cell grid, navy header text, or inset focus highlight.
-function EduTable({ edu, onChangeCell, disabled }) {
+function EduTable({ edu, onChangeCell, disabled: disabledProp }) {
+  const lockedByPanel = useContext(FieldsLockedContext)
+  const disabled = disabledProp || lockedByPanel
   return (
     <div className="edu-table-wrap">
       <table className="edu-table">
@@ -784,7 +798,9 @@ const PARENT_ROWS = [
 ]
 const PARENT_PEOPLE = ['mother', 'father', 'guardian']
 
-function ParentGuardianTable({ familyInfo, onChange, disabled }) {
+function ParentGuardianTable({ familyInfo, onChange, disabled: disabledProp }) {
+  const lockedByPanel = useContext(FieldsLockedContext)
+  const disabled = disabledProp || lockedByPanel
   return (
     <div className="edu-table-wrap">
       <table className="edu-table">
@@ -845,7 +861,9 @@ const SIBLING_ROWS = [
   { field: 'education', label: 'Highest Educational Attainment', placeholder: 'e.g. College Graduate', type: 'text' },
 ]
 
-function SiblingIncomeTable({ siblings, onChangeCell, onAddColumn, onRemoveColumn, disabled }) {
+function SiblingIncomeTable({ siblings, onChangeCell, onAddColumn, onRemoveColumn, disabled: disabledProp }) {
+  const lockedByPanel = useContext(FieldsLockedContext)
+  const disabled = disabledProp || lockedByPanel
   return (
     <div className="edu-table-wrap">
       <table className="edu-table" id="sibling-income-table">
@@ -1254,7 +1272,7 @@ function UploadNoticeDialog({ notice, autofillNote, onClose }) {
   }, [locked, onClose])
 
   const label = UPLOAD_DOC_LABEL[notice.docType] || 'document'
-  const isAutofill = notice.kind === 'upload' && Boolean(AUTOFILL_FIELD_MAP[notice.docType])
+  const isAutofill = notice.kind === 'upload' && notice.autofill !== false && Boolean(AUTOFILL_FIELD_MAP[notice.docType])
   const stillReading = isAutofill && (!autofillNote || (autofillNote.tone === 'info' && /^Reading/.test(autofillNote.text)))
 
   let icon = '\u2713'
@@ -1267,9 +1285,9 @@ function UploadNoticeDialog({ notice, autofillNote, onClose }) {
     body = (
       <>
         Your {sectionLabel} answers were saved and sent to the Guidance Office.{' '}
-        {notice.section === 'academic'
-          ? 'This section is now locked. If something needs to change, please contact the Guidance Office.'
-          : 'You can still edit and re-submit this section any time.'}
+        {notice.section === 'health'
+          ? 'You can still edit and re-submit this section any time.'
+          : 'You can still edit and re-submit this section until you submit your application.'}
         {notice.newApplicationNumber ? (
           <>
             {'\n\n'}All your required documents are in. Your application number is <b>{notice.newApplicationNumber}</b>.
@@ -1352,7 +1370,35 @@ function UploadNoticeDialog({ notice, autofillNote, onClose }) {
   )
 }
 
-function SectionFormActions({ saveState, sectionState, error, disabled, submitDisabled, submitLabel, onSaveDraft, onSubmit }) {
+// Oct 6 2026: the note under a profile section's buttons. Before the final
+// Submit a submitted section can still be edited and re-submitted; after
+// it, Personal / Educational / Family & Financial are read-only.
+// The small tag on each profile card: "Editable", or "Locked" after the
+// final Submit (same FieldsLockedContext as the fields).
+function EditableTag() {
+  const locked = useContext(FieldsLockedContext)
+  return locked ? <span className="tag tag-locked">Locked</span> : <span className="tag">Editable</span>
+}
+
+function SectionSubmittedNote({ at, locked, extra }) {
+  if (locked) {
+    return (
+      <p className="text-[11px] font-semibold text-ccc-navy leading-snug">
+        Your application has been submitted, so this section can no longer be changed here. If something needs to change,
+        please contact the CCC Guidance Office.{extra ? <> {extra}</> : null}
+      </p>
+    )
+  }
+  if (!at) return null
+  return (
+    <p className="text-[11px] text-ccc-muted leading-snug">
+      Submitted {new Date(at).toLocaleString()}. You can still edit and re-submit this section until you submit your
+      application.
+    </p>
+  )
+}
+
+function SectionFormActions({ saveState, sectionState, error, disabled, saveDisabled, saveLabel, submitDisabled, submitLabel, onSaveDraft, onSubmit }) {
   return (
     <div>
       {/* The missing-fields error can be a multi-line list, so it stays
@@ -1360,8 +1406,8 @@ function SectionFormActions({ saveState, sectionState, error, disabled, submitDi
           so nothing appears or disappears next to the buttons. */}
       {error && <p className="save-note" style={{ color: 'var(--red)', whiteSpace: 'pre-line' }}>{error}</p>}
       <div className="form-actions">
-        <button type="button" onClick={onSaveDraft} disabled={disabled || saveState === 'saving'} className="mbtn mbtn-primary">
-          {saveState === 'saving' ? 'Saving…' : 'Save as Draft'}
+        <button type="button" onClick={onSaveDraft} disabled={disabled || saveDisabled || saveState === 'saving'} className="mbtn mbtn-primary">
+          {saveState === 'saving' ? 'Saving…' : saveLabel || 'Save as Draft'}
         </button>
         <button
           type="button"
@@ -1663,6 +1709,10 @@ function PortalApp({ accountSession, onLogout }) {
   const [activePanel, setActivePanel] = useState('personal') // sidebar panel key — replaces the old linear step wizard
   const [submitted, setSubmitted] = useState(false)
   const [submittedAt, setSubmittedAt] = useState(null) // for the real Application History & Activity Log, below
+  // Oct 6 2026: once the final Submit is done, Personal, Educational and
+  // Family & Financial are read-only (see FieldsLockedContext). Health &
+  // Wellness and uploads stay open.
+  const profileLocked = submitted
   const [saveState, setSaveState] = useState('idle') // 'idle' | 'saving' | 'saved' | 'error' | 'offline'
 
   // Per-section "Submit Section" state (design-parity pass 3) — separate
@@ -2059,6 +2109,25 @@ function PortalApp({ accountSession, onLogout }) {
     },
   ]
 
+  // Oct 6 2026: Documents & Status rows for documents that don't apply to
+  // this applicant (yet). Their upload areas only show when they apply:
+  // Proof of Employment for a working student, Proof of Income in the
+  // siblings' income card (not an only child). Neither is in CCC's list of
+  // requirements (Appendix D, interview #2). The medical certificate comes
+  // after passing the exam; a supporting document only with a request.
+  const docRowRules = {
+    employmentcert:
+      familyInfo.workingStudent === 'Yes'
+        ? {}
+        : { badge: 'Not needed', note: 'Only for working students.', noLink: true, notCounted: true },
+    indigency:
+      familyInfo.onlyChild === 'No'
+        ? { badge: 'Optional', note: 'Optional. You can add it in the family income card.' }
+        : { badge: 'Not needed', note: 'Optional, and only asked when you have siblings.', noLink: true, notCounted: true },
+    medcert: { badge: 'Later', note: 'After you pass the exam, during enrollment.', notCounted: true },
+    supportdoc: { badge: 'Optional', note: 'Only for appeals or reschedule requests.', notCounted: true },
+  }
+
   // Oct 6 2026: document types whose latest upload is still being read, so
   // each section's upload row can show its Reading step.
   const readingTypes = new Set(
@@ -2151,9 +2220,11 @@ function PortalApp({ accountSession, onLogout }) {
   // (personal_info_submitted_at / academic_submitted_at) without touching
   // the application's overall status. Mirrors the spec's own validation:
   // Personal Information requires its three inline uploads to be in before
-  // it'll submit; Educational Background has no such gate but is the one
-  // section that locks for good afterward (see the `disabled` props wired
-  // to academicSubmittedAt throughout its panel above).
+  // it'll submit. Oct 6 2026: Educational Background no longer locks after
+  // its own Submit Section (that lock only greyed out the screen and came
+  // from the HTML mockup). Instead, Personal, Educational and Family &
+  // Financial all become read-only once the final Submit is done
+  // (profileLocked / FieldsLockedContext), and the server enforces it.
   const submitSection = async (section) => {
     if (!applicantName.trim()) return
     setSectionErrors((e) => ({ ...e, [section]: '' }))
@@ -2778,8 +2849,12 @@ function PortalApp({ accountSession, onLogout }) {
       setStep({ phase: 'done' })
       setInlineStatus(data.needsReview ? 'flagged' : 'done')
       fetchHistory()
-      setUploadNotice({ kind: 'upload', docType, reviewStatus: data.reviewStatus })
-      if (AUTOFILL_FIELD_MAP[docType] && data.filePath) watchAutofill(docType, data.filePath)
+      // Oct 6 2026: after the final Submit the Personal Information fields
+      // are read-only, so a re-uploaded Birth Certificate / Voter's ID is
+      // still read for the admins but doesn't fill anything in here.
+      const fillFields = !profileLocked && AUTOFILL_FIELD_MAP[docType] && data.filePath
+      setUploadNotice({ kind: 'upload', docType, reviewStatus: data.reviewStatus, autofill: !!fillFields })
+      if (fillFields) watchAutofill(docType, data.filePath)
     } catch (err) {
       if (err.rejected) {
         // A specific, actionable quality-precheck rejection (too small,
@@ -2915,21 +2990,28 @@ function PortalApp({ accountSession, onLogout }) {
             // no field-completeness bar to clear like the other three —
             // "done" here just means the applicant explicitly submitted it.
             const healthDone = !!healthSubmittedAt
-            const allProfileDone = personalDone && academicDone && familyDone && healthDone
-            const profileSectionsDone = [personalDone, academicDone, familyDone, healthDone].filter(Boolean).length
-            const stepNum = !allProfileDone ? 2 : !submitted ? 3 : 3
-            const stepLabel = !allProfileDone ? 'Filling Out Profile' : !submitted ? 'Uploading Documents' : 'Awaiting Document Verification'
-            const nextAction = !personalDone
-              ? { label: 'Complete your Personal Information', panel: 'personal' }
-              : !academicDone
-              ? { label: 'Complete your Educational Background', panel: 'academic' }
-              : !familyDone
-              ? { label: 'Complete your Family & Financial Information', panel: 'financial' }
-              : !healthDone
-              ? { label: 'Complete your Health & Wellness section', panel: 'health' }
-              : !submitted
-              ? { label: 'Submit your documents for review', panel: 'status' }
-              : null
+            // Oct 6 2026: Health & Wellness is done during enrollment, after
+            // passing the exam (Appendix D: passers are recommended for the
+            // medical exam and enrollment), so it isn't counted here.
+            const profileSectionsDone = [personalDone, academicDone, familyDone].filter(Boolean).length
+            // Oct 6 2026: the status line and Next step follow the final
+            // Submit's own checklist (finalSubmitChecks, same as the Final
+            // step card), not Health & Wellness, which is only needed during
+            // enrollment. Once everything is in, the next step is to submit.
+            const readyToSubmit = finalSubmitChecks.every((c) => c.ok)
+            const stepNum = !submitted ? 2 : 3
+            const stepLabel = submitted ? 'Awaiting Document Verification' : readyToSubmit ? 'Ready to Submit' : 'Filling Out Profile'
+            const nextAction = submitted
+              ? null
+              : !personalSubmittedAt
+              ? { label: 'Complete and submit your Personal Information', panel: 'personal' }
+              : !academicSubmittedAt
+              ? { label: 'Complete and submit your Educational Background', panel: 'academic' }
+              : !financialSubmittedAt
+              ? { label: 'Complete and submit your Family & Financial Information', panel: 'financial' }
+              : missingDocsForSubmit.length
+              ? { label: `Upload your ${getDocTypeLabel(missingDocsForSubmit[0])}`, panel: DOC_UPLOAD_PLACE[missingDocsForSubmit[0]]?.panel || 'status' }
+              : { label: 'Submit your application', panel: 'status' }
 
             if (!appLoaded || !historyLoaded) {
               return (
@@ -2993,6 +3075,8 @@ function PortalApp({ accountSession, onLogout }) {
                   <p className="status-hero-desc">
                     {submitted
                       ? "Your application is submitted and on file. You'll see document statuses update on the Documents & Status panel as they're reviewed."
+                      : readyToSubmit
+                      ? 'Everything needed is in. Submit your application from Documents & Status to be counted for the exam schedule.'
                       : myDocs.length > 0
                       ? "You've started your application. Keep working through the sections below, then submit from Documents & Status when you're ready."
                       : "You've created and verified your account. You're now completing your applicant profile."}
@@ -3028,11 +3112,11 @@ function PortalApp({ accountSession, onLogout }) {
                   {/* Profile Completion — real, and the connector's active card */}
                   <div className="stat-card unlocked-clickable tab-active" onClick={() => setActivePanel('personal')} role="button" tabIndex={0}>
                     <div className="stat-label">Profile Completion</div>
-                    <div className="stat-value">{profileSectionsDone} of 4 sections done</div>
+                    <div className="stat-value">{profileSectionsDone} of 3 required sections done</div>
                     <div className="stat-progress">
-                      <div className="stat-progress-bar" style={{ width: `${(profileSectionsDone / 4) * 100}%` }} />
+                      <div className="stat-progress-bar" style={{ width: `${(profileSectionsDone / 3) * 100}%` }} />
                     </div>
-                    <div className="stat-note">Personal Information, Educational Background, Family &amp; Financial Information, and Health &amp; Wellness.</div>
+                    <div className="stat-note">Personal Information, Educational Background, and Family &amp; Financial Information. Health &amp; Wellness comes later, during enrollment.</div>
                     <div className="stat-card-hint">&#9660; Viewing details below</div>
                   </div>
 
@@ -3178,22 +3262,15 @@ function PortalApp({ accountSession, onLogout }) {
                         </div>
                       </div>
                       <div className="timeline-item">
-                        <div className={`timeline-dot ${healthDone ? 'step-done' : familyDone ? 'step-ongoing' : 'step-notstarted'}`}>
+                        <div className={`timeline-dot ${healthDone ? 'step-done' : 'step-notstarted'}`}>
                           {healthDone ? '✓' : 4}
                         </div>
                         <div className="timeline-body">
                           <h4>Health &amp; Wellness</h4>
                           <p>
-                            {healthDone ? (
-                              'Completed.'
-                            ) : (
-                              <>
-                                {familyDone ? 'Currently ongoing' : 'Not yet started'} ,{' '}
-                                <a href="#" style={{ color: 'var(--ccc-blue)', fontWeight: 600, textDecoration: 'none' }} onClick={(e) => { e.preventDefault(); setActivePanel('health') }}>
-                                  {familyDone ? 'continue' : 'complete now'} &rarr;
-                                </a>
-                              </>
-                            )}
+                            {/* Oct 6 2026: not needed to submit; it comes during
+                                enrollment, after passing the exam. */}
+                            {healthDone ? 'Completed.' : 'During enrollment, after you pass the exam. Not needed to submit your application.'}
                           </p>
                         </div>
                       </div>
@@ -3297,6 +3374,7 @@ function PortalApp({ accountSession, onLogout }) {
           {!appLoaded && PROFILE_PANEL_HEADERS[activePanel] && <ProfilePanelSkeleton panel={activePanel} />}
 
           {activePanel === 'personal' && appLoaded && (
+            <FieldsLockedContext.Provider value={profileLocked}>
             <div>
               <div className="portal-header">
                 <p className="portal-eyebrow">Admission &middot; My Profile (Softcopy)</p>
@@ -3373,7 +3451,7 @@ function PortalApp({ accountSession, onLogout }) {
                   <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span className="topic-card-number">2</span> Identity &amp; Civil Status
                   </span>{' '}
-                  <span className="tag">Editable</span>
+                  <EditableTag />
                 </div>
                 <p className="topic-card-intro">These fields auto-fill once you upload your Birth Certificate below. Document text extraction isn&rsquo;t always perfect, so you can still correct any field manually.</p>
                 <div className="form-grid">
@@ -3428,7 +3506,7 @@ function PortalApp({ accountSession, onLogout }) {
                   <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span className="topic-card-number">3</span> Contact &amp; Residency
                   </span>{' '}
-                  <span className="tag">Editable</span>
+                  <EditableTag />
                 </div>
                 <p className="topic-card-intro">Your address and precinct number auto-fill once you upload your Voter&rsquo;s ID below.</p>
                 <div className="form-grid">
@@ -3478,7 +3556,7 @@ function PortalApp({ accountSession, onLogout }) {
                   <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span className="topic-card-number">4</span> Additional Information
                   </span>{' '}
-                  <span className="tag">Editable</span>
+                  <EditableTag />
                 </div>
                 <p className="topic-card-intro">Used to help match you to special scholarship categories and accommodations. No document needed here.</p>
                 <div className="form-grid">
@@ -3511,7 +3589,7 @@ function PortalApp({ accountSession, onLogout }) {
                   <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span className="topic-card-number">6</span> Motivation and Aspirations Questions
                   </span>{' '}
-                  <span className="tag">Editable</span>
+                  <EditableTag />
                 </div>
                 <p className="topic-card-intro">Help us get to know you better. All questions in this section are required.</p>
                 <div className="form-grid">
@@ -3577,32 +3655,37 @@ function PortalApp({ accountSession, onLogout }) {
                 </div>
               )}
 
-              {!requiredPersonalInfoComplete && applicantName.trim() && (
+              {!requiredPersonalInfoComplete && applicantName.trim() && !profileLocked && (
                 <p className="text-[11px] text-ccc-muted leading-snug">
                   Fill in the required fields and upload your Profile Picture, Birth Certificate, and Voter&rsquo;s ID above. This section saves independently of the others.
                 </p>
               )}
-              {personalSubmittedAt && (
-                <p className="text-[11px] text-ccc-muted leading-snug">
-                  Submitted {new Date(personalSubmittedAt).toLocaleString()}. You can still edit and re-submit this section any time.
-                </p>
-              )}
+              <SectionSubmittedNote
+                at={personalSubmittedAt}
+                locked={profileLocked}
+                extra="You can still change your email and SMS update choices above and save them."
+              />
 
               <SectionFormActions
                 saveState={saveState}
                 sectionState={personalSectionState}
                 error={sectionErrors.personal}
                 disabled={!applicantName.trim()}
+                saveLabel={profileLocked ? 'Save update choices' : undefined}
+                submitDisabled={profileLocked}
+                submitLabel={profileLocked ? 'Submitted (Locked)' : 'Submit Section'}
                 onSaveDraft={() => saveProgress(1)}
                 onSubmit={() => submitSection('personal')}
               />
             </div>
+            </FieldsLockedContext.Provider>
           )}
 
           {/* ══════════ EDUCATIONAL BACKGROUND (built — Program Application,
               Preferred Program, 3-tier school table, Tech-Voc, and the
               Grades/Form 138 upload, ported from Ivy's academic panel) ══════════ */}
           {activePanel === 'academic' && appLoaded && (
+            <FieldsLockedContext.Provider value={profileLocked}>
             <div>
               <div className="portal-header">
                 <p className="portal-eyebrow">Admission &middot; My Profile (Softcopy)</p>
@@ -3616,11 +3699,11 @@ function PortalApp({ accountSession, onLogout }) {
                   <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span className="topic-card-number">1</span> Program Application
                   </span>{' '}
-                  <span className="tag">Editable</span>
+                  <EditableTag />
                 </div>
                 <div className="form-grid">
-                  <SelectField label="Applying As" required value={academicInfo.applyingAs} onChange={(v) => updateAI('applyingAs', v)} options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} disabled={!!academicSubmittedAt} />
-                  <SelectField label="Term Applying In" required value={academicInfo.termApplying} onChange={(v) => updateAI('termApplying', v)} options={['Term 1', 'Term 2']} disabled={!!academicSubmittedAt} />
+                  <SelectField label="Applying As" required value={academicInfo.applyingAs} onChange={(v) => updateAI('applyingAs', v)} options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} />
+                  <SelectField label="Term Applying In" required value={academicInfo.termApplying} onChange={(v) => updateAI('termApplying', v)} options={['Term 1', 'Term 2']} />
                 </div>
 
                 {/* Sept 20 2026: Scholarship Matching & Filtering — CCC only
@@ -3642,7 +3725,6 @@ function PortalApp({ accountSession, onLogout }) {
                         value={academicInfo.transfereeGwa}
                         onChange={(v) => updateAI('transfereeGwa', v)}
                         placeholder="e.g. 1.75 (2.25 or better required)"
-                        disabled={!!academicSubmittedAt}
                       />
                       <TextField
                         label="Total Academic Units Passed"
@@ -3651,7 +3733,6 @@ function PortalApp({ accountSession, onLogout }) {
                         value={academicInfo.transfereeUnitsPassed}
                         onChange={(v) => updateAI('transfereeUnitsPassed', v)}
                         placeholder="e.g. 30 (at least 26 required)"
-                        disabled={!!academicSubmittedAt}
                       />
                       <SelectField
                         label="Did you get a failing grade in any semester at your previous school(s)?"
@@ -3659,7 +3740,6 @@ function PortalApp({ accountSession, onLogout }) {
                         value={academicInfo.transfereeFailingGrade}
                         onChange={(v) => updateAI('transfereeFailingGrade', v)}
                         options={['Yes', 'No']}
-                        disabled={!!academicSubmittedAt}
                       />
                     </div>
                   </>
@@ -3672,11 +3752,11 @@ function PortalApp({ accountSession, onLogout }) {
                   <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span className="topic-card-number">2</span> Preferred Program
                   </span>{' '}
-                  <span className="tag">Editable</span>
+                  <EditableTag />
                 </div>
                 <div className="form-grid">
-                  <SelectField label="First Priority Program" required value={academicInfo.choice1} onChange={(v) => updateAI('choice1', v)} options={PROGRAM_OPTIONS} disabled={!!academicSubmittedAt} />
-                  <SelectField label="Second Priority Program" required value={academicInfo.choice2} onChange={(v) => updateAI('choice2', v)} options={[...PROGRAM_OPTIONS, 'None of the above']} disabled={!!academicSubmittedAt} />
+                  <SelectField label="First Priority Program" required value={academicInfo.choice1} onChange={(v) => updateAI('choice1', v)} options={PROGRAM_OPTIONS} />
+                  <SelectField label="Second Priority Program" required value={academicInfo.choice2} onChange={(v) => updateAI('choice2', v)} options={[...PROGRAM_OPTIONS, 'None of the above']} />
                 </div>
               </div>
 
@@ -3686,13 +3766,13 @@ function PortalApp({ accountSession, onLogout }) {
                   <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span className="topic-card-number">3</span> Educational Background
                   </span>{' '}
-                  <span className="tag">Editable</span>
+                  <EditableTag />
                 </div>
                 <p className="topic-card-intro">
                   Fill in your school details for each level you&rsquo;ve completed. <strong>Primary / Elementary is required for all applicants.</strong> Secondary / Senior High and Tertiary / College are optional (except Honors / Awards Received, which is optional for all levels).
                 </p>
 
-                <EduTable edu={academicInfo.edu} onChangeCell={updateEduCell} disabled={!!academicSubmittedAt} />
+                <EduTable edu={academicInfo.edu} onChangeCell={updateEduCell} />
 
                 <div className="form-grid" style={{ marginTop: '15px' }}>
                   <SelectField
@@ -3700,15 +3780,14 @@ function PortalApp({ accountSession, onLogout }) {
                     value={academicInfo.techVoc}
                     onChange={(v) => updateAI('techVoc', v)}
                     options={['Yes', 'No']}
-                    disabled={!!academicSubmittedAt}
                   />
                 </div>
 
                 {academicInfo.techVoc === 'Yes' && (
                   <div className="form-grid">
-                    <TextField label="Name of School in Technical/Vocational" value={academicInfo.techVocSchool} onChange={(v) => updateAI('techVocSchool', v)} placeholder="e.g. Calamba Technical Vocational School" disabled={!!academicSubmittedAt} />
-                    <TextField label="Name of Course in Technical/Vocational" value={academicInfo.techVocCourse} onChange={(v) => updateAI('techVocCourse', v)} placeholder="e.g. Computer Systems Servicing NC II" disabled={!!academicSubmittedAt} />
-                    <TextField full label="Address of School in Technical/Vocational" value={academicInfo.techVocAddress} onChange={(v) => updateAI('techVocAddress', v)} placeholder="e.g. Brgy. Real, Calamba City, Laguna" disabled={!!academicSubmittedAt} />
+                    <TextField label="Name of School in Technical/Vocational" value={academicInfo.techVocSchool} onChange={(v) => updateAI('techVocSchool', v)} placeholder="e.g. Calamba Technical Vocational School" />
+                    <TextField label="Name of Course in Technical/Vocational" value={academicInfo.techVocCourse} onChange={(v) => updateAI('techVocCourse', v)} placeholder="e.g. Computer Systems Servicing NC II" />
+                    <TextField full label="Address of School in Technical/Vocational" value={academicInfo.techVocAddress} onChange={(v) => updateAI('techVocAddress', v)} placeholder="e.g. Brgy. Real, Calamba City, Laguna" />
                   </div>
                 )}
 
@@ -3729,7 +3808,6 @@ function PortalApp({ accountSession, onLogout }) {
                     required
                     status={form138Status === 'idle' && hasUploaded('form138') ? 'done' : form138Status}
                     onFileSelected={(f) => handleInlineUpload('form138', f, setForm138Status, () => {})}
-                    disabled={!!academicSubmittedAt}
                   />
                 </div>
               </div>
@@ -3739,23 +3817,21 @@ function PortalApp({ accountSession, onLogout }) {
                   Applying As, Term Applying In, both Priority Programs, the Primary/Elementary row, and the Grades (Form 138) upload are required (plus GWA, Units Passed, and the failing-grade question if applying as a Transferee). This section saves independently of the others.
                 </p>
               )}
-              {academicSubmittedAt && (
-                <p className="text-[11px] font-semibold text-red-600 -mt-2">
-                  This section has been submitted and can no longer be edited.
-                </p>
-              )}
+              <SectionSubmittedNote at={academicSubmittedAt} locked={profileLocked} />
 
               <SectionFormActions
                 saveState={saveState}
                 sectionState={academicSectionState}
                 error={sectionErrors.academic}
-                disabled={!applicantName.trim() || !!academicSubmittedAt}
-                submitDisabled={!!academicSubmittedAt}
-                submitLabel={academicSubmittedAt ? 'Submitted (Locked)' : 'Submit Section'}
+                disabled={!applicantName.trim()}
+                saveDisabled={profileLocked}
+                submitDisabled={profileLocked}
+                submitLabel={profileLocked ? 'Submitted (Locked)' : 'Submit Section'}
                 onSaveDraft={() => saveProgress(2)}
                 onSubmit={() => submitSection('academic')}
               />
             </div>
+            </FieldsLockedContext.Provider>
           )}
 
           {/* ══════════ FAMILY & FINANCIAL INFORMATION (built — Parent/
@@ -3763,6 +3839,7 @@ function PortalApp({ accountSession, onLogout }) {
               working-student branch, sibling income table, ported from
               Ivy's panel-financial) ══════════ */}
           {activePanel === 'financial' && appLoaded && (
+            <FieldsLockedContext.Provider value={profileLocked}>
             <div>
               <div className="portal-header">
                 <p className="portal-eyebrow">Admission &middot; My Profile (Softcopy)</p>
@@ -3816,6 +3893,7 @@ function PortalApp({ accountSession, onLogout }) {
                               value={familyInfo.siblingCurrentStudent}
                               onChange={(e) => updateFI('siblingCurrentStudent', e.target.value)}
                               required
+                              disabled={profileLocked}
                             >
                               <option value="">Select&hellip;</option>
                               <option>Yes</option>
@@ -3832,6 +3910,7 @@ function PortalApp({ accountSession, onLogout }) {
                               value={familyInfo.siblingGraduate}
                               onChange={(e) => updateFI('siblingGraduate', e.target.value)}
                               required
+                              disabled={profileLocked}
                             >
                               <option value="">Select&hellip;</option>
                               <option>Yes</option>
@@ -3947,21 +4026,21 @@ function PortalApp({ accountSession, onLogout }) {
                 </div>
               )}
 
-              {financialSubmittedAt && (
-                <p className="text-[11px] text-ccc-muted leading-snug">
-                  Submitted {new Date(financialSubmittedAt).toLocaleString()}. You can still edit and re-submit this section any time.
-                </p>
-              )}
+              <SectionSubmittedNote at={financialSubmittedAt} locked={profileLocked} />
 
               <SectionFormActions
                 saveState={saveState}
                 sectionState={financialSectionState}
                 error={sectionErrors.financial}
                 disabled={!applicantName.trim()}
+                saveDisabled={profileLocked}
+                submitDisabled={profileLocked}
+                submitLabel={profileLocked ? 'Submitted (Locked)' : 'Submit Section'}
                 onSaveDraft={() => saveProgress(5)}
                 onSubmit={() => submitSection('financial')}
               />
             </div>
+            </FieldsLockedContext.Provider>
           )}
 
           {/* ══════════ APPEALS & RESCHEDULING (Sept 30 2026: appeals added,
@@ -4153,6 +4232,7 @@ function PortalApp({ accountSession, onLogout }) {
                   applicantName={applicantName}
                   onReupload={jumpToUploadFor}
                   uploadPlaces={DOC_UPLOAD_PLACE}
+                  rowRules={docRowRules}
                 />
               ) : (
                 <div className="card">

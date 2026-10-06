@@ -232,3 +232,47 @@
 /* ── SCROLL TO TOP ── */
 .welcome-page .w-to-top{position:fixed;bottom:24px;right:24px;width:36px;height:36px;background:var(--w-blue-mid);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 3px 12px rgba(26,79,160,.35);opacity:0;transition:opacity .3s;z-index:999;border:none;pointer-events:none}
 .welcome-page .w-to-top.show{opacity:1;pointer-events:auto}
+
+/* ── Oct 6 2026: phones and tablets (960px and below). The navbar used to
+   wrap its links and buttons onto the logos and the hero title. Now the
+   links and Log In / Sign Up sit behind a Menu button that opens a panel
+   under the navbar. Computers are unchanged. ── */
+.welcome-page .w-menu-btn, .welcome-page .w-mobile-menu { display: none; }
+@media (max-width: 960px) {
+  .welcome-page .w-nav-inner { height: auto; min-height: 60px; padding: 8px 14px; flex-wrap: nowrap; gap: 10px; }
+  .welcome-page .w-brand { min-width: 0; gap: 8px; }
+  .welcome-page .w-brand-logos { gap: 4px; flex-shrink: 0; }
+  .welcome-page .w-brand-logos img { height: 34px; }
+  .welcome-page .w-brand-text { padding-left: 8px; min-width: 0; }
+  .welcome-page .w-brand-text .main { font-size: 12px; }
+  .welcome-page .w-brand-text .sub { font-size: 7.5px; }
+  .welcome-page .w-nav-links, .welcome-page .w-nav-actions { display: none; }
+  .welcome-page .w-menu-btn {
+    all: unset; box-sizing: border-box; cursor: pointer; flex-shrink: 0;
+    display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 13px; border-radius: 8px;
+    border: 1.5px solid var(--w-navy); color: var(--w-navy);
+    font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: .4px; text-transform: uppercase;
+  }
+  .welcome-page .w-menu-btn:focus-visible { outline: 2px solid var(--w-blue-mid); outline-offset: 2px; }
+  .welcome-page .w-burger { display: flex; flex-direction: column; gap: 3.5px; }
+  .welcome-page .w-burger i { display: block; width: 15px; height: 2px; border-radius: 2px; background: currentColor; }
+  .welcome-page .w-mobile-menu {
+    display: block; position: absolute; left: 0; right: 0; top: 100%; background: #fff;
+    border-bottom: 3px solid var(--w-gold); box-shadow: 0 10px 24px rgba(13, 47, 110, .15); padding: 8px 14px 16px;
+  }
+  .welcome-page .w-mobile-links { display: flex; flex-direction: column; }
+  .welcome-page .w-mobile-links a {
+    display: flex; align-items: center; min-height: 44px; padding: 0 6px; border-bottom: 1px solid var(--w-border);
+    font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase;
+    color: var(--w-text); text-decoration: none; cursor: pointer;
+  }
+  .welcome-page .w-mobile-links a.active { color: var(--w-blue-mid); }
+  .welcome-page .w-mobile-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .welcome-page .w-mobile-actions a {
+    display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 6px; text-decoration: none;
+    font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase;
+  }
+}
+@media (max-width: 640px) {
+  .welcome-page .w-topbar { display: none; }
+}

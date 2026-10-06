@@ -128,3 +128,79 @@ body {
   .sk::after{animation:none;display:none}
 }
 @media (max-width:720px){.sk-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important}}
+
+/* ── Oct 6 2026: phones and tablets (960px and below). The applicant portal
+   and admin console sidebars become a menu that slides in from the left,
+   opened from a slim bar (app/components/MobileDrawer.js). Computers keep
+   the sidebar exactly as before: the bar, the drawer header and the scrim
+   are hidden above 960px. ── */
+.mnav-bar, .mnav-head, .mnav-scrim, .admin-portal .sidebar .mnav-only, .applicant-portal .sidebar .mnav-only { display: none; }
+@media (max-width: 960px) {
+  .mnav-bar {
+    display: flex; align-items: center; gap: 11px; padding: 10px 16px;
+    background: linear-gradient(90deg, #0D2F6E 0%, #003CD0 100%); color: #fff;
+  }
+  .mnav-avatar {
+    width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, .15); border: 2px solid rgba(255, 255, 255, .4);
+    font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 12.5px; color: #fff;
+  }
+  .mnav-who { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.3; }
+  .mnav-name { font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 13px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mnav-sub { font-size: 10.5px; color: rgba(255, 255, 255, .78); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mnav-menu-btn {
+    all: unset; box-sizing: border-box; cursor: pointer; flex-shrink: 0;
+    display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px;
+    border-radius: 8px; border: 1.5px solid rgba(255, 255, 255, .45);
+    font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 11.5px; letter-spacing: .4px; text-transform: uppercase; color: #fff;
+  }
+  .mnav-menu-btn:hover { background: rgba(255, 255, 255, .12); }
+  .mnav-menu-btn:focus-visible, .mnav-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  .mnav-burger { display: flex; flex-direction: column; gap: 3.5px; }
+  .mnav-burger i { display: block; width: 16px; height: 2px; border-radius: 2px; background: #fff; }
+  .mnav-scrim { display: block; position: fixed; inset: 0; z-index: 1000; background: rgba(13, 47, 110, .55); }
+  .mnav-head {
+    display: flex; align-items: center; gap: 11px; padding-bottom: 12px; margin-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, .15);
+  }
+  .mnav-close {
+    all: unset; box-sizing: border-box; cursor: pointer; flex-shrink: 0; width: 40px; height: 40px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; font-size: 17px; color: #fff; border: 1.5px solid rgba(255, 255, 255, .3);
+  }
+  .admin-portal .sidebar .mnav-only, .applicant-portal .sidebar .mnav-only { display: flex; align-items: center; }
+
+  /* The sidebar itself: a fixed panel off-screen until opened. */
+  .applicant-portal .sidebar.sb-drawer, .admin-portal .sidebar.sb-drawer {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 1001;
+    width: 300px; max-width: 86vw; height: auto; box-sizing: border-box;
+    display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 12px;
+    padding: 16px 16px 20px; overflow-x: hidden; overflow-y: auto; scrollbar-width: none;
+    background: linear-gradient(180deg, #0D2F6E 0%, #003CD0 100%);
+    box-shadow: 8px 0 30px rgba(0, 0, 0, .25);
+    transform: translateX(-105%); visibility: hidden; transition: transform .22s ease, visibility .22s;
+  }
+  .applicant-portal .sidebar.sb-drawer::-webkit-scrollbar, .admin-portal .sidebar.sb-drawer::-webkit-scrollbar { display: none; }
+  .applicant-portal .sidebar.sb-drawer.is-open, .admin-portal .sidebar.sb-drawer.is-open { transform: none; visibility: visible; }
+  .sb-drawer .sidebar-profile { display: none !important; }
+
+  /* Undo the old "row of links" layout inside the drawer. */
+  .applicant-portal .sb-drawer .sidebar-menu, .admin-portal .sb-drawer .sidebar-menu {
+    flex-direction: column; flex-wrap: nowrap; margin-left: 0; overflow: visible; min-width: 0; padding-bottom: 0; flex: none;
+  }
+  .applicant-portal .sb-drawer .sidebar-group { display: flex; }
+  .applicant-portal .sb-drawer .sidebar-menu-label { display: block; }
+  .applicant-portal .sb-drawer .sidebar-label-divider, .applicant-portal .sb-drawer .sidebar-subgroup-divider { display: block; }
+  .admin-portal .sb-drawer .sidebar-menu-group { display: block; }
+  .admin-portal .sb-drawer .sidebar-menu-label { display: flex; }
+  .admin-portal .sb-drawer .sidebar-menu-sub { display: flex; flex-direction: column; }
+  .applicant-portal .sb-drawer .menu-btn, .admin-portal .sb-drawer .menu-btn { white-space: normal; min-height: 42px; }
+  .applicant-portal .sb-drawer .sidebar-logout, .admin-portal .sb-drawer .sidebar-logout {
+    margin: auto 0 0; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, .15);
+    display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+  }
+  .admin-portal .sb-drawer .sb-signed-in { display: block; }
+  @media (prefers-reduced-motion: reduce) {
+    .applicant-portal .sidebar.sb-drawer, .admin-portal .sidebar.sb-drawer { transition: none; }
+  }
+}

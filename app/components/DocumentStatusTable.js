@@ -68,7 +68,7 @@ function findLatestForType(docs, typeValue) {
 // unreadable" copy to draw on), and a locally-styled neutral badge for
 // "not yet uploaded", which spec's badge set has no equivalent for since
 // its mockup table only ever lists documents that already exist.
-function StatusBadge({ state }) {
+function StatusBadge({ state, label }) {
   // Sept 29: new uploads wait in review_status 'processing' until the OCR
   // worker reads them; they used to show as Verified during that time.
   if (state === 'processing') {
@@ -95,6 +95,13 @@ function StatusBadge({ state }) {
       </span>
     )
   }
+  if (state === 'not_needed') {
+    return (
+      <span className="badge" style={{ background: 'var(--off)', color: 'var(--muted)' }}>
+        {label || 'Not needed'}
+      </span>
+    )
+  }
   return (
     <span className="badge" style={{ background: 'var(--off)', color: 'var(--muted)' }}>
       <IconCircle className="w-3 h-3" />
@@ -115,8 +122,16 @@ const CATEGORY_HEADER_STYLE = {
   borderBottom: '2px solid var(--border)',
 }
 
-export default function DocumentStatusTable({ groups, docs, applicantName, onReupload, uploadPlaces }) {
-  const total = groups.reduce((n, g) => n + g.options.length, 0)
+// Oct 6 2026: rowRules (optional, from the portal) explains documents that
+// don't apply to this applicant yet, so the table doesn't send them to an
+// upload area that isn't shown (e.g. Proof of Employment for someone who
+// isn't a working student). Per type: { badge, note, noLink, notCounted }.
+// Only used while that document hasn't been uploaded.
+export default function DocumentStatusTable({ groups, docs, applicantName, onReupload, uploadPlaces, rowRules = {} }) {
+  const total = groups.reduce(
+    (n, g) => n + g.options.filter((opt) => !(rowRules[opt.value]?.notCounted && !findLatestForType(docs, opt.value))).length,
+    0
+  )
   const verifiedCount = groups.reduce(
     (n, g) => n + g.options.filter((opt) => {
       const doc = findLatestForType(docs, opt.value)
@@ -163,8 +178,9 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
             <tbody>
               {group.options.map((opt) => {
                 const doc = findLatestForType(docs, opt.value)
+                const rule = !doc ? rowRules[opt.value] : null
                 const state = !doc
-                  ? 'not_uploaded'
+                  ? (rule?.badge ? 'not_needed' : 'not_uploaded')
                   : doc.review_status === 'processing'
                     ? 'processing'
                     : (doc.needs_review ? 'needs_review' : 'verified')
@@ -174,18 +190,20 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
                 return (
                   <tr key={opt.value}>
                     <td>{opt.label}</td>
-                    <td><StatusBadge state={state} /></td>
+                    <td><StatusBadge state={state} label={rule?.badge} /></td>
                     <td>
-                      {state === 'needs_review'
+                      {rule?.note
+                        ? rule.note
+                        : state === 'needs_review'
                         ? 'Low OCR confidence. Please check and re-upload if needed.'
                         : state === 'processing'
                           ? 'Reading your document. This updates by itself in about a minute.'
                           : submittedNote || ''}
                     </td>
                     <td>
-                      {state !== 'verified' && state !== 'processing' ? (
+                      {state !== 'verified' && state !== 'processing' && !rule?.noLink ? (
                         <button type="button" className="reupload-link" onClick={() => onReupload(opt.value)}>
-                          {state === 'not_uploaded' ? 'Upload' : 'Re-upload'}
+                          {state === 'not_uploaded' || state === 'not_needed' ? 'Upload' : 'Re-upload'}
                           {uploadPlaces?.[opt.value] ? ` in ${uploadPlaces[opt.value].label}` : ''} &rarr;
                         </button>
                       ) : (

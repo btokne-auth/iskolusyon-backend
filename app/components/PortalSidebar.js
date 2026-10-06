@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment } from 'react'
+import useMobileDrawer, { MobileNavBar, DrawerHead } from './MobileDrawer'
 
 // Sidebar navigation for the applicant portal shell. Structure (groups,
 // section labels, sub-labels, item order) is ported 1:1 from Ivy's
@@ -90,8 +91,29 @@ export default function PortalSidebar({
   onLogout,
   applicationNumber = null,
 }) {
+  // Oct 6 2026: on phones and tablets (960px and below) this sidebar becomes
+  // a menu that slides in from the left, opened by the Menu button in the
+  // slim bar above the page. Computers are unchanged. Same groups and items.
+  const drawer = useMobileDrawer()
+  const select = (key) => {
+    drawer.close()
+    onSelectPanel(key)
+  }
+  const avatar = avatarUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+  ) : (
+    avatarInitials || '?'
+  )
+  const who = displayName || 'Applicant'
+  const sub = applicationNumber ? `Applicant No. ${applicationNumber}` : 'No application number yet'
+
   return (
-    <aside className="sidebar">
+    <>
+    <MobileNavBar drawer={drawer} avatar={avatar} name={who} sub={sub} />
+    {drawer.open && <div className="mnav-scrim" onClick={drawer.close} aria-hidden="true" />}
+    <aside id={drawer.id} className={`sidebar sb-drawer${drawer.open ? ' is-open' : ''}`} aria-label="Main menu">
+      <DrawerHead drawer={drawer} avatar={avatar} name={who} sub={sub} />
       {/* ---- Profile block ---- */}
       <div className="sidebar-profile">
         {/* Same photo as Card 1's "used across your application and
@@ -120,7 +142,7 @@ export default function PortalSidebar({
               Now shows the real number once /api/application reports one
               assigned (see maybeAssignApplicationNumber() server-side),
               same placeholder copy until then. */}
-          {applicationNumber || '(Application Number will be provided once your documents are submitted and verified)'}
+          {applicationNumber || '(Your Application Number is given once you submit your application with complete requirements)'}
         </div>
       </div>
 
@@ -136,7 +158,7 @@ export default function PortalSidebar({
                   key={item.key}
                   item={item}
                   active={activePanel === item.key}
-                  onSelect={onSelectPanel}
+                  onSelect={select}
                   messagesCount={messagesCount}
                   flaggedCount={flaggedCount}
                 />
@@ -151,7 +173,7 @@ export default function PortalSidebar({
                       key={item.key}
                       item={item}
                       active={activePanel === item.key}
-                      onSelect={onSelectPanel}
+                      onSelect={select}
                       messagesCount={messagesCount}
                       flaggedCount={flaggedCount}
                     />
@@ -164,11 +186,12 @@ export default function PortalSidebar({
 
       {/* ---- Logout ---- */}
       <div className="sidebar-logout">
-        <button type="button" onClick={onLogout} className="logout-btn">
+        <button type="button" onClick={() => { drawer.close(); onLogout() }} className="logout-btn">
           <span className="menu-icon" aria-hidden="true" />
           Log Out
         </button>
       </div>
     </aside>
+    </>
   )
 }
