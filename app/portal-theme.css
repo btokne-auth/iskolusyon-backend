@@ -473,3 +473,10 @@
 .applicant-portal .fp-none{display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--muted);font-size:12.5px;padding:48px 16px;text-align:center}
 .applicant-portal .fp-foot{padding:12px 20px;border-top:1px solid var(--border);font-size:11.5px;color:var(--muted)}
 @media (max-width:560px){.applicant-portal .fp-head{flex-wrap:wrap}.applicant-portal .up-old-when{display:none}}
+
+/* Oct 6 2026: read-only profile sections after the final Submit */
+.applicant-portal .mfield input:disabled, .applicant-portal .mfield select:disabled, .applicant-portal .mfield textarea:disabled,
+.applicant-portal .edu-table input:disabled, .applicant-portal .edu-table select:disabled{background:#F4F6F9;color:#5B6B82;cursor:not-allowed}
+.applicant-portal .edu-table .org-row-btn:disabled{opacity:.4;cursor:not-allowed}
+.applicant-portal .form-actions .mbtn:disabled{opacity:.55;cursor:not-allowed}
+.applicant-portal .card-title span.tag.tag-locked{color:#6b4e00;background:#FDF6E7;border-color:#F0D9A8}
