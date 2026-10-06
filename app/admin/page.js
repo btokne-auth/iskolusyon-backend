@@ -9,7 +9,7 @@ import { Skeleton, SkeletonRows, SkeletonList, SkeletonForm, SkeletonText, Skele
 import { getDocTypeLabel } from '../lib/documentTypes'
 import { peek, keep, forgetAll } from '../lib/panelCache'
 import { onConnectivityChange, isNetworkError } from '../lib/offlineSync'
-import { suggestExamResult } from '../lib/matching'
+import { suggestExamResult, eligibleProgramsForScore, admittedProgramOf, reachedFirstChoice, bsedGradeBelow, BSED_MATH_SCIENCE_PROGRAMS } from '../lib/matching'
 import { PROFILE_CATEGORIES, formatFieldValue } from '../lib/applicantProfileSchema'
 import { EDITABLE_FIELDS, SELECT_OPTIONS, DATE_FIELDS, LONG_TEXT_FIELDS, isEditableStack } from '../lib/profileEditRules'
 
@@ -424,6 +424,7 @@ function CopyHashButton({ hash, label = 'Copy hash' }) {
 // The core review unit: one document, file preview on the left, OCR + status
 // on the right. This is what replaces the mockup's dead viewDocument() stub.
 function DocumentReviewCard({ doc, onOverride, overriding }) {
+  const [previewing, setPreviewing] = useState(false)
   const image = isImageFile(doc.file_path)
   const pdf = isPdfFile(doc.file_path)
   const isBusy = overriding === doc.file_path
@@ -493,16 +494,12 @@ function DocumentReviewCard({ doc, onOverride, overriding }) {
           <div className="flex items-center justify-between pt-1">
             {doc.sha256_hash && <CopyHashButton hash={doc.sha256_hash} />}
             {doc.publicUrl && (
-              <a
-                href={doc.publicUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 text-[10px] text-ccc-blue hover:text-ccc-navy transition-colors"
-              >
-                Open full file <IconExternal className="w-3 h-3" />
-              </a>
+              <button type="button" className="dpv-open" onClick={() => setPreviewing(true)}>
+                View full file <IconExternal className="w-3 h-3" />
+              </button>
             )}
           </div>
+          {previewing && <AdminFilePreview doc={doc} onClose={() => setPreviewing(false)} />}
 
           {onOverride && (
             <div className="flex items-center gap-2 pt-1 border-t border-ccc-border mt-1">
@@ -553,6 +550,140 @@ const APL_STATUS_PILL = {
   not_qualified: { label: ELIGIBILITY_META.not_qualified.label, cls: 'apl-pill-red' },
   pending_exam: { label: ELIGIBILITY_META.pending_exam.label, cls: 'apl-pill-blue' },
   incomplete: { label: ELIGIBILITY_META.incomplete.label, cls: 'apl-pill-gray' },
+}
+
+// Oct 6 2026: once an exam result is saved, the Dashboard follows it
+// (Pau found Bianca, who passed, still shown as "Pending Exam Result", and
+// Carlo, who failed, missing from Waitlisted). Before the exam it's the
+// eligibility check, as before. `bucket` is the stat card / tab it counts in.
+const APL_POST_EXAM = {
+  passer: { label: 'Passer', cls: 'apl-pill-green', bucket: 'qualified' },
+  qualified_probationary: { label: 'Qualified (Probationary)', cls: 'apl-pill-gold', bucket: 'qualified' },
+  waitlisted_probationary: { label: 'Waitlisted (Probationary)', cls: 'apl-pill-gold', bucket: 'waitlisted' },
+  disqualified: { label: 'Disqualified', cls: 'apl-pill-red', bucket: 'not_qualified' },
+  forfeited: { label: 'Forfeited', cls: 'apl-pill-red', bucket: 'not_qualified' },
+}
+
+function aplStatusOf(row) {
+  if (!row) return 'incomplete'
+  if (row.scholar_status && APL_POST_EXAM[row.scholar_status]) return row.scholar_status
+  return row.eligibility_override || row.eligibility_status || 'incomplete'
+}
+
+function aplBucketOf(status) {
+  return APL_POST_EXAM[status]?.bucket || status
+}
+
+function aplPillOf(status) {
+  return APL_POST_EXAM[status] || APL_STATUS_PILL[status] || APL_STATUS_PILL.incomplete
+}
+
+const EXAM_RESULT_WORD = { passed: 'Passed', failed: 'Failed', absent: 'Absent' }
+
+// Small line under the status pill: what decided it.
+function aplStatusSub(row) {
+  if (!row) return ''
+  const word = EXAM_RESULT_WORD[row.exam_result]
+  if (row.admitted_program) return 'Re-evaluated into another program'
+  // A passing score in a BSEd Math/Science 1st choice that rule a closes
+  // (Appendix J p. 96) stays Waitlisted until re-evaluated.
+  if (row.exam_result === 'passed' && row.scholar_status === 'waitlisted_probationary') return `Exam: ${row.exam_score ?? 'Passed'} · SHS grade below 85`
+  if (word) return row.exam_score != null && row.exam_result !== 'absent' ? `Exam: ${word} · ${row.exam_score}` : `Exam: ${word}`
+  if (APL_POST_EXAM[row.scholar_status]) return 'Set manually'
+  const status = row.eligibility_override || row.eligibility_status || 'incomplete'
+  if (status === 'pending_exam') return 'No exam score yet'
+  if (row.eligibility_override) return 'Set manually'
+  return ''
+}
+
+// ---------- Document preview popup (Oct 6 2026) ----------
+// Pau: View should open the file inside the site, never send the admin to
+// the raw storage link (same as the applicant portal's View popup, PR #29,
+// and the Appeals window, PR #25). Images can be zoomed; PDFs show in a
+// frame (Download opens the file itself).
+function AdminFilePreview({ doc, onClose }) {
+  const [zoom, setZoom] = useState(100)
+  const docPath = doc?.file_path
+  useEffect(() => {
+    setZoom(100)
+  }, [docPath])
+  useEffect(() => {
+    if (!doc) return undefined
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      onClose()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [doc, onClose])
+  if (!doc) return null
+  const name = getCleanFileName(doc.file_path)
+  const image = isImageFile(doc.file_path)
+  const pdf = isPdfFile(doc.file_path)
+  const status =
+    doc.review_status === 'processing' && !doc.needs_review ? 'Processing' : doc.needs_review ? 'Needs review' : 'Verified'
+  return (
+    <div
+      className="dpv-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="dpv-box" role="dialog" aria-modal="true" aria-labelledby="dpvTitle">
+        <div className="dpv-head">
+          <div className="dpv-titles">
+            <span id="dpvTitle" className="dpv-title">{getDocTypeLabel(doc.document_type)}</span>
+            <span className="dpv-sub">
+              {doc.applicant_name ? `${doc.applicant_name} · ` : ''}
+              {name}
+              {doc.created_at ? ` · uploaded ${formatAplDate(doc.created_at)}` : ''} · {status}
+            </span>
+          </div>
+          <button type="button" className="dpv-close" aria-label="Close preview" onClick={onClose}>
+            &#10005;
+          </button>
+        </div>
+        <div className="dpv-body">
+          {image && doc.publicUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={doc.publicUrl} alt={name} className="dpv-img" style={{ width: `${zoom}%`, maxWidth: zoom > 100 ? 'none' : '100%' }} />
+          ) : pdf && doc.publicUrl ? (
+            <iframe src={doc.publicUrl} title={name} className="dpv-frame" />
+          ) : (
+            <div className="dpv-none">
+              <IconFile className="w-10 h-10" />
+              <span>Preview isn&rsquo;t available for this file.</span>
+            </div>
+          )}
+        </div>
+        <div className="dpv-foot">
+          <span>Press Esc or click outside to close.</span>
+          <span className="dpv-tools">
+            {image && (
+              <>
+                <button type="button" className="dpv-tool" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(50, z - 25))}>
+                  &minus;
+                </button>
+                <span className="dpv-zoom">{zoom}%</span>
+                <button type="button" className="dpv-tool" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(300, z + 25))}>
+                  +
+                </button>
+              </>
+            )}
+            {doc.publicUrl && (
+              <a className="dpv-tool" href={doc.publicUrl} download={name} target="_blank" rel="noreferrer">
+                Download
+              </a>
+            )}
+            <button type="button" className="dpv-tool" onClick={onClose}>
+              Close
+            </button>
+          </span>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function formatAplDate(iso) {
@@ -976,7 +1107,154 @@ function ProfileStackFields({ stack, detail, applicationId, onSaved }) {
   )
 }
 
-function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibilityRow, onEligibilityOverride, eligibilityOverriding, onProfileSaved, lockInfo }) {
+// ---------- Qualification Conflict Detection (Oct 6 2026) ----------
+// Scholarship Matching & Filtering Module (Member Roles; manuscript p. 10:
+// "flags qualification conflicts"). What the applicant typed vs what OCR
+// read from their documents, plus Applying As vs the College row and a
+// possible duplicate account (see app/lib/conflicts.js). It only flags; an
+// admin checks it and either fixes the profile (Edit below), flags the
+// document, or marks it as checked with a note. Each check is logged.
+function ConflictsBox({ applicationId, items, docs, onChanged, onGoToSection }) {
+  const [editing, setEditing] = useState('')
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [previewDoc, setPreviewDoc] = useState(null)
+  if (!items || items.length === 0) return null
+  const open = items.filter((c) => !c.checked)
+  const sorted = [...open, ...items.filter((c) => c.checked)]
+
+  const save = async (item) => {
+    setSaving(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin-conflicts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId, key: item.key, note }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) throw new Error(data.error || 'Could not save. Please try again.')
+      setEditing('')
+      setNote('')
+      showAdminNotice(`Marked as checked: ${item.what}. It's in the Activity Log.`)
+      if (onChanged) onChanged()
+    } catch (err) {
+      setError(err.message || 'Could not save. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const viewOf = (c) => {
+    if (c.filePath) {
+      const doc = (docs || []).find((d) => d.file_path === c.filePath)
+      if (doc) return { label: c.documentType === 'voterid' ? "View voter's ID" : 'View birth certificate', go: () => setPreviewDoc(doc) }
+    }
+    if (c.section && onGoToSection) return { label: 'View section', go: () => onGoToSection(c.section) }
+    return null
+  }
+
+  return (
+    <section className="qc-box" aria-label="Conflicts to check">
+      <div className="qc-head">
+        <h3 className="qc-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M7 7h10M7 12h6M7 17h3" />
+            <path d="m15 15 5 5M20 15l-5 5" />
+          </svg>
+          Conflicts to check
+          <span className={`qc-count${open.length === 0 ? ' is-done' : ''}`}>
+            {open.length === 0 ? 'All checked' : `${open.length} open`}
+          </span>
+        </h3>
+        <span className="qc-help">Found by comparing the profile with what was read from the documents.</span>
+      </div>
+      {error && <div className="qc-error" role="alert">{error}</div>}
+      <div className="qc-scroll">
+        <table className="qc-table">
+          <thead>
+            <tr>
+              <th style={{ width: '17%' }}>What</th>
+              <th style={{ width: '24%' }}>In the profile</th>
+              <th style={{ width: '25%' }}>Read from the document</th>
+              <th style={{ width: '34%', textAlign: 'right' }}>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((c) => {
+              const view = viewOf(c)
+              const isEditing = !c.checked && editing === c.key
+              return (
+                <tr key={c.key} className={c.checked ? 'is-checked' : ''}>
+                  <td><span className="qc-what">{c.what}</span></td>
+                  <td>
+                    {c.typed || 'Not given'}
+                    <span className="qc-from">{c.typedFrom}</span>
+                  </td>
+                  <td>
+                    <span className="qc-read">{c.read}</span>
+                    <span className="qc-from">{c.readFrom}</span>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    {c.checked ? (
+                      <span className="qc-done">
+                        <span className="qc-done-chip">&#10003; Checked</span>
+                        <span className="qc-done-by">
+                          {[c.checked.by || 'An admin', formatWhen(c.checked.at), c.checked.note ? `"${c.checked.note}"` : '']
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </span>
+                      </span>
+                    ) : isEditing ? (
+                      <div className="qc-note">
+                        <label htmlFor={`qcNote-${c.key}`}>Note (optional)</label>
+                        <input
+                          id={`qcNote-${c.key}`}
+                          type="text"
+                          maxLength={300}
+                          value={note}
+                          onChange={(e) => setNote(e.target.value)}
+                          placeholder="e.g. PSA copy checked onsite, profile is correct"
+                        />
+                        <span className="qc-actions">
+                          <button type="button" className="qc-btn" disabled={saving} onClick={() => { setEditing(''); setNote('') }}>
+                            Cancel
+                          </button>
+                          <button type="button" className="qc-btn pri" disabled={saving} onClick={() => save(c)}>
+                            {saving ? 'Saving…' : 'Mark as checked'}
+                          </button>
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="qc-actions">
+                        {view && (
+                          <button type="button" className="qc-link" onClick={view.go}>
+                            {view.label}
+                          </button>
+                        )}
+                        <button type="button" className="qc-btn" onClick={() => { setEditing(c.key); setNote('') }}>
+                          Mark as checked
+                        </button>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="qc-foot">
+        This only flags. Nothing is rejected on its own. If the profile is wrong, fix it with <b>Edit</b> in Submitted Documents
+        &amp; Profile Data. If the document is wrong, flag it for re-upload. Each check is logged in the Activity Log.
+      </div>
+      {previewDoc && <AdminFilePreview doc={previewDoc} onClose={() => setPreviewDoc(null)} />}
+    </section>
+  )
+}
+
+function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibilityRow, onEligibilityOverride, eligibilityOverriding, onProfileSaved, lockInfo, conflicts, onConflictsChanged }) {
   const { modalOpen, openModal, closeModal, blockedMsg, setBlockedMsg, opening } = useLockedModal(eligibilityRow?.id)
   const lockedByOther = !!lockInfo && !lockInfo.mine && !modalOpen
   const [detail, setDetail] = useState(null)
@@ -991,6 +1269,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
   const processingCount = docs.filter((d) => d.review_status === 'processing' && !d.needs_review).length
   const verifiedCount = docs.filter((d) => !d.needs_review && d.review_status !== 'processing').length
   const sectionsDone = PROFILE_SECTIONS.filter((s) => !!eligibilityRow?.[s.key]).length
+  const openConflicts = (conflicts || []).filter((c) => !c.checked).length
   const profilePct = Math.round((sectionsDone / PROFILE_SECTIONS.length) * 100)
 
   // Full-row fetch, lazy -- only once an admin actually opens this
@@ -1042,8 +1321,9 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
   // Oct 3 2026 redesign: one row of the All Applicants table (Ivy's
   // applicant-table columns + status tabs), replacing the floating card.
   // Same click-to-open + review lock behavior as before.
-  const status = eligibilityRow?.eligibility_override || eligibilityRow?.eligibility_status || 'incomplete'
-  const statusMeta = APL_STATUS_PILL[status] || APL_STATUS_PILL.incomplete
+  const status = aplStatusOf(eligibilityRow)
+  const statusMeta = aplPillOf(status)
+  const statusSub = aplStatusSub(eligibilityRow)
   const initials = (name || '?')
     .trim()
     .split(/\s+/)
@@ -1104,14 +1384,26 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               </span>
             )}
             {processingCount > 0 && <span className="apl-chip apl-chip-proc">{processingCount} processing</span>}
-            {flaggedCount === 0 && processingCount === 0 && docs.length > 0 && (
+            {openConflicts > 0 && (
+              <span className="apl-chip apl-chip-conflict" title="What the applicant typed doesn't match a document. Open to check.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M7 7h10M7 12h6M7 17h3" />
+                  <path d="m15 15 5 5M20 15l-5 5" />
+                </svg>
+                {openConflicts} conflict{openConflicts === 1 ? '' : 's'}
+              </span>
+            )}
+            {flaggedCount === 0 && processingCount === 0 && openConflicts === 0 && docs.length > 0 && (
               <span className="apl-chip apl-chip-ok">All verified</span>
             )}
           </span>
         </div>
         <div className="apl-cell apl-date">{formatAplDate(eligibilityRow?.updated_at)}</div>
         <div className="apl-cell apl-status">
-          <span className={`apl-pill ${statusMeta.cls}`}>{statusMeta.label}</span>
+          <span className="apl-status-stack">
+            <span className={`apl-pill ${statusMeta.cls}`}>{statusMeta.label}</span>
+            {statusSub && <span className="apl-status-sub">{statusSub}</span>}
+          </span>
           <svg className="apl-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="m9 18 6-6-6-6" />
           </svg>
@@ -1188,6 +1480,18 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               </div>
             </div>
             <div className="px-5 pb-5 pt-4 space-y-4 max-h-[75vh] overflow-y-auto">
+              <ConflictsBox
+                applicationId={eligibilityRow?.id}
+                items={conflicts}
+                docs={docs}
+                onChanged={onConflictsChanged}
+                onGoToSection={(key) => {
+                  setActiveCat(key)
+                  if (typeof document !== 'undefined') {
+                    document.getElementById(`docCats-${eligibilityRow?.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }
+                }}
+              />
               {/* General Information grid -- mirrors Ivy's modal's own top
                   section (Last Name / First Name / Email / Contact Number /
                   Applying As / Term Applying In / Approved Program), read
@@ -1262,7 +1566,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                   working DocumentReviewCard for the actual verify/flag
                   controls rather than a read-only copy of them. */}
               <div>
-                <div className="modal-section-label">Submitted Documents &amp; Profile Data</div>
+                <div className="modal-section-label" id={`docCats-${eligibilityRow?.id}`}>Submitted Documents &amp; Profile Data</div>
                 <div className="doc-cat-tabs">
                   {PROFILE_CATEGORIES.map((cat) => {
                     const visibleStacks = cat.stacks.filter((s) => !s.showIf || s.showIf(detail))
@@ -1317,6 +1621,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                               onSaved={(app) => {
                                 setDetail(app)
                                 if (onProfileSaved) onProfileSaved()
+                                if (onConflictsChanged) onConflictsChanged()
                               }}
                             />
                           )}
@@ -1385,19 +1690,19 @@ const DASHBOARD_STAT_CARDS = [
     key: 'qualified',
     label: 'Qualified',
     className: 'stat-qualified',
-    note: 'Meets requirements for the CCC scholarship program.',
+    note: 'Passed the exam, or accepted as Qualified (Probationary).',
   },
   {
     key: 'not_qualified',
     label: 'Not Qualified',
     className: 'stat-notqualified',
-    note: 'Does not currently meet program requirements.',
+    note: 'Fails a requirement, or Disqualified / Forfeited after the exam.',
   },
   {
     key: 'waitlisted',
     label: 'Waitlisted',
     className: 'stat-waitlisted',
-    note: 'Meets baseline requirements, pending available slots.',
+    note: 'Failed the exam. Waitlisted (Probationary) for open slots.',
   },
   {
     key: 'appealed',
@@ -1411,14 +1716,16 @@ const DASHBOARD_STAT_CARDS = [
 // stat cards above set the same filter (their keys match these). "Needs
 // action" = something an admin can do now: a flagged document to check or
 // an exam result to record (Pending Exam Result).
+// Oct 6 2026: tabs count by `bucket` (the exam result once there is one, see
+// aplStatusOf), and Needs action also includes unchecked conflicts.
 const APL_TABS = [
   { key: 'all', label: 'All', match: () => true },
-  { key: 'action', label: 'Needs action', match: (g) => g.flagged || g.status === 'pending_exam' },
-  { key: 'pending_exam', label: 'Pending Exam Result', match: (g) => g.status === 'pending_exam' },
-  { key: 'qualified', label: 'Qualified', match: (g) => g.status === 'qualified' },
-  { key: 'not_qualified', label: 'Not Qualified', match: (g) => g.status === 'not_qualified' },
-  { key: 'waitlisted', label: 'Waitlisted', match: (g) => g.status === 'waitlisted' },
-  { key: 'incomplete', label: 'Incomplete Profile', match: (g) => g.status === 'incomplete' },
+  { key: 'action', label: 'Needs action', match: (g) => g.flagged || g.openConflicts > 0 || g.bucket === 'pending_exam' },
+  { key: 'pending_exam', label: 'Pending Exam Result', match: (g) => g.bucket === 'pending_exam' },
+  { key: 'qualified', label: 'Qualified', match: (g) => g.bucket === 'qualified' },
+  { key: 'not_qualified', label: 'Not Qualified', match: (g) => g.bucket === 'not_qualified' },
+  { key: 'waitlisted', label: 'Waitlisted', match: (g) => g.bucket === 'waitlisted' },
+  { key: 'incomplete', label: 'Incomplete Profile', match: (g) => g.bucket === 'incomplete' },
 ]
 
 // Department groupings mirror Ivy's admin.html mockup's DEPARTMENTS const
@@ -1502,6 +1809,20 @@ function DashboardPanel({
       .catch(() => {})
       .finally(() => setAppealLoaded(true))
   }, [])
+  // Oct 6 2026: Qualification Conflict Detection. Best effort: the table
+  // still shows if this can't load.
+  const [conflicts, setConflicts] = useState(() => peek('conflicts') || {})
+  const loadConflicts = () => {
+    fetch('/api/admin-conflicts')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success) setConflicts(keep('conflicts', data.conflicts || {}))
+      })
+      .catch(() => {})
+  }
+  useEffect(() => {
+    loadConflicts()
+  }, [docs, eligibility])
   const [deptOpen, setDeptOpen] = useState(false)
   const [yearOpen, setYearOpen] = useState(false)
   // Click-to-sort for the two breakdown tables. null = mockup's default
@@ -1535,8 +1856,8 @@ function DashboardPanel({
   const eligibilityCounts = useMemo(() => {
     const counts = { qualified: 0, waitlisted: 0, not_qualified: 0, pending_exam: 0, incomplete: 0 }
     for (const row of eligibility || []) {
-      const status = row.eligibility_override || row.eligibility_status || 'incomplete'
-      if (status in counts) counts[status] += 1
+      const bucket = aplBucketOf(aplStatusOf(row))
+      if (bucket in counts) counts[bucket] += 1
     }
     return counts
   }, [eligibility])
@@ -1568,9 +1889,14 @@ function DashboardPanel({
   // two program choices — matches Ivy's mockup (renderDepartmentStats /
   // renderYearLevelStats both check choice1 and choice2), not just choice 1.
   const qualifiedRows = useMemo(
-    () => (eligibility || []).filter((row) => (row.eligibility_override || row.eligibility_status || 'incomplete') === 'qualified'),
+    () => (eligibility || []).filter((row) => aplBucketOf(aplStatusOf(row)) === 'qualified'),
     [eligibility]
   )
+  // Oct 6 2026: after the exam, a qualified applicant counts under the
+  // program they were admitted in (1st choice, or the re-evaluated one);
+  // before it, under either choice as in Ivy's mockup.
+  const countsForProgram = (row, program) =>
+    APL_POST_EXAM[row.scholar_status] ? admittedProgramOf(row) === program : row.program_choice_1 === program || row.program_choice_2 === program
 
   // "per Department": department-grouped rows (rowSpan on the department
   // cell), one row per program — same shape as buildBreakdownRows() in the
@@ -1582,7 +1908,7 @@ function DashboardPanel({
     return DASHBOARD_DEPARTMENTS.map((dept) => {
       const programs = dept.programs.map((program) => ({
         label: program,
-        count: qualifiedRows.filter((row) => row.program_choice_1 === program || row.program_choice_2 === program).length,
+        count: qualifiedRows.filter((row) => countsForProgram(row, program)).length,
       }))
       if (deptSortDesc) programs.sort((a, b) => b.count - a.count)
       return { label: dept.label, programs }
@@ -1597,7 +1923,7 @@ function DashboardPanel({
   const yearBreakdown = useMemo(() => {
     const allPrograms = DASHBOARD_DEPARTMENTS.reduce((acc, d) => acc.concat(d.programs), [])
     const rows = allPrograms.map((program) => {
-      const matched = qualifiedRows.filter((row) => row.program_choice_1 === program || row.program_choice_2 === program)
+      const matched = qualifiedRows.filter((row) => countsForProgram(row, program))
       const levels = DASHBOARD_YEAR_LEVELS.map((yl) => ({
         label: yl.label,
         value: yl.value,
@@ -1641,13 +1967,24 @@ function DashboardPanel({
       map.get(key).docs.push(doc)
     }
 
+    // Oct 6 2026: applicants who haven't uploaded anything yet are listed too
+    // (the All Applications card counted them, the table didn't: 9 vs 8).
+    for (const row of eligibility || []) {
+      const key = (row.applicant_name || '').trim().toLowerCase()
+      if (!key || map.has(key)) continue
+      if (programFilter !== 'all' && row.program_choice_1 !== programFilter) continue
+      if (term && !`${row.applicant_name || ''} ${row.applicant_email || ''}`.toLowerCase().includes(term)) continue
+      map.set(key, { name: row.applicant_name, email: row.applicant_email, docs: [] })
+    }
+
     return Array.from(map.values()).map((g) => {
       const eligRow = eligibilityByName.get((g.name || '').trim().toLowerCase())
-      const status = eligRow?.eligibility_override || eligRow?.eligibility_status || 'incomplete'
+      const status = aplStatusOf(eligRow)
       const flagged = g.docs.some((d) => d.needs_review)
-      return { ...g, status, flagged, updatedAt: eligRow?.updated_at || null }
+      const openConflicts = eligRow ? (conflicts[eligRow.id] || []).filter((c) => !c.checked).length : 0
+      return { ...g, status, bucket: aplBucketOf(status), flagged, openConflicts, updatedAt: eligRow?.updated_at || null }
     })
-  }, [docs, search, programFilter, eligibilityByName])
+  }, [docs, search, programFilter, eligibilityByName, eligibility, conflicts])
 
   const tabCounts = useMemo(() => {
     const counts = {}
@@ -1669,6 +2006,7 @@ function DashboardPanel({
         return (at - bt) * sort.dir
       }
       if (a.flagged !== b.flagged) return a.flagged ? -1 : 1
+      if ((a.openConflicts > 0) !== (b.openConflicts > 0)) return a.openConflicts > 0 ? -1 : 1
       return (a.name || '').localeCompare(b.name || '')
     })
   }, [searchedGroups, statusFilter, sort])
@@ -1864,6 +2202,8 @@ function DashboardPanel({
                 eligibilityOverriding={eligibilityOverriding}
                 onProfileSaved={onProfileSaved}
                 lockInfo={locks[eligibilityByName.get((g.name || '').trim().toLowerCase())?.id]}
+                conflicts={conflicts[eligibilityByName.get((g.name || '').trim().toLowerCase())?.id] || []}
+                onConflictsChanged={loadConflicts}
               />
             ))}
            </div>
@@ -2011,6 +2351,10 @@ function getNextStepHint(row) {
     return { text: 'Ready to advance Distribution Status in section 4 below.', tone: 'go' }
   }
   if (scholarStatus === 'waitlisted_probationary') {
+    // Oct 6 2026: Appendix J rule b, re-evaluation in another program.
+    if (row.exam_score != null && row.exam_score !== '' && eligibleProgramsForScore(row.exam_score, row).some((o) => !o.blockedReason)) {
+      return { text: 'The score meets another program. Re-evaluate in section 1, or leave the applicant Waitlisted for an open slot.', tone: 'go' }
+    }
     return { text: 'Waitlisted pending an open slot. Re-check later, or use Change manually if a slot opens.', tone: 'wait' }
   }
   // scholarStatus is 'pending_exam' -- no exam result recorded yet, so
@@ -2329,7 +2673,12 @@ function getShortNextStep(row) {
     const next = DISTRIBUTION_STATUS_STEPS[i + 1] || DISTRIBUTION_STATUS_STEPS[0]
     return `Move to ${next[1]}`
   }
-  if (scholarStatus === 'waitlisted_probationary') return 'Waiting for an open slot'
+  if (scholarStatus === 'waitlisted_probationary') {
+    if (row.exam_score != null && row.exam_score !== '' && eligibleProgramsForScore(row.exam_score, row).some((o) => !o.blockedReason)) {
+      return 'Re-evaluate in another program'
+    }
+    return 'Waiting for an open slot'
+  }
   if (eligStatus === 'incomplete') return 'Waiting on applicant profile'
   if (eligStatus === 'not_qualified') return 'Not qualified (exception only)'
   return 'Record exam result'
@@ -2386,7 +2735,91 @@ function RrCheck() {
   )
 }
 
-function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution, onReload, busy, lockInfo }) {
+// ---------- Eligible programs (Oct 6 2026) ----------
+// Manuscript p. 10: the matching module "generates a listing of eligible
+// programs for each applicant". Appendix J p. 96 rule b: an applicant who
+// doesn't reach the passing grade of their priority program "will be
+// re-evaluated in another program based on his/her exam result". The list
+// shows every program the saved score meets (2nd choice first); rule a
+// greys out BSEd Mathematics / Science when the SHS grade is below 85 or
+// not given. The admin picks one; nothing changes on its own.
+function EligibleProgramsBox({ row, busy, onAccept }) {
+  const [pick, setPick] = useState('')
+  const [confirming, setConfirming] = useState(false)
+  const options = useMemo(() => eligibleProgramsForScore(row.exam_score, row), [row])
+  const firstChoice = row.program_choice_1 || 'the 1st choice'
+  const firstClosedByRuleA = bsedGradeBelow(row.program_choice_1, row)
+  const intro = firstClosedByRuleA
+    ? `${firstChoice} needs 85 or higher in every SHS Mathematics and Science subject (Appendix J, rule a), so the applicant is re-evaluated for another program based on the exam score (rule b).`
+    : `A score of ${row.exam_score} is below the passing grade for ${firstChoice} (1st choice). CCC re-evaluates the applicant for another program based on the exam score (Appendix J, rule b). Pick one to accept them there.`
+  return (
+    <div className="ep-box">
+      <div className="ep-head">
+        <span className="ep-title">Programs this score qualifies for</span>
+        <span className="ep-intro">{intro}</span>
+      </div>
+      {options.length === 0 ? (
+        <div className="ep-list">
+          <span className="ep-intro">No other program&rsquo;s passing grade is met. The applicant stays Waitlisted (Probationary).</span>
+        </div>
+      ) : (
+        <>
+          <div className="ep-list" role="radiogroup" aria-label="Programs this score qualifies for">
+            {options.map((o) => (
+              <button
+                key={o.program}
+                type="button"
+                role="radio"
+                aria-checked={pick === o.program}
+                disabled={!!o.blockedReason}
+                className={`ep-prog${pick === o.program ? ' on' : ''}`}
+                onClick={() => setPick(o.program)}
+              >
+                <span className="ep-radio" aria-hidden="true" />
+                <span>
+                  <span className="ep-name">{o.program}</span>
+                  {o.isSecondChoice && <span className="ep-tag">2nd choice</span>}
+                  <span className="ep-note">{o.blockedReason ? `Not eligible: ${o.blockedReason}` : `Score ${row.exam_score} meets ${o.grade}`}</span>
+                </span>
+                <span className="ep-grade">passing {o.grade}</span>
+              </button>
+            ))}
+          </div>
+          <div className="ep-foot">
+            <span>Or leave it: the applicant stays Waitlisted (Probationary).</span>
+            <button
+              type="button"
+              className="rr-btn rr-btn-primary"
+              disabled={!pick || busy}
+              onClick={() => setConfirming(true)}
+            >
+              {pick ? 'Accept in this program' : 'Pick a program'}
+            </button>
+          </div>
+        </>
+      )}
+      {confirming && (
+        <ConfirmActionModal
+          eyebrow="Confirm re-evaluation"
+          title={
+            <>
+              Accept <span className="font-bold text-ccc-navy">{row.applicant_name || 'this applicant'}</span> in{' '}
+              <span className="font-bold text-ccc-navy">{pick}</span>?
+            </>
+          }
+          message="This sets the scholar status to Passer and the admitted program to this one. The recorded exam result stays as entered. The result notice, CHED Form 3 and the Registrar will use the admitted program. It is logged in the Activity Log."
+          onConfirm={() => {
+            setConfirming(false)
+            onAccept(row.id, pick)
+          }}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution, onReevaluate, onReload, busy, lockInfo }) {
   const [examScore, setExamScore] = useState(row.exam_score ?? '')
   const [examResult, setExamResult] = useState(row.exam_result || '')
   const [examDate, setExamDate] = useState(row.exam_date || '')
@@ -2433,6 +2866,18 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
     () => suggestExamResult(examScore, row.program_choice_1),
     [examScore, row.program_choice_1]
   )
+
+  // Oct 6 2026: re-evaluation (Appendix J rule b) and the BSEd rule (rule a).
+  const [confirmUndoReeval, setConfirmUndoReeval] = useState(false)
+  const firstIsBsed = BSED_MATH_SCIENCE_PROGRAMS.has(row.program_choice_1)
+  const bsedGradeMissing = firstIsBsed && (row.shs_math_science_lowest === null || row.shs_math_science_lowest === undefined || row.shs_math_science_lowest === '')
+  const showEligiblePrograms =
+    !hasUnsavedExamChanges &&
+    !row.admitted_program &&
+    row.exam_result &&
+    row.exam_result !== 'absent' &&
+    row.scholar_status === 'waitlisted_probationary' &&
+    reachedFirstChoice(row) !== true
 
   const confirmOverride = (targetStatus) => setPendingOverride(targetStatus)
   const handleConfirmed = () => {
@@ -2525,8 +2970,10 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           </span>
         </div>
         <div className="apl-cell apl-stack">
-          <span className="apl-main">{row.program_choice_1 || 'Not yet chosen'}</span>
-          <span className="apl-sub">{row.applying_as || 'Not yet specified'}</span>
+          <span className="apl-main">{admittedProgramOf(row) || 'Not yet chosen'}</span>
+          <span className="apl-sub">
+            {row.admitted_program ? 'Re-evaluated (Appendix J, rule b)' : row.applying_as || 'Not yet specified'}
+          </span>
         </div>
         <div className="apl-cell apl-stack">
           <span className={`rr-exam-main ${row.exam_result === 'passed' ? 'pass' : row.exam_result ? 'fail' : 'none'}`}>
@@ -2579,7 +3026,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
                     <span>{row.applicant_email || 'No email on file'}</span>
                     {row.program_choice_1 && (
                       <span>
-                        {row.program_choice_1}
+                        {row.admitted_program ? `Admitted in ${row.admitted_program} (1st choice: ${row.program_choice_1})` : row.program_choice_1}
                         {row.applying_as ? ` · ${row.applying_as}` : ''}
                       </span>
                     )}
@@ -2696,7 +3143,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
               {isBusy ? 'Saving…' : 'Save & verify'}
             </button>
           </div>
-          {examSuggestion.threshold != null && (
+          {examSuggestion.threshold != null && !row.admitted_program && (
             <p className={`rr-hint ${examSuggestion.suggested === 'passed' ? 'pass' : examSuggestion.suggested === 'failed' ? 'fail' : ''}`}>
               {row.program_choice_1}&rsquo;s passing grade per Appendix J: <strong>{examSuggestion.threshold}</strong>.
               {examSuggestion.suggested && (
@@ -2711,6 +3158,43 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
             Nothing here is saved until you click Save &amp; verify. Saving also sets the Scholar Status: Passed becomes
             Passer, Failed becomes Waitlisted (Probationary), Absent becomes Forfeited.
           </p>
+          {firstIsBsed && (bsedGradeMissing || bsedGradeBelow(row.program_choice_1, row)) && (
+            <p className="ep-warn">
+              {bsedGradeMissing
+                ? `${row.program_choice_1} needs 85 or higher in every SHS Mathematics and Science subject (Appendix J, rule a). This applicant's lowest grade isn't on file yet: check the report card and add it with Edit (Dashboard, Educational Background).`
+                : `Lowest SHS Mathematics or Science grade on file is ${row.shs_math_science_lowest}, below 85, so ${row.program_choice_1} is closed (Appendix J, rule a). A passing score is saved as Waitlisted until the applicant is re-evaluated in another program.`}
+            </p>
+          )}
+          {row.admitted_program && (
+            <div className="ep-ok">
+              <RrCheck />
+              <span>
+                Accepted in <b>{row.admitted_program}</b> by re-evaluation (Appendix J, rule b)
+                {row.admitted_program_set_by ? `, by ${row.admitted_program_set_by}` : ''}
+                {row.admitted_program_set_at ? ` · ${rrDate(row.admitted_program_set_at)}` : ''}.{' '}
+                <button type="button" className="qc-link" disabled={isBusy} onClick={() => setConfirmUndoReeval(true)}>
+                  Undo
+                </button>
+              </span>
+            </div>
+          )}
+          {showEligiblePrograms && <EligibleProgramsBox row={row} busy={isBusy} onAccept={onReevaluate} />}
+          {confirmUndoReeval && (
+            <ConfirmActionModal
+              eyebrow="Confirm undo"
+              title={
+                <>
+                  Undo the re-evaluation of <span className="font-bold text-ccc-navy">{row.applicant_name || 'this applicant'}</span>?
+                </>
+              }
+              message="The admitted program is cleared and the scholar status goes back to what the exam result gives (Failed becomes Waitlisted (Probationary)). It is logged in the Activity Log."
+              onConfirm={() => {
+                setConfirmUndoReeval(false)
+                onReevaluate(row.id, null)
+              }}
+              onCancel={() => setConfirmUndoReeval(false)}
+            />
+          )}
         </div>
       </section>
 
@@ -2990,6 +3474,12 @@ function ResultsPanel() {
         showAdminNotice(`Exam result saved and verified for ${name}. Scholar Status was updated to match.`)
       } else if (payload.field === 'scholar_status') {
         showAdminNotice(`${name}'s Scholar Status was set to ${SCHOLAR_STATUS_OVERRIDE_LABELS[payload.scholarStatus] || payload.scholarStatus}.`)
+      } else if (payload.field === 'reevaluate') {
+        showAdminNotice(
+          payload.program
+            ? `${name} was accepted in ${payload.program} by re-evaluation. Scholar Status is now Passer.`
+            : `The re-evaluation of ${name} was undone.`
+        )
       } else if (payload.field === 'distribution_status') {
         const step = DISTRIBUTION_STATUS_STEPS.find(([k]) => k === payload.distributionStatus)?.[1]
         showAdminNotice(
@@ -3009,6 +3499,7 @@ function ResultsPanel() {
     runPatch({ id, field: 'scholar_status', scholarStatus, reason })
   const handleAdvanceDistribution = (id, distributionStatus) =>
     runPatch({ id, field: 'distribution_status', distributionStatus })
+  const handleReevaluate = (id, program) => runPatch({ id, field: 'reevaluate', program })
 
   // Sept 24 2026, per Pau's live testing feedback: a filter for whether an
   // applicant has an application_number, labeled by what that actually
@@ -3158,6 +3649,7 @@ function ResultsPanel() {
               onSaveExam={handleSaveExam}
               onSetScholarStatus={handleSetScholarStatus}
               onAdvanceDistribution={handleAdvanceDistribution}
+              onReevaluate={handleReevaluate}
               onReload={() => load(true)}
               busy={busy}
               lockInfo={locks[row.id]}

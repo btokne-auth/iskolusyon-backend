@@ -39,7 +39,7 @@ export async function GET(request) {
     const { data: apps, error: appsError } = await supabase
       .from('applications')
       .select(
-        'id, applicant_user_id, applicant_name, application_number, program_choice_1, scholar_status, eligibility_status, eligibility_override, result_notified_at'
+        'id, applicant_user_id, applicant_name, application_number, program_choice_1, admitted_program, scholar_status, eligibility_status, eligibility_override, result_notified_at'
       )
       .is('archived_at', null)
     if (appsError) return NextResponse.json({ error: appsError.message }, { status: 500 })
@@ -69,7 +69,7 @@ export async function GET(request) {
         id: app.id,
         name: app.applicant_name || 'Unnamed applicant',
         applicationNumber: app.application_number || '',
-        program: app.program_choice_1 || '',
+        program: app.admitted_program || app.program_choice_1 || '',
         status: app.scholar_status,
         statusLabel: STATUS_LABEL[app.scholar_status],
       }))

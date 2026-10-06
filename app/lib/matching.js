@@ -174,6 +174,15 @@ export function computeEligibility(row, uploadedTypes) {
     }
   }
 
+  // ---- BSEd Mathematics / Science (Appendix J p. 96, rule a) ----
+  // Program-level only: it closes that program, not the whole application,
+  // so it adds a reason without changing the status.
+  if (bsedGradeBelow(row.program_choice_1, row)) {
+    reasons.push(
+      `Lowest SHS Mathematics or Science grade is ${row.shs_math_science_lowest}, below 85, so ${row.program_choice_1} (1st choice) is closed (Appendix J, rule a). Other programs still count.`
+    )
+  }
+
   // ---- Overall status ----
   let status
   if (residencyOk === false || voterOk === false || transfereeOk === false) {
@@ -278,3 +287,87 @@ export const DISTRIBUTION_STATUS_VALUES = new Set([
   'endorsed_admissions',
   'enrollment_complete',
 ])
+
+// ---------------------------------------------------------------------------
+// Eligible programs and the BSEd Mathematics / Science rule (Oct 6 2026)
+//
+// Manuscript p. 10: the matching module "generates a listing of eligible
+// programs for each applicant". Appendix J p. 96:
+//   rule a: "Additional evaluation procedures will be implemented for BSED
+//           Mathematics and Science. Applicants with a grade of below 85 in
+//           all mathematics and science academic subjects during senior high
+//           school will not be accepted in the said programs." Read as: every
+//           SHS Mathematics and Science subject must be 85 or higher, so the
+//           portal asks for the LOWEST of those grades
+//           (shs_math_science_lowest).
+//   rule b: "In cases that the applicant did not qualify in his/her priority
+//           program based on the set qualifying grade, he/she will be
+//           re-evaluated in another program based on his/her exam result."
+// The system only lists the programs a score meets. An admin picks one
+// (CCC decides in person, Appendix D), never the system on its own.
+
+export const BSED_MATH_SCIENCE_PROGRAMS = new Set([
+  'Bachelor of Secondary Education Major in Mathematics',
+  'Bachelor of Secondary Education Major in Science',
+])
+export const BSED_MIN_SHS_GRADE = 85
+
+export function needsShsMathScienceGrade(row) {
+  return BSED_MATH_SCIENCE_PROGRAMS.has(row?.program_choice_1) || BSED_MATH_SCIENCE_PROGRAMS.has(row?.program_choice_2)
+}
+
+// Why `program` is closed to this applicant by rule a, or null.
+export function bsedBlockReason(program, row) {
+  if (!BSED_MATH_SCIENCE_PROGRAMS.has(program)) return null
+  const raw = row?.shs_math_science_lowest
+  if (raw === null || raw === undefined || raw === '') {
+    return 'Lowest SHS Mathematics or Science grade not given yet (Appendix J, rule a)'
+  }
+  const grade = Number(raw)
+  if (Number.isFinite(grade) && grade < BSED_MIN_SHS_GRADE) {
+    return `Lowest SHS Mathematics or Science grade is ${grade}, below ${BSED_MIN_SHS_GRADE} (Appendix J, rule a)`
+  }
+  return null
+}
+
+// Every program with a set passing grade, marked with whether this score
+// meets it and whether rule a closes it. The 2nd choice comes first, then
+// by passing grade, then A-Z. The 1st choice is left out (it's the program
+// being re-evaluated from).
+export function eligibleProgramsForScore(examScore, row) {
+  const score = Number(examScore)
+  if (examScore === null || examScore === undefined || examScore === '' || !Number.isFinite(score)) return []
+  const second = row?.program_choice_2
+  return Object.entries(PROGRAM_PASSING_GRADES)
+    .filter(([program, grade]) => typeof grade === 'number' && score >= grade && program !== row?.program_choice_1)
+    .map(([program, grade]) => ({ program, grade, isSecondChoice: program === second, blockedReason: bsedBlockReason(program, row) }))
+    .sort((a, b) => (b.isSecondChoice - a.isSecondChoice) || (a.grade - b.grade) || a.program.localeCompare(b.program))
+}
+
+// The program an applicant is admitted in: the re-evaluated one, else the
+// 1st choice.
+export function admittedProgramOf(row) {
+  return row?.admitted_program || row?.program_choice_1 || null
+}
+
+// True when a GIVEN grade closes this BSEd program (rule a). A missing grade
+// doesn't close it here (older applications never asked), it's only shown
+// as a warning; the re-evaluation list asks for the grade first.
+export function bsedGradeBelow(program, row) {
+  if (!BSED_MATH_SCIENCE_PROGRAMS.has(program)) return false
+  const raw = row?.shs_math_science_lowest
+  if (raw === null || raw === undefined || raw === '') return false
+  const grade = Number(raw)
+  return Number.isFinite(grade) && grade < BSED_MIN_SHS_GRADE
+}
+
+// Did this score get the applicant into their 1st choice? null when there's
+// no score or the 1st choice has no passing grade yet (Social Work,
+// Entrepreneurship).
+export function reachedFirstChoice(row) {
+  const score = Number(row?.exam_score)
+  if (row?.exam_score === null || row?.exam_score === undefined || row?.exam_score === '' || !Number.isFinite(score)) return null
+  const threshold = getExamThreshold(row?.program_choice_1)
+  if (threshold == null) return null
+  return score >= threshold && !bsedGradeBelow(row?.program_choice_1, row)
+}

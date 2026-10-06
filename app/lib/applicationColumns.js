@@ -95,6 +95,17 @@ export function academicInfoToColumns(academicInfo) {
         ? Number(ai.transfereeUnitsPassed)
         : null,
     transferee_failing_grade: text(ai.transfereeFailingGrade),
+    // Oct 6 2026: Appendix J p. 96 rule a (BSEd Mathematics / Science need
+    // 85 or higher in every SHS Mathematics and Science subject). Kept only
+    // when a choice is one of those two programs; a grade from 60 to 100.
+    shs_math_science_lowest: (() => {
+      const bsed = ['Bachelor of Secondary Education Major in Mathematics', 'Bachelor of Secondary Education Major in Science']
+      if (!bsed.includes(text(ai.choice1)) && !bsed.includes(text(ai.choice2))) return null
+      const raw = String(ai.shsMathScienceLowest ?? '').trim()
+      if (!/^\d{2,3}(\.\d{1,2})?$/.test(raw)) return null
+      const n = Number(raw)
+      return n >= 60 && n <= 100 ? n : null
+    })(),
   }
 }
 

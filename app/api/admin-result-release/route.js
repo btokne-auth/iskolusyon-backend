@@ -32,7 +32,7 @@ async function loadApplication(id) {
   const { data, error } = await supabase
     .from('applications')
     .select(
-      'id, applicant_name, first_name, applicant_email, program_choice_1, scholar_status, email_updates_opt_in, ' +
+      'id, applicant_name, first_name, applicant_email, program_choice_1, admitted_program, scholar_status, email_updates_opt_in, ' +
       'result_notified_status, result_notified_at, result_notified_by, result_email_sent'
     )
     .eq('id', id)
@@ -60,7 +60,8 @@ export async function GET(request) {
     const draft = buildResultDraft({
       status: app.scholar_status,
       name: app.first_name || app.applicant_name,
-      program: app.program_choice_1,
+      // Oct 6 2026: the program they were admitted in (re-evaluated, rule b), else the 1st choice.
+      program: app.admitted_program || app.program_choice_1,
     })
 
     return NextResponse.json({
