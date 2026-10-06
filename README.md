@@ -53,91 +53,91 @@ Live site: [iskolusyon.dev](https://iskolusyon.dev) (access is restricted during
 
 ## Cybersecurity principles
 
-From the manuscript's Chapter 3 (Cybersecurity Principles). Checked items are built;
-unchecked items are not built yet or only partly. Each one is confirmed during the
-security testing below.
+From the manuscript's Chapter 3 (Cybersecurity Principles). ✅ = built,
+⬜ = not built yet or only partly. Each one is confirmed during the security testing below.
+To mark an item done, change its ⬜ to ✅.
 
 ### Confidentiality
 
-- [x] Email-verified registration (a code is sent to the applicant's email at sign-up)
-- [x] Multi-factor login for applicants: password, then a one-time code by email (expires, limited attempts)
-- [ ] Multi-factor login for admins (admins sign in with a password only, with rate limiting)
-- [x] HTTPS/TLS for all traffic (served by Vercel over HTTPS)
-- [ ] Encryption at rest for sensitive fields (only the hosting platform's own storage encryption; no field-level encryption yet)
+- ✅ Email-verified registration (a code is sent to the applicant's email at sign-up)
+- ✅ Multi-factor login for applicants: password, then a one-time code by email (expires, limited attempts)
+- ⬜ Multi-factor login for admins (admins sign in with a password only, with rate limiting)
+- ✅ HTTPS/TLS for all traffic (served by Vercel over HTTPS)
+- ⬜ Encryption at rest for sensitive fields (only the hosting platform's own storage encryption; no field-level encryption yet)
 
 ### Integrity
 
-- [x] SHA-256 hash of every uploaded document, computed in the browser and on the server and compared
-- [x] Upload validation: file type (PDF, JPG, PNG), 10 MB limit, image quality check, safe storage file names
-- [ ] Content check that a file really is the type it claims to be (beyond its declared type and the image check)
+- ✅ SHA-256 hash of every uploaded document, computed in the browser and on the server and compared
+- ✅ Upload validation: file type (PDF, JPG, PNG), 10 MB limit, image quality check, safe storage file names
+- ⬜ Content check that a file really is the type it claims to be (beyond its declared type and the image check)
 
 ### Availability
 
-- [x] Centralized web system: application status and notifications are available to applicants and admins throughout the cycle
-- [x] Pages update by themselves (document status, activity log, statistics)
-- [x] OCR worker wake-up retries, plus a scheduled keep-awake during development hours (free hosting plan)
+- ✅ Centralized web system: application status and notifications are available to applicants and admins throughout the cycle
+- ✅ Pages update by themselves (document status, activity log, statistics)
+- ✅ OCR worker wake-up retries, plus a scheduled keep-awake during development hours (free hosting plan)
 
 ### Least privilege
 
-- [x] Separate roles: applicant, Admin, Super Admin, Office of the Registrar, LGU (view only)
-- [x] The server refuses every action outside a role (not only hidden buttons)
-- [x] Applicants can only see and change their own application
-- [x] Submitted profile sections are locked; corrections go through the Guidance Office
+- ✅ Separate roles: applicant, Admin, Super Admin, Office of the Registrar, LGU (view only)
+- ✅ The server refuses every action outside a role (not only hidden buttons)
+- ✅ Applicants can only see and change their own application
+- ✅ Submitted profile sections are locked; corrections go through the Guidance Office
 
 ### Session management
 
-- [x] Signed session cookies (httpOnly, secure in production, SameSite=Lax)
-- [x] Sessions expire (applicants after 7 days, admins after 8 hours)
-- [ ] Sign-out after a period of inactivity
+- ✅ Signed session cookies (httpOnly, secure in production, SameSite=Lax)
+- ✅ Sessions expire (applicants after 7 days, admins after 8 hours)
+- ⬜ Sign-out after a period of inactivity
 
 ### Cross-site request forgery (CSRF)
 
-- [ ] Anti-CSRF tokens on state-changing actions (SameSite=Lax cookies give partial protection today)
+- ⬜ Anti-CSRF tokens on state-changing actions (SameSite=Lax cookies give partial protection today)
 
 ### Audit logging
 
-- [x] Activity log of admin actions, sign-ins (including failed ones) and document processing, visible to Super Admins
-- [x] Admin edits to applicant data are logged with the old and new values
+- ✅ Activity log of admin actions, sign-ins (including failed ones) and document processing, visible to Super Admins
+- ✅ Admin edits to applicant data are logged with the old and new values
 
 ### Also in place
 
-- [x] Rate limiting on sign-in, login codes and password reset codes
-- [x] Error pages never show the raw error, only a short reference code
-- [ ] Plain error messages everywhere (some rare server errors still pass the database's own message through)
-- [ ] Limits on how often one applicant can save or submit
+- ✅ Rate limiting on sign-in, login codes and password reset codes
+- ✅ Error pages never show the raw error, only a short reference code
+- ⬜ Plain error messages everywhere (some rare server errors still pass the database's own message through)
+- ⬜ Limits on how often one applicant can save or submit
 
 ## Testing
 
-From the manuscript's Chapter 3 test plan. Most security tests are planned for one
-dedicated testing phase; results go into Chapter 4.
+From the manuscript's Chapter 3 test plan. ✅ = done, ⬜ = not done yet. Most security
+tests are planned for one dedicated testing phase; results go into Chapter 4.
 
 ### Security testing (OWASP Web Security Testing Guide)
 
-- [ ] Authentication and brute-force testing (lockout thresholds, rate limiting, code expiry)
-- [ ] Authorization and access control testing (each role, including direct requests to admin addresses)
-- [ ] Session management testing (expiry, cookie flags, hijacking and fixation)
-- [ ] Input validation and injection testing (SQL injection, XSS on registration, login and uploads)
-- [ ] File upload security testing (disguised files, oversized files, path traversal in file names)
-- [ ] Data transmission and encryption testing (HTTPS everywhere, encryption at rest)
-- [ ] CSRF testing (profile updates, re-uploads, admin approvals)
-- [ ] Security misconfiguration testing (debug endpoints, verbose errors, default settings)
+- ⬜ Authentication and brute-force testing (lockout thresholds, rate limiting, code expiry)
+- ⬜ Authorization and access control testing (each role, including direct requests to admin addresses)
+- ⬜ Session management testing (expiry, cookie flags, hijacking and fixation)
+- ⬜ Input validation and injection testing (SQL injection, XSS on registration, login and uploads)
+- ⬜ File upload security testing (disguised files, oversized files, path traversal in file names)
+- ⬜ Data transmission and encryption testing (HTTPS everywhere, encryption at rest)
+- ⬜ CSRF testing (profile updates, re-uploads, admin approvals)
+- ⬜ Security misconfiguration testing (debug endpoints, verbose errors, default settings)
 
 ### Compatibility testing
 
-- [x] Phone: Samsung Galaxy A73 5G, Chrome (Oct 6, 2026): homepage, login, applicant portal, admin console
-- [x] Laptop browser resized to tablet and phone widths (Oct 6, 2026): menus, header, tables and panels
-- [x] Laptop browser at full width: layout unchanged after the small-screen changes
-- [ ] Other browsers: Edge, Firefox, Safari
-- [ ] Other devices: an iPhone and a tablet
+- ✅ Phone: Samsung Galaxy A73 5G, Chrome (Oct 6, 2026): homepage, login, applicant portal, admin console
+- ✅ Laptop browser resized to tablet and phone widths (Oct 6, 2026): menus, header, tables and panels
+- ✅ Laptop browser at full width: layout unchanged after the small-screen changes
+- ⬜ Other browsers: Edge, Firefox, Safari
+- ⬜ Other devices: an iPhone and a tablet
 
 ### Functional testing
 
-- [x] Each feature checked by hand on its Vercel Preview before merging (during development)
-- [ ] Full run across the five functional areas: account management, document submission, qualification matching, notifications, admin dashboard
+- ✅ Each feature checked by hand on its Vercel Preview before merging (during development)
+- ⬜ Full run across the five functional areas: account management, document submission, qualification matching, notifications, admin dashboard
 
 ### User acceptance testing
 
-- [ ] With applicant respondents and the Head Administrator (ISO/IEC 25010 and the four-point usability survey)
+- ⬜ With applicant respondents and the Head Administrator (ISO/IEC 25010 and the four-point usability survey)
 
 ## Running it locally
 
