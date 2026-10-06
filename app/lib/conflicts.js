@@ -36,6 +36,14 @@ function hasText(value) {
   return plain(value).length > 0
 }
 
+// Oct 7 2026 (found on the Preview): applicants type "None" or "N/A" in rows
+// that don't apply to them, like the College row. Those count as empty.
+const EMPTY_ANSWERS = new Set(['n a', 'na', 'none', 'not applicable', 'nil', 'null', 'wala', 'no', 'n a n a'])
+function hasRealText(value) {
+  const p = plain(value)
+  return p.length > 0 && !EMPTY_ANSWERS.has(p)
+}
+
 // Accepts YYYY-MM-DD, MM/DD/YYYY or a Date-parsable string; returns
 // YYYY-MM-DD or null.
 function isoDate(value) {
@@ -129,7 +137,10 @@ export function findConflicts(app, { birth, voter, others = [] } = {}) {
     const typedAddress = [app.address, app.barangay].filter(Boolean).join(', ')
     const readBrgy = barangayOf(f.address)
     if (hasText(f.address) && hasText(typedAddress)) {
-      const outside = mentionsOtherCity(f.address)
+      // Oct 7 2026: only a disagreement is a conflict. A voter's ID outside
+      // Calamba when the profile says Calamba is one; when both say the same
+      // other city they agree (residency itself is the eligibility check's job).
+      const outside = mentionsOtherCity(f.address) && plain(typedAddress).includes('calamba')
       const brgyDiff = readBrgy && !plain(typedAddress).includes(readBrgy)
       if (outside || brgyDiff) {
         add('address', 'Home address', typedAddress, 'Personal Information', f.address,
@@ -146,11 +157,11 @@ export function findConflicts(app, { birth, voter, others = [] } = {}) {
   // Appendix D interview 2: "Hindi tatanggapin kung freshman sila tas
   // transferee." Only once Educational Background was submitted.
   if (app.academic_submitted_at) {
-    if (isFirstYear(app.applying_as) && hasText(app.edu_tert_school)) {
+    if (isFirstYear(app.applying_as) && hasRealText(app.edu_tert_school)) {
       add('class', 'Applying As', app.applying_as, 'Educational Background',
-        `A college is listed (${app.edu_tert_school}${app.edu_tert_year ? `, ${app.edu_tert_year}` : ''})`, 'Educational Background, College row',
+        `A college is listed (${app.edu_tert_school}${hasRealText(app.edu_tert_year) ? `, ${app.edu_tert_year}` : ''})`, 'Educational Background, College row',
         { section: 'academic' })
-    } else if (plain(app.applying_as) === 'transferee' && !hasText(app.edu_tert_school)) {
+    } else if (plain(app.applying_as) === 'transferee' && !hasRealText(app.edu_tert_school)) {
       add('class', 'Applying As', app.applying_as, 'Educational Background', 'No college is listed', 'Educational Background, College row',
         { section: 'academic' })
     }
