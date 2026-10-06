@@ -5770,3 +5770,89 @@
     font-size: 11px; color: #5a6b85;
   }
 }
+
+/* ---------- Oct 6 2026: Scholarship Matching (matching-module) ---------- */
+
+/* Dashboard: conflict chip and the exam line under the status pill */
+.admin-portal .apl-chip-conflict { background: #fce6d9; color: #7a2f0c; border: 1px solid #f2c4a8; }
+.admin-portal .apl-chip-conflict svg { width: 10px; height: 10px; }
+.admin-portal .apl-status-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 0; }
+.admin-portal .apl-status-sub { font-size: 10.5px; line-height: 1.35; color: #5a6b85; text-align: right; max-width: 190px; }
+
+/* Applicant window: Conflicts to check */
+.admin-portal .qc-box { border: 1px solid #f2c4a8; border-radius: 12px; background: #fff8f3; overflow: hidden; }
+.admin-portal .qc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid #f3e4d9; }
+.admin-portal .qc-title { display: flex; align-items: center; gap: 9px; margin: 0; font-family: "Montserrat", sans-serif; font-size: 13px; font-weight: 800; color: #7a2f0c; }
+.admin-portal .qc-title svg { width: 17px; height: 17px; flex-shrink: 0; }
+.admin-portal .qc-count { font-family: "Montserrat", sans-serif; font-size: 10px; font-weight: 800; color: #7a2f0c; background: #fce6d9; border-radius: 10px; padding: 2px 8px; }
+.admin-portal .qc-count.is-done { color: #1a5c3a; background: #e6f4ec; }
+.admin-portal .qc-help { font-size: 11px; color: #7a5a48; }
+.admin-portal .qc-scroll { overflow-x: auto; }
+.admin-portal .qc-table { width: 100%; min-width: 720px; border-collapse: collapse; }
+.admin-portal .qc-table th { text-align: left; font-family: "Montserrat", sans-serif; font-weight: 700; font-size: 9.8px; letter-spacing: .6px; text-transform: uppercase; color: #5a6b85; padding: 9px 12px; border-bottom: 1px solid #eedacb; white-space: nowrap; }
+.admin-portal .qc-table td { padding: 11px 12px; border-bottom: 1px solid #f3e4d9; vertical-align: top; font-size: 12.3px; color: var(--text); }
+.admin-portal .qc-table tr.is-checked td { background: #fbfcfe; }
+.admin-portal .qc-what { font-family: "Montserrat", sans-serif; font-weight: 700; font-size: 12px; color: var(--navy); }
+.admin-portal .qc-read { font-weight: 700; color: #7a2f0c; }
+.admin-portal .qc-from { display: block; font-size: 10.6px; color: #5a6b85; margin-top: 3px; }
+.admin-portal .qc-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.admin-portal .qc-link { background: none; border: none; padding: 0; cursor: pointer; font-size: 11.5px; font-weight: 600; color: var(--ccc-blue); text-decoration: underline; }
+.admin-portal .qc-link:hover { color: var(--navy); }
+.admin-portal .qc-btn { font-family: "Montserrat", sans-serif; font-weight: 700; font-size: 11.5px; min-height: 34px; padding: 0 13px; border-radius: 8px; border: 1px solid #d5ddea; background: #fff; color: var(--navy); cursor: pointer; white-space: nowrap; }
+.admin-portal .qc-btn:hover { background: #f5f6f8; }
+.admin-portal .qc-btn:disabled { opacity: .55; cursor: not-allowed; }
+.admin-portal .qc-btn.pri { background: var(--navy); border-color: var(--navy); color: #fff; }
+.admin-portal .qc-btn.pri:hover { background: var(--ccc-blue); }
+.admin-portal .qc-note { display: flex; flex-direction: column; gap: 7px; text-align: left; }
+.admin-portal .qc-note label { font-size: 11px; font-weight: 600; color: #4f5f78; }
+.admin-portal .qc-note input { box-sizing: border-box; min-height: 36px; padding: 0 11px; border: 1.5px solid #d5ddea; border-radius: 8px; font-size: 12.5px; width: 100%; }
+.admin-portal .qc-note input:focus { outline: none; border-color: var(--ccc-blue); }
+.admin-portal .qc-done { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.admin-portal .qc-done-chip { display: inline-flex; align-items: center; gap: 5px; font-family: "Montserrat", sans-serif; font-size: 10.5px; font-weight: 700; color: #1a5c3a; background: #e6f4ec; border-radius: 20px; padding: 3px 10px; }
+.admin-portal .qc-done-by { font-size: 10.6px; color: #5a6b85; text-align: right; max-width: 260px; }
+.admin-portal .qc-foot { padding: 11px 16px; font-size: 11.3px; color: #7a5a48; line-height: 1.55; }
+.admin-portal .qc-error { padding: 10px 16px; font-size: 11.5px; color: #902020; background: #fbe7e7; }
+
+/* Document preview popup (no more raw storage links) */
+.admin-portal .dpv-overlay { position: fixed; inset: 0; z-index: 80; background: rgba(13,47,110,.6); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.admin-portal .dpv-box { width: 100%; max-width: 860px; max-height: 92vh; background: #fff; border-radius: 14px; box-shadow: 0 20px 60px rgba(13,47,110,.35); display: flex; flex-direction: column; overflow: hidden; }
+.admin-portal .dpv-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.admin-portal .dpv-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.admin-portal .dpv-title { font-family: "Montserrat", sans-serif; font-size: 14.5px; font-weight: 800; color: var(--navy); }
+.admin-portal .dpv-sub { font-size: 11.5px; color: #5a6b85; overflow-wrap: anywhere; }
+.admin-portal .dpv-close { background: none; border: none; cursor: pointer; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #5a6b85; font-size: 18px; }
+.admin-portal .dpv-close:hover { background: #eef1f6; color: var(--navy); }
+.admin-portal .dpv-body { flex: 1; min-height: 320px; overflow: auto; background: #eef1f6; padding: 18px; display: flex; justify-content: center; align-items: flex-start; }
+.admin-portal .dpv-img { height: auto; border-radius: 4px; box-shadow: 0 4px 18px rgba(0,0,0,.12); background: #fff; transform-origin: top center; }
+.admin-portal .dpv-frame { width: 100%; height: 70vh; border: none; border-radius: 4px; background: #fff; }
+.admin-portal .dpv-none { display: flex; flex-direction: column; align-items: center; gap: 10px; color: #5a6b85; font-size: 12.5px; padding: 48px 16px; text-align: center; }
+.admin-portal .dpv-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 11px 18px; border-top: 1px solid var(--border); font-size: 11px; color: #5a6b85; }
+.admin-portal .dpv-tools { display: flex; align-items: center; gap: 6px; }
+.admin-portal .dpv-tool { font-family: "Montserrat", sans-serif; font-weight: 700; font-size: 11.5px; min-height: 34px; min-width: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid #d5ddea; background: #fff; color: var(--navy); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+.admin-portal .dpv-tool:hover { background: #eef3fd; }
+.admin-portal .dpv-zoom { min-width: 42px; text-align: center; font-family: "Montserrat", sans-serif; font-size: 11px; font-weight: 700; color: #4f5f78; }
+.admin-portal .dpv-open { background: none; border: none; padding: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--ccc-blue); }
+.admin-portal .dpv-open:hover { color: var(--navy); }
+
+/* Applicant Results: programs this score qualifies for */
+.admin-portal .ep-box { border: 1px solid #d6e3fa; border-radius: 10px; background: #f4f7fd; display: flex; flex-direction: column; }
+.admin-portal .ep-head { padding: 12px 14px; border-bottom: 1px solid #d6e3fa; display: flex; flex-direction: column; gap: 4px; }
+.admin-portal .ep-title { font-family: "Montserrat", sans-serif; font-size: 12.5px; font-weight: 800; color: var(--navy); }
+.admin-portal .ep-intro { font-size: 11.8px; color: var(--text); line-height: 1.5; }
+.admin-portal .ep-list { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.admin-portal .ep-prog { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 13px; border: 1.5px solid #d5ddea; border-radius: 10px; background: #fff; cursor: pointer; text-align: left; width: 100%; }
+.admin-portal .ep-prog:hover { border-color: #8fa3c2; }
+.admin-portal .ep-prog.on { border-color: var(--navy); background: #fff; box-shadow: 0 0 0 2px #c9d8f6; }
+.admin-portal .ep-prog:disabled { cursor: not-allowed; background: #f7f8fb; border-style: dashed; }
+.admin-portal .ep-radio { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #8fa3c2; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.admin-portal .ep-prog.on .ep-radio { border-color: var(--navy); }
+.admin-portal .ep-prog.on .ep-radio::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--navy); }
+.admin-portal .ep-name { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.admin-portal .ep-prog:disabled .ep-name { color: #8c99ae; }
+.admin-portal .ep-tag { font-family: "Montserrat", sans-serif; font-size: 9.5px; font-weight: 800; color: var(--ccc-blue); background: #e3ecfc; border-radius: 10px; padding: 1px 7px; margin-left: 8px; }
+.admin-portal .ep-note { display: block; font-size: 10.8px; color: #5a6b85; margin-top: 2px; }
+.admin-portal .ep-grade { font-family: "Montserrat", sans-serif; font-size: 11px; font-weight: 700; color: #5a6b85; white-space: nowrap; }
+.admin-portal .ep-foot { padding: 0 14px 13px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 11px; color: #5a6b85; }
+.admin-portal .ep-ok { display: flex; gap: 10px; align-items: flex-start; padding: 11px 13px; border-radius: 8px; background: #eaf6ef; color: #1a5c3a; font-size: 12px; line-height: 1.5; }
+.admin-portal .ep-warn { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 8px; background: #fdf3e3; color: #7a4f0c; font-size: 11.8px; line-height: 1.5; }
+.admin-portal .ep-ok svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }

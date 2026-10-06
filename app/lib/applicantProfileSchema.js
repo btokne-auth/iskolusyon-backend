@@ -110,6 +110,17 @@ export const PROFILE_CATEGORIES = [
         docTypes: [],
       },
       {
+        // Oct 6 2026: Appendix J p. 96 rule a. Only asked when a choice is
+        // BSEd Mathematics or BSEd Science; admins check it against the
+        // report card (Form 138) and can fix it here.
+        label: 'BSEd Mathematics / Science Requirement',
+        showIf: (row) =>
+          ['Bachelor of Secondary Education Major in Mathematics', 'Bachelor of Secondary Education Major in Science'].includes(row?.program_choice_1) ||
+          ['Bachelor of Secondary Education Major in Mathematics', 'Bachelor of Secondary Education Major in Science'].includes(row?.program_choice_2),
+        fields: [{ key: 'shs_math_science_lowest', label: 'Lowest SHS Mathematics or Science Grade (85 or higher needed)' }],
+        docTypes: [],
+      },
+      {
         label: 'Educational Background',
         fields: [
           { key: 'edu_prim_school', label: 'Primary/Elementary School Name' },

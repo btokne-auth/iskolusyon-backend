@@ -50,7 +50,7 @@ export const SELECT_OPTIONS = {
 
 // Stored as numbers.
 export const INTEGER_FIELDS = new Set(['residency_years', 'fam_num_siblings', 'transferee_units_passed'])
-export const DECIMAL_FIELDS = new Set(['transferee_gwa'])
+export const DECIMAL_FIELDS = new Set(['transferee_gwa', 'shs_math_science_lowest'])
 
 export const DATE_FIELDS = new Set(['date_of_birth'])
 
@@ -88,6 +88,12 @@ export function cleanValue(key, raw) {
   }
   if (INTEGER_FIELDS.has(key)) {
     return /^\d{1,4}$/.test(text) ? { value: Number(text) } : { error: `${label} must be a whole number.` }
+  }
+  if (key === 'shs_math_science_lowest') {
+    const n = Number(text)
+    return /^\d{2,3}(\.\d{1,2})?$/.test(text) && n >= 60 && n <= 100
+      ? { value: n }
+      : { error: `${label} must be a grade from 60 to 100.` }
   }
   if (DECIMAL_FIELDS.has(key)) {
     return /^\d{1,3}(\.\d{1,2})?$/.test(text) ? { value: Number(text) } : { error: `${label} must be a number like 85.5.` }

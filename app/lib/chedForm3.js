@@ -54,7 +54,11 @@ function splitName(fullName) {
 }
 
 export function remarkFor(app) {
-  const passed = PASSED_STATUSES.has(app.scholar_status) || app.exam_result === 'passed'
+  // Oct 6 2026: a passing score in a BSEd Math/Science 1st choice that rule a
+  // closes (Appendix J p. 96) leaves the applicant Waitlisted until
+  // re-evaluated, so it doesn't count as passed here.
+  const passed =
+    PASSED_STATUSES.has(app.scholar_status) || (app.exam_result === 'passed' && app.scholar_status !== 'waitlisted_probationary')
   if (!passed) return 'failed'
   return app.distribution_status === 'enrollment_complete' ? 'passed-enrolled' : 'passed-did not enrol'
 }
@@ -65,7 +69,7 @@ export async function buildForm3Rows() {
     .from('applications')
     .select(
       'id, applicant_name, applicant_email, first_name, middle_name, last_name, suffix, sex, date_of_birth, contact_number, ' +
-        'program_choice_1, exam_result, scholar_status, distribution_status'
+        'program_choice_1, admitted_program, exam_result, scholar_status, distribution_status'
     )
     .is('archived_at', null)
   if (error) throw new Error(error.message)
@@ -87,7 +91,8 @@ export async function buildForm3Rows() {
       middleName: clean(app.middle_name),
       sex: sexLetter(app.sex),
       birthdate: formatBirthdate(app.date_of_birth),
-      program: clean(app.program_choice_1),
+      // Oct 6 2026: Degree Program = the program admitted in (re-evaluated, Appendix J rule b), else the 1st choice.
+      program: clean(app.admitted_program || app.program_choice_1),
       yearLevel: 'New',
       email: clean(app.applicant_email),
       phone: clean(app.contact_number),

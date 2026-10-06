@@ -8,6 +8,7 @@ import PortalSidebar from '../components/PortalSidebar'
 import LoadingScreen from '../components/LoadingScreen'
 import { Skeleton, SkeletonRows, SkeletonList, SkeletonText } from '../components/Skeleton'
 import { DOCUMENT_TYPE_OPTIONS, getDocTypeLabel } from '../lib/documentTypes'
+import { BSED_MATH_SCIENCE_PROGRAMS } from '../lib/matching'
 import {
   saveDraftLocal,
   loadDraftLocal,
@@ -305,6 +306,8 @@ function mapDbRowToAcademicInfo(row) {
     transfereeGwa: row.transferee_gwa ?? '',
     transfereeUnitsPassed: row.transferee_units_passed ?? '',
     transfereeFailingGrade: row.transferee_failing_grade || '',
+    // Oct 6 2026: Appendix J p. 96 rule a (BSEd Mathematics / Science).
+    shsMathScienceLowest: row.shs_math_science_lowest ?? '',
   }
 }
 
@@ -1837,7 +1840,17 @@ function PortalApp({ accountSession, onLogout }) {
     },
     techVoc: '', techVocSchool: '', techVocCourse: '', techVocAddress: '',
     transfereeGwa: '', transfereeUnitsPassed: '', transfereeFailingGrade: '',
+    shsMathScienceLowest: '',
   })
+  // Oct 6 2026: Appendix J p. 96 rule a. BSEd Mathematics / Science need 85
+  // or higher in every SHS Mathematics and Science subject, so the lowest of
+  // those grades is asked when either choice is one of them.
+  const bsedChoiceNames = [academicInfo.choice1, academicInfo.choice2]
+    .filter((v) => BSED_MATH_SCIENCE_PROGRAMS.has(v))
+    .map((v) => (v.endsWith('Mathematics') ? 'BSEd Mathematics' : 'BSEd Science'))
+  const needsShsGrade = bsedChoiceNames.length > 0
+  const shsGradeText = String(academicInfo.shsMathScienceLowest ?? '').trim()
+  const shsGradeValid = /^\d{2,3}(\.\d{1,2})?$/.test(shsGradeText) && Number(shsGradeText) >= 60 && Number(shsGradeText) <= 100
   const updateAI = (field, value) => setAcademicInfo((a) => ({ ...a, [field]: value }))
 
   // ---- Health & Wellness panel ---- Ivy's spec has exactly one field here
@@ -1924,7 +1937,8 @@ function PortalApp({ accountSession, onLogout }) {
     (academicInfo.applyingAs !== 'Transferee' ||
       (String(academicInfo.transfereeGwa).trim() &&
         String(academicInfo.transfereeUnitsPassed).trim() &&
-        academicInfo.transfereeFailingGrade))
+        academicInfo.transfereeFailingGrade)) &&
+    (!needsShsGrade || shsGradeValid)
 
   // Inline upload state for the three document types now uploaded directly
   // inside the Personal Information cards, instead of via the Step 2 form.
@@ -3758,6 +3772,34 @@ function PortalApp({ accountSession, onLogout }) {
                   <SelectField label="First Priority Program" required value={academicInfo.choice1} onChange={(v) => updateAI('choice1', v)} options={PROGRAM_OPTIONS} />
                   <SelectField label="Second Priority Program" required value={academicInfo.choice2} onChange={(v) => updateAI('choice2', v)} options={[...PROGRAM_OPTIONS, 'None of the above']} />
                 </div>
+                {needsShsGrade && (
+                  <div className="form-grid" style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px dashed #D5DDEA' }}>
+                    <div>
+                      <TextField
+                        label="Lowest Senior High grade in your Mathematics and Science subjects"
+                        required
+                        type="number"
+                        value={academicInfo.shsMathScienceLowest}
+                        onChange={(v) => updateAI('shsMathScienceLowest', v)}
+                        placeholder="e.g. 88"
+                      />
+                      {shsGradeText && !shsGradeValid && <p className="field-note" style={{ color: '#902020' }}>Type a grade from 60 to 100.</p>}
+                    </div>
+                    <div>
+                      <p className="field-note" style={{ fontSize: '11.5px', lineHeight: 1.55, marginTop: '24px' }}>
+                        {bsedChoiceNames.join(' and ')} {bsedChoiceNames.length > 1 ? 'need' : 'needs'} a grade of <b>85 or higher</b> in every
+                        Mathematics and Science subject in Senior High School (CCC Scholar Guidelines). Look at your Grade 11 and Grade 12
+                        report cards and type the lowest one. The office checks it against your report card.
+                      </p>
+                      {shsGradeValid && Number(shsGradeText) < 85 && (
+                        <p className="field-note" style={{ fontSize: '11.5px', lineHeight: 1.55, color: '#7a4f0c', background: '#FDF3E3', borderRadius: '8px', padding: '9px 11px' }}>
+                          A grade below 85 means you can&rsquo;t be accepted in {bsedChoiceNames.join(' or ')}. You can still submit, and your
+                          other program choice is still considered.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* ---------- Card 3: Educational Background (school table + Tech-Voc + Grades upload) ---------- */}

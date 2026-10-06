@@ -3,7 +3,7 @@ import { supabase } from '@/app/supabaseClient'
 import { Resend } from 'resend'
 import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns, familyInfoToColumns } from '@/app/lib/applicationColumns'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
-import { computeEligibility } from '@/app/lib/matching'
+import { computeEligibility, needsShsMathScienceGrade } from '@/app/lib/matching'
 import { getSystemSettings, submitBlockedReason } from '@/app/lib/systemSettings'
 import { resultsVisible, applicantSafeRow } from '@/app/lib/resultVisibility'
 import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
@@ -473,6 +473,21 @@ export async function POST(request) {
     }
     if (action === 'submit-section' && !section) {
       return NextResponse.json({ error: 'Missing or invalid section' }, { status: 400 })
+    }
+    // Oct 6 2026: Appendix J p. 96 rule a. Educational Background can't be
+    // submitted with a BSEd Mathematics / Science choice and no SHS grade.
+    if (
+      action === 'submit-section' &&
+      section === 'academic' &&
+      !profileLocked &&
+      (academicInfoColumns.program_choice_1 || academicInfoColumns.program_choice_2) &&
+      needsShsMathScienceGrade(academicInfoColumns) &&
+      academicInfoColumns.shs_math_science_lowest === null
+    ) {
+      return NextResponse.json(
+        { error: 'Please type the lowest Senior High grade in your Mathematics and Science subjects (60 to 100). It is needed for BSEd Mathematics and BSEd Science.' },
+        { status: 400 }
+      )
     }
 
     // Find any existing row for this applicant first (draft or submitted)
