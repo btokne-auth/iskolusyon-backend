@@ -120,7 +120,7 @@ export default function PortalSidebar({
               Now shows the real number once /api/application reports one
               assigned (see maybeAssignApplicationNumber() server-side),
               same placeholder copy until then. */}
-          {applicationNumber || '(Application Number will be provided once your documents are submitted and verified)'}
+          {applicationNumber || '(Your Application Number is given once you submit your application with complete requirements)'}
         </div>
       </div>
 

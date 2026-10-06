@@ -239,8 +239,16 @@ async function countSubmittedThisCycle() {
   return count || 0
 }
 
+// Oct 6 2026: the application number is now given at the final Submit, not
+// as soon as the documents are uploaded. CCC (Appendix D, interview #2):
+// "Sino lang nag submit sila lang may application number. Dapat ganoon den
+// sa system." and "If kumpleto ang requirements may application number."
+// The final Submit already requires the sections and documents, so both
+// hold. Numbers already given before this change are kept.
 function maybeAssignApplicationNumber(existingRow, updates, uploadedTypes) {
   if (existingRow.application_number) return {}
+  const submittedNow = updates.status === 'submitted' || existingRow.status === 'submitted'
+  if (!submittedNow) return {}
 
   const workingStudent = updates.fam_working_student ?? existingRow.fam_working_student
   const requiredTypes = requiredDocumentTypes(workingStudent)

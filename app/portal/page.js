@@ -2971,21 +2971,25 @@ function PortalApp({ accountSession, onLogout }) {
             // no field-completeness bar to clear like the other three —
             // "done" here just means the applicant explicitly submitted it.
             const healthDone = !!healthSubmittedAt
-            const allProfileDone = personalDone && academicDone && familyDone && healthDone
             const profileSectionsDone = [personalDone, academicDone, familyDone, healthDone].filter(Boolean).length
-            const stepNum = !allProfileDone ? 2 : !submitted ? 3 : 3
-            const stepLabel = !allProfileDone ? 'Filling Out Profile' : !submitted ? 'Uploading Documents' : 'Awaiting Document Verification'
-            const nextAction = !personalDone
-              ? { label: 'Complete your Personal Information', panel: 'personal' }
-              : !academicDone
-              ? { label: 'Complete your Educational Background', panel: 'academic' }
-              : !familyDone
-              ? { label: 'Complete your Family & Financial Information', panel: 'financial' }
-              : !healthDone
-              ? { label: 'Complete your Health & Wellness section', panel: 'health' }
-              : !submitted
-              ? { label: 'Submit your documents for review', panel: 'status' }
-              : null
+            // Oct 6 2026: the status line and Next step follow the final
+            // Submit's own checklist (finalSubmitChecks, same as the Final
+            // step card), not Health & Wellness, which is only needed during
+            // enrollment. Once everything is in, the next step is to submit.
+            const readyToSubmit = finalSubmitChecks.every((c) => c.ok)
+            const stepNum = !submitted ? 2 : 3
+            const stepLabel = submitted ? 'Awaiting Document Verification' : readyToSubmit ? 'Ready to Submit' : 'Filling Out Profile'
+            const nextAction = submitted
+              ? null
+              : !personalSubmittedAt
+              ? { label: 'Complete and submit your Personal Information', panel: 'personal' }
+              : !academicSubmittedAt
+              ? { label: 'Complete and submit your Educational Background', panel: 'academic' }
+              : !financialSubmittedAt
+              ? { label: 'Complete and submit your Family & Financial Information', panel: 'financial' }
+              : missingDocsForSubmit.length
+              ? { label: `Upload your ${getDocTypeLabel(missingDocsForSubmit[0])}`, panel: DOC_UPLOAD_PLACE[missingDocsForSubmit[0]]?.panel || 'status' }
+              : { label: 'Submit your application', panel: 'status' }
 
             if (!appLoaded || !historyLoaded) {
               return (
@@ -3049,6 +3053,8 @@ function PortalApp({ accountSession, onLogout }) {
                   <p className="status-hero-desc">
                     {submitted
                       ? "Your application is submitted and on file. You'll see document statuses update on the Documents & Status panel as they're reviewed."
+                      : readyToSubmit
+                      ? 'Everything needed is in. Submit your application from Documents & Status to be counted for the exam schedule.'
                       : myDocs.length > 0
                       ? "You've started your application. Keep working through the sections below, then submit from Documents & Status when you're ready."
                       : "You've created and verified your account. You're now completing your applicant profile."}
