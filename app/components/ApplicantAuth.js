@@ -991,8 +991,10 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
                     >
                       i
                     </button>
+                    {/* Oct 7 2026: opens to the LEFT of the "i" (right-0) so it
+                        isn't cut off at the card's right edge. */}
                     {residencyInfoOpen && (
-                      <div className="absolute left-0 top-5 z-10 w-56 rounded-md border border-ccc-border bg-white shadow-lg p-2.5 text-[11px] font-normal normal-case text-ccc-text leading-snug">
+                      <div className="absolute right-0 top-5 z-20 w-60 max-w-[calc(100vw-3rem)] rounded-md border border-ccc-border bg-white shadow-lg p-2.5 text-[11px] font-normal normal-case text-ccc-text leading-snug">
                         The number of years of residency provided must be supported by a valid proof of residency for the applicant to qualify for a CCC scholarship.
                       </div>
                     )}
