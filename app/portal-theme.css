@@ -480,3 +480,23 @@
 .applicant-portal .edu-table .org-row-btn:disabled{opacity:.4;cursor:not-allowed}
 .applicant-portal .form-actions .mbtn:disabled{opacity:.55;cursor:not-allowed}
 .applicant-portal .card-title span.tag.tag-locked{color:#6b4e00;background:#FDF6E7;border-color:#F0D9A8}
+
+/* Oct 6 2026: on phones the Documents & Status table turns into stacked
+   rows (name and status on top, the note under them, then the link), since
+   four columns were too narrow and the dates broke into the badges. */
+@media (max-width: 640px) {
+  .applicant-portal .doc-table, .applicant-portal .doc-table tbody { display: block; }
+  .applicant-portal .doc-table colgroup, .applicant-portal .doc-table thead { display: none; }
+  .applicant-portal .doc-table tr {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center;
+    padding: 12px 2px; border-bottom: 1px solid var(--border);
+  }
+  .applicant-portal .doc-table tr:last-child { border-bottom: none; }
+  .applicant-portal .doc-table td { display: block; padding: 0; border: none; }
+  .applicant-portal .doc-table td:nth-child(1) { grid-column: 1; grid-row: 1; font-weight: 600; color: var(--text); }
+  .applicant-portal .doc-table td:nth-child(2) { grid-column: 2; grid-row: 1; }
+  .applicant-portal .doc-table td:nth-child(3) { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); }
+  .applicant-portal .doc-table td:nth-child(3):empty, .applicant-portal .doc-table td:nth-child(4):empty { display: none; }
+  .applicant-portal .doc-table td:nth-child(4) { grid-column: 1 / -1; }
+  .applicant-portal .doc-table .reupload-link { padding: 4px 0; text-align: left; }
+}
