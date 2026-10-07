@@ -1,29 +1,41 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Montserrat, Open_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import SecurityGuard from "./components/SecurityGuard";
 
-const geistSans = Geist({
+// Oct 7 2026: the four fonts are now bundled in app/fonts (SIL Open Font
+// License, see app/fonts/LICENSE-fonts.txt) instead of next/font/google.
+// A clean Vercel build failed while downloading them from Google ("Cannot
+// read properties of null"), so builds no longer depend on Google Fonts.
+// Visitors' browsers also never contact Google for fonts now (privacy).
+// Same CSS variable names and weights as before, so nothing else changed.
+const geistSans = localFont({
+  src: "./fonts/Geist-Variable.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  weight: "100 900",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "./fonts/GeistMono-Variable.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: "100 900",
+  display: "swap",
 });
 
 // Brand fonts from the approved CCC mockup (index/login/signup/admin/applicant)
-const montserrat = Montserrat({
+const montserrat = localFont({
+  src: "./fonts/Montserrat-Variable-latin.woff2",
   variable: "--font-montserrat",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
+  weight: "100 900",
+  display: "swap",
 });
 
-const openSans = Open_Sans({
+const openSans = localFont({
+  src: "./fonts/OpenSans-Variable-latin.woff2",
   variable: "--font-open-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: "300 800",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
