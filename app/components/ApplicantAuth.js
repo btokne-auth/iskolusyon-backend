@@ -318,7 +318,7 @@ function Alert({ tone = 'info', children }) {
   return <div className={`text-[13px] rounded-md border px-3 py-2 mb-4 ${styles[tone]}`}>{children}</div>
 }
 
-export default function ApplicantAuth({ onAuthenticated, initialMode = 'login' }) {
+export default function ApplicantAuth({ onAuthenticated, initialMode = 'login', expired = false }) {
   const [mode, setMode] = useState(initialMode) // 'login' | 'signup' | 'forgot'
 
   // Sept 23, 2026: was just a bare SiteHeader + centered card on a plain
@@ -338,6 +338,7 @@ export default function ApplicantAuth({ onAuthenticated, initialMode = 'login' }
         <div className="w-full max-w-[960px] bg-white rounded-[14px] shadow-[0_12px_48px_rgba(13,47,110,.22)] overflow-hidden flex max-h-[92vh] my-8">
           {mode === 'login' && (
             <LoginPanel
+              expired={expired}
               onSwitch={() => setMode('signup')}
               onForgot={() => setMode('forgot')}
               onAuthenticated={onAuthenticated}
@@ -354,7 +355,7 @@ export default function ApplicantAuth({ onAuthenticated, initialMode = 'login' }
 
 const LOGIN_OTP_TTL_SECONDS = 10 * 60
 
-function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
+function LoginPanel({ expired, onSwitch, onForgot, onAuthenticated }) {
   // stage: 'credentials' -> 'otp' — login-time MFA, added Sept 19. The
   // credentials step no longer sets the session cookie itself; it sends a
   // login code and hands off to the OTP step, same shape as
@@ -488,6 +489,10 @@ function LoginPanel({ onSwitch, onForgot, onAuthenticated }) {
               Applicant Login
             </h2>
             <p className="text-sm text-ccc-muted mb-3">Enter your credentials to access your account.</p>
+            {/* Oct 7 2026: shown after the 60-minute inactivity sign-out. */}
+            {expired && !error && (
+              <Alert tone="info">You were signed out after 60 minutes without activity, to keep your account safe. Your saved sections are still there. Please sign in again.</Alert>
+            )}
             <Alert tone="info">Enter your registered email and password. A 6-digit verification code will be sent to your email.</Alert>
             {error && <Alert tone="error">{error}</Alert>}
             <form onSubmit={submitCredentials} noValidate>

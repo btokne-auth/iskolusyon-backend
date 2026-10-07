@@ -40,6 +40,16 @@ function EyeOffIcon(props) {
 // brand consistency, without pulling in anything applicant-facing -- see
 // SiteHeader usage below (logos + college name only, no nav links, no
 // Sign Up button) and the one-line copyright footer at the bottom.
+// Oct 7 2026 (manuscript Ch. 3, Input Validation): only go back to a page of
+// the admin console after signing in. Before this, a link such as
+// /admin/login?next=https://fake-site.example would have sent a freshly
+// signed-in admin to another website.
+function safeNext(next) {
+  if (typeof next !== 'string' || !next.startsWith('/admin') || next.startsWith('//')) return '/admin'
+  if (next.startsWith('/admin/login') || next.startsWith('/admin/change-password')) return '/admin'
+  return next
+}
+
 function AdminLoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -69,8 +79,7 @@ function AdminLoginForm() {
         router.push('/admin/change-password')
         return
       }
-      const next = searchParams.get('next') || '/admin'
-      router.push(next)
+      router.push(safeNext(searchParams.get('next')))
       router.refresh()
     } catch (err) {
       setError(err.message)
@@ -122,6 +131,12 @@ function AdminLoginForm() {
           Just invited, or had your password reset? Use the temporary password from your email. You&apos;ll choose
           your own right after.
         </div>
+        {/* Oct 7 2026: shown after the 30-minute inactivity sign-out. */}
+        {searchParams.get('expired') === '1' && !error && (
+          <div className="al-info" role="status">
+            You were signed out after 30 minutes without activity, to keep applicant data safe. Please sign in again.
+          </div>
+        )}
         {error && (
           <div className="al-error" role="alert">
             {error}

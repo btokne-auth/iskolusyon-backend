@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Montserrat, Open_Sans } from "next/font/google";
 import "./globals.css";
+import SecurityGuard from "./components/SecurityGuard";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,7 +37,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable} ${openSans.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {/* Oct 7 2026: anti-CSRF header + inactivity sign-out (see the component). */}
+        <SecurityGuard />
+        {children}
+      </body>
     </html>
   );
 }

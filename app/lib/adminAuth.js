@@ -24,8 +24,20 @@
 // this change simply fail to parse and force a re-login — no migration
 // needed, sessions are only 8 hours anyway.
 
+import {
+  ADMIN_IDLE_SECONDS,
+  ADMIN_MAX_SECONDS,
+  REFRESH_AFTER_SECONDS,
+  nowSeconds,
+  sessionTimeProblem,
+} from './sessionPolicy'
+
 export const ADMIN_COOKIE_NAME = 'iskolusyon_admin'
-const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 8 // 8-hour session
+// Oct 7 2026: the 8-hour limit is now also checked on the server (payload
+// `iat`), plus a 30-minute inactivity limit (payload `la`). Before this, the
+// 8 hours only told the BROWSER when to drop the cookie; a copied cookie
+// value kept working forever. See app/lib/sessionPolicy.js.
+const COOKIE_MAX_AGE_SECONDS = ADMIN_MAX_SECONDS
 
 function getSecret() {
   const secret = process.env.ADMIN_SESSION_SECRET
@@ -95,7 +107,8 @@ export const LIMITED_ROLES = new Set(['registrar', 'lgu'])
 
 export async function createAdminCookieValue(name, isSuperAdmin, email, role) {
   const secret = getSecret()
-  const payload = { n: name, s: !!isSuperAdmin, e: email }
+  const now = nowSeconds()
+  const payload = { n: name, s: !!isSuperAdmin, e: email, iat: now, la: now }
   if (LIMITED_ROLES.has(role)) {
     payload.s = false
     payload.r = role
@@ -123,10 +136,27 @@ async function readSignedPayload(cookieValue) {
 
     const payload = JSON.parse(fromBase64Url(encodedPayload))
     if (!payload || typeof payload.n !== 'string' || typeof payload.e !== 'string') return null
+    // Oct 7 2026: signed in too long ago, or idle too long.
+    if (sessionTimeProblem(payload, ADMIN_IDLE_SECONDS, ADMIN_MAX_SECONDS)) return null
     return payload
   } catch {
     return null
   }
+}
+
+// Oct 7 2026: called by proxy.js when the person is actually active. Returns
+// a new cookie { value, maxAge } with "last active" moved to now, or null when
+// the cookie is not valid or was refreshed less than a minute ago.
+export async function refreshAdminCookieValue(cookieValue) {
+  const payload = await readSignedPayload(cookieValue)
+  if (!payload) return null
+  const now = nowSeconds()
+  if (now - payload.la < REFRESH_AFTER_SECONDS) return null
+  const next = { ...payload, la: now }
+  const encodedPayload = toBase64Url(JSON.stringify(next))
+  const signature = await hmacHex(encodedPayload, getSecret())
+  const maxAge = Math.max(0, payload.iat + ADMIN_MAX_SECONDS - now)
+  return { value: `${encodedPayload}.${signature}`, maxAge }
 }
 
 // Verifies a cookie value and returns { name, isSuperAdmin, email }, or
