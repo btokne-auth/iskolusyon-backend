@@ -1,5 +1,5 @@
 'use client'
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import SiteHeader from '../../components/SiteHeader'
@@ -58,6 +58,103 @@ function AdminLoginForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  // Oct 7 2026: step 2 of sign-in (emailed code). sentTo is the masked
+  // address the code went to; null means we're on the password step.
+  const [sentTo, setSentTo] = useState(null)
+  const [code, setCode] = useState('')
+  const [notice, setNotice] = useState('')
+  const [codeMinutes, setCodeMinutes] = useState(10)
+
+  // Reopen the code step after a refresh, or after setting a first password.
+  useEffect(() => {
+    fetch('/api/admin-login', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.pending) {
+          setSentTo(data.sentTo || 'your email')
+          setCodeMinutes(data.minutes || 10)
+          if (searchParams.get('step') === 'code') {
+            setNotice('Your new password is saved. We emailed you a sign-in code to finish signing in.')
+          }
+        }
+      })
+      .catch(() => {})
+  }, [searchParams])
+
+  const goToConsole = () => {
+    router.push(safeNext(searchParams.get('next')))
+    router.refresh()
+  }
+
+  const submitCode = async (e) => {
+    e.preventDefault()
+    setError('')
+    setNotice('')
+    if (!/^\d{6}$/.test(code.trim())) {
+      setError('Enter the 6-digit code from your email.')
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await fetch('/api/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify', code: code.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'That code did not work.')
+        if (data.restart) {
+          setSentTo(null)
+          setCode('')
+          setPassword('')
+        }
+        return
+      }
+      goToConsole()
+    } catch {
+      setError('Could not reach the server. Check your connection and try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const resendCode = async () => {
+    setError('')
+    setNotice('')
+    try {
+      const res = await fetch('/api/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resend' }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Could not send a new code.')
+        if (data.restart) setSentTo(null)
+        return
+      }
+      setCode('')
+      setNotice(`A new code was sent to ${data.sentTo}. Only the newest code works.`)
+    } catch {
+      setError('Could not reach the server. Check your connection and try again.')
+    }
+  }
+
+  const useDifferentAccount = async () => {
+    try {
+      await fetch('/api/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }),
+      })
+    } catch {}
+    setSentTo(null)
+    setCode('')
+    setPassword('')
+    setError('')
+    setNotice('')
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -79,10 +176,16 @@ function AdminLoginForm() {
         router.push('/admin/change-password')
         return
       }
-      router.push(safeNext(searchParams.get('next')))
-      router.refresh()
-    } catch (err) {
-      setError(err.message)
+      // Oct 7 2026: right password, now the emailed code.
+      if (data.requiresCode) {
+        setSentTo(data.sentTo || 'your email')
+        setCodeMinutes(data.minutes || 10)
+        setCode('')
+        return
+      }
+      goToConsole()
+    } catch {
+      setError('Could not reach the server. Check your connection and try again.')
     } finally {
       setLoading(false)
     }
@@ -104,15 +207,18 @@ function AdminLoginForm() {
           Sign in to review scholarship applications, record results and manage communications for applicants.
         </p>
         <ol className="al-steps">
-          <li className="al-step current">
+          <li className={`al-step ${sentTo ? '' : 'current'}`}>
             <span className="al-step-num">1</span>
-            <span className="al-step-text">Sign in</span>
+            <span className="al-step-text">
+              Sign in
+              <small>New or reset accounts choose their own password here</small>
+            </span>
           </li>
-          <li className="al-step">
+          <li className={`al-step ${sentTo ? 'current' : ''}`}>
             <span className="al-step-num">2</span>
             <span className="al-step-text">
-              Set your own password
-              <small>First sign-in after an invite or reset only</small>
+              Enter the emailed code
+              <small>A 6-digit code, every sign-in</small>
             </span>
           </li>
         </ol>
@@ -122,6 +228,56 @@ function AdminLoginForm() {
         </Link>
       </div>
 
+      {sentTo ? (
+        <form onSubmit={submitCode} className="al-form">
+          <div className="al-form-head">
+            <h2 className="al-title">Check your email</h2>
+            <p className="al-sub">
+              We sent a 6-digit sign-in code to <strong>{sentTo}</strong>. It works once and expires in {codeMinutes}{' '}
+              minutes.
+            </p>
+          </div>
+          {notice && (
+            <div className="al-info" role="status">
+              {notice}
+            </div>
+          )}
+          {error && (
+            <div className="al-error" role="alert">
+              {error}
+            </div>
+          )}
+          <div className="al-field">
+            <label htmlFor="adminCode" className="al-label">Sign-in code</label>
+            <input
+              id="adminCode"
+              className="al-input"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="000000"
+              style={{ letterSpacing: 6, fontSize: 20, fontWeight: 700, textAlign: 'center' }}
+              autoFocus
+              required
+            />
+          </div>
+          <div className="al-row">
+            <button type="button" onClick={resendCode} className="al-forgot" style={{ background: 'none', border: 0, padding: 0, color: 'var(--ccc-blue)', fontWeight: 700, cursor: 'pointer' }}>
+              Send a new code
+            </button>
+            <button type="button" onClick={useDifferentAccount} className="al-forgot" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}>
+              Use a different account
+            </button>
+          </div>
+          <button type="submit" disabled={loading || code.length !== 6} className="al-submit">
+            {loading ? 'Checking...' : 'Verify and Open Console'}
+          </button>
+          <p className="al-note">Didn&apos;t get it? Check Spam, or send a new code after a minute.</p>
+        </form>
+      ) : (
       <form onSubmit={handleSubmit} className="al-form">
         <div className="al-form-head">
           <h2 className="al-title">Admin Login</h2>
@@ -129,7 +285,7 @@ function AdminLoginForm() {
         </div>
         <div className="al-info">
           Just invited, or had your password reset? Use the temporary password from your email. You&apos;ll choose
-          your own right after.
+          your own right after. Every sign-in also asks for a code we email you.
         </div>
         {/* Oct 7 2026: shown after the 30-minute inactivity sign-out. */}
         {searchParams.get('expired') === '1' && !error && (
@@ -194,11 +350,12 @@ function AdminLoginForm() {
           <span className="al-forgot">Forgot your password? Ask a Super Admin.</span>
         </div>
         <button type="submit" disabled={loading} className="al-submit">
-          {loading ? 'Unlocking...' : 'Unlock Console'}
+          {loading ? 'Checking...' : 'Continue'}
         </button>
         {/* Sign-ins are written to audit_log (app/api/admin-login/route.js). */}
         <p className="al-note">Access is logged. Unauthorized use is prohibited.</p>
       </form>
+      )}
     </div>
   )
 }

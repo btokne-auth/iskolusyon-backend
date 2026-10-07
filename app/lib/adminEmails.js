@@ -73,3 +73,26 @@ export async function sendAdminTempPasswordEmail({ kind, name, email, role, acce
     return { error: safeErrorText(err, 'adminEmails') }
   }
 }
+
+// Oct 7 2026: the emailed sign-in code (second step of the admin sign-in).
+export async function sendAdminLoginCodeEmail({ name, email, code, minutes }) {
+  try {
+    const result = await resend.emails.send({
+      from: EMAIL_FROM,
+      to: email,
+      subject: 'Your Iskolusyon Admin Console sign-in code',
+      html: `
+        <p>Hi ${escapeHtml(name)},</p>
+        <p>Your sign-in code for the Iskolusyon Admin Console is:</p>
+        <p style="font-size:28px;font-weight:800;letter-spacing:4px;">${escapeHtml(code)}</p>
+        <p>This code expires in ${minutes} minutes and works only once.</p>
+        <p>If you didn't just try to sign in, someone may know your password. Sign in and ask a Super Admin to reset it.</p>
+        <p>City College of Calamba, Iskolusyon Scholarship System</p>
+      `,
+    })
+    if (result?.error) return { error: 'The sign-in code could not be emailed. Please try again in a moment.' }
+    return { success: true }
+  } catch (err) {
+    return { error: safeErrorText(err, 'adminEmails login code') }
+  }
+}

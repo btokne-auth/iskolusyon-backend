@@ -227,3 +227,42 @@ export async function verifyPasswordChangeCookie(cookieValue) {
     return null
   }
 }
+
+// ---------- Emailed sign-in code (MFA), Oct 7 2026 ----------
+//
+// Manuscript Ch. 3 (Authentication Testing, Cybersecurity Principles: MFA).
+// After the right password, a console account gets this short-lived cookie
+// instead of a session. It only lets the browser finish step 2: typing the
+// 6-digit code emailed to the account. Like the password-change cookie, it
+// has no `n`, so it can never open the console or any admin API.
+
+export const ADMIN_MFA_COOKIE_NAME = 'iskolusyon_admin_mfa'
+const MFA_MAX_AGE_SECONDS = 60 * 10 // 10 minutes, same as the code itself
+
+export async function createMfaCookieValue(email) {
+  const secret = getSecret()
+  const exp = Math.floor(Date.now() / 1000) + MFA_MAX_AGE_SECONDS
+  const encodedPayload = toBase64Url(JSON.stringify({ t: 'mfa', e: email, x: exp }))
+  const signature = await hmacHex(encodedPayload, secret)
+  return { value: `${encodedPayload}.${signature}`, maxAge: MFA_MAX_AGE_SECONDS }
+}
+
+// Returns { email } or null (missing, tampered or older than 10 minutes).
+export async function verifyMfaCookie(cookieValue) {
+  if (!cookieValue || !cookieValue.includes('.')) return null
+  const [encodedPayload, signature] = cookieValue.split('.')
+  if (!encodedPayload || !signature) return null
+  try {
+    const expected = await hmacHex(encodedPayload, getSecret())
+    if (expected.length !== signature.length) return null
+    let mismatch = 0
+    for (let i = 0; i < expected.length; i++) mismatch |= expected.charCodeAt(i) ^ signature.charCodeAt(i)
+    if (mismatch !== 0) return null
+    const payload = JSON.parse(fromBase64Url(encodedPayload))
+    if (!payload || payload.t !== 'mfa' || typeof payload.e !== 'string') return null
+    if (typeof payload.x !== 'number' || payload.x < Math.floor(Date.now() / 1000)) return null
+    return { email: payload.e }
+  } catch {
+    return null
+  }
+}
