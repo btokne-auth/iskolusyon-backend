@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieFull } from '@/app/lib/adminAuth'
+import { serverError } from '@/app/lib/safeError'
 
 // Backs the admin portal's Communications panel. Real and persisted (not a
 // mockup shell) — any signed-in admin can post, any signed-in admin can
@@ -35,10 +36,10 @@ export async function GET(request) {
 
     const { data, error } = await query
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/announcements')
     return NextResponse.json({ success: true, announcements: data })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/announcements')
   }
 }
 
@@ -96,7 +97,7 @@ export async function POST(request) {
           .select('id, applicant_name')
           .eq('id', targetApplicationId)
           .maybeSingle()
-        if (applicantError) return NextResponse.json({ error: applicantError.message }, { status: 500 })
+        if (applicantError) return serverError(applicantError, 'api/announcements')
         if (!applicant) return NextResponse.json({ error: 'That applicant no longer exists.' }, { status: 400 })
         row.target_application_id = applicant.id
         targetLabel = applicant.applicant_name || 'an applicant'
@@ -111,7 +112,7 @@ export async function POST(request) {
 
     const { data, error } = await supabase.from('announcements').insert([row]).select().single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/announcements')
 
     try {
       await supabase.from('audit_log').insert([
@@ -131,7 +132,7 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, announcement: data })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/announcements')
   }
 }
 
@@ -154,11 +155,11 @@ export async function DELETE(request) {
       .select('title, type')
       .eq('id', id)
       .maybeSingle()
-    if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 })
+    if (fetchError) return serverError(fetchError, 'api/announcements')
     if (!existing) return NextResponse.json({ error: 'Not found.' }, { status: 404 })
 
     const { error } = await supabase.from('announcements').delete().eq('id', id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/announcements')
 
     try {
       await supabase.from('audit_log').insert([
@@ -175,6 +176,6 @@ export async function DELETE(request) {
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/announcements')
   }
 }

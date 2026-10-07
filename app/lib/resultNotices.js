@@ -14,6 +14,7 @@
 //  - pending_exam has no notice: nothing has been decided yet.
 
 import { Resend } from 'resend'
+import { safeErrorText } from '@/app/lib/safeError'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 const EMAIL_FROM = process.env.RESEND_FROM_EMAIL || 'Iskolusyon <noreply@iskolusyon.dev>'
@@ -163,6 +164,6 @@ export async function sendResultEmail({ to, subject, message }) {
     if (result?.error) return { error: result.error.message || 'Email could not be sent.' }
     return { success: true }
   } catch (err) {
-    return { error: err.message }
+    return { error: safeErrorText(err, 'resultNotices email') }
   }
 }

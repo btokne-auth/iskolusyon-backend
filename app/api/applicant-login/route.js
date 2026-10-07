@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { APPLICANT_COOKIE_NAME, createApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { verifyApplicantCredentials, sendLoginCode, verifyLoginCode } from '@/app/lib/applicantAccounts'
 import { supabase } from '@/app/supabaseClient'
+import { serverError } from '@/app/lib/safeError'
 import {
   MINUTE,
   getClientIp,
@@ -107,7 +108,7 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, requiresOtp: true, accountId: account.id, email: account.email })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/applicant-login')
   }
 }
 

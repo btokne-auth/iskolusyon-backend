@@ -23,8 +23,9 @@
 // `crypto` module, so it must only be imported from normal Node runtime
 // code (API routes), never from middleware.js (Edge runtime).
 
-import { scryptSync, randomBytes, randomInt, timingSafeEqual } from 'crypto'
+import { scryptSync, randomBytes, randomInt, timingSafeEqual, createHash } from 'crypto'
 import { supabase } from '@/app/supabaseClient'
+import { safeErrorText } from '@/app/lib/safeError'
 
 const KEY_LENGTH = 64
 
@@ -222,7 +223,7 @@ export async function inviteAdminAccount({ name, email, isSuperAdmin, role, acce
     .select('email')
     .eq('email', normalizedEmail)
     .maybeSingle()
-  if (lookupError) return { error: lookupError.message }
+  if (lookupError) return { error: safeErrorText(lookupError, 'adminAccounts') }
   if (existing) return { error: 'An admin account with that email already exists.' }
 
   const tempPassword = generateTempPassword()
@@ -244,7 +245,7 @@ export async function inviteAdminAccount({ name, email, isSuperAdmin, role, acce
     .select(ACCOUNT_COLUMNS)
     .single()
 
-  if (error) return { error: error.message }
+  if (error) return { error: safeErrorText(error, 'adminAccounts') }
   return { account: data, tempPassword }
 }
 
@@ -267,7 +268,7 @@ export async function resetAdminToTempPassword(email) {
     .select(ACCOUNT_COLUMNS)
     .maybeSingle()
 
-  if (error) return { error: error.message }
+  if (error) return { error: safeErrorText(error, 'adminAccounts') }
   if (!data) return { error: 'That admin account no longer exists.' }
   return { account: data, tempPassword }
 }
@@ -288,7 +289,7 @@ export async function setOwnPasswordFromTemp(email, newPassword) {
     .select('name, email, password_hash, is_super_admin, role, access_from, access_until, must_change_password, temp_password_expires_at')
     .eq('email', normalizedEmail)
     .maybeSingle()
-  if (lookupError) return { error: lookupError.message }
+  if (lookupError) return { error: safeErrorText(lookupError, 'adminAccounts') }
   if (!account) return { error: 'That admin account no longer exists.' }
   if (!account.must_change_password) return { error: 'This account already has its own password. Please sign in.' }
   if (account.temp_password_expires_at && new Date(account.temp_password_expires_at).getTime() < Date.now()) {
@@ -302,7 +303,7 @@ export async function setOwnPasswordFromTemp(email, newPassword) {
     .from('admin_accounts')
     .update({ password_hash: hashPassword(newPassword), must_change_password: false, temp_password_expires_at: null })
     .eq('email', normalizedEmail)
-  if (error) return { error: error.message }
+  if (error) return { error: safeErrorText(error, 'adminAccounts') }
 
   return {
     account: {
@@ -329,7 +330,7 @@ export async function updateLguAccess(email, accessFrom, accessUntil) {
     .eq('email', normalizedEmail)
     .select(ACCOUNT_COLUMNS)
     .maybeSingle()
-  if (error) return { error: error.message }
+  if (error) return { error: safeErrorText(error, 'adminAccounts') }
   return { account: data }
 }
 
@@ -368,4 +369,93 @@ export async function deleteAdminAccount(email) {
 
   if (error) throw new Error(error.message)
   return data
+}
+
+// ---------- Emailed sign-in code (MFA), Oct 7 2026 ----------
+// Manuscript Ch. 3 (Authentication and Brute-Force Testing: "OTP expiration
+// windows"). Same rules as the applicant login code: 6 digits, valid for 10
+// minutes, 5 wrong tries and the code is cancelled, and only its SHA-256
+// hash is stored. Needs the columns added by
+// docs/migrations/2026-10-07-security-hardening.sql.
+export const ADMIN_CODE_TTL_MINUTES = 10
+export const ADMIN_CODE_MAX_ATTEMPTS = 5
+
+function hashLoginCode(code) {
+  return createHash('sha256').update(String(code)).digest('hex')
+}
+
+// Saves a new code for the account and returns it (to be emailed).
+export async function issueAdminLoginCode(email) {
+  const normalizedEmail = (email || '').trim().toLowerCase()
+  const code = String(randomInt(0, 1000000)).padStart(6, '0')
+  const { error } = await supabase
+    .from('admin_accounts')
+    .update({
+      login_code_hash: hashLoginCode(code),
+      login_code_expires_at: new Date(Date.now() + ADMIN_CODE_TTL_MINUTES * 60 * 1000).toISOString(),
+      login_code_attempts: 0,
+    })
+    .eq('email', normalizedEmail)
+  if (error) throw new Error(error.message)
+  return code
+}
+
+// Returns { account } (the roster row) when the code is right, or
+// { error, restart } where restart = true means "start again from the
+// password step" (expired, cancelled after 5 tries, or no code).
+export async function checkAdminLoginCode(email, code) {
+  const normalizedEmail = (email || '').trim().toLowerCase()
+  const { data, error } = await supabase
+    .from('admin_accounts')
+    .select(`${ACCOUNT_COLUMNS}, login_code_hash, login_code_expires_at, login_code_attempts`)
+    .eq('email', normalizedEmail)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) return { error: 'This account no longer exists.', restart: true }
+  if (!data.login_code_hash || !data.login_code_expires_at) {
+    return { error: 'No sign-in code is waiting. Please sign in again.', restart: true }
+  }
+  if (new Date(data.login_code_expires_at).getTime() < Date.now()) {
+    return { error: 'That code has expired. Please sign in again to get a new one.', restart: true }
+  }
+  const attempts = data.login_code_attempts || 0
+  if (attempts >= ADMIN_CODE_MAX_ATTEMPTS) {
+    return { error: 'Too many wrong codes. Please sign in again to get a new one.', restart: true }
+  }
+
+  const typed = String(code || '').replace(/\D/g, '')
+  const expected = Buffer.from(data.login_code_hash, 'hex')
+  const actual = Buffer.from(hashLoginCode(typed), 'hex')
+  const matches = typed.length === 6 && expected.length === actual.length && timingSafeEqual(expected, actual)
+
+  if (!matches) {
+    const used = attempts + 1
+    await supabase.from('admin_accounts').update({ login_code_attempts: used }).eq('email', normalizedEmail)
+    const left = ADMIN_CODE_MAX_ATTEMPTS - used
+    if (left <= 0) {
+      await supabase
+        .from('admin_accounts')
+        .update({ login_code_hash: null, login_code_expires_at: null })
+        .eq('email', normalizedEmail)
+      return { error: 'Too many wrong codes. Please sign in again to get a new one.', restart: true, locked: true }
+    }
+    return { error: `That code is not right. ${left} ${left === 1 ? 'try' : 'tries'} left.` }
+  }
+
+  // One use only.
+  await supabase
+    .from('admin_accounts')
+    .update({ login_code_hash: null, login_code_expires_at: null, login_code_attempts: 0 })
+    .eq('email', normalizedEmail)
+
+  const { login_code_hash, login_code_expires_at, login_code_attempts, ...account } = data // eslint-disable-line no-unused-vars
+  return { account }
+}
+
+// "pa***@gmail.com", so the page can say where the code went without
+// showing the full address.
+export function maskEmail(email) {
+  const [user, domain] = String(email || '').split('@')
+  if (!domain) return ''
+  return `${user.slice(0, 2)}${'*'.repeat(Math.max(1, Math.min(5, user.length - 2)))}@${domain}`
 }

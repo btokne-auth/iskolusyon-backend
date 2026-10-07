@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { checkLock } from '@/app/lib/applicantLocks'
+import { serverError } from '@/app/lib/safeError'
 
 // Scholarship Matching & Filtering — admin-facing read + manual override.
 //
@@ -46,12 +47,12 @@ export async function GET(request) {
       .order('updated_at', { ascending: false })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverError(error, 'api/admin-eligibility')
     }
 
     return NextResponse.json({ success: true, applications: data || [] })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-eligibility')
   }
 }
 
@@ -96,7 +97,7 @@ export async function PATCH(request) {
       .eq('id', id)
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+      return serverError(updateError, 'api/admin-eligibility')
     }
 
     try {
@@ -116,6 +117,6 @@ export async function PATCH(request) {
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-eligibility')
   }
 }

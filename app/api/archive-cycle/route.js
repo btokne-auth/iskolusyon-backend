@@ -3,6 +3,7 @@ import { supabase } from '@/app/supabaseClient'
 import { requireConsoleRole } from '@/app/lib/adminRoles'
 import { confirmOwnPassword } from '@/app/lib/adminAccounts'
 import { getSystemSettings } from '@/app/lib/systemSettings'
+import { serverError } from '@/app/lib/safeError'
 
 // Oct 5 2026: end-of-cycle archive (Progress Table row 74, archive part;
 // Ivy's cell comment: a Super Admin option to archive all applicants once
@@ -116,14 +117,14 @@ export async function GET(request) {
         .eq('archive_cycle', cycle)
         .not('archived_at', 'is', null)
         .order('applicant_name', { ascending: true })
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      if (error) return serverError(error, 'api/archive-cycle')
       return NextResponse.json({ success: true, applicants: data || [] })
     }
 
     const ready = await readiness()
     return NextResponse.json({ success: true, ...ready, archived: await archivedCycles() })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/archive-cycle')
   }
 }
 
@@ -160,7 +161,7 @@ export async function POST(request) {
       .update({ archived_at: now, archived_by: session.name, archive_cycle: ready.cycle })
       .is('archived_at', null)
       .select('id')
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/archive-cycle')
 
     const count = (data || []).length
     await logAudit(
@@ -170,6 +171,6 @@ export async function POST(request) {
     )
     return NextResponse.json({ success: true, count, cycle: ready.cycle })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/archive-cycle')
   }
 }

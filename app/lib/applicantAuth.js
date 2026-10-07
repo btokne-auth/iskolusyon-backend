@@ -11,8 +11,20 @@
 // can't reach real applicant inboxes yet). Signup itself still requires a
 // one-time email-verification code — see applicantAccounts.js.
 
+import {
+  APPLICANT_IDLE_SECONDS,
+  APPLICANT_MAX_SECONDS,
+  REFRESH_AFTER_SECONDS,
+  nowSeconds,
+  sessionTimeProblem,
+} from './sessionPolicy'
+
 export const APPLICANT_COOKIE_NAME = 'iskolusyon_applicant'
-const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7 // 7-day session — applicants fill out a long form across multiple visits, unlike the 8-hour admin session
+// Oct 7 2026: was a 7-day session that only the browser enforced. Now the
+// server checks it too: 60 minutes of inactivity or 12 hours in total ends
+// the session (Pau's choice; see app/lib/sessionPolicy.js). Saved sections
+// stay saved, so signing in again just continues the form.
+const COOKIE_MAX_AGE_SECONDS = APPLICANT_MAX_SECONDS
 
 function getSecret() {
   const secret = process.env.APPLICANT_SESSION_SECRET
@@ -64,7 +76,8 @@ async function hmacHex(message, secret) {
 // the portal can render "Welcome back, Juan" without a round trip.
 export async function createApplicantCookieValue(accountId, email, displayName) {
   const secret = getSecret()
-  const encodedPayload = toBase64Url(JSON.stringify({ id: accountId, e: email, n: displayName || '' }))
+  const now = nowSeconds()
+  const encodedPayload = toBase64Url(JSON.stringify({ id: accountId, e: email, n: displayName || '', iat: now, la: now }))
   const signature = await hmacHex(encodedPayload, secret)
   return { value: `${encodedPayload}.${signature}`, maxAge: COOKIE_MAX_AGE_SECONDS }
 }
@@ -88,8 +101,22 @@ export async function verifyApplicantCookieValue(cookieValue) {
 
     const payload = JSON.parse(fromBase64Url(encodedPayload))
     if (!payload || typeof payload.id !== 'string' || typeof payload.e !== 'string') return null
-    return { id: payload.id, email: payload.e, name: payload.n || '' }
+    if (sessionTimeProblem(payload, APPLICANT_IDLE_SECONDS, APPLICANT_MAX_SECONDS)) return null
+    return { id: payload.id, email: payload.e, name: payload.n || '', _payload: payload }
   } catch {
     return null
   }
+}
+
+// Oct 7 2026: see refreshAdminCookieValue() in adminAuth.js.
+export async function refreshApplicantCookieValue(cookieValue) {
+  const session = await verifyApplicantCookieValue(cookieValue)
+  if (!session) return null
+  const payload = session._payload
+  const now = nowSeconds()
+  if (now - payload.la < REFRESH_AFTER_SECONDS) return null
+  const encodedPayload = toBase64Url(JSON.stringify({ ...payload, la: now }))
+  const signature = await hmacHex(encodedPayload, getSecret())
+  const maxAge = Math.max(0, payload.iat + APPLICANT_MAX_SECONDS - now)
+  return { value: `${encodedPayload}.${signature}`, maxAge }
 }

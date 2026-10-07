@@ -4,6 +4,7 @@ import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { checkLock } from '@/app/lib/applicantLocks'
 import { RELEASABLE_STATUSES, buildResultDraft, sendResultEmail } from '@/app/lib/resultNotices'
 import { resultsVisible } from '@/app/lib/resultVisibility'
+import { serverError } from '@/app/lib/safeError'
 
 // Sept 30 2026, item 5 ("Real-time Result Notifications"): an admin releases
 // an applicant's result. One applicant at a time, on purpose: there is no
@@ -50,7 +51,7 @@ export async function GET(request) {
     if (!id) return NextResponse.json({ error: 'Missing application id.' }, { status: 400 })
 
     const { data: app, error } = await loadApplication(id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/admin-result-release')
     if (!app) return NextResponse.json({ error: 'Application not found.' }, { status: 404 })
 
     if (!RELEASABLE_STATUSES.has(app.scholar_status)) {
@@ -82,7 +83,7 @@ export async function GET(request) {
         : null,
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-result-release')
   }
 }
 
@@ -109,7 +110,7 @@ export async function POST(request) {
     }
 
     const { data: app, error: loadError } = await loadApplication(id)
-    if (loadError) return NextResponse.json({ error: loadError.message }, { status: 500 })
+    if (loadError) return serverError(loadError, 'api/admin-result-release')
     if (!app) return NextResponse.json({ error: 'Application not found.' }, { status: 404 })
 
     if (!RELEASABLE_STATUSES.has(app.scholar_status)) {
@@ -146,7 +147,7 @@ export async function POST(request) {
         target_category: null,
       },
     ])
-    if (postError) return NextResponse.json({ error: postError.message }, { status: 500 })
+    if (postError) return serverError(postError, 'api/admin-result-release')
 
     // 2. Email, only for applicants who opted in.
     let emailSent = false
@@ -197,6 +198,6 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, emailSent, emailNote })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-result-release')
   }
 }

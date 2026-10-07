@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ADMIN_COOKIE_NAME, LIMITED_ROLES, verifyAnyAdminCookie } from '@/app/lib/adminAuth'
 import { getAdminAccount, effectiveRole, accessRefusal } from '@/app/lib/adminAccounts'
+import { serverError } from '@/app/lib/safeError'
 
 // Who is signed in. Oct 5 2026: also answers for the Office of the
 // Registrar and LGU (view only) sessions, with their `role`, so /admin can
@@ -20,7 +21,7 @@ export async function GET(request) {
     try {
       account = await getAdminAccount(session.email)
     } catch (err) {
-      return NextResponse.json({ loggedIn: false, error: err.message }, { status: 500 })
+      return serverError(err, 'api/admin-session', { loggedIn: false })
     }
     if (!account || effectiveRole(account) !== session.role) {
       return NextResponse.json({ loggedIn: false }, { status: 401 })

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
+import { serverError } from '@/app/lib/safeError'
 
 // GET /api/extracted-fields?file=<file_path>
 //
@@ -38,7 +39,7 @@ export async function GET(request) {
       .maybeSingle()
 
     if (docError) {
-      return NextResponse.json({ error: docError.message }, { status: 500 })
+      return serverError(docError, 'api/extracted-fields')
     }
     if (!doc || !FORM_AUTOFILL_TYPES.includes(doc.document_type)) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -54,7 +55,7 @@ export async function GET(request) {
       .eq('file_path', filePath)
 
     if (fieldsError) {
-      return NextResponse.json({ error: fieldsError.message }, { status: 500 })
+      return serverError(fieldsError, 'api/extracted-fields')
     }
 
     const fields = {}
@@ -65,6 +66,6 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, status: doc.review_status, documentType: doc.document_type, fields })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/extracted-fields')
   }
 }

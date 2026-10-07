@@ -3,6 +3,7 @@ import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { checkLock } from '@/app/lib/applicantLocks'
 import { deriveScholarStatus, SCHOLAR_STATUS_VALUES, DISTRIBUTION_STATUS_VALUES, bsedGradeBelow, eligibleProgramsForScore, reachedFirstChoice } from '@/app/lib/matching'
+import { serverError } from '@/app/lib/safeError'
 
 // Applicant Information & Results Module -- admin-facing read + the three
 // admin actions the Roles PDF describes for it: Exam Score Entry and
@@ -41,12 +42,12 @@ export async function GET(request) {
       .order('updated_at', { ascending: false })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverError(error, 'api/admin-results')
     }
 
     return NextResponse.json({ success: true, applications: data || [] })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-results')
   }
 }
 
@@ -131,7 +132,7 @@ export async function PATCH(request) {
           admitted_program_set_at: null,
         })
         .eq('id', id)
-      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+      if (updateError) return serverError(updateError, 'api/admin-results')
 
       try {
         await supabase.from('audit_log').insert([
@@ -242,7 +243,7 @@ export async function PATCH(request) {
           scholar_status_set_at: now,
         })
         .eq('id', id)
-      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+      if (updateError) return serverError(updateError, 'api/admin-results')
 
       try {
         await supabase.from('audit_log').insert([
@@ -272,7 +273,7 @@ export async function PATCH(request) {
           distribution_status_updated_at: now,
         })
         .eq('id', id)
-      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+      if (updateError) return serverError(updateError, 'api/admin-results')
 
       try {
         await supabase.from('audit_log').insert([
@@ -291,6 +292,6 @@ export async function PATCH(request) {
 
     return NextResponse.json({ error: 'Unknown field.' }, { status: 400 })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-results')
   }
 }

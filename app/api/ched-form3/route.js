@@ -3,6 +3,7 @@ import { supabase } from '@/app/supabaseClient'
 import { requireConsoleRole } from '@/app/lib/adminRoles'
 import { confirmOwnPassword, DATE_RE, formatAccessDate } from '@/app/lib/adminAccounts'
 import { buildForm3Rows } from '@/app/lib/chedForm3'
+import { serverError } from '@/app/lib/safeError'
 
 // Oct 5 2026: CHED Form 3 export (Progress Table row 79). Admins and Super
 // Admins can preview and download it; only a Super Admin can release a
@@ -39,7 +40,7 @@ export async function GET(request) {
         .select('id, reference_number, form_date, rows, row_count, released_by, released_at, withdrawn_at')
         .eq('id', reportId)
         .maybeSingle()
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      if (error) return serverError(error, 'api/ched-form3')
       if (!report) return NextResponse.json({ error: 'Report not found.' }, { status: 404 })
       return NextResponse.json({ success: true, report })
     }
@@ -49,7 +50,7 @@ export async function GET(request) {
       .from('lgu_reports')
       .select('id, reference_number, form_date, row_count, released_by, released_at, withdrawn_at, withdrawn_by, download_count')
       .order('released_at', { ascending: false })
-    if (relError) return NextResponse.json({ error: relError.message }, { status: 500 })
+    if (relError) return serverError(relError, 'api/ched-form3')
 
     return NextResponse.json({
       success: true,
@@ -60,7 +61,7 @@ export async function GET(request) {
       released: released || [],
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/ched-form3')
   }
 }
 
@@ -106,7 +107,7 @@ export async function POST(request) {
         .is('withdrawn_at', null)
         .select('id, reference_number, row_count')
         .maybeSingle()
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      if (error) return serverError(error, 'api/ched-form3')
       if (!report) return NextResponse.json({ error: 'That report was already withdrawn.' }, { status: 404 })
       await logAudit(session.name, `Withdrew CHED Form 3 ${report.reference_number} from the LGU`, 'warn')
       return NextResponse.json({ success: true })
@@ -135,7 +136,7 @@ export async function POST(request) {
       ])
       .select('id, reference_number, form_date, row_count, released_by, released_at, withdrawn_at, download_count')
       .single()
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/ched-form3')
 
     await logAudit(
       session.name,
@@ -144,6 +145,6 @@ export async function POST(request) {
     )
     return NextResponse.json({ success: true, report })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/ched-form3')
   }
 }

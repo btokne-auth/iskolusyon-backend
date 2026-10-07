@@ -103,8 +103,9 @@ function ChangePasswordForm() {
         setError(data.error || 'Could not save your password.')
         return
       }
-      router.push('/admin')
-      router.refresh()
+      // Oct 7 2026: the password is saved and a sign-in code was emailed.
+      // The login page opens straight at the code step.
+      router.push('/admin/login?step=code')
     } catch (err) {
       setError(err.message)
     } finally {

@@ -4,6 +4,7 @@ import { requireConsoleRole } from '@/app/lib/adminRoles'
 import { DATE_RE, manilaToday, formatAccessDate } from '@/app/lib/adminAccounts'
 import { sendResultEmail } from '@/app/lib/resultNotices'
 import { resultsVisible } from '@/app/lib/resultVisibility'
+import { serverError } from '@/app/lib/safeError'
 
 // Oct 5 2026: Allowance Distribution (Progress Table row 78), Office of the
 // Registrar only. Behavior follows Ivy's admin.html Registrar panel (Student
@@ -42,7 +43,7 @@ export async function GET(request) {
         'id, applicant_user_id, applicant_name, application_number, program_choice_1, admitted_program, scholar_status, eligibility_status, eligibility_override, result_notified_at'
       )
       .is('archived_at', null)
-    if (appsError) return NextResponse.json({ error: appsError.message }, { status: 500 })
+    if (appsError) return serverError(appsError, 'api/registrar-allowance')
 
     // Dashboard counts: the same six cards the Admin Dashboard shows,
     // view-only for the Registrar.
@@ -82,7 +83,7 @@ export async function GET(request) {
       .is('removed_at', null)
       .order('distribution_date', { ascending: false })
       .order('posted_at', { ascending: false })
-    if (postsError) return NextResponse.json({ error: postsError.message }, { status: 500 })
+    if (postsError) return serverError(postsError, 'api/registrar-allowance')
 
     const visiblePosts = (posts || [])
       .filter((p) => appById.has(p.application_id))
@@ -105,7 +106,7 @@ export async function GET(request) {
       scholarsWithoutPost: scholars.filter((s) => !postedIds.has(s.id)).length,
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/registrar-allowance')
   }
 }
 
@@ -136,7 +137,7 @@ export async function POST(request) {
       .select('id, applicant_name, first_name, applicant_email, application_number, scholar_status, email_updates_opt_in, result_notified_at, archived_at')
       .eq('id', applicationId)
       .maybeSingle()
-    if (appError) return NextResponse.json({ error: appError.message }, { status: 500 })
+    if (appError) return serverError(appError, 'api/registrar-allowance')
     if (!app || app.archived_at) return NextResponse.json({ error: 'That scholar could not be found.' }, { status: 404 })
     if (!SCHOLAR_STATUSES.includes(app.scholar_status)) {
       return NextResponse.json({ error: 'Only Passer and Qualified (Probationary) scholars can receive an allowance.' }, { status: 400 })
@@ -159,7 +160,7 @@ export async function POST(request) {
       ])
       .select('id, application_id, distribution_date, allowance_type, description, posted_by, posted_at')
       .single()
-    if (postError) return NextResponse.json({ error: postError.message }, { status: 500 })
+    if (postError) return serverError(postError, 'api/registrar-allowance')
 
     // Tell the scholar: a private portal message always, an email only if
     // they opted in to email updates.
@@ -214,7 +215,7 @@ export async function POST(request) {
       emailOptIn: !!app.email_updates_opt_in,
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/registrar-allowance')
   }
 }
 
@@ -234,7 +235,7 @@ export async function DELETE(request) {
       .is('removed_at', null)
       .select('id, application_id, distribution_date, allowance_type, description')
       .maybeSingle()
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/registrar-allowance')
     if (!post) return NextResponse.json({ error: 'That post was already removed.' }, { status: 404 })
 
     const { data: app } = await supabase
@@ -251,6 +252,6 @@ export async function DELETE(request) {
     )
     return NextResponse.json({ success: true })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/registrar-allowance')
   }
 }

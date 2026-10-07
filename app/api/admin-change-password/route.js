@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
-import {
-  ADMIN_COOKIE_NAME,
-  ADMIN_PWCHANGE_COOKIE_NAME,
-  createAdminCookieValue,
-  verifyPasswordChangeCookie,
-} from '@/app/lib/adminAuth'
+import { ADMIN_PWCHANGE_COOKIE_NAME, verifyPasswordChangeCookie } from '@/app/lib/adminAuth'
+import { startCodeStep } from '@/app/lib/adminSignIn'
 import { setOwnPasswordFromTemp } from '@/app/lib/adminAccounts'
+import { serverError } from '@/app/lib/safeError'
 
 // First sign-in on a temporary password (Sept 29, 2026). Only works with
 // the short-lived cookie /api/admin-login sets for a temporary password;
@@ -22,8 +19,8 @@ export async function GET(request) {
   return NextResponse.json({ success: true, name: pending.name, email: pending.email })
 }
 
-// POST { newPassword }: saves the admin's own password, then signs them in
-// to the console for real.
+// POST { newPassword }: saves the admin's own password, then emails the
+// sign-in code (Oct 7 2026; see below).
 export async function POST(request) {
   try {
     const pending = await verifyPasswordChangeCookie(request.cookies.get(ADMIN_PWCHANGE_COOKIE_NAME)?.value)
@@ -54,23 +51,14 @@ export async function POST(request) {
       return res
     }
 
-    const { value, maxAge } = await createAdminCookieValue(
-      result.account.name,
-      result.account.isSuperAdmin,
-      result.account.email,
-      result.account.role
-    )
-    const res = NextResponse.json({ success: true })
-    res.cookies.set(ADMIN_COOKIE_NAME, value, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge,
-    })
+    // Oct 7 2026: no direct sign-in any more. The new password is saved,
+    // then the same emailed code as every sign-in is required (manuscript
+    // Ch. 3, MFA). This also means a Super Admin who saw the temporary
+    // password can't finish the first sign-in for someone else.
+    const res = await startCodeStep({ name: result.account.name, email: result.account.email }, { passwordSaved: true })
     res.cookies.set(ADMIN_PWCHANGE_COOKIE_NAME, '', { path: '/', maxAge: 0 })
     return res
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-change-password')
   }
 }

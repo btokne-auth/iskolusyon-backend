@@ -13,10 +13,56 @@ import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/app
 import { wakeOcrWorker } from '@/app/lib/ocrWorker'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { getSystemSettings } from '@/app/lib/systemSettings'
+import { serverError } from '@/app/lib/safeError'
+import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
 
 // ---------- Validation limits ----------
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
+
+// ---------- File content check (Oct 7 2026) ----------
+// Manuscript Ch. 3, File Upload Security Testing: "validates file type, file
+// size, and file content ... rejection of disguised executable files ... and
+// path traversal through manipulated filenames".
+// Before this, the type check trusted the type the BROWSER claimed, so a
+// program renamed to "birthcert.png" (and sent as image/png) passed. Now the
+// first bytes of the file itself must be a real PDF, PNG or JPEG, and must
+// match the claimed type. PDFs that carry scripts, launch actions or hidden
+// attached files are refused too (a scanned document never needs those).
+const CANONICAL_TYPE = { 'image/jpg': 'image/jpeg' }
+const EXTENSION_FOR = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg' }
+
+function detectFileType(buffer) {
+  if (buffer.length >= 5 && buffer.subarray(0, 5).toString('latin1') === '%PDF-') return 'application/pdf'
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47 &&
+    buffer[4] === 0x0d && buffer[5] === 0x0a && buffer[6] === 0x1a && buffer[7] === 0x0a
+  ) return 'image/png'
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg'
+  return null
+}
+
+const RISKY_PDF_PARTS = /\/(JavaScript|JS|Launch|EmbeddedFile|RichMedia|XFA)\b/
+
+// Keeps only letters, numbers, dot, dash and underscore, drops any folder
+// parts ("../../x" can't climb out of the bucket), shortens long names and
+// always ends with the extension of the REAL file type ("cv.pdf.exe" that is
+// really a PDF is saved as "cv.pdf_exe.pdf").
+function safeStorageName(originalName, realType) {
+  const base = String(originalName || 'document')
+    .split(/[\\/]/)
+    .pop()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\.[A-Za-z0-9]{1,5}$/, '')
+    .replace(/[^\w.\-]+/g, '_')
+    .replace(/\.+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^[_\-]+|[_\-]+$/g, '')
+    .slice(0, 60) || 'document'
+  return `${base}.${EXTENSION_FOR[realType]}`
+}
 
 // ---------- Image-quality precheck ----------
 // Runs BEFORE OCR, on raw image uploads only (JPG/PNG straight from a phone
@@ -115,7 +161,18 @@ export async function POST(request) {
       console.error('Failed to read system settings (allowing upload):', settingsErr)
     }
 
-    const formData = await request.formData()
+    // Oct 7 2026: refuse an oversized upload before reading it (an 11MB
+    // request used to end in a server error instead of a clear message).
+    const declaredLength = Number(request.headers.get('content-length') || 0)
+    if (declaredLength > MAX_FILE_SIZE + 512 * 1024) {
+      return NextResponse.json({ error: 'File is too large. Maximum size is 10MB.' }, { status: 413 })
+    }
+    let formData
+    try {
+      formData = await request.formData()
+    } catch {
+      return NextResponse.json({ error: 'The upload could not be read. The file may be too large or damaged.' }, { status: 400 })
+    }
     const file = formData.get('file')
 
     // applicant_name/applicant_email stay as the display/fallback identity
@@ -139,6 +196,10 @@ export async function POST(request) {
     }
     const applicantUserId = applicantSession.id
     applicantEmail = applicantSession.email
+    // Oct 7 2026: at most 30 uploads per applicant in 10 minutes.
+    const limited = await limitRequest(`upload:user:${applicantUserId}`, 30, 10 * MINUTE,
+      'You uploaded many files in a short time. Please wait a few minutes and try again.')
+    if (limited) return limited
     // Oct 5 2026: an archived application is read-only.
     if (await isApplicantArchived(applicantUserId)) {
       return NextResponse.json({ error: ARCHIVED_MESSAGE, archived: true }, { status: 403 })
@@ -182,13 +243,48 @@ export async function POST(request) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
+    // Oct 7 2026: check the real size and the real content, not just what
+    // the browser says.
+    if (buffer.length === 0 || buffer.length > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: 'File is empty or larger than 10MB.' }, { status: 400 })
+    }
+    const claimedType = CANONICAL_TYPE[file.type] || file.type
+    const realType = detectFileType(buffer)
+    if (!realType || realType !== claimedType) {
+      try {
+        await supabase.from('audit_log').insert([{
+          actor: applicantName || applicantEmail || 'Applicant',
+          action: `Upload refused: file content is not a real ${claimedType === 'application/pdf' ? 'PDF' : 'JPG/PNG'} (${documentType || 'document'})`,
+          kind: 'warn',
+          category: 'Documents',
+        }])
+      } catch (auditErr) {
+        console.error('Audit log insert failed (non-blocking):', auditErr)
+      }
+      return NextResponse.json(
+        { error: 'This file is not a real PDF, JPG or PNG (its contents do not match its type). Please upload the original scan or photo.' },
+        { status: 400 }
+      )
+    }
+    if (realType === 'application/pdf' && RISKY_PDF_PARTS.test(buffer.toString('latin1'))) {
+      return NextResponse.json(
+        { error: 'This PDF contains scripts or attached files, which are not allowed. Please upload a plain scanned PDF or a photo.' },
+        { status: 400 }
+      )
+    }
+
     // Image-quality precheck — images only (see checkImageQuality above for
     // why PDFs are excluded). Runs before hashing/storage/OCR: an obviously
     // unusable photo is rejected outright rather than stored as a flagged
     // record, so the applicant fixes it at the point of capture instead of
     // it becoming something an admin has to triage later.
-    if (file.type.startsWith('image/')) {
-      const quality = await checkImageQuality(buffer, documentType)
+    if (realType.startsWith('image/')) {
+      let quality
+      try {
+        quality = await checkImageQuality(buffer, documentType)
+      } catch {
+        return NextResponse.json({ error: 'This image could not be opened. It may be damaged. Please upload it again.' }, { status: 400 })
+      }
       if (!quality.passed) {
         return NextResponse.json(
           { success: false, rejected: true, reason: quality.reason, message: quality.message },
@@ -202,24 +298,21 @@ export async function POST(request) {
     hashSum.update(buffer)
     const fileHash = hashSum.digest('hex')
 
-    // Define unique file name for the storage bucket
-    const safeName = file.name
-    .normalize('NFKD')                 // splits accented chars from their marks
-    .replace(/[̀-ͯ]/g, '')   // strips the accent marks
-    .replace(/[^\w.\-]+/g, '_')        // anything not a letter/number/./- becomes _
-    .replace(/_+/g, '_')               // collapse repeated underscores
+    // Define unique file name for the storage bucket (Oct 7 2026: see
+    // safeStorageName above).
+    const safeName = safeStorageName(file.name, realType)
     const fileName = `${Date.now()}-${safeName}`
 
     // Upload directly to your Supabase bucket using the service role client
     const { data, error } = await supabase.storage
       .from('scholarship-documents')
       .upload(fileName, buffer, {
-        contentType: file.type,
+        contentType: realType,
         upsert: false
       })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverError(error, 'api/upload')
     }
 
     // Sept 25, 2026: OCR (orientation + deskew + Tesseract) is what was
@@ -252,7 +345,7 @@ export async function POST(request) {
       ])
 
     if (dbError) {
-      return NextResponse.json({ error: dbError.message }, { status: 500 })
+      return serverError(dbError, 'api/upload')
     }
 
     // profilepic has nothing async left to do, so its audit-log entry can
@@ -278,7 +371,7 @@ export async function POST(request) {
       .createSignedUrl(fileName, 3600)
 
     if (signError) {
-      return NextResponse.json({ error: signError.message }, { status: 500 })
+      return serverError(signError, 'api/upload')
     }
 
     // Sept 2026: OCR no longer runs on Vercel. It kept hitting the 60s Hobby
@@ -318,7 +411,7 @@ export async function POST(request) {
     })
 
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/upload')
   }
 }
 
@@ -369,7 +462,9 @@ export async function GET(request) {
       // Sept 30 2026: the name fallback only picks up older rows that were
       // never linked to any account, so a different applicant who happens
       // to share the name never shows up here.
-      const ownName = ownApplication?.applicant_name?.trim().replace(/"/g, '')
+      // Oct 7 2026: also drops % _ * and backslash, which ilike would treat
+      // as wildcards (a name like "%" would otherwise match every old row).
+      const ownName = ownApplication?.applicant_name?.trim().replace(/["\\%_*]/g, '')
       query = ownName
         ? query.or(`applicant_user_id.eq.${applicantSession.id},and(applicant_user_id.is.null,applicant_name.ilike."${ownName}")`)
         : query.eq('applicant_user_id', applicantSession.id)
@@ -383,7 +478,7 @@ export async function GET(request) {
     const { data: docs, error: dbError } = await query.order('created_at', { ascending: false })
 
     if (dbError) {
-      return NextResponse.json({ error: dbError.message }, { status: 500 })
+      return serverError(dbError, 'api/upload')
     }
 
     // Oct 5 2026: in the admin console, archived applicants' documents are
@@ -408,6 +503,6 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, documents: docsWithUrls })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/upload')
   }
 }

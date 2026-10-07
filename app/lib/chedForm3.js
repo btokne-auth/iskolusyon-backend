@@ -17,6 +17,7 @@
 // are left out.
 
 import { supabase } from '@/app/supabaseClient'
+import { decryptText } from '@/app/lib/fieldCrypto'
 
 export const ADMISSION_FEE = 200
 
@@ -95,7 +96,7 @@ export async function buildForm3Rows() {
       program: clean(app.admitted_program || app.program_choice_1),
       yearLevel: 'New',
       email: clean(app.applicant_email),
-      phone: clean(app.contact_number),
+      phone: clean(decryptText(app.contact_number)), // Oct 7 2026: stored encrypted
       fee: ADMISSION_FEE,
       remarks: remarkFor(app),
     })

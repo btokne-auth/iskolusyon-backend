@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
+import { serverError } from '@/app/lib/safeError'
 
 // Manual "Super Admin" override on a single document's review status.
 // Scoped ONLY to this project's own document/verification records (the
@@ -51,7 +52,7 @@ export async function PATCH(request, { params }) {
       .eq('file_path', id)
 
     if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+      return serverError(updateError, 'api/documents/[id]/override')
     }
 
     // Best-effort audit trail — same non-blocking pattern as
@@ -73,6 +74,6 @@ export async function PATCH(request, { params }) {
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/documents/[id]/override')
   }
 }

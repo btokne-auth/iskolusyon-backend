@@ -4,6 +4,8 @@ import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { EDITABLE_FIELDS, PRIVATE_LOG_FIELDS, cleanValue } from '@/app/lib/profileEditRules'
 import { computeEligibility } from '@/app/lib/matching'
 import { checkLock } from '@/app/lib/applicantLocks'
+import { serverError } from '@/app/lib/safeError'
+import { encryptApplicationFields, decryptApplicationFields, ENCRYPTED_FIELDS } from '@/app/lib/fieldCrypto'
 
 // Full per-applicant profile read, for the Dashboard applicant modal's
 // General Information grid + tabbed "Submitted Documents & Profile Data"
@@ -33,15 +35,15 @@ export async function GET(request) {
     const { data, error } = await supabase.from('applications').select('*').eq('id', id).maybeSingle()
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverError(error, 'api/admin-applicant-detail')
     }
     if (!data) {
       return NextResponse.json({ error: 'Applicant not found.' }, { status: 404 })
     }
 
-    return NextResponse.json({ success: true, application: data })
+    return NextResponse.json({ success: true, application: decryptApplicationFields(data) })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-applicant-detail')
   }
 }
 
@@ -82,9 +84,11 @@ export async function PATCH(request) {
       updates[key] = cleaned.value
     }
 
-    const { data: current, error: loadError } = await supabase.from('applications').select('*').eq('id', id).maybeSingle()
-    if (loadError) return NextResponse.json({ error: loadError.message }, { status: 500 })
-    if (!current) return NextResponse.json({ error: 'Applicant not found.' }, { status: 404 })
+    const { data: currentRaw, error: loadError } = await supabase.from('applications').select('*').eq('id', id).maybeSingle()
+    if (loadError) return serverError(loadError, 'api/admin-applicant-detail')
+    if (!currentRaw) return NextResponse.json({ error: 'Applicant not found.' }, { status: 404 })
+    // Oct 7 2026: compare and log against the unlocked values.
+    const current = decryptApplicationFields(currentRaw)
 
     // Keep only real changes.
     const same = (a, b) => (a === null || a === undefined || a === '' ? null : String(a)) === (b === null || b === undefined || b === '' ? null : String(b))
@@ -113,8 +117,8 @@ export async function PATCH(request) {
     patch.eligibility_reasons = reasons
     patch.updated_at = new Date().toISOString()
 
-    const { data: saved, error: saveError } = await supabase.from('applications').update(patch).eq('id', id).select().single()
-    if (saveError) return NextResponse.json({ error: saveError.message }, { status: 500 })
+    const { data: saved, error: saveError } = await supabase.from('applications').update(encryptApplicationFields(patch)).eq('id', id).select().single()
+    if (saveError) return serverError(saveError, 'api/admin-applicant-detail')
 
     const labels = changed.map((key) => EDITABLE_FIELDS.get(key))
     const short = (v) => {
@@ -147,7 +151,7 @@ export async function PATCH(request) {
     try {
       const details = changed
         .map((key) =>
-          PRIVATE_LOG_FIELDS.has(key)
+          PRIVATE_LOG_FIELDS.has(key) || ENCRYPTED_FIELDS.includes(key)
             ? `${EDITABLE_FIELDS.get(key)} changed`
             : `${EDITABLE_FIELDS.get(key)}: "${short(current[key])}" -> "${short(updates[key])}"`
         )
@@ -164,8 +168,8 @@ export async function PATCH(request) {
       console.error('Audit log insert failed (non-blocking):', auditErr)
     }
 
-    return NextResponse.json({ success: true, changed: labels, application: saved || { ...current, ...patch } })
+    return NextResponse.json({ success: true, changed: labels, application: saved ? decryptApplicationFields(saved) : { ...current, ...patch } })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-applicant-detail')
   }
 }

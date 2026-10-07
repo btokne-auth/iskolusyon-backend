@@ -17,6 +17,7 @@ import {
   ROLE_LABELS,
 } from '@/app/lib/adminAccounts'
 import { sendAdminTempPasswordEmail } from '@/app/lib/adminEmails'
+import { serverError } from '@/app/lib/safeError'
 
 // Admin Accounts panel (Super Admins only).
 //
@@ -92,7 +93,7 @@ export async function GET(request) {
     const accounts = (await listAdminAccounts()).map(withRole)
     return NextResponse.json({ success: true, accounts })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-accounts')
   }
 }
 
@@ -153,7 +154,7 @@ export async function POST(request) {
       tempPassword: mail.error ? result.tempPassword : undefined,
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-accounts')
   }
 }
 
@@ -224,7 +225,7 @@ export async function PATCH(request) {
       tempPassword: mail.error ? result.tempPassword : undefined,
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-accounts')
   }
 }
 
@@ -251,7 +252,7 @@ export async function DELETE(request) {
       .select('name, email, is_super_admin, role')
       .eq('email', email)
       .maybeSingle()
-    if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 })
+    if (lookupError) return serverError(lookupError, 'api/admin-accounts')
     if (!target) return NextResponse.json({ error: 'That admin account no longer exists.' }, { status: 404 })
 
     if (target.is_super_admin) {
@@ -283,6 +284,6 @@ export async function DELETE(request) {
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-accounts')
   }
 }

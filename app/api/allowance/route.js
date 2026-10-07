@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
+import { serverError } from '@/app/lib/safeError'
 
 // Oct 5 2026: the signed-in applicant's own allowance distributions, for the
 // portal's Allowance page (Progress Table row 78). Read-only. Removed posts
@@ -17,7 +18,7 @@ export async function GET(request) {
       .eq('applicant_user_id', session.id)
       .order('updated_at', { ascending: false })
       .limit(1)
-    if (appError) return NextResponse.json({ error: appError.message }, { status: 500 })
+    if (appError) return serverError(appError, 'api/allowance')
     const app = rows && rows[0]
     if (!app) return NextResponse.json({ success: true, isScholar: false, posts: [] })
 
@@ -28,7 +29,7 @@ export async function GET(request) {
       .is('removed_at', null)
       .order('distribution_date', { ascending: false })
       .order('posted_at', { ascending: false })
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/allowance')
 
     return NextResponse.json({
       success: true,
@@ -36,6 +37,6 @@ export async function GET(request) {
       posts: posts || [],
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/allowance')
   }
 }

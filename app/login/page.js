@@ -47,6 +47,7 @@ function LoginPageInner() {
   return (
     <ApplicantAuth
       initialMode={initialMode}
+      expired={searchParams.get('expired') === '1'}
       onAuthenticated={() => router.push('/portal')}
     />
   )

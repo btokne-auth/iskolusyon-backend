@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { requireConsoleRole } from '@/app/lib/adminRoles'
+import { serverError } from '@/app/lib/safeError'
 
 // Oct 5 2026: the LGU (view only) account's only data route (Progress Table
 // row 79). It lists reports CCC released to the LGU and returns one report's
@@ -24,7 +25,7 @@ export async function GET(request) {
         .eq('id', id)
         .is('withdrawn_at', null)
         .maybeSingle()
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      if (error) return serverError(error, 'api/lgu-reports')
       if (!report) return NextResponse.json({ error: 'This report is no longer available.' }, { status: 404 })
 
       await supabase
@@ -51,7 +52,7 @@ export async function GET(request) {
       .select('id, reference_number, form_date, row_count, released_at')
       .is('withdrawn_at', null)
       .order('released_at', { ascending: false })
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/lgu-reports')
 
     return NextResponse.json({
       success: true,
@@ -60,6 +61,6 @@ export async function GET(request) {
       accessUntil: session.account.access_until || null,
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/lgu-reports')
   }
 }

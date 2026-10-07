@@ -883,12 +883,8 @@ function useApplicantLocks() {
 function releaseApplicantLock(applicationId) {
   if (!applicationId) return
   const body = JSON.stringify({ id: applicationId, action: 'release' })
-  try {
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon('/api/admin-applicant-lock', new Blob([body], { type: 'application/json' }))
-      return
-    }
-  } catch {}
+  // Oct 7 2026: sendBeacon can't carry the anti-CSRF header, so this uses a
+  // keepalive fetch, which also finishes after the tab closes.
   fetch('/api/admin-applicant-lock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {})
 }
 

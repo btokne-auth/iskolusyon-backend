@@ -9,6 +9,7 @@
 // sending, and it still needs the client's approval before real use.
 
 import { Resend } from 'resend'
+import { safeErrorText } from '@/app/lib/safeError'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 const EMAIL_FROM = process.env.RESEND_FROM_EMAIL || 'Iskolusyon <noreply@iskolusyon.dev>'
@@ -97,6 +98,6 @@ export async function sendScheduleEmails(addresses, { subject, message }) {
     }
     return { sent: addresses.length, failed: 0 }
   } catch (err) {
-    return { sent: 0, failed: addresses.length, error: err.message }
+    return { sent: 0, failed: addresses.length, error: safeErrorText(err, 'examSchedules email') }
   }
 }

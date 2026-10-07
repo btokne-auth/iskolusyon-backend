@@ -17,6 +17,7 @@
 //
 // Fails OPEN on purpose: if the table is missing or Supabase hiccups, a
 // real person must still be able to sign in. The failure is logged.
+import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 
 export const MINUTE = 60 * 1000
@@ -84,4 +85,22 @@ export function waitMessage(retryAfterSec) {
   return retryAfterSec > 60
     ? `Too many attempts. Please try again in about ${minutes} minutes.`
     : `Too many attempts. Please try again in ${retryAfterSec} seconds.`
+}
+
+// Oct 7 2026 (manuscript Ch. 3, Authentication and Brute-Force Testing):
+// per-person limits on the busy write routes, not only on sign-in.
+// Counts EVERY request (not just failures) in the same table under its own
+// bucket name. Returns a ready 429 reply when over the limit, else null.
+// Fails open like checkLimit(), so a database hiccup never blocks real use.
+
+export async function limitRequest(bucket, max, windowMs, message) {
+  const check = await checkLimit(bucket, max, windowMs)
+  if (check.blocked) {
+    return NextResponse.json(
+      { error: message || waitMessage(check.retryAfterSec), rateLimited: true },
+      { status: 429, headers: { 'Retry-After': String(check.retryAfterSec) } }
+    )
+  }
+  await recordAttempt(bucket)
+  return null
 }

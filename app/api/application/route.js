@@ -7,6 +7,9 @@ import { computeEligibility, needsShsMathScienceGrade } from '@/app/lib/matching
 import { getSystemSettings, submitBlockedReason } from '@/app/lib/systemSettings'
 import { resultsVisible, applicantSafeRow } from '@/app/lib/resultVisibility'
 import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
+import { serverError } from '@/app/lib/safeError'
+import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
+import { encryptApplicationFields, decryptApplicationFields } from '@/app/lib/fieldCrypto'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -26,6 +29,16 @@ const EMAIL_FROM = process.env.RESEND_FROM_EMAIL || 'Iskolusyon <noreply@iskolus
 // Sends a simple confirmation email when an application is submitted.
 // Fire-and-log only — a failed email should never block the submission
 // itself from succeeding.
+// Oct 7 2026 (Input Validation / XSS): the name is typed by the applicant,
+// so it is escaped before going into the email's HTML.
+function escapeHtml(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 async function sendSubmissionEmail(applicantName, applicantEmail) {
   if (!applicantEmail) return
 
@@ -35,7 +48,7 @@ async function sendSubmissionEmail(applicantName, applicantEmail) {
       to: applicantEmail,
       subject: 'Your Iskolusyon application has been submitted',
       html: `
-        <p>Hi ${applicantName},</p>
+        <p>Hi ${escapeHtml(applicantName)},</p>
         <p>We've received your scholarship application. Our team will review your
         submitted documents and get back to you with any updates.</p>
         <p>City College of Calamba, Iskolusyon Scholarship System</p>
@@ -76,7 +89,8 @@ async function findApplicationRows({ userId, email, name }) {
   async function addMatches(builder) {
     const { data, error } = await builder
     if (error) throw new Error(error.message)
-    for (const row of data || []) rowsById.set(row.id, row)
+    // Oct 7 2026: unlock the encrypted fields (app/lib/fieldCrypto.js).
+    for (const row of data || []) rowsById.set(row.id, decryptApplicationFields(row))
   }
 
   if (userId) {
@@ -349,7 +363,7 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, application, submitBlocked })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/application')
   }
 }
 
@@ -382,6 +396,12 @@ export async function POST(request) {
     if (await isApplicantArchived(session.id)) {
       return NextResponse.json({ error: ARCHIVED_MESSAGE, archived: true }, { status: 403 })
     }
+
+    // Oct 7 2026: at most 60 saves/submits per applicant in 10 minutes
+    // (real use is a few per section).
+    const limited = await limitRequest(`application-save:user:${session.id}`, 60, 10 * MINUTE,
+      'You are saving very quickly. Please wait a minute and try again.')
+    if (limited) return limited
 
     const body = await request.json()
     const applicantName = (body.applicantName || '').trim()
@@ -436,7 +456,7 @@ export async function POST(request) {
     try {
       profileLocked = (await findOwnRows(session)).some((r) => r.status === 'submitted')
     } catch (lockErr) {
-      return NextResponse.json({ error: lockErr.message }, { status: 500 })
+      return serverError(lockErr, 'api/application')
     }
     if (profileLocked && action === 'submit-section' && PROFILE_LOCKED_SECTIONS.includes(section)) {
       return NextResponse.json({ error: PROFILE_LOCKED_MESSAGE, locked: true }, { status: 409 })
@@ -500,7 +520,7 @@ export async function POST(request) {
       const rows = await findOwnRows(session)
       existing = rows[0] || null
     } catch (findError) {
-      return NextResponse.json({ error: findError.message }, { status: 500 })
+      return serverError(findError, 'api/application')
     }
 
     const now = new Date().toISOString()
@@ -548,20 +568,20 @@ export async function POST(request) {
 
       const { data, error } = await supabase
         .from('applications')
-        .update(updates)
+        .update(encryptApplicationFields(updates))
         .eq('id', existing.id)
         .select()
         .single()
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return serverError(error, 'api/application')
       }
 
       if (action === 'submit') {
         await sendSubmissionEmail(applicantName, data.applicant_email)
       }
 
-      return NextResponse.json({ success: true, application: applicantSafeRow(data, await resultsVisible()) })
+      return NextResponse.json({ success: true, application: applicantSafeRow(decryptApplicationFields(data), await resultsVisible()) })
     }
 
     // No existing row — create one.
@@ -598,7 +618,7 @@ export async function POST(request) {
 
     let { data, error } = await supabase
       .from('applications')
-      .insert([insertPayload])
+      .insert([encryptApplicationFields(insertPayload)])
       .select()
       .single()
 
@@ -620,7 +640,7 @@ export async function POST(request) {
         .maybeSingle()
 
       if (raceFindError || !raceExisting) {
-        return NextResponse.json({ error: raceFindError?.message || 'Save failed after a duplicate-name conflict' }, { status: 500 })
+        return serverError(raceFindError || new Error('Save failed after a duplicate-name conflict'), 'application')
       }
       // Sept 30 2026: the name belongs to someone else's application. Never
       // write over it; the applicant has to sort it out with the office.
@@ -663,7 +683,7 @@ export async function POST(request) {
 
       const retried = await supabase
         .from('applications')
-        .update(updates)
+        .update(encryptApplicationFields(updates))
         .eq('id', raceExisting.id)
         .select()
         .single()
@@ -672,16 +692,16 @@ export async function POST(request) {
     }
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverError(error, 'api/application')
     }
 
     if (action === 'submit') {
       await sendSubmissionEmail(applicantName, data.applicant_email)
     }
 
-    return NextResponse.json({ success: true, application: applicantSafeRow(data, await resultsVisible()) })
+    return NextResponse.json({ success: true, application: applicantSafeRow(decryptApplicationFields(data), await resultsVisible()) })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/application')
   }
 }
 
