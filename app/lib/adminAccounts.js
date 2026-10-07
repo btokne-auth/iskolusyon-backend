@@ -223,7 +223,7 @@ export async function inviteAdminAccount({ name, email, isSuperAdmin, role, acce
     .select('email')
     .eq('email', normalizedEmail)
     .maybeSingle()
-  if (lookupError) return { error: lookupError.message }
+  if (lookupError) return { error: safeErrorText(lookupError, 'adminAccounts') }
   if (existing) return { error: 'An admin account with that email already exists.' }
 
   const tempPassword = generateTempPassword()
@@ -289,7 +289,7 @@ export async function setOwnPasswordFromTemp(email, newPassword) {
     .select('name, email, password_hash, is_super_admin, role, access_from, access_until, must_change_password, temp_password_expires_at')
     .eq('email', normalizedEmail)
     .maybeSingle()
-  if (lookupError) return { error: lookupError.message }
+  if (lookupError) return { error: safeErrorText(lookupError, 'adminAccounts') }
   if (!account) return { error: 'That admin account no longer exists.' }
   if (!account.must_change_password) return { error: 'This account already has its own password. Please sign in.' }
   if (account.temp_password_expires_at && new Date(account.temp_password_expires_at).getTime() < Date.now()) {

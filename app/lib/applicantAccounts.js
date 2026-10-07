@@ -107,7 +107,7 @@ export async function startSignup(email, password) {
     .eq('email', normalizedEmail)
     .maybeSingle()
 
-  if (findError) return { error: findError.message }
+  if (findError) return { error: safeErrorText(findError, 'applicantAccounts') }
 
   if (existing && existing.email_verified) {
     return { error: 'An account with this email already exists. Try logging in instead.' }
@@ -123,7 +123,7 @@ export async function startSignup(email, password) {
       .from('applicant_accounts')
       .update({ password_hash: passwordHash })
       .eq('id', existing.id)
-    if (updateError) return { error: updateError.message }
+    if (updateError) return { error: safeErrorText(updateError, 'applicantAccounts') }
     return { accountId: existing.id }
   }
 
@@ -145,7 +145,12 @@ export async function saveSignupProgress(accountId, { academicInfo, personalInfo
   if (personalInfo !== undefined) updates.pending_personal_info = personalInfo
   if (Object.keys(updates).length === 0) return { success: true }
 
-  const { error } = await supabase.from('applicant_accounts').update(updates).eq('id', accountId)
+  // Oct 7 2026: only an account still in signup can be changed this way.
+  const { error } = await supabase
+    .from('applicant_accounts')
+    .update(updates)
+    .eq('id', accountId)
+    .eq('email_verified', false)
   if (error) return { error: safeErrorText(error, 'applicantAccounts') }
   return { success: true }
 }
@@ -154,7 +159,25 @@ export async function saveSignupProgress(accountId, { academicInfo, personalInfo
 // Fire-and-report — an email failure is surfaced to the caller (unlike the
 // submission-confirmation email elsewhere, verification is on the critical
 // path so the applicant needs to know if it didn't send).
-export async function sendVerificationCode(accountId, email) {
+//
+// Oct 7 2026 security fix (found while testing Ch. 3 Authentication): the
+// code used to go to whatever email the browser sent, so someone could
+// start a signup with another person's address, ask for the code to be sent
+// to their OWN inbox, and end up with a "verified" account under an email
+// they don't own. The code now always goes to the email saved on the
+// account at step 1, and only for an account that isn't verified yet. The
+// second argument is ignored and kept only so older callers don't break.
+export async function sendVerificationCode(accountId, _ignoredEmail) { // eslint-disable-line no-unused-vars
+  const { data: pendingAccount, error: pendingError } = await supabase
+    .from('applicant_accounts')
+    .select('id, email, email_verified')
+    .eq('id', accountId)
+    .maybeSingle()
+  if (pendingError) return { error: safeErrorText(pendingError, 'applicantAccounts') }
+  if (!pendingAccount) return { error: 'Account not found. Please start signup again.' }
+  if (pendingAccount.email_verified) return { error: 'This account is already verified. Please log in.' }
+  const email = pendingAccount.email
+
   const code = generateOtp()
   const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000).toISOString()
 
@@ -163,7 +186,7 @@ export async function sendVerificationCode(accountId, email) {
     .update({ otp_hash: hashOtp(code), otp_expires_at: expiresAt, otp_attempts: 0 })
     .eq('id', accountId)
 
-  if (dbError) return { error: dbError.message }
+  if (dbError) return { error: safeErrorText(dbError, 'applicantAccounts') }
 
   try {
     await resend.emails.send({
@@ -201,7 +224,7 @@ export async function verifySignupCode(accountId, code) {
     .eq('id', accountId)
     .maybeSingle()
 
-  if (findError) return { error: findError.message }
+  if (findError) return { error: safeErrorText(findError, 'applicantAccounts') }
   if (!account) return { error: 'Account not found. Please start signup again.' }
   if (account.email_verified) return { error: 'This account is already verified. Please log in.' }
   if (!account.otp_hash || !account.otp_expires_at) {
@@ -234,7 +257,7 @@ export async function verifySignupCode(accountId, code) {
     })
     .eq('id', accountId)
 
-  if (activateError) return { error: activateError.message }
+  if (activateError) return { error: safeErrorText(activateError, 'applicantAccounts') }
 
   // Build the applicant display name from staged Personal Information, if
   // they filled it in during step 3.
@@ -325,7 +348,7 @@ export async function requestPasswordReset(email) {
     .eq('email', normalizedEmail)
     .maybeSingle()
 
-  if (findError) return { error: findError.message }
+  if (findError) return { error: safeErrorText(findError, 'applicantAccounts') }
 
   if (!account) {
     // No account — still report success so this endpoint can't be used to
@@ -344,7 +367,7 @@ export async function requestPasswordReset(email) {
     .update({ otp_hash: hashOtp(code), otp_expires_at: expiresAt, otp_attempts: 0 })
     .eq('id', account.id)
 
-  if (dbError) return { error: dbError.message }
+  if (dbError) return { error: safeErrorText(dbError, 'applicantAccounts') }
 
   try {
     await resend.emails.send({
@@ -387,7 +410,7 @@ export async function resetPasswordWithCode(email, code, newPassword) {
     .eq('email', normalizedEmail)
     .maybeSingle()
 
-  if (findError) return { error: findError.message }
+  if (findError) return { error: safeErrorText(findError, 'applicantAccounts') }
   if (!account) return { error: 'Could not find that account. Please request a new reset code.' }
   if (!account.otp_hash || !account.otp_expires_at) {
     return { error: 'No reset code was sent yet. Request one first.' }
@@ -417,7 +440,7 @@ export async function resetPasswordWithCode(email, code, newPassword) {
     })
     .eq('id', account.id)
 
-  if (updateError) return { error: updateError.message }
+  if (updateError) return { error: safeErrorText(updateError, 'applicantAccounts') }
   return { success: true }
 }
 
@@ -451,7 +474,7 @@ export async function sendLoginCode(accountId, email) {
     .update({ otp_hash: hashOtp(code), otp_expires_at: expiresAt, otp_attempts: 0 })
     .eq('id', accountId)
 
-  if (dbError) return { error: dbError.message }
+  if (dbError) return { error: safeErrorText(dbError, 'applicantAccounts') }
 
   try {
     await resend.emails.send({
@@ -486,7 +509,7 @@ export async function verifyLoginCode(accountId, code) {
     .eq('id', accountId)
     .maybeSingle()
 
-  if (findError) return { error: findError.message }
+  if (findError) return { error: safeErrorText(findError, 'applicantAccounts') }
   if (!account) return { error: 'Account not found. Please log in again.' }
   if (!account.otp_hash || !account.otp_expires_at) {
     return { error: 'No login code was sent yet. Please log in again.' }
@@ -511,7 +534,7 @@ export async function verifyLoginCode(accountId, code) {
     .update({ otp_hash: null, otp_expires_at: null, otp_attempts: 0 })
     .eq('id', accountId)
 
-  if (clearError) return { error: clearError.message }
+  if (clearError) return { error: safeErrorText(clearError, 'applicantAccounts') }
   return { success: true, account }
 }
 

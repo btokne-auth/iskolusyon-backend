@@ -8,6 +8,7 @@ import { getSystemSettings, submitBlockedReason } from '@/app/lib/systemSettings
 import { resultsVisible, applicantSafeRow } from '@/app/lib/resultVisibility'
 import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
 import { serverError } from '@/app/lib/safeError'
+import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -27,6 +28,16 @@ const EMAIL_FROM = process.env.RESEND_FROM_EMAIL || 'Iskolusyon <noreply@iskolus
 // Sends a simple confirmation email when an application is submitted.
 // Fire-and-log only — a failed email should never block the submission
 // itself from succeeding.
+// Oct 7 2026 (Input Validation / XSS): the name is typed by the applicant,
+// so it is escaped before going into the email's HTML.
+function escapeHtml(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 async function sendSubmissionEmail(applicantName, applicantEmail) {
   if (!applicantEmail) return
 
@@ -36,7 +47,7 @@ async function sendSubmissionEmail(applicantName, applicantEmail) {
       to: applicantEmail,
       subject: 'Your Iskolusyon application has been submitted',
       html: `
-        <p>Hi ${applicantName},</p>
+        <p>Hi ${escapeHtml(applicantName)},</p>
         <p>We've received your scholarship application. Our team will review your
         submitted documents and get back to you with any updates.</p>
         <p>City College of Calamba, Iskolusyon Scholarship System</p>
@@ -383,6 +394,12 @@ export async function POST(request) {
     if (await isApplicantArchived(session.id)) {
       return NextResponse.json({ error: ARCHIVED_MESSAGE, archived: true }, { status: 403 })
     }
+
+    // Oct 7 2026: at most 60 saves/submits per applicant in 10 minutes
+    // (real use is a few per section).
+    const limited = await limitRequest(`application-save:user:${session.id}`, 60, 10 * MINUTE,
+      'You are saving very quickly. Please wait a minute and try again.')
+    if (limited) return limited
 
     const body = await request.json()
     const applicantName = (body.applicantName || '').trim()

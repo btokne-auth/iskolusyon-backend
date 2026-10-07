@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { wakeOcrWorker } from '@/app/lib/ocrWorker'
+import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
 
 // Waking a sleeping worker can take up to about a minute.
 export const maxDuration = 60
@@ -23,6 +24,10 @@ export async function POST(request) {
   try {
     const session = await verifyApplicantCookieValue(request.cookies.get(APPLICANT_COOKIE_NAME)?.value)
     if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
+    // Oct 7 2026: also at most 10 wake-ups per applicant in 10 minutes
+    // (the 20-second gap below is per server, and Vercel runs many).
+    const limited = await limitRequest(`ocr-wake:user:${session.id}`, 10, 10 * MINUTE)
+    if (limited) return limited
 
     const { data: waiting, error } = await supabase
       .from('documents')
@@ -31,7 +36,7 @@ export async function POST(request) {
       .eq('review_status', 'processing')
       .limit(1)
     if (error) {
-      console.error('ocr-wake: could not check documents:', error.message)
+      console.error('ocr-wake: could not check documents:', error)
       return NextResponse.json({ error: 'Could not check your documents.' }, { status: 500 })
     }
     if (!waiting || waiting.length === 0) return NextResponse.json({ success: true, woke: false, reason: 'nothing waiting' })

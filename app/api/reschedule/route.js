@@ -3,6 +3,7 @@ import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
 import { supabase } from '@/app/supabaseClient'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { serverError } from '@/app/lib/safeError'
+import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
 
 // Appeals & Rescheduling request endpoint (Notifications Module).
 //
@@ -76,7 +77,7 @@ export async function GET(request) {
     // never linked to any account (same rule as /api/upload's GET).
     let query = supabase.from('reschedule_requests').select('*')
     query = ownName
-      ? query.or(`applicant_user_id.eq.${applicantSession.id},and(applicant_user_id.is.null,applicant_name.ilike."${ownName.replace(/"/g, '')}")`)
+      ? query.or(`applicant_user_id.eq.${applicantSession.id},and(applicant_user_id.is.null,applicant_name.ilike."${ownName.replace(/["\\%_*]/g, '')}")`)
       : query.eq('applicant_user_id', applicantSession.id)
 
     const { data, error } = await query.order('created_at', { ascending: false })
@@ -102,7 +103,8 @@ export async function POST(request) {
     const applicantName = (body.applicantName || '').trim()
     const applicantEmail = (body.applicantEmail || '').trim()
     const requestType = (body.requestType || '').trim()
-    const details = (body.details || '').trim()
+    // Oct 7 2026: capped at 2,000 characters (Input Validation).
+    const details = (body.details || '').trim().slice(0, 2000)
 
     if (!applicantName) {
       return NextResponse.json({ error: 'Missing applicant name' }, { status: 400 })
@@ -126,6 +128,20 @@ export async function POST(request) {
     if (await isApplicantArchived(applicantSession.id)) {
       return NextResponse.json({ error: ARCHIVED_MESSAGE, archived: true }, { status: 403 })
     }
+    // Oct 7 2026: at most 10 requests per applicant per hour.
+    const limited = await limitRequest(`reschedule:user:${applicantSession.id}`, 10, 60 * MINUTE,
+      'You sent many requests in a short time. Please wait before sending another.')
+    if (limited) return limited
+    // Oct 7 2026: the name shown to admins comes from the applicant's own
+    // application when there is one, not from what the browser sends.
+    const { data: ownRow } = await supabase
+      .from('applications')
+      .select('applicant_name')
+      .eq('applicant_user_id', applicantSession.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const verifiedName = ownRow?.applicant_name?.trim() || applicantName
 
     // Oct 1 2026: attach this applicant's newest Supporting Document that was
     // uploaded after their previous request and isn't attached to one yet
@@ -167,7 +183,7 @@ export async function POST(request) {
     }
 
     const row = {
-      applicant_name: applicantName,
+      applicant_name: verifiedName,
       applicant_email: applicantSession.email || applicantEmail || null,
       applicant_user_id: applicantSession.id,
       request_type: requestType,
