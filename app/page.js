@@ -6,7 +6,7 @@ import WelcomeNavbar, { WELCOME_NAV_LINKS as NAV_LINKS } from './components/Welc
 import WelcomeFooter from './components/WelcomeFooter'
 import PortalMock, { Check, PHASE_TICKS, STORY_TICKS, TICK_MS, phaseOf } from './landing/PortalMock'
 import { CONTACT_OFFICES, FAQ_DATA, PROGRAM_DEPARTMENTS, QUALIFICATIONS, REQ_TABS, STEPS, STEP_GUIDES, STORY } from './landing/landingData'
-import { BSED_MIN_SHS_GRADE, PROGRAM_PASSING_GRADES } from './lib/matching'
+import { BSED_MIN_SHS_GRADE } from './lib/matching'
 
 // ---------- Public guest welcome page ----------
 // Oct 8 2026 redesign. Same sections, wording and links as the Sept 23
@@ -15,7 +15,7 @@ import { BSED_MIN_SHS_GRADE, PROGRAM_PASSING_GRADES } from './lib/matching'
 //  - hero with an animated portal preview (sample applicant) and counting stats
 //  - How to Apply: six steps with the guide always open next to a small
 //    preview of that step
-//  - Before You Apply: programs with Appendix J passing scores, an
+//  - Before You Apply: programs grouped by department, an
 //    "Am I eligible?" check and a document checklist (nothing is saved)
 //  - FAQ grouped by topic with search highlighting
 //  - Contact cards with an open/closed status from each office's own hours
@@ -33,6 +33,7 @@ const ICON = {
   copy: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>,
   bulb: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 18h6M10 22h4" /><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z" /></svg>,
   bell: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" /></svg>,
+  megaphone: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></svg>,
   up: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6" /></svg>,
 }
 const STEP_ICONS = [
@@ -163,6 +164,39 @@ function Hero({ paused, onTogglePause, onHowTo }) {
 }
 
 // ---------- announcements ----------
+function formatDate(iso) {
+  if (!iso) return ''
+  try {
+    return new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(iso))
+  } catch {
+    return ''
+  }
+}
+function isNew(iso) {
+  if (!iso) return false
+  const t = new Date(iso).getTime()
+  return Number.isFinite(t) && Date.now() - t < 7 * 24 * 3600 * 1000
+}
+function AnnCard({ item, featured }) {
+  const [open, setOpen] = useState(false)
+  const text = item.body || item.message || ''
+  const long = text.length > (featured ? 260 : 140)
+  return (
+    <article className={`ann-card${featured ? ' featured' : ''}${open ? ' open' : ''}`}>
+      <div className="ann-top">
+        <span className="ann-ico" aria-hidden="true">{ICON.megaphone}</span>
+        <span className="ann-meta">
+          {featured && <b className="ann-latest">Latest</b>}
+          {isNew(item.created_at) && !featured && <b className="ann-new">New</b>}
+          {formatDate(item.created_at) && <time dateTime={item.created_at}>{formatDate(item.created_at)}</time>}
+        </span>
+      </div>
+      <h3>{item.title}</h3>
+      <p>{text}</p>
+      {long && <button type="button" className="ann-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? 'Show less' : 'Read more'}</button>}
+    </article>
+  )
+}
 function Announcements({ items }) {
   const [page, setPage] = useState(0)
   const per = 3
@@ -171,26 +205,25 @@ function Announcements({ items }) {
     : [{ id: 'empty', title: 'No announcements yet', body: 'Official announcements such as qualifications, steps, and exam schedules will appear here once they are posted.' }]
   const pages = Math.max(1, Math.ceil(list.length / per))
   const cur = Math.min(page, pages - 1)
+  const slice = list.slice(cur * per, cur * per + per)
   return (
-    <section id="announcement">
+    <section className="annsec" id="announcement">
       <div className="wrap ann">
         <div className="ann-head">
-          <h2 className="ann-title">Announcements</h2>
+          <div className="shead">
+            <span className="eyebrow"><i className="live" aria-hidden="true" />Announcements</span>
+            <h2 className="h2">News from the scholarship office</h2>
+          </div>
           {pages > 1 && (
             <div className="ann-nav">
-              <span>{cur + 1} / {pages}</span>
+              <span className="ann-dots" aria-hidden="true">{Array.from({ length: pages }, (_, k) => <i key={k} className={k === cur ? 'on' : ''} />)}</span>
               <button type="button" className="arr" aria-label="Previous announcements" onClick={() => setPage((cur - 1 + pages) % pages)}>{ICON.left}</button>
               <button type="button" className="arr" aria-label="Next announcements" onClick={() => setPage((cur + 1) % pages)}>{ICON.right}</button>
             </div>
           )}
         </div>
-        <div className="ann-grid">
-          {list.slice(cur * per, cur * per + per).map((s) => (
-            <article className="ann-card lift" key={s.id}>
-              <h3>{s.title}</h3>
-              <p>{s.body || s.message}</p>
-            </article>
-          ))}
+        <div className={`ann-grid n${slice.length}`} key={cur}>
+          {slice.map((it, k) => <AnnCard key={it.id} item={it} featured={k === 0 && it.id !== 'empty'} />)}
         </div>
       </div>
     </section>
@@ -206,7 +239,8 @@ function HowToApply({ paused }) {
   const end = step === 5 ? STORY_TICKS : (step + 1) * PHASE_TICKS
   const tick = useTicker(paused, [start, end])
   const guide = STEP_GUIDES[step]
-  const pick = (i) => { setStep(i); setGroup(0); setTipOpen(false) }
+  const [celebrate, setCelebrate] = useState(0)
+  const pick = (i) => { setStep(i); setGroup(0); setTipOpen(false); if (i === 5) setCelebrate((c) => c + 1) }
   useEffect(() => {
     if (!tipOpen) return undefined
     const close = () => setTipOpen(false)
@@ -223,6 +257,7 @@ function HowToApply({ paused }) {
         </div>
         <div className="track" style={{ '--p': step / 5 }}>
           <span className="rail" /><span className="beam" />
+          {step === 5 && <Celebrate key={`c${celebrate}`} />}
           {STEPS.map((s, i) => {
             const isDone = i < step
             const isNow = i === step
@@ -292,20 +327,25 @@ function HowToApply({ paused }) {
 }
 
 // ---------- before you apply ----------
-const BSED_PREFIX = 'Bachelor of Secondary Education Major in '
-function scoreLabel(programs) {
-  const scores = programs.map((p) => PROGRAM_PASSING_GRADES[p]).filter((s) => typeof s === 'number')
-  if (!scores.length) return null
-  const lo = Math.min(...scores)
-  const hi = Math.max(...scores)
-  return lo === hi ? `${lo}%` : `${lo}–${hi}%`
+const CONFETTI = Array.from({ length: 34 }, (_, i) => {
+  const a = (i / 34) * Math.PI * 2 + (i % 3) * 0.2
+  const d = 120 + ((i * 37) % 160)
+  return { x: Math.round(Math.cos(a) * d * 1.7), y: Math.round(Math.sin(a) * d - 70), r: (i * 47) % 360, c: ['#C8A84B', '#FFD400', '#2E9D5B', '#5B8CFF', '#ffffff', '#E07B39'][i % 6], round: i % 2 === 0, delay: (i % 5) * 0.03 }
+})
+function Celebrate() {
+  return (
+    <div className="burst" aria-hidden="true">
+      <span className="burst-msg">Congratulations, scholar!</span>
+      <span className="boom">{CONFETTI.map((p, i) => <i key={i} className={p.round ? 'round' : ''} style={{ '--x': `${p.x}px`, '--y': `${p.y}px`, '--r': `${p.r}deg`, background: p.c, animationDelay: `${p.delay}s` }} />)}</span>
+    </div>
+  )
 }
-function ProgramRow({ name, programs, children }) {
-  const score = scoreLabel(programs)
+
+const BSED_PREFIX = 'Bachelor of Secondary Education Major in '
+function ProgramRow({ name, children }) {
   return (
     <div className="prog">
       <div className="pinfo"><span className="pname">{name}</span>{children}</div>
-      {score && <span className="pscore"><b>{score}</b>passing score</span>}
     </div>
   )
 }
@@ -313,7 +353,7 @@ function ProgramRow({ name, programs, children }) {
 function Programs() {
   return (
     <div className="pane">
-      <div className="pane-head"><h3>Programs Offered</h3><span className="aypill">A.Y. 2027&ndash;2028</span></div>
+      <div className="pane-head"><h3>Programs Offered</h3></div>
       <div className="depts">
         {PROGRAM_DEPARTMENTS.map((d) => {
           const bsed = d.programs.filter((p) => p.startsWith(BSED_PREFIX))
@@ -326,9 +366,9 @@ function Programs() {
                 <span className="dcount">{n} program{n > 1 ? 's' : ''}{bsed.length ? ` · ${bsed.length} BSEd majors` : ''}</span>
               </div>
               <div>
-                {others.map((p) => <ProgramRow key={p} name={p} programs={[p]} />)}
+                {others.map((p) => <ProgramRow key={p} name={p} />)}
                 {bsed.length > 0 && (
-                  <ProgramRow name="Bachelor of Secondary Education" programs={bsed}>
+                  <ProgramRow name="Bachelor of Secondary Education">
                     <span className="majors">
                       {bsed.map((p) => {
                         const major = p.slice(BSED_PREFIX.length)
@@ -344,7 +384,6 @@ function Programs() {
           )
         })}
       </div>
-      <p className="pfoot">Passing scores are the entrance exam cutoffs for each program. If your score is below your first choice&rsquo;s, the office may consider you for another program your score qualifies for.</p>
     </div>
   )
 }

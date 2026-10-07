@@ -3,8 +3,8 @@
 //  - STEP_GUIDES 2-6 were rewritten to match how the system actually works
 //    (portal menu names, document statuses, 10 MB limit, onsite exam, real
 //    result labels). Step 1 is unchanged.
-//  - Passing scores come from PROGRAM_PASSING_GRADES in app/lib/matching.js
-//    (Appendix J), so the page and the matching engine always agree.
+//  - Transferee units: 26, as in Appendix J p. 94 and app/lib/matching.js
+//    (the old page said 28, which did not match CCC's guidelines).
 // **double asterisks** mark bold words; <Rich> in page.js renders them.
 
 export const STEPS = [
@@ -210,7 +210,7 @@ export const REQ_TABS = [
     ],
     "transfereeRules": [
       "The applicant does not have a failing grade in any semester from their previous school/s.",
-      "The applicants have passed at least 28 academic units with a general weighted average of 2.25 or better for all collegiate academic units they have taken.",
+      "The applicants have passed at least 26 academic units with a general weighted average of 2.25 or better for all collegiate academic units they have taken.",
       "The applicant will have to complete not less than 50% of the remaining units in his/her program at the college.",
       "The Program Director has the prerogative regarding the admission of transferees with exceptional cases, i.e., the same will be dealt with on a case-to-case basis, grades of 5.0, dropped, and INC."
     ],
