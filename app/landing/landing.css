@@ -107,6 +107,7 @@
 .lp .passed { align-items: center; justify-content: center; gap: 12px; padding-top: 10px; text-align: center; }
 .lp .bigok { width: 64px; height: 64px; border-radius: 50%; background: var(--green); color: #fff; display: flex; align-items: center; justify-content: center; animation: lp-pop .6s cubic-bezier(.3,1.6,.5,1), lp-ripple 1.8s ease-out .6s infinite; }
 .lp .passed strong { font-family: var(--mont); font-size: 22px; font-weight: 900; color: var(--navy); }
+.lp .passed .bigok { color: #fff; max-width: none; }
 .lp .passed span { font-size: 13px; color: var(--muted); max-width: 320px; line-height: 1.55; }
 
 /* email notifications (hero) */
@@ -132,7 +133,7 @@
 .lp .ann-dots i.on { width: 24px; background: var(--navy); }
 .lp .ann-grid { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); grid-auto-rows: auto; gap: 18px; animation: lp-in .45s cubic-bezier(.2,.7,.2,1); }
 .lp .ann-grid.n1 { grid-template-columns: 1fr; }
-.lp .ann-grid.n3 .featured { grid-row: span 2; }
+.lp .ann-grid.n1 .featured { min-height: 220px; }
 .lp .ann-card { position: relative; border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px; display: flex; flex-direction: column; gap: 10px; background: #fff; min-width: 0; overflow: hidden; transition: transform .25s, box-shadow .25s, border-color .25s; }
 .lp .ann-card::before { content: ''; position: absolute; left: 0; top: 0; height: 4px; width: 100%; background: linear-gradient(90deg, var(--gold), var(--yellow)); transform: scaleX(0); transform-origin: left; transition: transform .35s; }
 .lp .ann-card:hover { transform: translateY(-4px); box-shadow: 0 18px 40px rgba(13,47,110,.12); border-color: #C9D6F2; }
@@ -148,13 +149,29 @@
 .lp .ann-card.open p { -webkit-line-clamp: unset; display: block; }
 .lp .ann-more { all: unset; cursor: pointer; align-self: flex-start; font-family: var(--mont); font-size: 12.5px; font-weight: 700; color: var(--blue); }
 .lp .ann-more:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-.lp .ann-card.featured { background: radial-gradient(600px 300px at 100% 0%, rgba(255,212,0,.16), transparent 60%), linear-gradient(150deg, #0D2F6E 0%, #003CD0 100%); border: none; color: #fff; padding: 30px 32px; gap: 14px; justify-content: flex-start; }
+.lp .ann-card.featured { min-height: 300px; justify-content: space-between; background: radial-gradient(600px 300px at 100% 0%, rgba(255,212,0,.16), transparent 60%), linear-gradient(150deg, #0D2F6E 0%, #003CD0 100%); border: none; color: #fff; padding: 30px 32px; gap: 14px; justify-content: flex-start; }
 .lp .ann-card.featured::after { content: ''; position: absolute; right: -60px; bottom: -60px; width: 200px; height: 200px; border-radius: 50%; border: 26px solid rgba(255,255,255,.07); pointer-events: none; }
 .lp .ann-card.featured .ann-ico { background: rgba(255,255,255,.14); color: #FFD400; width: 52px; height: 52px; animation: lp-wiggle 3s ease-in-out infinite; }
 .lp .ann-card.featured .ann-meta { color: rgba(255,255,255,.75); }
 .lp .ann-card.featured h3 { color: #fff; font-size: 24px; }
 .lp .ann-card.featured p { color: rgba(255,255,255,.85); font-size: 15.5px; -webkit-line-clamp: 6; }
 .lp .ann-card.featured .ann-more { color: #FFD400; }
+.lp .ann-card.featured::before { display: none; }
+.lp .ann-card.featured .ann-sheen { position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.09) 45%, transparent 60%); background-size: 250% 100%; animation: lp-sheen 6s ease-in-out infinite; pointer-events: none; }
+.lp .ann-card.featured .ann-big { position: absolute; right: 26px; bottom: 22px; color: rgba(255,255,255,.08); animation: lp-float 5s ease-in-out infinite; pointer-events: none; }
+.lp .ann-body { display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 1; }
+.lp .ann-foot { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: rgba(255,255,255,.75); padding-top: 14px; border-top: 1px solid rgba(255,255,255,.14); }
+.lp .ann-foot .avatar { width: 30px; height: 30px; font-size: 10px; background: #FFD400; color: #0D2F6E; }
+.lp .ann-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.lp .ann-card.small { padding: 18px 20px; gap: 8px; flex: 1; }
+.lp .ann-card.small .ann-top { justify-content: flex-start; gap: 12px; }
+.lp .ann-card.small .ann-ico { width: 36px; height: 36px; border-radius: 10px; }
+.lp .ann-card.small h3 { font-size: 15.5px; margin: 0; }
+.lp .ann-card.small .ann-meta { margin-left: auto; }
+.lp .ann-ago { font-size: 12px; color: var(--muted); }
+.lp .ann-count { font-size: 12.5px; color: var(--muted); }
+@keyframes lp-sheen { 0%, 100% { background-position: 120% 0; } 50% { background-position: -20% 0; } }
+@keyframes lp-float { 0%, 100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-10px) rotate(-4deg); } }
 .lp .arr { all: unset; cursor: pointer; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); background: #fff; color: var(--navy); transition: background .2s; }
 .lp .arr:hover { background: var(--navy); color: #fff; }
 .lp .arr:focus-visible { outline: 2px solid var(--blue); }
@@ -162,10 +179,14 @@
 
 /* step 6 celebration */
 .lp .burst { position: absolute; left: 91.6%; top: 46px; z-index: 6; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
-.lp .burst-msg { position: absolute; bottom: 70px; left: 50%; transform: translateX(-60%); white-space: nowrap; font-family: var(--mont); font-weight: 900; font-size: 14px; color: #0D2F6E; background: #FFD400; padding: 9px 18px; border-radius: 99px; box-shadow: 0 12px 30px rgba(255,212,0,.4); animation: lp-msg 2.8s cubic-bezier(.3,1.4,.5,1) both; }
+.lp .burst-msg { position: absolute; bottom: 70px; left: 50%; transform: translateX(-60%); white-space: nowrap; font-family: var(--mont); font-weight: 900; font-size: 14px; color: #0D2F6E; background: #FFD400; padding: 9px 18px; border-radius: 99px; box-shadow: 0 12px 30px rgba(255,212,0,.4); animation: lp-msg 3.6s cubic-bezier(.3,1.4,.5,1) both; }
 .lp .boom { position: relative; width: 0; height: 0; }
-.lp .boom i { position: absolute; left: 0; top: 0; width: 6px; height: 12px; border-radius: 2px; animation: lp-boom 1.7s cubic-bezier(.1,.7,.3,1) both; }
-.lp .boom i.round { width: 9px; height: 9px; border-radius: 50%; }
+.lp .boom i { position: absolute; left: 0; top: 0; width: 7px; height: 14px; border-radius: 2px; animation: lp-boom 2.4s cubic-bezier(.1,.7,.3,1) both; }
+.lp .rain { position: absolute; inset: -120px 0 -40px; pointer-events: none; overflow: hidden; z-index: 6; }
+.lp .rain i { position: absolute; top: -20px; width: 8px; height: 14px; border-radius: 2px; animation: lp-rain 3.2s cubic-bezier(.3,.1,.6,1) both; }
+.lp .rain i.round { width: 9px; height: 9px; border-radius: 50%; }
+@keyframes lp-rain { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 85% { opacity: 1; } 100% { transform: translate(var(--dx), 620px) rotate(var(--r)); opacity: 0; } }
+.lp .boom i.round { width: 10px; height: 10px; border-radius: 50%; }
 @keyframes lp-boom { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 75% { opacity: 1; } 100% { transform: translate(var(--x), calc(var(--y) + 60px)) rotate(var(--r)); opacity: 0; } }
 @keyframes lp-msg { 0% { opacity: 0; transform: translate(-60%, 10px) scale(.6); } 15% { opacity: 1; transform: translate(-60%, 0) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-60%, -6px); } }
 
@@ -420,7 +441,7 @@
 .lp.stopped *, .lp.stopped *::before, .lp.stopped *::after { animation-play-state: paused !important; }
 @media (prefers-reduced-motion: reduce) {
   .lp .blob, .lp .shine::after, .lp .rise, .lp .hl::after, .lp .ring2.now::before, .lp .ring2.now::after, .lp .ring2.now svg.ic, .lp .gbulb, .lp .bell.ringing, .lp .bigok { animation: none !important; }
-  .lp .boom, .lp .eyebrow .live { display: none; }
+  .lp .eyebrow .live { display: none; }
   .lp .ann-card.featured .ann-ico { animation: none; }
 }
 

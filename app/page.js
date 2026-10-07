@@ -34,6 +34,7 @@ const ICON = {
   bulb: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 18h6M10 22h4" /><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z" /></svg>,
   bell: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" /></svg>,
   megaphone: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></svg>,
+  megaphoneBig: <svg width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 11 18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" /></svg>,
   up: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6" /></svg>,
 }
 const STEP_ICONS = [
@@ -172,6 +173,16 @@ function formatDate(iso) {
     return ''
   }
 }
+function timeAgo(iso) {
+  const t = new Date(iso).getTime()
+  if (!Number.isFinite(t)) return ''
+  const days = Math.floor((Date.now() - t) / 864e5)
+  if (days <= 0) return 'Posted today'
+  if (days === 1) return 'Posted yesterday'
+  if (days < 30) return `Posted ${days} days ago`
+  const months = Math.floor(days / 30)
+  return `Posted ${months} month${months > 1 ? 's' : ''} ago`
+}
 function isNew(iso) {
   if (!iso) return false
   const t = new Date(iso).getTime()
@@ -180,16 +191,31 @@ function isNew(iso) {
 function AnnCard({ item, featured }) {
   const [open, setOpen] = useState(false)
   const text = item.body || item.message || ''
-  const long = text.length > (featured ? 260 : 140)
+  const long = text.length > (featured ? 260 : 120)
+  const date = formatDate(item.created_at)
+  if (featured) {
+    return (
+      <article className={`ann-card featured${open ? ' open' : ''}`}>
+        <span className="ann-sheen" aria-hidden="true" />
+        <span className="ann-big" aria-hidden="true">{ICON.megaphoneBig}</span>
+        <div className="ann-body">
+          <div className="ann-top">
+            <span className="ann-ico" aria-hidden="true">{ICON.megaphone}</span>
+            <span className="ann-meta"><b className="ann-latest">Latest</b>{date && <time dateTime={item.created_at}>{date}</time>}</span>
+          </div>
+          <h3>{item.title}</h3>
+          <p>{text}</p>
+          {long && <button type="button" className="ann-more" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? 'Show less' : 'Read more'}</button>}
+        </div>
+        <div className="ann-foot"><span className="avatar" aria-hidden="true">CCC</span><span>City College of Calamba{item.created_at ? ` · ${timeAgo(item.created_at)}` : ''}</span></div>
+      </article>
+    )
+  }
   return (
-    <article className={`ann-card${featured ? ' featured' : ''}${open ? ' open' : ''}`}>
+    <article className={`ann-card small${open ? ' open' : ''}`}>
       <div className="ann-top">
         <span className="ann-ico" aria-hidden="true">{ICON.megaphone}</span>
-        <span className="ann-meta">
-          {featured && <b className="ann-latest">Latest</b>}
-          {isNew(item.created_at) && !featured && <b className="ann-new">New</b>}
-          {formatDate(item.created_at) && <time dateTime={item.created_at}>{formatDate(item.created_at)}</time>}
-        </span>
+        <span className="ann-meta">{isNew(item.created_at) && <b className="ann-new">New</b>}{date && <time dateTime={item.created_at}>{date}</time>}</span>
       </div>
       <h3>{item.title}</h3>
       <p>{text}</p>
@@ -212,7 +238,7 @@ function Announcements({ items }) {
         <div className="ann-head">
           <div className="shead">
             <span className="eyebrow"><i className="live" aria-hidden="true" />Announcements</span>
-            <h2 className="h2">News from the scholarship office</h2>
+            <h2 className="h2">Latest updates for applicants</h2>
           </div>
           {pages > 1 && (
             <div className="ann-nav">
@@ -223,8 +249,10 @@ function Announcements({ items }) {
           )}
         </div>
         <div className={`ann-grid n${slice.length}`} key={cur}>
-          {slice.map((it, k) => <AnnCard key={it.id} item={it} featured={k === 0 && it.id !== 'empty'} />)}
+          <AnnCard item={slice[0]} featured={slice[0].id !== 'empty'} />
+          {slice.length > 1 && <div className="ann-side">{slice.slice(1).map((it) => <AnnCard key={it.id} item={it} />)}</div>}
         </div>
+        {items.length > 0 && <span className="ann-count">Showing {cur * per + 1}&ndash;{cur * per + slice.length} of {list.length} announcements</span>}
       </div>
     </section>
   )
@@ -258,6 +286,7 @@ function HowToApply({ paused }) {
         <div className="track" style={{ '--p': step / 5 }}>
           <span className="rail" /><span className="beam" />
           {step === 5 && <Celebrate key={`c${celebrate}`} />}
+          {step === 5 && <Rain key={`r${celebrate}`} />}
           {STEPS.map((s, i) => {
             const isDone = i < step
             const isNow = i === step
@@ -332,6 +361,14 @@ const CONFETTI = Array.from({ length: 34 }, (_, i) => {
   const d = 120 + ((i * 37) % 160)
   return { x: Math.round(Math.cos(a) * d * 1.7), y: Math.round(Math.sin(a) * d - 70), r: (i * 47) % 360, c: ['#C8A84B', '#FFD400', '#2E9D5B', '#5B8CFF', '#ffffff', '#E07B39'][i % 6], round: i % 2 === 0, delay: (i % 5) * 0.03 }
 })
+const RAIN = Array.from({ length: 70 }, (_, i) => ({ left: (i * 37) % 100, dx: ((i * 53) % 120) - 60, r: (i * 71) % 720, c: ['#C8A84B', '#FFD400', '#2E9D5B', '#5B8CFF', '#ffffff', '#E07B39'][i % 6], round: i % 3 === 0, delay: ((i * 13) % 20) / 20 }))
+function Rain() {
+  return (
+    <span className="rain" aria-hidden="true">
+      {RAIN.map((p, i) => <i key={i} className={p.round ? 'round' : ''} style={{ left: `${p.left}%`, '--dx': `${p.dx}px`, '--r': `${p.r}deg`, background: p.c, animationDelay: `${p.delay}s` }} />)}
+    </span>
+  )
+}
 function Celebrate() {
   return (
     <div className="burst" aria-hidden="true">
