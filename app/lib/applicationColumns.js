@@ -29,7 +29,6 @@ export function personalInfoToColumns(personalInfo) {
       : null,
     voter_precinct: text(pi.voterPrecinct),
     email_updates_opt_in: !!pi.emailUpdatesOptIn,
-    sms_updates_opt_in: !!pi.smsUpdatesOptIn,
     lgbtqi_member: text(pi.lgbtqi),
     disability: text(pi.disability),
     hobbies: text(pi.hobbies),
