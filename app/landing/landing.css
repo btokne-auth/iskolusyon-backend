@@ -123,59 +123,18 @@
 .lp .bell em { position: absolute; right: -4px; top: -4px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: #E0483A; color: #fff; font-style: normal; font-size: 10.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
 
 /* ---------- announcements ---------- */
-.lp .annsec { position: relative; background: linear-gradient(180deg, #fff 0%, #F4F7FD 100%); border-top: 1px solid var(--line); }
-.lp .ann { padding-top: 72px; padding-bottom: 80px; display: flex; flex-direction: column; gap: 28px; }
-.lp .ann-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.lp .eyebrow .live { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #E0483A; margin-right: 8px; vertical-align: 1px; box-shadow: 0 0 0 0 rgba(224,72,58,.5); animation: lp-live 1.8s infinite; }
-.lp .ann-nav { display: flex; align-items: center; gap: 10px; }
-.lp .ann-dots { display: flex; gap: 6px; margin-right: 6px; }
-.lp .ann-dots i { width: 8px; height: 8px; border-radius: 99px; background: #C5D0E4; transition: all .3s; }
-.lp .ann-dots i.on { width: 24px; background: var(--navy); }
-.lp .ann-grid { display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); grid-auto-rows: auto; gap: 18px; animation: lp-in .45s cubic-bezier(.2,.7,.2,1); }
-.lp .ann-grid.n1 { grid-template-columns: 1fr; }
-.lp .ann-grid.n1 .featured { min-height: 220px; }
-.lp .ann-card { position: relative; border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px; display: flex; flex-direction: column; gap: 10px; background: #fff; min-width: 0; overflow: hidden; transition: transform .25s, box-shadow .25s, border-color .25s; }
-.lp .ann-card::before { content: ''; position: absolute; left: 0; top: 0; height: 4px; width: 100%; background: linear-gradient(90deg, var(--gold), var(--yellow)); transform: scaleX(0); transform-origin: left; transition: transform .35s; }
-.lp .ann-card:hover { transform: translateY(-4px); box-shadow: 0 18px 40px rgba(13,47,110,.12); border-color: #C9D6F2; }
-.lp .ann-card:hover::before { transform: scaleX(1); }
-.lp .ann-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.lp .ann-ico { width: 42px; height: 42px; border-radius: 12px; background: #E8EEFB; color: var(--blue); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.lp .ann-meta { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
-.lp .ann-meta b { font-family: var(--mont); font-size: 10.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; border-radius: 99px; padding: 4px 10px; }
-.lp .ann-new { background: #FDF0DC; color: #7a4f0c; }
-.lp .ann-latest { background: #FFD400; color: var(--navy); }
-.lp .ann-card h3 { margin: 4px 0 0; font-family: var(--mont); font-size: 17px; font-weight: 800; color: var(--navy); line-height: 1.35; overflow-wrap: anywhere; }
-.lp .ann-card p { margin: 0; font-size: 14px; line-height: 1.65; color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.lp .ann-card.open p { -webkit-line-clamp: unset; display: block; }
-.lp .ann-more { all: unset; cursor: pointer; align-self: flex-start; font-family: var(--mont); font-size: 12.5px; font-weight: 700; color: var(--blue); }
-.lp .ann-more:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-.lp .ann-card.featured { min-height: 300px; justify-content: space-between; background: radial-gradient(600px 300px at 100% 0%, rgba(255,212,0,.16), transparent 60%), linear-gradient(150deg, #0D2F6E 0%, #003CD0 100%); border: none; color: #fff; padding: 30px 32px; gap: 14px; justify-content: flex-start; }
-.lp .ann-card.featured::after { content: ''; position: absolute; right: -60px; bottom: -60px; width: 200px; height: 200px; border-radius: 50%; border: 26px solid rgba(255,255,255,.07); pointer-events: none; }
-.lp .ann-card.featured .ann-ico { background: rgba(255,255,255,.14); color: #FFD400; width: 52px; height: 52px; animation: lp-wiggle 3s ease-in-out infinite; }
-.lp .ann-card.featured .ann-meta { color: rgba(255,255,255,.75); }
-.lp .ann-card.featured h3 { color: #fff; font-size: 24px; }
-.lp .ann-card.featured p { color: rgba(255,255,255,.85); font-size: 15.5px; -webkit-line-clamp: 6; }
-.lp .ann-card.featured .ann-more { color: #FFD400; }
-.lp .ann-card.featured::before { display: none; }
-.lp .ann-card.featured .ann-sheen { position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.09) 45%, transparent 60%); background-size: 250% 100%; animation: lp-sheen 6s ease-in-out infinite; pointer-events: none; }
-.lp .ann-card.featured .ann-big { position: absolute; right: 26px; bottom: 22px; color: rgba(255,255,255,.08); animation: lp-float 5s ease-in-out infinite; pointer-events: none; }
-.lp .ann-body { display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 1; }
-.lp .ann-foot { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: rgba(255,255,255,.75); padding-top: 14px; border-top: 1px solid rgba(255,255,255,.14); }
-.lp .ann-foot .avatar { width: 30px; height: 30px; font-size: 10px; background: #FFD400; color: #0D2F6E; }
-.lp .ann-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.lp .ann-card.small { padding: 18px 20px; gap: 8px; flex: 1; }
-.lp .ann-card.small .ann-top { justify-content: flex-start; gap: 12px; }
-.lp .ann-card.small .ann-ico { width: 36px; height: 36px; border-radius: 10px; }
-.lp .ann-card.small h3 { font-size: 15.5px; margin: 0; }
-.lp .ann-card.small .ann-meta { margin-left: auto; }
-.lp .ann-ago { font-size: 12px; color: var(--muted); }
-.lp .ann-count { font-size: 12.5px; color: var(--muted); }
-@keyframes lp-sheen { 0%, 100% { background-position: 120% 0; } 50% { background-position: -20% 0; } }
-@keyframes lp-float { 0%, 100% { transform: translateY(0) rotate(-8deg); } 50% { transform: translateY(-10px) rotate(-4deg); } }
-.lp .arr { all: unset; cursor: pointer; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); background: #fff; color: var(--navy); transition: background .2s; }
-.lp .arr:hover { background: var(--navy); color: #fff; }
+.lp .ann { padding-top: 40px; padding-bottom: 40px; display: flex; flex-direction: column; gap: 18px; }
+.lp .ann-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.lp .ann-title { font-family: var(--mont); font-size: 20px; font-weight: 800; color: var(--navy); margin: 0; }
+.lp .ann-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+.lp .ann-card { border: 1px solid var(--line); border-radius: var(--r); padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #fff; min-width: 0; }
+.lp .ann-date { align-self: flex-start; font-family: var(--mont); font-size: 10.5px; font-weight: 800; color: #7a4f0c; background: #FDF0DC; border-radius: 99px; padding: 3px 9px; }
+.lp .ann-card h3 { margin: 0; font-family: var(--mont); font-size: 15.5px; font-weight: 800; color: var(--navy); line-height: 1.35; overflow-wrap: anywhere; }
+.lp .ann-card p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; }
+.lp .ann-nav { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); }
+.lp .arr { all: unset; cursor: pointer; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); background: #fff; color: var(--navy); }
+.lp .arr:hover { background: var(--soft); }
 .lp .arr:focus-visible { outline: 2px solid var(--blue); }
-@keyframes lp-live { 0% { box-shadow: 0 0 0 0 rgba(224,72,58,.5); } 100% { box-shadow: 0 0 0 8px rgba(224,72,58,0); } }
 
 /* step 6 celebration */
 .lp .burst { position: absolute; left: 91.6%; top: 46px; z-index: 6; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
@@ -441,8 +400,7 @@
 .lp.stopped *, .lp.stopped *::before, .lp.stopped *::after { animation-play-state: paused !important; }
 @media (prefers-reduced-motion: reduce) {
   .lp .blob, .lp .shine::after, .lp .rise, .lp .hl::after, .lp .ring2.now::before, .lp .ring2.now::after, .lp .ring2.now svg.ic, .lp .gbulb, .lp .bell.ringing, .lp .bigok { animation: none !important; }
-  .lp .eyebrow .live { display: none; }
-  .lp .ann-card.featured .ann-ico { animation: none; }
+
 }
 
 /* ---------- tablets and phones ---------- */
@@ -459,7 +417,6 @@
   .lp .mockpos { position: relative; right: auto; }
   .lp .nstack { width: min(340px, 92%); }
   .lp .ann-grid { grid-template-columns: 1fr; }
-  .lp .ann-grid.n3 .featured { grid-row: auto; }
   .lp .burst { left: 42px; top: auto; bottom: 42px; }
   .lp .journey-in { padding-top: 72px; padding-bottom: 80px; gap: 40px; }
   .lp .track { grid-template-columns: 1fr; gap: 22px; }
