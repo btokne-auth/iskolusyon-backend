@@ -57,6 +57,8 @@ From the manuscript's Chapter 3 (Cybersecurity Principles). ✅ = built,
 ⬜ = not built yet or only partly. Each one is confirmed during the security testing below.
 To mark an item done, change its ⬜ to ✅.
 
+**Progress (Oct 7, 2026): 26 of 26 built.** Security work: PR #33.
+
 ### Confidentiality
 
 - ✅ Email-verified registration (a code is sent to the applicant's email at sign-up)
@@ -104,12 +106,23 @@ To mark an item done, change its ⬜ to ✅.
 - ✅ Rate limiting on sign-in, login codes, password reset codes, sign-ups, uploads, saves and submits
 - ✅ Plain error messages everywhere, with a short reference code (details stay in the server log)
 - ✅ Browser security headers (HSTS, nosniff, no framing, Referrer-Policy, Permissions-Policy)
-- ⬜ Row Level Security on every table, so the public key can't read rows (run docs/migrations/2026-10-07-enable-rls.sql, then change this to ✅)
+- ✅ Row Level Security on all 15 tables, so Supabase's public key can't read or change any row (Oct 7, 2026)
+- ✅ Older applicants' contact, employment and medical fields encrypted too (one-time script, Oct 7, 2026: 59 values in 9 applications)
 
 ## Testing
 
 From the manuscript's Chapter 3 test plan. ✅ = done, ⬜ = not done yet. Most security
 tests are planned for one dedicated testing phase; results go into Chapter 4.
+
+
+**Progress (Oct 7, 2026):**
+
+| Testing area | Done |
+|---|---|
+| Security testing (OWASP Web Security Testing Guide) | 11 of 11 |
+| Compatibility testing | 3 of 5 |
+| Functional testing | 1 of 2 |
+| User acceptance testing | 0 of 1 |
 
 ### Security testing (OWASP Web Security Testing Guide)
 
@@ -124,7 +137,9 @@ Automated run on a production build, Oct 7, 2026: 63 of 63 passed. Full results 
 - ✅ Data transmission and encryption testing (HTTPS everywhere, encryption at rest)
 - ✅ CSRF testing (profile updates, re-uploads, admin approvals)
 - ✅ Security misconfiguration testing (debug endpoints, verbose errors, default settings)
-- ⬜ Repeat the manual checks on the live site (list at the end of docs/security-testing.md)
+- ✅ Manual checks on the Vercel Preview (Oct 7, 2026): admin emailed code and wrong-code counter, admin edits still save, contact number stored as `enc:v1:...` in Supabase, fake PNG refused, cookie flags, idle warning
+- ✅ Checked again on iskolusyon.dev after merging PR #33: encrypted numbers shown normally to admins, Dashboard works with Row Level Security on
+- ✅ `http://iskolusyon.dev` opens as https (Oct 7, 2026); the whole .dev domain is on browsers' HTTPS-only (HSTS preload) list, and the app also sends its own HSTS header
 
 ### Compatibility testing
 

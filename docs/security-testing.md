@@ -147,15 +147,21 @@ and LGU roles refused by every admin route), #28, #29, #30, #32.
 
 ## Manual checks on the live site
 
-Do these on the Vercel Preview of `security-hardening` (and again on iskolusyon.dev after
-merging), and screenshot each one:
+Done by Pauline Xavier Mira Estira on October 7, 2026, on the Vercel Preview of
+`security-hardening` (screenshots kept for Chapter 4), then rechecked on iskolusyon.dev
+after merging PR #33.
 
-1. Admin sign-in: password, then the emailed code. Try a wrong code once (shows "4 tries left").
-2. Leave the admin console idle: the "Still there?" box appears at 29 minutes and the
-   sign-in page says why you were signed out at 30 minutes.
-3. Browser DevTools > Application > Cookies: `iskolusyon_admin` shows HttpOnly, Secure,
-   SameSite Lax.
-4. Open `http://iskolusyon.dev` (http, not https): the browser ends up on https.
-5. Supabase Table Editor > applications: `contact_number` shows `enc:v1:...` for an
-   applicant who saved after the update (or after running the one-time script).
-6. Upload a renamed file (for example a .txt renamed to .png): the portal refuses it.
+| # | Check | Result |
+|---|---|---|
+| 1 | Admin sign-in: password, then the emailed code; wrong code shows "4 tries left", then "3 tries left" | ✅ Passed |
+| 2 | Admin console left idle: "Still there?" box with a countdown appears before the 30-minute sign-out | ✅ Passed |
+| 3 | DevTools > Application > Cookies: `iskolusyon_admin` HttpOnly, Secure, SameSite Lax; `iskolusyon_csrf` Secure, SameSite Strict | ✅ Passed |
+| 4 | `http://iskolusyon.dev` (http, not https) opens on https; .dev is an HTTPS-only (HSTS preloaded) domain, plus the app's own HSTS header | ✅ Passed |
+| 5 | Admin edits a contact number: it saves (anti-CSRF token accepted), the console shows the number, Supabase stores `enc:v1:...` | ✅ Passed |
+| 6 | A text file renamed to `fake.png` is refused by the portal ("This file is not a real PDF, JPG or PNG...") | ✅ Passed |
+| 7 | After merging: one-time script encrypted 59 older values in 9 applications; key checked against Vercel's first; iskolusyon.dev still shows the real numbers | ✅ Passed |
+| 8 | Row Level Security turned on for all 15 tables (`rowsecurity = true`); Dashboard and applicant window still work | ✅ Passed |
+
+Note for Chapter 4: during setup the first encryption key was accidentally shown in a
+screenshot before any data was encrypted with it. It was replaced (rotated) in Vercel right
+away, so the exposed key never protected any data.
