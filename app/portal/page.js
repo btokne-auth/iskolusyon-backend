@@ -196,7 +196,6 @@ function mapDbRowToPersonalInfo(row) {
     residencyYears: row.residency_years ?? '',
     voterPrecinct: row.voter_precinct || '',
     emailUpdatesOptIn: !!row.email_updates_opt_in,
-    smsUpdatesOptIn: !!row.sms_updates_opt_in,
     lgbtqi: row.lgbtqi_member || '',
     disability: row.disability || '',
     hobbies: row.hobbies || '',
@@ -1767,7 +1766,7 @@ function PortalApp({ accountSession, onLogout }) {
     dateOfBirth: '', placeOfBirth: '', sex: '', citizenship: '', religion: '', civilStatus: '',
     spouseName: '', spouseOccupation: '', spouseContact: '',
     contactNumber: '', address: '', barangay: '', residencyYears: '', voterPrecinct: '',
-    emailUpdatesOptIn: false, smsUpdatesOptIn: false, termsCertified: false, privacyAgreed: false,
+    emailUpdatesOptIn: false, termsCertified: false, privacyAgreed: false,
     // ---- Card 4 (Additional Information) ----
     lgbtqi: '', disability: '', hobbies: '',
     // ---- Card 5 (Organizational Involvement) ---- one blank row to start,
@@ -3534,10 +3533,11 @@ function PortalApp({ accountSession, onLogout }) {
                   </div>
                   <div className="mfield full">
                     <TextField label="Contact Number" type="tel" required value={personalInfo.contactNumber} onChange={(v) => updatePI('contactNumber', sanitizePhoneInput(v))} placeholder="e.g. 0917 123 4567" />
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', fontSize: '12px', fontWeight: 400, textTransform: 'none', letterSpacing: 'normal', color: 'var(--text)', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={personalInfo.smsUpdatesOptIn} onChange={(e) => updatePI('smsUpdatesOptIn', e.target.checked)} style={{ width: '15px', height: '15px', margin: 0, accentColor: 'var(--ccc-blue)', cursor: 'pointer' }} />
-                      I want to receive SMS updates.
-                    </label>
+                    {/* Oct 7 2026: the "I want to receive SMS updates" checkbox was
+                        removed. Nothing ever sent texts, and SMS is not in the
+                        manuscript: in interview #2 (Appendix D) the client asked about
+                        SMS, the per-message cost was explained, and email was agreed.
+                        Suggested as future work in Chapter 5 instead. */}
                   </div>
                   <TextField full label="Present Home Address" required value={personalInfo.address} onChange={(v) => updatePI('address', v)} placeholder="House No., Street, Barangay, City, Province" />
                   <TextField full label="Voter's Precinct No." required value={personalInfo.voterPrecinct} onChange={(v) => updatePI('voterPrecinct', v)} placeholder="e.g. 0142A" />
@@ -3677,7 +3677,7 @@ function PortalApp({ accountSession, onLogout }) {
               <SectionSubmittedNote
                 at={personalSubmittedAt}
                 locked={profileLocked}
-                extra="You can still change your email and SMS update choices above and save them."
+                extra="You can still change your email update choice above and save it."
               />
 
               <SectionFormActions

@@ -235,7 +235,7 @@ function missingForFinalSubmit(row, uploadedTypes) {
 // changed by the applicant any more. Changes go through the Guidance
 // Office, where an admin can edit the submitted data (PR #18, logged and
 // the applicant is notified). Health & Wellness stays open because it is
-// completed during enrollment, and the email/SMS update choices stay open
+// completed during enrollment, and the email update choice stays open
 // too. Before the final Submit every section stays editable, including
 // Educational Background (its old lock after Submit Section only greyed
 // out the screen and came from the HTML mockup).
@@ -462,11 +462,11 @@ export async function POST(request) {
       return NextResponse.json({ error: PROFILE_LOCKED_MESSAGE, locked: true }, { status: 409 })
     }
 
-    // The email/SMS update choices are notification settings, not reviewed
+    // The email update choice is a notification setting, not reviewed
     // answers, so they can still be changed after the final Submit.
     const allPersonalColumns = personalInfoToColumns(body.personalInfo)
     const personalInfoColumns = profileLocked
-      ? { email_updates_opt_in: allPersonalColumns.email_updates_opt_in, sms_updates_opt_in: allPersonalColumns.sms_updates_opt_in }
+      ? { email_updates_opt_in: allPersonalColumns.email_updates_opt_in }
       : allPersonalColumns
     const academicInfoColumns = profileLocked ? {} : academicInfoToColumns(body.academicInfo)
     const healthInfoColumns = healthInfoToColumns(body.healthInfo)
