@@ -7,6 +7,7 @@ import {
 } from '@/app/lib/adminAuth'
 import { verifyAdminCredentials } from '@/app/lib/adminAccounts'
 import { supabase } from '@/app/supabaseClient'
+import { serverError } from '@/app/lib/safeError'
 import {
   MINUTE,
   getClientIp,
@@ -157,6 +158,6 @@ export async function POST(request) {
     })
     return res
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-login')
   }
 }

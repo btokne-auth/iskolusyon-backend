@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requestPasswordReset, resetPasswordWithCode } from '@/app/lib/applicantAccounts'
 import { MINUTE, getClientIp, normalizeKey, checkLimit, recordAttempt, waitMessage } from '@/app/lib/rateLimit'
+import { serverError } from '@/app/lib/safeError'
 
 // Sept 30 2026: a reset code can be requested once a minute per email and
 // 10 times per 15 minutes per network address, so this endpoint can't be
@@ -53,6 +54,6 @@ export async function POST(request) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/applicant-forgot-password')
   }
 }

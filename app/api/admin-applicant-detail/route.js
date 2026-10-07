@@ -4,6 +4,7 @@ import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { EDITABLE_FIELDS, PRIVATE_LOG_FIELDS, cleanValue } from '@/app/lib/profileEditRules'
 import { computeEligibility } from '@/app/lib/matching'
 import { checkLock } from '@/app/lib/applicantLocks'
+import { serverError } from '@/app/lib/safeError'
 
 // Full per-applicant profile read, for the Dashboard applicant modal's
 // General Information grid + tabbed "Submitted Documents & Profile Data"
@@ -33,7 +34,7 @@ export async function GET(request) {
     const { data, error } = await supabase.from('applications').select('*').eq('id', id).maybeSingle()
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverError(error, 'api/admin-applicant-detail')
     }
     if (!data) {
       return NextResponse.json({ error: 'Applicant not found.' }, { status: 404 })
@@ -41,7 +42,7 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, application: data })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-applicant-detail')
   }
 }
 
@@ -83,7 +84,7 @@ export async function PATCH(request) {
     }
 
     const { data: current, error: loadError } = await supabase.from('applications').select('*').eq('id', id).maybeSingle()
-    if (loadError) return NextResponse.json({ error: loadError.message }, { status: 500 })
+    if (loadError) return serverError(loadError, 'api/admin-applicant-detail')
     if (!current) return NextResponse.json({ error: 'Applicant not found.' }, { status: 404 })
 
     // Keep only real changes.
@@ -114,7 +115,7 @@ export async function PATCH(request) {
     patch.updated_at = new Date().toISOString()
 
     const { data: saved, error: saveError } = await supabase.from('applications').update(patch).eq('id', id).select().single()
-    if (saveError) return NextResponse.json({ error: saveError.message }, { status: 500 })
+    if (saveError) return serverError(saveError, 'api/admin-applicant-detail')
 
     const labels = changed.map((key) => EDITABLE_FIELDS.get(key))
     const short = (v) => {
@@ -166,6 +167,6 @@ export async function PATCH(request) {
 
     return NextResponse.json({ success: true, changed: labels, application: saved || { ...current, ...patch } })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-applicant-detail')
   }
 }

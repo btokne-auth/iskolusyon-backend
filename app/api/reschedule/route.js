@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
 import { supabase } from '@/app/supabaseClient'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
+import { serverError } from '@/app/lib/safeError'
 
 // Appeals & Rescheduling request endpoint (Notifications Module).
 //
@@ -81,7 +82,7 @@ export async function GET(request) {
     const { data, error } = await query.order('created_at', { ascending: false })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverError(error, 'api/reschedule')
     }
 
     // Oct 1 2026: the applicant sees the decision and note, not which admin
@@ -89,7 +90,7 @@ export async function GET(request) {
     const requests = (data || []).map(({ decided_by, ...rest }) => rest)
     return NextResponse.json({ success: true, requests })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/reschedule')
   }
 }
 
@@ -184,11 +185,11 @@ export async function POST(request) {
     }
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverError(error, 'api/reschedule')
     }
 
     return NextResponse.json({ success: true, request: data })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/reschedule')
   }
 }

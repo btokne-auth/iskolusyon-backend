@@ -13,6 +13,7 @@ import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/app
 import { wakeOcrWorker } from '@/app/lib/ocrWorker'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { getSystemSettings } from '@/app/lib/systemSettings'
+import { serverError } from '@/app/lib/safeError'
 
 // ---------- Validation limits ----------
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
@@ -219,7 +220,7 @@ export async function POST(request) {
       })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverError(error, 'api/upload')
     }
 
     // Sept 25, 2026: OCR (orientation + deskew + Tesseract) is what was
@@ -252,7 +253,7 @@ export async function POST(request) {
       ])
 
     if (dbError) {
-      return NextResponse.json({ error: dbError.message }, { status: 500 })
+      return serverError(dbError, 'api/upload')
     }
 
     // profilepic has nothing async left to do, so its audit-log entry can
@@ -278,7 +279,7 @@ export async function POST(request) {
       .createSignedUrl(fileName, 3600)
 
     if (signError) {
-      return NextResponse.json({ error: signError.message }, { status: 500 })
+      return serverError(signError, 'api/upload')
     }
 
     // Sept 2026: OCR no longer runs on Vercel. It kept hitting the 60s Hobby
@@ -318,7 +319,7 @@ export async function POST(request) {
     })
 
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/upload')
   }
 }
 
@@ -383,7 +384,7 @@ export async function GET(request) {
     const { data: docs, error: dbError } = await query.order('created_at', { ascending: false })
 
     if (dbError) {
-      return NextResponse.json({ error: dbError.message }, { status: 500 })
+      return serverError(dbError, 'api/upload')
     }
 
     // Oct 5 2026: in the admin console, archived applicants' documents are
@@ -408,6 +409,6 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, documents: docsWithUrls })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/upload')
   }
 }

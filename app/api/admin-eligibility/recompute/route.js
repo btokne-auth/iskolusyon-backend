@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { computeEligibility } from '@/app/lib/matching'
+import { serverError } from '@/app/lib/safeError'
 
 // One-off / on-demand backfill for Scholarship Matching & Filtering.
 //
@@ -30,7 +31,7 @@ export async function POST(request) {
 
     // Oct 5 2026: archived applications are left as they were.
     const { data: rows, error: rowsError } = await supabase.from('applications').select('*').is('archived_at', null)
-    if (rowsError) return NextResponse.json({ error: rowsError.message }, { status: 500 })
+    if (rowsError) return serverError(rowsError, 'api/admin-eligibility/recompute')
 
     // One query for every document instead of three queries per applicant
     // (which is what a per-row fetchUploadedDocumentTypes-style lookup
@@ -40,7 +41,7 @@ export async function POST(request) {
     const { data: docs, error: docsError } = await supabase
       .from('documents')
       .select('applicant_user_id, applicant_email, applicant_name, document_type')
-    if (docsError) return NextResponse.json({ error: docsError.message }, { status: 500 })
+    if (docsError) return serverError(docsError, 'api/admin-eligibility/recompute')
 
     const byUserId = new Map()
     const byEmail = new Map()
@@ -81,6 +82,6 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, updated, total: (rows || []).length })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-eligibility/recompute')
   }
 }

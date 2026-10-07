@@ -7,6 +7,7 @@ import { computeEligibility, needsShsMathScienceGrade } from '@/app/lib/matching
 import { getSystemSettings, submitBlockedReason } from '@/app/lib/systemSettings'
 import { resultsVisible, applicantSafeRow } from '@/app/lib/resultVisibility'
 import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
+import { serverError } from '@/app/lib/safeError'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -349,7 +350,7 @@ export async function GET(request) {
 
     return NextResponse.json({ success: true, application, submitBlocked })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/application')
   }
 }
 
@@ -436,7 +437,7 @@ export async function POST(request) {
     try {
       profileLocked = (await findOwnRows(session)).some((r) => r.status === 'submitted')
     } catch (lockErr) {
-      return NextResponse.json({ error: lockErr.message }, { status: 500 })
+      return serverError(lockErr, 'api/application')
     }
     if (profileLocked && action === 'submit-section' && PROFILE_LOCKED_SECTIONS.includes(section)) {
       return NextResponse.json({ error: PROFILE_LOCKED_MESSAGE, locked: true }, { status: 409 })
@@ -500,7 +501,7 @@ export async function POST(request) {
       const rows = await findOwnRows(session)
       existing = rows[0] || null
     } catch (findError) {
-      return NextResponse.json({ error: findError.message }, { status: 500 })
+      return serverError(findError, 'api/application')
     }
 
     const now = new Date().toISOString()
@@ -554,7 +555,7 @@ export async function POST(request) {
         .single()
 
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return serverError(error, 'api/application')
       }
 
       if (action === 'submit') {
@@ -620,7 +621,7 @@ export async function POST(request) {
         .maybeSingle()
 
       if (raceFindError || !raceExisting) {
-        return NextResponse.json({ error: raceFindError?.message || 'Save failed after a duplicate-name conflict' }, { status: 500 })
+        return serverError(raceFindError || new Error('Save failed after a duplicate-name conflict'), 'application')
       }
       // Sept 30 2026: the name belongs to someone else's application. Never
       // write over it; the applicant has to sort it out with the office.
@@ -672,7 +673,7 @@ export async function POST(request) {
     }
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverError(error, 'api/application')
     }
 
     if (action === 'submit') {
@@ -681,7 +682,7 @@ export async function POST(request) {
 
     return NextResponse.json({ success: true, application: applicantSafeRow(data, await resultsVisible()) })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/application')
   }
 }
 

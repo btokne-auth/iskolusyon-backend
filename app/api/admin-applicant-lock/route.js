@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieFull } from '@/app/lib/adminAuth'
 import { listActiveLocks, claimLock, releaseLock } from '@/app/lib/applicantLocks'
+import { serverError } from '@/app/lib/safeError'
 
 // Oct 1 2026: Locked Applications for Review (see app/lib/applicantLocks.js).
 // GET                                -> { locks: [{ application_id, admin_name, mine }] }
@@ -25,7 +26,7 @@ export async function GET(request) {
       })),
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-applicant-lock')
   }
 }
 

@@ -7,6 +7,7 @@ import {
   verifyPasswordChangeCookie,
 } from '@/app/lib/adminAuth'
 import { setOwnPasswordFromTemp } from '@/app/lib/adminAccounts'
+import { serverError } from '@/app/lib/safeError'
 
 // First sign-in on a temporary password (Sept 29, 2026). Only works with
 // the short-lived cookie /api/admin-login sets for a temporary password;
@@ -71,6 +72,6 @@ export async function POST(request) {
     res.cookies.set(ADMIN_PWCHANGE_COOKIE_NAME, '', { path: '/', maxAge: 0 })
     return res
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-change-password')
   }
 }

@@ -4,6 +4,7 @@
 
 import { Resend } from 'resend'
 import { TEMP_PASSWORD_DAYS, formatAccessDate } from '@/app/lib/adminAccounts'
+import { safeErrorText } from '@/app/lib/safeError'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 const EMAIL_FROM = process.env.RESEND_FROM_EMAIL || 'Iskolusyon <noreply@iskolusyon.dev>'
@@ -69,6 +70,6 @@ export async function sendAdminTempPasswordEmail({ kind, name, email, role, acce
     if (result?.error) return { error: result.error.message || 'Email could not be sent.' }
     return { success: true }
   } catch (err) {
-    return { error: err.message }
+    return { error: safeErrorText(err, 'adminEmails') }
   }
 }

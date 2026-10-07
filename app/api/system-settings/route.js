@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieFull } from '@/app/lib/adminAuth'
 import { getSystemSettings, updateSystemSettings } from '@/app/lib/systemSettings'
+import { serverError } from '@/app/lib/safeError'
 
 // Backs the Application Cycle Settings card. Super Admin only, same as
 // the rest of the System & Activity panel.
@@ -15,7 +16,7 @@ export async function GET(request) {
     const settings = await getSystemSettings()
     return NextResponse.json({ success: true, settings })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/system-settings')
   }
 }
 
@@ -55,6 +56,6 @@ export async function PATCH(request) {
 
     return NextResponse.json({ success: true, settings })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/system-settings')
   }
 }

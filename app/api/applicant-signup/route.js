@@ -6,6 +6,7 @@ import {
   verifySignupCode,
 } from '@/app/lib/applicantAccounts'
 import { APPLICANT_COOKIE_NAME, createApplicantCookieValue } from '@/app/lib/applicantAuth'
+import { serverError } from '@/app/lib/safeError'
 
 // One endpoint, four actions — mirrors the action-in-body pattern already
 // used by /api/application (save vs submit) rather than spawning four
@@ -70,6 +71,6 @@ export async function POST(request) {
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/applicant-signup')
   }
 }

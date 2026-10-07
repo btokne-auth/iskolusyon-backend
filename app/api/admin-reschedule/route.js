@@ -3,6 +3,7 @@ import { archivedUserIds } from '@/app/lib/archive'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue, verifyAdminCookieFull } from '@/app/lib/adminAuth'
 import { checkLock } from '@/app/lib/applicantLocks'
+import { serverError } from '@/app/lib/safeError'
 
 // Admin side of the Rescheduling Request System (Notifications Module).
 //
@@ -30,7 +31,7 @@ export async function GET(request) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return serverError(error, 'api/admin-reschedule')
     }
 
     const rows = requests || []
@@ -81,7 +82,7 @@ export async function GET(request) {
       requests: result.filter((r) => !r.applicant_user_id || !archivedUsers.has(r.applicant_user_id)),
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-reschedule')
   }
 }
 
@@ -113,7 +114,7 @@ export async function PATCH(request) {
     }
 
     const { data: current, error: loadError } = await supabase.from('reschedule_requests').select('*').eq('id', id).maybeSingle()
-    if (loadError) return NextResponse.json({ error: loadError.message }, { status: 500 })
+    if (loadError) return serverError(loadError, 'api/admin-reschedule')
     if (!current) return NextResponse.json({ error: 'Request not found.' }, { status: 404 })
     if (current.status !== 'submitted') {
       return NextResponse.json(
@@ -151,13 +152,7 @@ export async function PATCH(request) {
       .eq('status', 'submitted')
       .select()
       .maybeSingle()
-    if (saveError) {
-      const missing = /decided_by|decided_at|decision_note/.test(saveError.message || '')
-      return NextResponse.json(
-        { error: missing ? 'The database is missing the decision columns. Run docs/migrations/2026-10-01-reschedule-decisions.sql in Supabase first.' : saveError.message },
-        { status: 500 }
-      )
-    }
+    if (saveError) return serverError(saveError, 'api/admin-reschedule')
     if (!saved) return NextResponse.json({ error: 'This request was just decided by another admin. Refresh to see it.' }, { status: 409 })
 
     const label = DECISIONS[decision]
@@ -212,6 +207,6 @@ export async function PATCH(request) {
       notified: Boolean(application),
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-reschedule')
   }
 }

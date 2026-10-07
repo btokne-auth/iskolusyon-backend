@@ -25,6 +25,7 @@
 
 import { scryptSync, randomBytes, randomInt, timingSafeEqual } from 'crypto'
 import { supabase } from '@/app/supabaseClient'
+import { safeErrorText } from '@/app/lib/safeError'
 
 const KEY_LENGTH = 64
 
@@ -244,7 +245,7 @@ export async function inviteAdminAccount({ name, email, isSuperAdmin, role, acce
     .select(ACCOUNT_COLUMNS)
     .single()
 
-  if (error) return { error: error.message }
+  if (error) return { error: safeErrorText(error, 'adminAccounts') }
   return { account: data, tempPassword }
 }
 
@@ -267,7 +268,7 @@ export async function resetAdminToTempPassword(email) {
     .select(ACCOUNT_COLUMNS)
     .maybeSingle()
 
-  if (error) return { error: error.message }
+  if (error) return { error: safeErrorText(error, 'adminAccounts') }
   if (!data) return { error: 'That admin account no longer exists.' }
   return { account: data, tempPassword }
 }
@@ -302,7 +303,7 @@ export async function setOwnPasswordFromTemp(email, newPassword) {
     .from('admin_accounts')
     .update({ password_hash: hashPassword(newPassword), must_change_password: false, temp_password_expires_at: null })
     .eq('email', normalizedEmail)
-  if (error) return { error: error.message }
+  if (error) return { error: safeErrorText(error, 'adminAccounts') }
 
   return {
     account: {
@@ -329,7 +330,7 @@ export async function updateLguAccess(email, accessFrom, accessUntil) {
     .eq('email', normalizedEmail)
     .select(ACCOUNT_COLUMNS)
     .maybeSingle()
-  if (error) return { error: error.message }
+  if (error) return { error: safeErrorText(error, 'adminAccounts') }
   return { account: data }
 }
 

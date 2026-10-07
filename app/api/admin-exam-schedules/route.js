@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { BATCH_SIZE, isSchedulable, buildScheduleDraft, sendScheduleEmails } from '@/app/lib/examSchedules'
+import { serverError } from '@/app/lib/safeError'
 
 // Sept 30 2026: Exam Schedule Alerts (Notifications Module).
 //
@@ -93,14 +94,14 @@ export async function GET(request) {
       .from('exam_schedules')
       .select('*')
       .order('exam_date', { ascending: true })
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/admin-exam-schedules')
 
     const { data: assigned, error: appsError } = await supabase
       .from('applications')
       .select(APP_FIELDS)
       .not('exam_schedule_id', 'is', null)
       .is('archived_at', null)
-    if (appsError) return NextResponse.json({ error: appsError.message }, { status: 500 })
+    if (appsError) return serverError(appsError, 'api/admin-exam-schedules')
 
     const bySchedule = new Map()
     for (const app of assigned || []) {
@@ -127,7 +128,7 @@ export async function GET(request) {
       schedules: (schedules || []).map((s) => ({ ...s, applicants: bySchedule.get(s.id) || [] })),
     })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-exam-schedules')
   }
 }
 
@@ -167,7 +168,7 @@ export async function POST(request) {
         .insert([{ batch_label: batchLabel, exam_date: examDate, exam_time: examTime || null, venue: venue || null, notes: notes || null, created_by: adminName }])
         .select()
         .single()
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      if (error) return serverError(error, 'api/admin-exam-schedules')
 
       const added = await fillSchedule(schedule.id)
       await audit(adminName, `Created exam batch "${batchLabel}" (${examDate}) with ${added} applicant(s)`)
@@ -202,7 +203,7 @@ export async function POST(request) {
         .maybeSingle()
       if (!app) return NextResponse.json({ error: 'That applicant is not in this batch.' }, { status: 404 })
       const { error } = await supabase.from('applications').update({ exam_schedule_id: null }).eq('id', app.id)
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      if (error) return serverError(error, 'api/admin-exam-schedules')
       await audit(adminName, `Removed ${app.applicant_name || 'an applicant'} from exam batch "${schedule.batch_label}"`)
       return NextResponse.json({ success: true })
     }
@@ -213,9 +214,9 @@ export async function POST(request) {
         .from('applications')
         .update({ exam_schedule_id: null })
         .eq('exam_schedule_id', schedule.id)
-      if (clearError) return NextResponse.json({ error: clearError.message }, { status: 500 })
+      if (clearError) return serverError(clearError, 'api/admin-exam-schedules')
       const { error } = await supabase.from('exam_schedules').delete().eq('id', schedule.id)
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      if (error) return serverError(error, 'api/admin-exam-schedules')
       await audit(adminName, `Deleted exam batch "${schedule.batch_label}" before sending`, 'warn')
       return NextResponse.json({ success: true })
     }
@@ -250,7 +251,7 @@ export async function POST(request) {
           target_category: null,
         }))
       )
-      if (postError) return NextResponse.json({ error: postError.message }, { status: 500 })
+      if (postError) return serverError(postError, 'api/admin-exam-schedules')
 
       // 2. Email only the applicants who opted in.
       const addresses = members.filter((a) => a.email_updates_opt_in && a.applicant_email).map((a) => a.applicant_email)
@@ -279,6 +280,6 @@ export async function POST(request) {
 
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/admin-exam-schedules')
   }
 }

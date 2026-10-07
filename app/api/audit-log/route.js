@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieFull } from '@/app/lib/adminAuth'
+import { serverError } from '@/app/lib/safeError'
 
 // Sept 22 2026: category and read/unread filters added, matching the
 // System & Activity panel's Show/Status dropdowns.
@@ -28,10 +29,10 @@ export async function GET(request) {
     if (status === 'read') query = query.eq('read', true)
 
     const { data, error } = await query
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/audit-log')
     return NextResponse.json({ success: true, entries: data })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/audit-log')
   }
 }
 
@@ -46,10 +47,10 @@ export async function PATCH(request) {
     if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
 
     const { error } = await supabase.from('audit_log').update({ read: true }).eq('read', false)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/audit-log')
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/audit-log')
   }
 }

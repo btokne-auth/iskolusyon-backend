@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server'
 import { ADMIN_COOKIE_NAME, verifyAnyAdminCookie } from '@/app/lib/adminAuth'
 import { getAdminAccount, effectiveRole, accessRefusal } from '@/app/lib/adminAccounts'
+import { serverError } from '@/app/lib/safeError'
 
 // roles: e.g. ['registrar'] or ['admin', 'super_admin'].
 // Returns { session } with session = { name, email, role, account } or
@@ -27,7 +28,7 @@ export async function requireConsoleRole(request, roles) {
   try {
     account = await getAdminAccount(cookieSession.email)
   } catch (err) {
-    return { response: NextResponse.json({ error: err.message }, { status: 500 }) }
+    return { response: serverError(err, 'lib/adminRoles.js') }
   }
   if (!account) {
     return { response: NextResponse.json({ error: 'This account no longer exists.' }, { status: 401 }) }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { resultsVisible } from '@/app/lib/resultVisibility'
+import { serverError } from '@/app/lib/safeError'
 
 // Applicant-facing read side of the Communications feature (see
 // app/api/announcements/route.js for the admin side, and docs/migrations/
@@ -42,7 +43,7 @@ export async function GET(request) {
       .eq('applicant_user_id', session.id)
       .order('updated_at', { ascending: false })
       .limit(1)
-    if (appError) return NextResponse.json({ error: appError.message }, { status: 500 })
+    if (appError) return serverError(appError, 'api/portal-messages')
 
     const myApplication = rows && rows[0] ? rows[0] : null
     const myApplicationId = myApplication?.id ?? null
@@ -65,7 +66,7 @@ export async function GET(request) {
       .order('created_at', { ascending: false })
       .limit(50)
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return serverError(error, 'api/portal-messages')
 
     // Sept 30 2026: result messages (Send Result to Applicant) only show
     // while "Exam Results Visible to Applicants" is on.
@@ -77,6 +78,6 @@ export async function GET(request) {
     const posts = visible && decided ? data : (data || []).filter((post) => post.category !== 'Result' && post.category !== 'Endorsement')
     return NextResponse.json({ success: true, posts })
   } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    return serverError(err, 'api/portal-messages')
   }
 }

@@ -27,6 +27,7 @@ import { scryptSync, randomBytes, timingSafeEqual, createHash } from 'crypto'
 import { Resend } from 'resend'
 import { supabase } from '@/app/supabaseClient'
 import { personalInfoToColumns, academicInfoToColumns } from './applicationColumns'
+import { safeErrorText, logServerError } from '@/app/lib/safeError'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -132,7 +133,7 @@ export async function startSignup(email, password) {
     .select('id')
     .single()
 
-  if (error) return { error: error.message }
+  if (error) return { error: safeErrorText(error, 'applicantAccounts') }
   return { accountId: data.id }
 }
 
@@ -145,7 +146,7 @@ export async function saveSignupProgress(accountId, { academicInfo, personalInfo
   if (Object.keys(updates).length === 0) return { success: true }
 
   const { error } = await supabase.from('applicant_accounts').update(updates).eq('id', accountId)
-  if (error) return { error: error.message }
+  if (error) return { error: safeErrorText(error, 'applicantAccounts') }
   return { success: true }
 }
 
@@ -178,11 +179,9 @@ export async function sendVerificationCode(accountId, email) {
       `,
     })
   } catch (err) {
+    const ref = logServerError(err, 'applicantAccounts email')
     return {
-      error:
-        'Could not send the verification email right now (' +
-        err.message +
-        '). Please try again in a moment.',
+      error: 'Could not send the verification email right now. Please try again in a moment. (Ref: ' + ref + ')',
     }
   }
 
@@ -361,11 +360,9 @@ export async function requestPasswordReset(email) {
       `,
     })
   } catch (err) {
+    const ref = logServerError(err, 'applicantAccounts email')
     return {
-      error:
-        'Could not send the reset email right now (' +
-        err.message +
-        '). Please try again in a moment.',
+      error: 'Could not send the reset email right now. Please try again in a moment. (Ref: ' + ref + ')',
     }
   }
 
@@ -470,11 +467,9 @@ export async function sendLoginCode(accountId, email) {
       `,
     })
   } catch (err) {
+    const ref = logServerError(err, 'applicantAccounts email')
     return {
-      error:
-        'Could not send the login code right now (' +
-        err.message +
-        '). Please try again in a moment.',
+      error: 'Could not send the login code right now. Please try again in a moment. (Ref: ' + ref + ')',
     }
   }
 
