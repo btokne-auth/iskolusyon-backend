@@ -61,15 +61,15 @@ To mark an item done, change its ⬜ to ✅.
 
 - ✅ Email-verified registration (a code is sent to the applicant's email at sign-up)
 - ✅ Multi-factor login for applicants: password, then a one-time code by email (expires, limited attempts)
-- ⬜ Multi-factor login for admins (admins sign in with a password only, with rate limiting)
+- ✅ Multi-factor login for every console account (Super Admin, Admin, Registrar, LGU): password, then a 6-digit code by email (10-minute expiry, one use, 5 tries)
 - ✅ HTTPS/TLS for all traffic (served by Vercel over HTTPS)
-- ⬜ Encryption at rest for sensitive fields (only the hosting platform's own storage encryption; no field-level encryption yet)
+- ✅ Encryption at rest: contact numbers, parents' employment and Medical Status are encrypted by the app (AES-256-GCM) before saving, on top of Supabase's own disk encryption
 
 ### Integrity
 
 - ✅ SHA-256 hash of every uploaded document, computed in the browser and on the server and compared
 - ✅ Upload validation: file type (PDF, JPG, PNG), 10 MB limit, image quality check, safe storage file names
-- ⬜ Content check that a file really is the type it claims to be (beyond its declared type and the image check)
+- ✅ Content check: the file's own bytes must be a real PDF, JPG or PNG matching its type; PDFs with scripts or attached files are refused
 
 ### Availability
 
@@ -87,12 +87,12 @@ To mark an item done, change its ⬜ to ✅.
 ### Session management
 
 - ✅ Signed session cookies (httpOnly, secure in production, SameSite=Lax)
-- ✅ Sessions expire (applicants after 7 days, admins after 8 hours)
-- ⬜ Sign-out after a period of inactivity
+- ✅ Sessions expire on the server (admins after 8 hours, applicants after 12 hours)
+- ✅ Sign-out after inactivity (admins 30 minutes, applicants 60 minutes), with a warning one minute before
 
 ### Cross-site request forgery (CSRF)
 
-- ⬜ Anti-CSRF tokens on state-changing actions (SameSite=Lax cookies give partial protection today)
+- ✅ Anti-CSRF token on every state-changing request, plus a same-site Origin check
 
 ### Audit logging
 
@@ -101,10 +101,10 @@ To mark an item done, change its ⬜ to ✅.
 
 ### Also in place
 
-- ✅ Rate limiting on sign-in, login codes and password reset codes
-- ✅ Error pages never show the raw error, only a short reference code
-- ⬜ Plain error messages everywhere (some rare server errors still pass the database's own message through)
-- ⬜ Limits on how often one applicant can save or submit
+- ✅ Rate limiting on sign-in, login codes, password reset codes, sign-ups, uploads, saves and submits
+- ✅ Plain error messages everywhere, with a short reference code (details stay in the server log)
+- ✅ Browser security headers (HSTS, nosniff, no framing, Referrer-Policy, Permissions-Policy)
+- ⬜ Row Level Security on every table, so the public key can't read rows (run docs/migrations/2026-10-07-enable-rls.sql, then change this to ✅)
 
 ## Testing
 
@@ -113,14 +113,18 @@ tests are planned for one dedicated testing phase; results go into Chapter 4.
 
 ### Security testing (OWASP Web Security Testing Guide)
 
-- ⬜ Authentication and brute-force testing (lockout thresholds, rate limiting, code expiry)
-- ⬜ Authorization and access control testing (each role, including direct requests to admin addresses)
-- ⬜ Session management testing (expiry, cookie flags, hijacking and fixation)
-- ⬜ Input validation and injection testing (SQL injection, XSS on registration, login and uploads)
-- ⬜ File upload security testing (disguised files, oversized files, path traversal in file names)
-- ⬜ Data transmission and encryption testing (HTTPS everywhere, encryption at rest)
-- ⬜ CSRF testing (profile updates, re-uploads, admin approvals)
-- ⬜ Security misconfiguration testing (debug endpoints, verbose errors, default settings)
+Automated run on a production build, Oct 7, 2026: 63 of 63 passed. Full results in
+[docs/security-testing.md](docs/security-testing.md).
+
+- ✅ Authentication and brute-force testing (lockout thresholds, rate limiting, code expiry)
+- ✅ Authorization and access control testing (each role, including direct requests to admin addresses)
+- ✅ Session management testing (expiry, cookie flags, hijacking and fixation)
+- ✅ Input validation and injection testing (SQL injection, XSS on registration, login and uploads)
+- ✅ File upload security testing (disguised files, oversized files, path traversal in file names)
+- ✅ Data transmission and encryption testing (HTTPS everywhere, encryption at rest)
+- ✅ CSRF testing (profile updates, re-uploads, admin approvals)
+- ✅ Security misconfiguration testing (debug endpoints, verbose errors, default settings)
+- ⬜ Repeat the manual checks on the live site (list at the end of docs/security-testing.md)
 
 ### Compatibility testing
 
@@ -156,7 +160,9 @@ in Next.js 16.2 and later.
 ### Settings
 
 The app needs a `.env.local` file in the project root with the Supabase, Resend and
-OCR worker settings. Ask the developer for the values. Never commit this file.
+OCR worker settings, plus `FIELD_ENCRYPTION_KEY` (64 hex characters; the same value as in
+Vercel). Ask the developer for the values. Never commit this file. Losing
+`FIELD_ENCRYPTION_KEY` makes the encrypted fields unreadable, so keep a safe copy.
 
 ### Database
 
