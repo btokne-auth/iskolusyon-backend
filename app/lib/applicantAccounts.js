@@ -28,6 +28,7 @@ import { Resend } from 'resend'
 import { supabase } from '@/app/supabaseClient'
 import { personalInfoToColumns, academicInfoToColumns } from './applicationColumns'
 import { safeErrorText, logServerError } from '@/app/lib/safeError'
+import { encryptApplicationFields, decryptApplicationFields } from '@/app/lib/fieldCrypto'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -294,7 +295,7 @@ export async function verifySignupCode(accountId, code) {
     if (existingApp) {
       const { data, error } = await supabase
         .from('applications')
-        .update(columns)
+        .update(encryptApplicationFields(columns))
         .eq('id', existingApp.id)
         .select()
         .single()
@@ -302,12 +303,13 @@ export async function verifySignupCode(accountId, code) {
     } else {
       const { data, error } = await supabase
         .from('applications')
-        .insert([{ applicant_name: displayName, current_step: 1, status: 'draft', ...columns }])
+        .insert([encryptApplicationFields({ applicant_name: displayName, current_step: 1, status: 'draft', ...columns })])
         .select()
         .single()
       if (!error) application = data
     }
   }
+  application = decryptApplicationFields(application)
 
   return { account: { ...account, email_verified: true }, application, displayName }
 }

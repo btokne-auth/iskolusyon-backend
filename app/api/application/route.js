@@ -9,6 +9,7 @@ import { resultsVisible, applicantSafeRow } from '@/app/lib/resultVisibility'
 import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
 import { serverError } from '@/app/lib/safeError'
 import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
+import { encryptApplicationFields, decryptApplicationFields } from '@/app/lib/fieldCrypto'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -88,7 +89,8 @@ async function findApplicationRows({ userId, email, name }) {
   async function addMatches(builder) {
     const { data, error } = await builder
     if (error) throw new Error(error.message)
-    for (const row of data || []) rowsById.set(row.id, row)
+    // Oct 7 2026: unlock the encrypted fields (app/lib/fieldCrypto.js).
+    for (const row of data || []) rowsById.set(row.id, decryptApplicationFields(row))
   }
 
   if (userId) {
@@ -566,7 +568,7 @@ export async function POST(request) {
 
       const { data, error } = await supabase
         .from('applications')
-        .update(updates)
+        .update(encryptApplicationFields(updates))
         .eq('id', existing.id)
         .select()
         .single()
@@ -579,7 +581,7 @@ export async function POST(request) {
         await sendSubmissionEmail(applicantName, data.applicant_email)
       }
 
-      return NextResponse.json({ success: true, application: applicantSafeRow(data, await resultsVisible()) })
+      return NextResponse.json({ success: true, application: applicantSafeRow(decryptApplicationFields(data), await resultsVisible()) })
     }
 
     // No existing row — create one.
@@ -616,7 +618,7 @@ export async function POST(request) {
 
     let { data, error } = await supabase
       .from('applications')
-      .insert([insertPayload])
+      .insert([encryptApplicationFields(insertPayload)])
       .select()
       .single()
 
@@ -681,7 +683,7 @@ export async function POST(request) {
 
       const retried = await supabase
         .from('applications')
-        .update(updates)
+        .update(encryptApplicationFields(updates))
         .eq('id', raceExisting.id)
         .select()
         .single()
@@ -697,7 +699,7 @@ export async function POST(request) {
       await sendSubmissionEmail(applicantName, data.applicant_email)
     }
 
-    return NextResponse.json({ success: true, application: applicantSafeRow(data, await resultsVisible()) })
+    return NextResponse.json({ success: true, application: applicantSafeRow(decryptApplicationFields(data), await resultsVisible()) })
   } catch (err) {
     return serverError(err, 'api/application')
   }
