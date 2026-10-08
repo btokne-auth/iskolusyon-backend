@@ -29,6 +29,7 @@ import { supabase } from '@/app/supabaseClient'
 import { personalInfoToColumns, academicInfoToColumns } from './applicationColumns'
 import { safeErrorText, logServerError } from '@/app/lib/safeError'
 import { encryptApplicationFields, decryptApplicationFields } from '@/app/lib/fieldCrypto'
+import { isStrongPassword } from './passwordRules'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -76,15 +77,10 @@ function isValidEmailFormat(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-// Basic server-side mirror of the password rule shown in signup.html's
-// field-note ("min 8 chars, 1 number, 1 uppercase, 1 lowercase, 1 special").
+// Oct 8 2026: the rule now lives in app/lib/passwordRules.js, shared with
+// the admin accounts and the live strength meter. Same rule as before.
 export function validatePasswordStrength(password) {
-  if (typeof password !== 'string' || password.length < 8) return false
-  if (!/[0-9]/.test(password)) return false
-  if (!/[a-z]/.test(password)) return false
-  if (!/[A-Z]/.test(password)) return false
-  if (!/[^A-Za-z0-9]/.test(password)) return false
-  return true
+  return isStrongPassword(password)
 }
 
 // Step 1 of signup — creates (or re-uses, if the previous attempt never
