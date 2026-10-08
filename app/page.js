@@ -636,6 +636,13 @@ export default function WelcomePage() {
   const [activeNav, setActiveNav] = useState('hero')
   const mainRef = useRef(null)
 
+  // Oct 8: a refresh starts at the top of the page (browsers normally jump
+  // back to where you were). A link with #section still goes to that section.
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual'
+    if (!window.location.hash) window.scrollTo(0, 0)
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     fetch('/api/announcements')
