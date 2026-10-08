@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from 'react'
 import '../welcome-theme.css'
 import WelcomeNavbar from './WelcomeNavbar'
 import WelcomeFooter from './WelcomeFooter'
+import PasswordStrength from './PasswordStrength'
+import { isStrongPassword } from '../lib/passwordRules'
 
 // Mirrors isValidEmailFormat() in applicantAccounts.js — a real format
 // check, not just "contains an @". Catches "name@" / "name@domain" with no
@@ -600,12 +602,11 @@ function LoginPanel({ expired, onSwitch, onForgot, onAuthenticated }) {
   )
 }
 
-// Mirrors validatePasswordStrength() in app/lib/applicantAccounts.js — same
-// rule shown in the field-note under the Password field, checked here too
-// so the applicant sees it inline instead of only after a round trip.
+// Same rule as the server (app/lib/passwordRules.js), checked here too so
+// the applicant sees it inline instead of only after a round trip.
 function passwordStrengthError(password) {
   if (!password) return 'Please enter a password.'
-  if (password.length < 8 || !/[0-9]/.test(password) || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+  if (!isStrongPassword(password)) {
     return 'Must be at least 8 characters and include a number, an uppercase letter, a lowercase letter, and a special character.'
   }
   return null
@@ -933,9 +934,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
             <Alert tone="info">A verification code will be sent to this email before your account is finalized.</Alert>
             <TextField label="Email Address" type="email" value={email} onChange={clearFieldError('email', setEmail)} autoComplete="email" placeholder="e.g. yourname@email.com" error={fieldErrors.email} />
             <TextField label="Password" type="password" value={password} onChange={clearFieldError('password', setPassword)} autoComplete="new-password" placeholder="Create a password" error={fieldErrors.password} />
-            <div className="text-[11px] text-ccc-muted -mt-2 mb-3">
-              Minimum 8 characters, with at least 1 number, 1 uppercase & 1 lowercase letter, and 1 special character.
-            </div>
+            <PasswordStrength password={password} />
             <TextField label="Confirm Password" type="password" value={password2} onChange={clearFieldError('password2', setPassword2)} autoComplete="new-password" placeholder="Re-enter your password" error={fieldErrors.password2} />
             <button type="submit" disabled={loading} className="w-full mt-2 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60">
               {loading ? 'Please wait…' : 'Continue →'}
@@ -1335,9 +1334,7 @@ function ForgotPasswordPanel({ onSwitch }) {
               placeholder="Create a new password"
               error={fieldErrors.newPassword}
             />
-            <div className="text-[11px] text-ccc-muted -mt-2 mb-3">
-              Minimum 8 characters, with at least 1 number, 1 uppercase &amp; 1 lowercase letter, and 1 special character.
-            </div>
+            <PasswordStrength password={newPassword} />
             <TextField
               label="Confirm New Password"
               type="password"

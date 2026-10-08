@@ -3,12 +3,15 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import SiteHeader from '../../components/SiteHeader'
 import { Skeleton } from '../../components/Skeleton'
+import PasswordStrength from '../../components/PasswordStrength'
+import { isStrongPassword, PASSWORD_RULE_MESSAGE } from '../../lib/passwordRules'
 import '../../admin-theme.css'
 
 // Sept 29 2026: first sign-in on a temporary password (new invite or a
 // Super Admin reset). Same standalone layout as /admin/login. Behavior
 // follows Ivy's admin.html "Set Your Password" view (new password +
-// confirm, at least 8 characters, then continue), reached here after
+// confirm, then continue; Oct 8: same password rule as applicants, with a
+// live strength meter), reached here after
 // signing in with the emailed temporary password instead of via a link.
 
 function EyeIcon(props) {
@@ -79,8 +82,8 @@ function ChangePasswordForm() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    if (password.length < 8) {
-      setError('Your password must be at least 8 characters.')
+    if (!isStrongPassword(password)) {
+      setError(PASSWORD_RULE_MESSAGE)
       return
     }
     if (password !== confirm) {
@@ -158,10 +161,11 @@ function ChangePasswordForm() {
             onChange={setPassword}
             show={showPassword}
             onToggle={() => setShowPassword((v) => !v)}
-            placeholder="At least 8 characters"
+            placeholder="Create a password"
             autoComplete="new-password"
           />
         </div>
+        <PasswordStrength password={password} style={{ margin: '-6px 0 14px' }} />
         <div className="efield">
           <label>Confirm Password</label>
           <PasswordInput

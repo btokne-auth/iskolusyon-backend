@@ -26,6 +26,7 @@
 import { scryptSync, randomBytes, randomInt, timingSafeEqual, createHash } from 'crypto'
 import { supabase } from '@/app/supabaseClient'
 import { safeErrorText } from '@/app/lib/safeError'
+import { isStrongPassword, PASSWORD_RULE_MESSAGE } from './passwordRules'
 
 const KEY_LENGTH = 64
 
@@ -280,8 +281,10 @@ export async function resetAdminToTempPassword(email) {
 export async function setOwnPasswordFromTemp(email, newPassword) {
   const normalizedEmail = (email || '').trim().toLowerCase()
   if (!normalizedEmail) return { error: 'Missing email.' }
-  if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
-    return { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.` }
+  // Oct 8 2026: admins now follow the same rule as applicants (it was
+  // only "at least 8 characters" before).
+  if (!isStrongPassword(newPassword)) {
+    return { error: PASSWORD_RULE_MESSAGE }
   }
 
   const { data: account, error: lookupError } = await supabase
