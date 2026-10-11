@@ -421,9 +421,91 @@ function CopyHashButton({ hash, label = 'Copy hash' }) {
   )
 }
 
+// Oct 12 2026: document integrity (see app/lib/documentIntegrity.js). The
+// system re-reads each file from storage, recomputes its SHA-256 and
+// compares it with the fingerprint saved at upload. Admins never compare
+// hashes themselves; they only see this badge.
+const INTEGRITY_META = {
+  checking: { label: 'Checking integrity…', color: '#5F6B7D', bg: '#F1F4F8', border: '#DCE2EA', title: 'Comparing the file in storage with the SHA-256 fingerprint saved at upload.' },
+  verified: { label: 'Unchanged since upload', color: '#1B5E20', bg: '#EDF7EE', border: '#B9DDBB', title: 'The file in storage has exactly the same SHA-256 fingerprint as when it was uploaded.' },
+  changed: { label: 'Changed since upload', color: '#B71C1C', bg: '#FDECEC', border: '#F2B8B8', title: 'The file in storage no longer matches the SHA-256 fingerprint saved at upload. It was replaced or edited.' },
+  missing: { label: 'File missing from storage', color: '#B71C1C', bg: '#FDECEC', border: '#F2B8B8', title: 'The file saved at upload is no longer in storage.' },
+  error: { label: 'Integrity check unavailable', color: '#8A6300', bg: '#FFF7E0', border: '#F0D98A', title: 'The file could not be read just now. Try again in a moment.' },
+}
+
+function IntegrityBadge({ info }) {
+  const meta = info && INTEGRITY_META[info.status]
+  if (!meta) return null
+  const bad = info.status === 'changed' || info.status === 'missing'
+  const when = info.checkedAt ? new Date(info.checkedAt).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''
+  return (
+    <span
+      role="status"
+      title={`${meta.title}${when ? ` Last checked ${when}.` : ''}`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 999,
+        fontSize: 10.5, fontWeight: 700, color: meta.color, background: meta.bg, border: `1px solid ${meta.border}`,
+      }}
+    >
+      <span aria-hidden="true">{info.status === 'verified' ? '✓' : bad ? '✗' : info.status === 'checking' ? '…' : '!'}</span>
+      {meta.label}
+    </span>
+  )
+}
+
+// Runs the integrity check for the given documents as soon as `enabled`
+// turns true (the applicant window opens). Returns { [file_path]: info }.
+function useDocumentIntegrity(docs, enabled) {
+  const [results, setResults] = useState({})
+  const key = docs.map((d) => d.file_path).filter(Boolean).sort().join('|')
+  const ranFor = useRef('')
+  useEffect(() => {
+    if (!enabled || !key || ranFor.current === key) return
+    ranFor.current = key
+    const paths = key.split('|')
+    setResults((prev) => {
+      const next = { ...prev }
+      for (const p of paths) if (!next[p]) next[p] = { status: 'checking' }
+      return next
+    })
+    fetch('/api/documents/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paths }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.success) throw new Error(data.error || 'failed')
+        setResults((prev) => {
+          const next = { ...prev }
+          for (const r of data.results || []) next[r.file_path] = { status: r.status, checkedAt: r.checkedAt }
+          for (const p of paths) if (next[p]?.status === 'checking') next[p] = { status: 'error' }
+          return next
+        })
+      })
+      .catch(() => {
+        ranFor.current = ''
+        setResults((prev) => {
+          const next = { ...prev }
+          for (const p of paths) if (next[p]?.status === 'checking') next[p] = { status: 'error' }
+          return next
+        })
+      })
+  }, [enabled, key])
+  return results
+}
+
+// What to show for one document: the live result if there is one, else the
+// last saved check.
+function integrityFor(doc, results) {
+  if (results && results[doc.file_path]) return results[doc.file_path]
+  if (doc.integrity_status) return { status: doc.integrity_status, checkedAt: doc.integrity_checked_at }
+  return null
+}
+
 // The core review unit: one document, file preview on the left, OCR + status
 // on the right. This is what replaces the mockup's dead viewDocument() stub.
-function DocumentReviewCard({ doc, onOverride, overriding }) {
+function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
   const [previewing, setPreviewing] = useState(false)
   const image = isImageFile(doc.file_path)
   const pdf = isPdfFile(doc.file_path)
@@ -490,6 +572,13 @@ function DocumentReviewCard({ doc, onOverride, overriding }) {
               )}
             </div>
           </div>
+
+          {integrity && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest">Integrity (SHA-256)</span>
+              <IntegrityBadge info={integrity} />
+            </div>
+          )}
 
           <div className="flex items-center justify-between pt-1">
             {doc.sha256_hash && <CopyHashButton hash={doc.sha256_hash} />}
@@ -1260,6 +1349,10 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
   // first detail load finishes, instead of blank boxes or "Not on file".
   const detailPending = !detail && !detailError && (detailLoading || !!eligibilityRow?.id)
   const [activeCat, setActiveCat] = useState(PROFILE_CATEGORIES[0].key)
+  // Oct 12 2026: re-checks this applicant's files against their upload
+  // fingerprints as soon as the window opens.
+  const integrityResults = useDocumentIntegrity(docs, modalOpen)
+  const integrityProblems = docs.filter((d) => ['changed', 'missing'].includes(integrityFor(d, integrityResults)?.status)).length
   const flaggedCount = docs.filter((d) => d.needs_review).length
   // Sept 29: documents still waiting on the OCR worker are neither.
   const processingCount = docs.filter((d) => d.review_status === 'processing' && !d.needs_review).length
@@ -1472,6 +1565,9 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                 <div className="ms-label">Documents</div>
                 <div className="ms-value">
                   {verifiedCount} Verified{processingCount > 0 ? ` · ${processingCount} Processing` : ''} · {flaggedCount} Pending Review
+                  {integrityProblems > 0 && (
+                    <span style={{ color: '#B71C1C', fontWeight: 700 }}>{` · ✗ ${integrityProblems} changed since upload`}</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1624,7 +1720,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                           {stack.docTypes.length > 0 && (
                             stackDocs.length > 0 ? (
                               stackDocs.map((doc) => (
-                                <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} />
+                                <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} integrity={integrityFor(doc, integrityResults)} />
                               ))
                             ) : (
                               <p className="doc-cat-empty">No document submitted for this yet.</p>
@@ -1648,7 +1744,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                   <div>
                     <div className="modal-section-label">Other Documents</div>
                     {leftover.map((doc) => (
-                      <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} />
+                      <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} integrity={integrityFor(doc, integrityResults)} />
                     ))}
                   </div>
                 )
@@ -1762,6 +1858,97 @@ const DASHBOARD_YEAR_LEVELS = [
   { label: 'Transferee', value: 'Transferee' },
   { label: 'Old Curriculum & ALS Completer', value: 'Old Curriculum and ALS Completer' },
 ]
+
+// Oct 12 2026: Dashboard strip for document integrity. Shows an alert when
+// any document no longer matches its upload fingerprint, and checks every
+// document in one click (the server works through them in chunks; this
+// keeps asking for the next chunk until it's done).
+function DocumentIntegrityPanel({ docs }) {
+  const [running, setRunning] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [run, setRun] = useState(null) // { summary, problems, finishedAt }
+  const [runError, setRunError] = useState('')
+
+  const saved = useMemo(() => {
+    const problems = docs.filter((d) => d.integrity_status === 'changed' || d.integrity_status === 'missing')
+    const checked = docs.filter((d) => !!d.integrity_status).length
+    return { problems, checked }
+  }, [docs])
+
+  const problems = run ? run.problems : saved.problems
+  const total = docs.length
+
+  const verifyAll = async () => {
+    setRunning(true)
+    setRunError('')
+    setProgress(0)
+    const summary = { verified: 0, changed: 0, missing: 0, error: 0, no_hash: 0 }
+    const found = []
+    let offset = 0
+    try {
+      for (let guard = 0; guard < 500; guard++) {
+        const res = await fetch('/api/documents/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ all: true, offset }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data.success) throw new Error(data.error || 'The check could not finish.')
+        for (const k of Object.keys(summary)) summary[k] += data.summary?.[k] || 0
+        for (const r of data.results || []) if (r.status === 'changed' || r.status === 'missing') found.push(r)
+        offset = data.nextOffset
+        setProgress(offset)
+        if (data.done || (data.results || []).length === 0) break
+      }
+      setRun({ summary, problems: found, finishedAt: new Date() })
+    } catch (err) {
+      setRunError(isNetworkError(err) ? 'No connection right now. Try again once you’re back online.' : err.message)
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const bad = problems.length > 0
+  return (
+    <div
+      style={{
+        margin: '0 0 18px', padding: '14px 16px', borderRadius: 14,
+        border: `1px solid ${bad ? '#F2B8B8' : '#DCE2EA'}`, background: bad ? '#FDF3F3' : '#fff',
+        display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center',
+      }}
+    >
+      <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+        <p style={{ margin: 0, fontWeight: 800, color: bad ? '#B71C1C' : 'var(--ccc-navy, #0B2265)', fontSize: 14 }}>
+          {bad
+            ? `✗ ${problems.length} document${problems.length === 1 ? '' : 's'} changed since upload`
+            : 'Document integrity (SHA-256)'}
+        </p>
+        <p style={{ margin: '3px 0 0', fontSize: 12, color: '#5F6B7D' }}>
+          {running
+            ? `Checking… ${Math.min(progress, total)} of ${total} documents`
+            : run
+              ? `Last full check: ${run.summary.verified} unchanged, ${run.summary.changed} changed, ${run.summary.missing} missing${run.summary.error ? `, ${run.summary.error} couldn’t be read` : ''}.`
+              : `Every file is re-checked against the fingerprint saved at upload when an applicant is opened, and once a day automatically. ${saved.checked} of ${total} checked so far.`}
+        </p>
+        {runError && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#B71C1C' }}>{runError}</p>}
+        {bad && (
+          <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, color: '#7A1A1A' }}>
+            {problems.slice(0, 5).map((d) => (
+              <li key={d.file_path}>
+                {d.applicant_name || 'Unknown applicant'} · {getDocTypeLabel(d.document_type)}{' '}
+                {(d.status || d.integrity_status) === 'missing' ? '(missing from storage)' : '(fingerprint does not match)'}
+              </li>
+            ))}
+            {problems.length > 5 && <li>and {problems.length - 5} more</li>}
+          </ul>
+        )}
+      </div>
+      <button type="button" onClick={verifyAll} disabled={running || total === 0} className="mbtn mbtn-ghost mbtn-sm">
+        {running ? 'Verifying…' : 'Verify all documents'}
+      </button>
+    </div>
+  )
+}
 
 function DashboardPanel({
   docs,
@@ -2040,6 +2227,8 @@ function DashboardPanel({
         </span>
         {showForm3 && <ChedForm3Dialog onClose={() => setShowForm3(false)} />}
       </div>
+
+      <DocumentIntegrityPanel docs={docs} />
 
       {/* ── SCHOLARSHIP ELIGIBILITY: stat cards, click-to-filter (a real
           working version of the mockup's "CLICK TO VIEW LIST" links --
