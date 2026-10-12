@@ -261,7 +261,8 @@ export async function verifyMfaCookie(cookieValue) {
     const payload = JSON.parse(fromBase64Url(encodedPayload))
     if (!payload || payload.t !== 'mfa' || typeof payload.e !== 'string') return null
     if (typeof payload.x !== 'number' || payload.x < Math.floor(Date.now() / 1000)) return null
-    return { email: payload.e }
+    // Oct 12 2026: exp lets the sign-in page show the real time left.
+    return { email: payload.e, exp: payload.x }
   } catch {
     return null
   }

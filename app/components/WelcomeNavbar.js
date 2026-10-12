@@ -11,6 +11,7 @@
 // the login screen takes you home to that section instead of doing nothing.
 
 import { useEffect, useState } from 'react'
+import ManilaClock from './ManilaClock'
 
 export const WELCOME_NAV_LINKS = [
   { id: 'hero', label: 'Home' },
@@ -67,10 +68,12 @@ export default function WelcomeNavbar({ activeId, onLinkClick }) {
 
   return (
     <>
+      {/* Oct 12 2026: like ccc.edu.ph's top bar (Ivy's Suggestions Log). The
+          phone numbers stay in the Contact section and the footer. */}
       <div className="w-topbar">
         <div className="inner">
-          <span>(049) 559-8900 to 8907 / (02) 8-539-5170 to 5171</span>
-          <a href="https://www.ccc.edu.ph" target="_blank" rel="noopener noreferrer">www.ccc.edu.ph</a>
+          <span>Official scholarship portal of the City College of Calamba</span>
+          <ManilaClock />
         </div>
       </div>
 

@@ -31,7 +31,7 @@
 
 /* ── TOPBAR ── */
 .welcome-page .w-topbar{background:var(--w-blue);color:#fff;font-size:11.25px;padding:6px 0;font-family:'Montserrat',sans-serif;letter-spacing:.3px}
-.welcome-page .w-topbar .inner{max-width:1200px;margin:0 auto;padding:0 30px;display:flex;justify-content:flex-end;gap:22.5px;align-items:center;flex-wrap:wrap}
+.welcome-page .w-topbar .inner{max-width:1200px;margin:0 auto;padding:0 30px;display:flex;justify-content:space-between;gap:22.5px;align-items:center;flex-wrap:wrap}
 .welcome-page .w-topbar a{color:#fff;text-decoration:none;font-weight:700}
 .welcome-page .w-topbar a:hover{opacity:.8}
 .welcome-page .w-topbar span{color:#fff;font-weight:700}
@@ -275,4 +275,29 @@
 }
 @media (max-width: 640px) {
   .welcome-page .w-topbar { display: none; }
+}
+
+/* Oct 12 2026: footer laid out and styled like ccc.edu.ph (Ivy's Suggestions
+   Log): royal blue gradient, gold-underlined heading, info left, logo right. */
+.welcome-page .w-footer.w-footer{background:radial-gradient(ellipse at 40% 60%,#0a3aa8 0%,#082a86 45%,#06206a 100%);color:#fff}
+.welcome-page .w-footer-ccc{justify-content:space-between;align-items:center;gap:30px;padding-bottom:48px}
+.welcome-page .w-footer-info{min-width:260px;max-width:600px}
+.welcome-page .w-footer-info h4{font-size:20px;letter-spacing:.5px;margin-bottom:22px;position:relative;padding-bottom:10px}
+.welcome-page .w-footer-info h4::after{content:"";position:absolute;left:0;bottom:0;width:44px;height:3px;border-radius:2px;background:var(--ccc-gold)}
+.welcome-page .w-footer-line{display:flex;align-items:center;gap:12px;margin-bottom:14px;font-size:15px;font-weight:600;color:#fff}
+.welcome-page .w-footer-addr{display:block;line-height:1.55;margin-bottom:18px}
+.welcome-page .w-footer-line a{display:inline;margin:0;font-size:15px;color:#fff}
+.welcome-page .w-footer-line a:hover{text-decoration:underline}
+.welcome-page .w-footer-fb{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.18);display:flex !important;align-items:center;justify-content:center;color:#fff !important;margin:6px 0 0 !important}
+.welcome-page .w-footer-ccc .w-footer-logo-col{padding:0}
+.welcome-page .w-footer-ccc .w-footer-logo-col img{height:150px;mix-blend-mode:normal}
+.welcome-page .w-footer-bar-links{display:inline-flex;gap:16px;margin-left:16px}
+.welcome-page .w-footer-bar .w-footer-bar-links a{color:#fff;text-decoration:none;display:inline;margin:0;font-size:inherit}
+.welcome-page .w-footer-bar .w-footer-bar-links a:hover{text-decoration:underline}
+@media (max-width:760px){
+  .welcome-page .w-footer-ccc{flex-direction:column;align-items:flex-start}
+  .welcome-page .w-footer-info h4{font-size:17px}
+  .welcome-page .w-footer-line{font-size:14px}
+  .welcome-page .w-footer-ccc .w-footer-logo-col img{height:110px}
+  .welcome-page .w-footer-bar-links{display:flex;justify-content:center;margin:6px 0 0}
 }
