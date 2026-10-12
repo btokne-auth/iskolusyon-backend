@@ -3,7 +3,7 @@ import { supabase } from '@/app/supabaseClient'
 import { Resend } from 'resend'
 import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns, familyInfoToColumns } from '@/app/lib/applicationColumns'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
-import { computeEligibility, needsShsMathScienceGrade } from '@/app/lib/matching'
+import { computeEligibility, applicantEligibility, needsShsMathScienceGrade } from '@/app/lib/matching'
 import { getSystemSettings, submitBlockedReason } from '@/app/lib/systemSettings'
 import { resultsVisible, applicantSafeRow } from '@/app/lib/resultVisibility'
 import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
@@ -295,6 +295,29 @@ function computeEligibilityUpdate(mergedRow, uploadedTypes) {
 // and mergeApplicationRows() for how multiple matches (e.g. duplicate
 // rows left over from before the Sept 19 2026 race fix below) are
 // combined so nothing already saved reads back as blank.
+// Oct 12 2026: what the applicant gets back. applicantSafeRow() hides
+// unreleased results; this also adds their own eligibility checklist (Ch. 1
+// p. 15, "a verified scholarship eligibility listing") and drops the raw
+// eligibility columns. Before this, those raw columns went to the portal
+// unused: the admin's unannounced status (Qualified / Waitlisted / Not
+// Qualified) and the admin's name were readable in the browser's network
+// tab even though no page showed them.
+async function applicantView(row, session, uploadedTypes) {
+  const safe = applicantSafeRow(row, await resultsVisible())
+  if (!safe) return safe
+  try {
+    const types = uploadedTypes || (await fetchUploadedDocumentTypes({ userId: session?.id, email: session?.email, name: row.applicant_name }))
+    safe.eligibility = applicantEligibility(row, types)
+  } catch (err) {
+    console.error('Could not build the eligibility checklist:', err)
+    safe.eligibility = null
+  }
+  for (const key of ['eligibility_status', 'eligibility_reasons', 'eligibility_override', 'eligibility_override_by', 'eligibility_override_at']) {
+    delete safe[key]
+  }
+  return safe
+}
+
 export async function GET(request) {
   try {
     // Sept 30 2026: this used to look an application up by whatever ?name=
@@ -334,8 +357,7 @@ export async function GET(request) {
       )
     }
 
-    const visible = await resultsVisible()
-    const application = applicantSafeRow(mergeApplicationRows(rows), visible)
+    const application = await applicantView(mergeApplicationRows(rows), session)
     // Oct 5 2026: end-of-cycle archive. The portal shows a read-only notice.
     application.archived = rows.some((r) => !!r.archived_at)
     delete application.archived_at
@@ -583,7 +605,7 @@ export async function POST(request) {
       }
       await logSubmission(action, section, data, applicantName, applicantEmail)
 
-      return NextResponse.json({ success: true, application: applicantSafeRow(decryptApplicationFields(data), await resultsVisible()) })
+      return NextResponse.json({ success: true, application: await applicantView(decryptApplicationFields(data), session) })
     }
 
     // No existing row — create one.
@@ -702,7 +724,7 @@ export async function POST(request) {
     }
     await logSubmission(action, section, data, applicantName, applicantEmail)
 
-    return NextResponse.json({ success: true, application: applicantSafeRow(decryptApplicationFields(data), await resultsVisible()) })
+    return NextResponse.json({ success: true, application: await applicantView(decryptApplicationFields(data), session) })
   } catch (err) {
     return serverError(err, 'api/application')
   }

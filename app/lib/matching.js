@@ -121,57 +121,78 @@ function looksLikeCalambaAddress(address) {
 //   Appendix J Transferees rule (d)).
 //   reasons is an array of short human-readable strings for the admin to
 //   see WHY, not just what.
-export function computeEligibility(row, uploadedTypes) {
+// Oct 12 2026: the rule checks themselves, shared by computeEligibility()
+// (the admin-facing status + reasons) and applicantEligibility() (the
+// applicant's own checklist in the portal), so both always agree.
+// Each check is true (met), false (not met) or null (not checked yet).
+function checkEligibilityRules(row, uploadedTypes) {
   const types = uploadedTypes instanceof Set ? uploadedTypes : new Set(uploadedTypes || [])
-  const reasons = []
+  const personalIn = !!row.personal_info_submitted_at
 
   // ---- Residency (Appendix J I.b, I.c) ----
-  let residencyOk
-  if (!row.personal_info_submitted_at) {
-    residencyOk = null
+  const residency = !personalIn ? null : looksLikeCalambaAddress(row.address)
+
+  // ---- Voter registration (Appendix J I.c) ----
+  const voter = !personalIn ? null : types.has('voterid') || types.has('parentid')
+
+  // ---- Transferee academic standing (Appendix J "Transferees" section) ----
+  const transfereeApplies = row.applying_as === 'Transferee'
+  const t = { applies: transfereeApplies, ok: true, notSubmitted: false, missing: false }
+  if (transfereeApplies) {
+    if (!row.academic_submitted_at) {
+      t.ok = null
+      t.notSubmitted = true
+    } else {
+      const gwa = row.transferee_gwa
+      const units = row.transferee_units_passed
+      const failingGrade = row.transferee_failing_grade
+      if (gwa == null || units == null || !failingGrade) {
+        t.ok = null
+        t.missing = true
+      } else {
+        t.gwa = gwa
+        t.units = units
+        t.gwaOk = Number(gwa) <= TRANSFEREE_MAX_GWA
+        t.unitsOk = Number(units) >= TRANSFEREE_MIN_UNITS
+        t.noFailOk = failingGrade === 'No'
+        t.ok = t.gwaOk && t.unitsOk && t.noFailOk
+      }
+    }
+  }
+
+  let status
+  if (residency === false || voter === false || t.ok === false) status = 'not_qualified'
+  else if (residency === null || voter === null || t.ok === null) status = 'incomplete'
+  else status = 'pending_exam'
+
+  return { residency, voter, transferee: t, status }
+}
+
+export function computeEligibility(row, uploadedTypes) {
+  const rules = checkEligibilityRules(row, uploadedTypes)
+  const reasons = []
+
+  if (rules.residency === null) {
     reasons.push('Personal Information not yet submitted, so residency was not evaluated.')
-  } else if (looksLikeCalambaAddress(row.address)) {
-    residencyOk = true
-  } else {
-    residencyOk = false
+  } else if (rules.residency === false) {
     reasons.push("Address on file doesn't indicate residency in Calamba City (Appendix J requires bonafide Calamba residency).")
   }
 
-  // ---- Voter registration (Appendix J I.c) ----
-  let voterOk
-  if (!row.personal_info_submitted_at) {
-    voterOk = null
+  if (rules.voter === null) {
     reasons.push('Personal Information not yet submitted, so voter registration was not evaluated.')
-  } else if (types.has('voterid') || types.has('parentid')) {
-    voterOk = true
-  } else {
-    voterOk = false
+  } else if (rules.voter === false) {
     reasons.push("No Voter's ID on file for the applicant or a parent/guardian (Appendix J requires one).")
   }
 
-  // ---- Transferee academic standing (Appendix J "Transferees" section) ----
-  let transfereeOk
-  if (row.applying_as !== 'Transferee') {
-    transfereeOk = true // rule doesn't apply to freshmen / Old Curriculum-ALS applicants
-  } else if (!row.academic_submitted_at) {
-    transfereeOk = null
+  const t = rules.transferee
+  if (t.notSubmitted) {
     reasons.push('Educational Background not yet submitted, so transferee standing was not evaluated.')
-  } else {
-    const gwa = row.transferee_gwa
-    const units = row.transferee_units_passed
-    const failingGrade = row.transferee_failing_grade
-    if (gwa == null || units == null || !failingGrade) {
-      transfereeOk = null
-      reasons.push('Transferee GWA / units passed / failing-grade answer missing.')
-    } else {
-      const gwaOk = Number(gwa) <= TRANSFEREE_MAX_GWA
-      const unitsOk = Number(units) >= TRANSFEREE_MIN_UNITS
-      const noFailOk = failingGrade === 'No'
-      transfereeOk = gwaOk && unitsOk && noFailOk
-      if (!gwaOk) reasons.push(`Transferee GWA of ${gwa} doesn't meet the 2.25-or-better requirement.`)
-      if (!unitsOk) reasons.push(`Transferee has passed ${units} units. Appendix J requires at least 26.`)
-      if (!noFailOk) reasons.push('Transferee reported a failing grade in a previous semester (Appendix J disqualifies this).')
-    }
+  } else if (t.missing) {
+    reasons.push('Transferee GWA / units passed / failing-grade answer missing.')
+  } else if (t.applies) {
+    if (!t.gwaOk) reasons.push(`Transferee GWA of ${t.gwa} doesn't meet the 2.25-or-better requirement.`)
+    if (!t.unitsOk) reasons.push(`Transferee has passed ${t.units} units. Appendix J requires at least 26.`)
+    if (!t.noFailOk) reasons.push('Transferee reported a failing grade in a previous semester (Appendix J disqualifies this).')
   }
 
   // ---- BSEd Mathematics / Science (Appendix J p. 96, rule a) ----
@@ -183,18 +204,95 @@ export function computeEligibility(row, uploadedTypes) {
     )
   }
 
-  // ---- Overall status ----
-  let status
-  if (residencyOk === false || voterOk === false || transfereeOk === false) {
-    status = 'not_qualified'
-  } else if (residencyOk === null || voterOk === null || transfereeOk === null) {
-    status = 'incomplete'
-  } else {
-    status = 'pending_exam'
+  const status = rules.status
+  if (status === 'pending_exam') {
     reasons.push('Passes every rule this system can currently check. Final admission still depends on the entrance exam result.')
   }
 
   return { status, reasons }
+}
+
+// Oct 12 2026: Chapter 1 p. 15 promises applicants "a verified scholarship
+// eligibility listing", and Objective 2 says it comes "without
+// administrative intervention". So the portal shows the same automatic
+// check the admins see, right away, as a plain-language checklist, and
+// marks it Verified once an admin has set the applicant's status
+// (eligibility_override). It never shows Qualified vs Waitlisted: those
+// are results, which reach the applicant only through Send Result.
+//
+// Returns { status, verified, items, note }:
+//   status: 'not_checked' | 'meets' | 'not_met'
+//   items:  [{ key, label, state: 'met' | 'not_met' | 'not_checked', detail }]
+export function applicantEligibility(row, uploadedTypes) {
+  const rules = checkEligibilityRules(row, uploadedTypes)
+  const stateOf = (v) => (v === true ? 'met' : v === false ? 'not_met' : 'not_checked')
+  const items = []
+
+  items.push({
+    key: 'residency',
+    label: 'Resident of Calamba City',
+    state: stateOf(rules.residency),
+    detail:
+      rules.residency === null
+        ? 'Checked once you submit your Personal Information.'
+        : rules.residency
+        ? 'Your address is in Calamba City.'
+        : 'Your address on file is not in Calamba City.',
+  })
+
+  items.push({
+    key: 'voter',
+    label: "Voter's ID (yours or a parent's or guardian's)",
+    state: stateOf(rules.voter),
+    detail:
+      rules.voter === null
+        ? 'Checked once you submit your Personal Information.'
+        : rules.voter
+        ? "A Voter's ID is on file."
+        : "Upload your Voter's ID, or a parent's or guardian's.",
+  })
+
+  const t = rules.transferee
+  if (t.applies) {
+    let detail
+    if (t.notSubmitted) detail = 'Checked once you submit your Educational Background.'
+    else if (t.missing) detail = 'Fill in your GWA, units passed and failing-grade answer in Educational Background.'
+    else if (t.ok) detail = `GWA ${t.gwa}, ${t.units} units passed, no failing grade.`
+    else {
+      const parts = []
+      if (!t.gwaOk) parts.push(`GWA of ${t.gwa} (2.25 or better is needed)`)
+      if (!t.unitsOk) parts.push(`${t.units} units passed (at least 26 are needed)`)
+      if (!t.noFailOk) parts.push('a failing grade in a previous semester')
+      detail = `Not met: ${parts.join('; ')}.`
+    }
+    items.push({ key: 'transferee', label: 'Transferee academic standing', state: stateOf(t.ok), detail })
+  }
+
+  let status = rules.status === 'not_qualified' ? 'not_met' : rules.status === 'pending_exam' ? 'meets' : 'not_checked'
+
+  // An admin's decision is the verified one.
+  const override = row.eligibility_override
+  const verified = !!override
+  if (override === 'not_qualified') status = 'not_met'
+  else if (override === 'qualified' || override === 'waitlisted') {
+    status = 'meets'
+    // The office accepted the application (e.g. a Program Director
+    // exception, Appendix J Transferees rule d), so an item the automatic
+    // check couldn't confirm isn't shown as a problem.
+    for (const item of items) {
+      if (item.state !== 'met') {
+        item.state = 'met'
+        item.detail = 'Accepted by the Scholarship Office.'
+      }
+    }
+  }
+
+  let note = null
+  if (bsedGradeBelow(row.program_choice_1, row)) {
+    note = `Your lowest SHS Mathematics or Science grade is below 85, so ${row.program_choice_1} (your 1st choice) is closed to you. Your exam result can still place you in another program.`
+  }
+
+  return { status, verified, items, note }
 }
 
 // ---------------------------------------------------------------------------
