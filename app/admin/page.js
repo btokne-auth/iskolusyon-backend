@@ -1859,24 +1859,23 @@ const DASHBOARD_YEAR_LEVELS = [
   { label: 'Old Curriculum & ALS Completer', value: 'Old Curriculum and ALS Completer' },
 ]
 
-// Oct 12 2026: Dashboard strip for document integrity. Shows an alert when
-// any document no longer matches its upload fingerprint, and checks every
-// document in one click (the server works through them in chunks; this
-// keeps asking for the next chunk until it's done).
-function DocumentIntegrityPanel({ docs }) {
+// Oct 12 2026: document integrity on the Dashboard. "Verify all documents"
+// sits in the header next to the other admin tools; the server works
+// through every file in chunks and this keeps asking for the next chunk
+// until it's done. Nothing extra is shown while every file is fine: a slim
+// red banner appears only when a document no longer matches its upload
+// fingerprint (or while a check is running).
+function useVerifyAllDocuments(docs) {
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState(0)
-  const [run, setRun] = useState(null) // { summary, problems, finishedAt }
+  const [run, setRun] = useState(null) // { summary, problems }
   const [runError, setRunError] = useState('')
 
-  const saved = useMemo(() => {
-    const problems = docs.filter((d) => d.integrity_status === 'changed' || d.integrity_status === 'missing')
-    const checked = docs.filter((d) => !!d.integrity_status).length
-    return { problems, checked }
-  }, [docs])
-
-  const problems = run ? run.problems : saved.problems
-  const total = docs.length
+  const savedProblems = useMemo(
+    () => docs.filter((d) => d.integrity_status === 'changed' || d.integrity_status === 'missing'),
+    [docs]
+  )
+  const problems = run ? run.problems : savedProblems
 
   const verifyAll = async () => {
     setRunning(true)
@@ -1901,6 +1900,13 @@ function DocumentIntegrityPanel({ docs }) {
         if (data.done || (data.results || []).length === 0) break
       }
       setRun({ summary, problems: found, finishedAt: new Date() })
+      // Problems show on the Document integrity card; a clean run gets a
+      // short confirmation toast.
+      if (summary.changed + summary.missing === 0) {
+        showAdminNotice(
+          `Integrity check done: all ${summary.verified} documents are unchanged since upload.${summary.error ? ` ${summary.error} couldn’t be read; try again later.` : ''}`
+        )
+      }
     } catch (err) {
       setRunError(isNetworkError(err) ? 'No connection right now. Try again once you’re back online.' : err.message)
     } finally {
@@ -1908,45 +1914,110 @@ function DocumentIntegrityPanel({ docs }) {
     }
   }
 
-  const bad = problems.length > 0
+  const savedVerified = docs.filter((d) => d.integrity_status === 'verified').length
+  const savedLast = docs.reduce((max, d) => (d.integrity_checked_at && d.integrity_checked_at > max ? d.integrity_checked_at : max), '')
+  return {
+    running,
+    progress,
+    total: docs.length,
+    problems,
+    runError,
+    verifyAll,
+    verified: run ? run.summary.verified : savedVerified,
+    lastChecked: run ? run.finishedAt : savedLast ? new Date(savedLast) : null,
+  }
+}
+
+// Oct 12 2026 (Pau picked option B): two more stat cards in the Dashboard
+// grid, same look as the others. "Documents to review" replaces the small
+// grey "· 1 document need review" line that used to sit in the subtitle;
+// "Document integrity" shows how many files still match the SHA-256
+// fingerprint saved at upload, turns red when one doesn't, and holds the
+// "Verify all documents" action.
+function DocumentStatCards({ check, flaggedCount, docsLoading, onShowFlagged }) {
+  const { running, progress, total, problems, runError, verifyAll, verified, lastChecked } = check
+  const changed = problems.length
+  const when = lastChecked
+    ? lastChecked.toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : ''
+
+  let value
+  let note
+  if (running) {
+    value = `${Math.min(progress, total)} / ${total}`
+    note = 'Checking every file against its upload fingerprint…'
+  } else if (changed > 0) {
+    value = changed
+    note = (
+      <>
+        {changed === 1 ? 'File' : 'Files'} changed since upload (SHA-256 no longer matches):{' '}
+        {problems.slice(0, 2).map((d, i) => (
+          <span key={d.file_path}>
+            {i > 0 ? '; ' : ''}
+            {d.applicant_name || 'Unknown applicant'} · {getDocTypeLabel(d.document_type)}
+            {(d.status || d.integrity_status) === 'missing' ? ' (missing)' : ''}
+          </span>
+        ))}
+        {changed > 2 ? `; and ${changed - 2} more` : ''}.
+      </>
+    )
+  } else if (verified > 0) {
+    value = `${verified} / ${total}`
+    note = `Unchanged since upload (SHA-256).${when ? ` Last checked ${when}.` : ''}${verified < total ? ` ${total - verified} not checked yet.` : ''}`
+  } else {
+    value = '—'
+    note = 'Not checked yet. Files are re-checked when an applicant is opened, and daily.'
+  }
+
   return (
-    <div
-      style={{
-        margin: '0 0 18px', padding: '14px 16px', borderRadius: 14,
-        border: `1px solid ${bad ? '#F2B8B8' : '#DCE2EA'}`, background: bad ? '#FDF3F3' : '#fff',
-        display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center',
-      }}
-    >
-      <div style={{ flex: '1 1 320px', minWidth: 0 }}>
-        <p style={{ margin: 0, fontWeight: 800, color: bad ? '#B71C1C' : 'var(--ccc-navy, #0B2265)', fontSize: 14 }}>
-          {bad
-            ? `✗ ${problems.length} document${problems.length === 1 ? '' : 's'} changed since upload`
-            : 'Document integrity (SHA-256)'}
-        </p>
-        <p style={{ margin: '3px 0 0', fontSize: 12, color: '#5F6B7D' }}>
-          {running
-            ? `Checking… ${Math.min(progress, total)} of ${total} documents`
-            : run
-              ? `Last full check: ${run.summary.verified} unchanged, ${run.summary.changed} changed, ${run.summary.missing} missing${run.summary.error ? `, ${run.summary.error} couldn’t be read` : ''}.`
-              : `Every file is re-checked against the fingerprint saved at upload when an applicant is opened, and once a day automatically. ${saved.checked} of ${total} checked so far.`}
-        </p>
-        {runError && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#B71C1C' }}>{runError}</p>}
-        {bad && (
-          <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, color: '#7A1A1A' }}>
-            {problems.slice(0, 5).map((d) => (
-              <li key={d.file_path}>
-                {d.applicant_name || 'Unknown applicant'} · {getDocTypeLabel(d.document_type)}{' '}
-                {(d.status || d.integrity_status) === 'missing' ? '(missing from storage)' : '(fingerprint does not match)'}
-              </li>
-            ))}
-            {problems.length > 5 && <li>and {problems.length - 5} more</li>}
-          </ul>
+    <>
+      <div
+        className="stat-card stat-docreview"
+        onClick={onShowFlagged}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onShowFlagged()
+          }
+        }}
+      >
+        <p className="stat-label">Documents to review</p>
+        {docsLoading ? (
+          <p className="stat-value" aria-label="Loading">
+            <Skeleton width={46} height={30} radius={7} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
+          </p>
+        ) : (
+          <p className="stat-value">{flaggedCount}</p>
         )}
+        <p className="stat-note">Flagged by OCR or an admin and waiting for a decision.</p>
+        <p className="stat-card-hint">
+          <IconSearch className="w-3 h-3" /> Show applicants
+        </p>
       </div>
-      <button type="button" onClick={verifyAll} disabled={running || total === 0} className="mbtn mbtn-ghost mbtn-sm">
-        {running ? 'Verifying…' : 'Verify all documents'}
-      </button>
-    </div>
+
+      <div className={`stat-card stat-integrity${changed > 0 ? ' is-bad' : ''}`} style={{ cursor: 'default' }}>
+        <p className="stat-label">Document integrity</p>
+        {docsLoading ? (
+          <p className="stat-value" aria-label="Loading">
+            <Skeleton width={70} height={30} radius={7} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
+          </p>
+        ) : (
+          <p className="stat-value" role="status">{value}</p>
+        )}
+        <p className="stat-note">{runError ? `Integrity check: ${runError}` : note}</p>
+        <button
+          type="button"
+          className="stat-card-hint stat-card-action"
+          onClick={verifyAll}
+          disabled={running || total === 0}
+          title="Re-reads every uploaded file and compares its SHA-256 fingerprint with the one saved at upload. Also runs on its own when an applicant is opened, and once a day."
+        >
+          ↻ {running ? 'Verifying…' : 'Verify all documents'}
+        </button>
+      </div>
+    </>
   )
 }
 
@@ -1967,6 +2038,7 @@ function DashboardPanel({
   onProfileSaved,
 }) {
   const locks = useApplicantLocks()
+  const integrityCheck = useVerifyAllDocuments(docs)
   const [showForm3, setShowForm3] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -2207,7 +2279,6 @@ function DashboardPanel({
           <h1>Dashboard</h1>
           <p>
             A summary of applicant statuses across the scholarship pipeline. Available to all types of Admins.
-            {totalFlagged > 0 && ` · ${totalFlagged} document${totalFlagged === 1 ? '' : 's'} need review`}
           </p>
         </div>
         <span className="cf-header-actions">
@@ -2228,7 +2299,6 @@ function DashboardPanel({
         {showForm3 && <ChedForm3Dialog onClose={() => setShowForm3(false)} />}
       </div>
 
-      <DocumentIntegrityPanel docs={docs} />
 
       {/* ── SCHOLARSHIP ELIGIBILITY: stat cards, click-to-filter (a real
           working version of the mockup's "CLICK TO VIEW LIST" links --
@@ -2263,6 +2333,15 @@ function DashboardPanel({
             )}
           </div>
         ))}
+        <DocumentStatCards
+          check={integrityCheck}
+          flaggedCount={totalFlagged}
+          docsLoading={loading}
+          onShowFlagged={() => {
+            setStatusFilter('action')
+            applicantListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }}
+        />
       </div>
 
       {eligibilityError && (
