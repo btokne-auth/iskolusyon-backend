@@ -568,6 +568,38 @@
 .admin-portal .stat-card.stat-appealed {
   border-top: 4px solid var(--appealed-light);
 }
+/* Oct 12 2026: Documents to review + Document integrity cards. */
+.admin-portal .stat-card.stat-docreview {
+  border-top: 4px solid #e07b00;
+}
+.admin-portal .stat-card.stat-integrity {
+  border-top: 4px solid #2e7d32;
+}
+.admin-portal .stat-card.stat-integrity .stat-value {
+  color: #1b5e20;
+}
+.admin-portal .stat-card.stat-integrity.is-bad {
+  border-top-color: #b71c1c;
+  border-color: #f2b8b8;
+  background: #fdf5f5;
+}
+.admin-portal .stat-card.stat-integrity.is-bad .stat-value {
+  color: #b71c1c;
+}
+.admin-portal .stat-card .stat-card-action {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.admin-portal .stat-card .stat-card-action:hover {
+  text-decoration: underline;
+}
+.admin-portal .stat-card .stat-card-action:disabled {
+  color: var(--muted);
+  cursor: default;
+  text-decoration: none;
+}
 .admin-portal .dept-divider {
   font-family: "Montserrat", sans-serif;
   font-weight: 800;
