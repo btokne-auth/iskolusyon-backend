@@ -44,7 +44,7 @@ export async function GET(request) {
         {
           actor: 'System (daily check)',
           action: `Daily document integrity check: ${summary.verified} unchanged, ${summary.changed} changed, ${summary.missing} missing`,
-          kind: summary.changed + summary.missing > 0 ? 'warn' : 'info',
+          kind: summary.changed + summary.missing > 0 ? 'warn' : 'done',
           category: 'Documents',
         },
       ])

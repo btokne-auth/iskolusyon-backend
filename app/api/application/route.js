@@ -10,6 +10,7 @@ import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
 import { serverError } from '@/app/lib/safeError'
 import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
 import { encryptApplicationFields, decryptApplicationFields } from '@/app/lib/fieldCrypto'
+import { logApplicantActivity, applicantLabel } from '@/app/lib/activityLog'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -580,6 +581,7 @@ export async function POST(request) {
       if (action === 'submit') {
         await sendSubmissionEmail(applicantName, data.applicant_email)
       }
+      await logSubmission(action, section, data, applicantName, applicantEmail)
 
       return NextResponse.json({ success: true, application: applicantSafeRow(decryptApplicationFields(data), await resultsVisible()) })
     }
@@ -698,11 +700,30 @@ export async function POST(request) {
     if (action === 'submit') {
       await sendSubmissionEmail(applicantName, data.applicant_email)
     }
+    await logSubmission(action, section, data, applicantName, applicantEmail)
 
     return NextResponse.json({ success: true, application: applicantSafeRow(decryptApplicationFields(data), await resultsVisible()) })
   } catch (err) {
     return serverError(err, 'api/application')
   }
+}
+
+// Oct 12 2026: section and final submissions go to the Activity Log
+// (autosaves don't).
+async function logSubmission(action, section, data, applicantName, applicantEmail) {
+  if (action !== 'submit' && action !== 'submit-section') return
+  const sectionLabel = {
+    personal: 'Personal Information',
+    academic: 'Educational Background',
+    health: 'Health & Wellness',
+    financial: 'Family & Financial Information',
+  }[section]
+  await logApplicantActivity(
+    applicantLabel(data?.applicant_name || applicantName, data?.applicant_email || applicantEmail),
+    action === 'submit'
+      ? `Applicant submitted their application${data?.application_number ? ` (${data.application_number})` : ''}`
+      : `Applicant submitted ${sectionLabel || 'a section'}`
+  )
 }
 
 // ============================================================================

@@ -37,7 +37,7 @@ export async function GET(request) {
           {
             actor: session.name,
             action: `LGU account downloaded CHED Form 3 ${report.reference_number}`,
-            kind: 'info',
+            kind: 'done',
             category: 'Reports',
           },
         ])

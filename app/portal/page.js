@@ -198,6 +198,9 @@ function mapDbRowToPersonalInfo(row) {
     emailUpdatesOptIn: !!row.email_updates_opt_in,
     lgbtqi: row.lgbtqi_member || '',
     disability: row.disability || '',
+    soloParent: row.solo_parent || '',
+    indigenousMember: row.indigenous_member || '',
+    underprivileged: row.underprivileged || '',
     hobbies: row.hobbies || '',
     organizations:
       Array.isArray(row.organizations) && row.organizations.length > 0
@@ -1768,7 +1771,7 @@ function PortalApp({ accountSession, onLogout }) {
     contactNumber: '', address: '', barangay: '', residencyYears: '', voterPrecinct: '',
     emailUpdatesOptIn: false, termsCertified: false, privacyAgreed: false,
     // ---- Card 4 (Additional Information) ----
-    lgbtqi: '', disability: '', hobbies: '',
+    lgbtqi: '', disability: '', soloParent: '', indigenousMember: '', underprivileged: '', hobbies: '',
     // ---- Card 5 (Organizational Involvement) ---- one blank row to start,
     // matching Ivy's org-table markup (a single seed row with only a '+').
     organizations: [{ name: '', position: '', nature: '', year: '' }],
@@ -2573,6 +2576,9 @@ function PortalApp({ accountSession, onLogout }) {
     personalInfo.voterPrecinct.trim() &&
     personalInfo.lgbtqi &&
     personalInfo.disability.trim() &&
+    personalInfo.soloParent &&
+    personalInfo.indigenousMember &&
+    personalInfo.underprivileged &&
     personalInfo.hobbies.trim() &&
     personalInfo.motivation.trim() &&
     personalInfo.selfDescription.trim() &&
@@ -3576,6 +3582,9 @@ function PortalApp({ accountSession, onLogout }) {
                 <div className="form-grid">
                   <SelectField label="Are you a LGBTQI+ community member?" required value={personalInfo.lgbtqi} onChange={(v) => updatePI('lgbtqi', v)} options={['Yes', 'No']} />
                   <TextField label="Do you have a physical or behavioral condition/disability?" required value={personalInfo.disability} onChange={(v) => updatePI('disability', v)} placeholder="e.g. None" />
+                  <SelectField label="Are you a solo parent?" required value={personalInfo.soloParent} onChange={(v) => updatePI('soloParent', v)} options={['Yes', 'No']} />
+                  <SelectField label="Are you a member of an Indigenous Peoples (IP) community?" required value={personalInfo.indigenousMember} onChange={(v) => updatePI('indigenousMember', v)} options={['Yes', 'No']} />
+                  <SelectField label="Does your family belong to a homeless or underprivileged sector?" required value={personalInfo.underprivileged} onChange={(v) => updatePI('underprivileged', v)} options={['Yes', 'No']} />
                   <TextField full label="What are your hobbies and interests?" required value={personalInfo.hobbies} onChange={(v) => updatePI('hobbies', v)} placeholder="e.g. Reading, basketball, drawing" />
                 </div>
               </div>

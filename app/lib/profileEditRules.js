@@ -36,6 +36,9 @@ export const SELECT_OPTIONS = {
   sex: ['Male', 'Female'],
   civil_status: ['Single', 'Married', 'Widowed', 'Separated'],
   lgbtqi_member: YES_NO,
+  solo_parent: YES_NO,
+  indigenous_member: YES_NO,
+  underprivileged: YES_NO,
   applying_as: ['First Year', 'Transferee', 'Old Curriculum and ALS Completer'],
   term_applying: ['Term 1', 'Term 2'],
   program_choice_1: PROGRAM_OPTIONS,
@@ -62,7 +65,7 @@ export const LONG_TEXT_FIELDS = new Set(['motivation', 'self_description', 'ten_
 const NOT_EDITABLE = new Set(['applicant_email'])
 
 // Health details are logged as "changed" without the values themselves.
-export const PRIVATE_LOG_FIELDS = new Set(['health_condition', 'disability'])
+export const PRIVATE_LOG_FIELDS = new Set(['health_condition', 'disability', 'lgbtqi_member', 'solo_parent', 'indigenous_member', 'underprivileged'])
 
 export const EDITABLE_FIELDS = new Map()
 for (const cat of PROFILE_CATEGORIES) {

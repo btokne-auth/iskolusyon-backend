@@ -3,6 +3,7 @@ import { APPLICANT_COOKIE_NAME, createApplicantCookieValue } from '@/app/lib/app
 import { verifyApplicantCredentials, sendLoginCode, verifyLoginCode } from '@/app/lib/applicantAccounts'
 import { supabase } from '@/app/supabaseClient'
 import { serverError } from '@/app/lib/safeError'
+import { logApplicantActivity, applicantLabel } from '@/app/lib/activityLog'
 import {
   MINUTE,
   getClientIp,
@@ -39,9 +40,14 @@ export async function POST(request) {
       }
 
       const result = await verifyLoginCode(body.accountId, body.code)
-      if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
+      if (result.error) {
+        const { data: acct } = await supabase.from('applicant_accounts').select('email').eq('id', body.accountId).maybeSingle()
+        await logApplicantActivity(applicantLabel('', acct?.email || 'Unknown account'), 'Wrong or expired sign-in code entered', 'warn')
+        return NextResponse.json({ error: result.error }, { status: 400 })
+      }
 
       const displayName = await lookUpDisplayName(result.account.id, result.account.email)
+      await logApplicantActivity(applicantLabel(displayName, result.account.email), 'Applicant signed in')
 
       const { value, maxAge } = await createApplicantCookieValue(result.account.id, result.account.email, displayName)
       const res = NextResponse.json({ success: true, name: displayName, email: result.account.email })
@@ -79,6 +85,16 @@ export async function POST(request) {
     if (!account) {
       await recordAttempt(emailKey)
       await recordAttempt(ipKey)
+      // One line per failed attempt (already capped by the limits above),
+      // plus one when this attempt is the one that locks the email.
+      const nowLocked = (await checkLimit(emailKey, EMAIL_MAX_FAILS, WINDOW_MS)).blocked
+      await logApplicantActivity(
+        applicantLabel('', email),
+        nowLocked
+          ? `Applicant sign-in locked for 15 minutes after ${EMAIL_MAX_FAILS} wrong passwords`
+          : 'Failed applicant sign-in (wrong email or password)',
+        'warn'
+      )
       return NextResponse.json({ error: 'Incorrect email or password.' }, { status: 401 })
     }
     if (account.unverified) {

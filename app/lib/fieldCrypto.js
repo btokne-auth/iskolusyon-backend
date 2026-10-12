@@ -20,6 +20,8 @@
 //  - the family's financial details: each parent's / guardian's employment
 //    status (the form has no income field; see applicantProfileSchema.js)
 //  - Medical Status (health_condition), the most private free-text answer
+//  - Oct 12 2026: the special classification answers (LGBTQI+, disability,
+//    solo parent, Indigenous Peoples member, homeless/underprivileged)
 // Not encrypted on purpose: names, birth details, address, barangay and
 // precinct, because the system has to search and compare those (conflict
 // detection, duplicate check, CHED Form 3 sorting).
@@ -39,6 +41,13 @@ export const ENCRYPTED_FIELDS = [
   'fam_father_employment',
   'fam_guardian_employment',
   'health_condition',
+  // Oct 12 2026: special classifications, which RA 10173 treats as
+  // sensitive personal information (manuscript Ch. 1 inputs).
+  'lgbtqi_member',
+  'disability',
+  'solo_parent',
+  'indigenous_member',
+  'underprivileged',
 ]
 const ENCRYPTED_SET = new Set(ENCRYPTED_FIELDS)
 const PREFIX = 'enc:v1:'

@@ -4,6 +4,7 @@ import { supabase } from '@/app/supabaseClient'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { serverError } from '@/app/lib/safeError'
 import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
+import { logApplicantActivity, applicantLabel } from '@/app/lib/activityLog'
 
 // Appeals & Rescheduling request endpoint (Notifications Module).
 //
@@ -204,6 +205,7 @@ export async function POST(request) {
       return serverError(error, 'api/reschedule')
     }
 
+    await logApplicantActivity(applicantLabel(verifiedName, applicantSession.email), `Applicant filed a request: ${requestType}`)
     return NextResponse.json({ success: true, request: data })
   } catch (err) {
     return serverError(err, 'api/reschedule')

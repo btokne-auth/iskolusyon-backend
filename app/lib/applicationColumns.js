@@ -31,6 +31,12 @@ export function personalInfoToColumns(personalInfo) {
     email_updates_opt_in: !!pi.emailUpdatesOptIn,
     lgbtqi_member: text(pi.lgbtqi),
     disability: text(pi.disability),
+    // Oct 12 2026: special classifications named in the manuscript's
+    // Chapter 1 inputs (solo parents, indigenous people, homeless or
+    // underprivileged). Encrypted at rest like LGBTQI+ and disability.
+    solo_parent: text(pi.soloParent),
+    indigenous_member: text(pi.indigenousMember),
+    underprivileged: text(pi.underprivileged),
     hobbies: text(pi.hobbies),
     organizations: Array.isArray(pi.organizations)
       ? pi.organizations

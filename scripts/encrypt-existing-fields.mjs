@@ -16,6 +16,8 @@ const FIELDS = [
   'contact_number', 'spouse_contact', 'fam_mother_contact', 'fam_father_contact', 'fam_guardian_contact',
   'fam_emergency_contact_number', 'fam_mother_employment', 'fam_father_employment', 'fam_guardian_employment',
   'health_condition',
+  // Oct 12 2026: special classification answers.
+  'lgbtqi_member', 'disability', 'solo_parent', 'indigenous_member', 'underprivileged',
 ]
 const PREFIX = 'enc:v1:'
 const dryRun = process.argv.includes('--dry-run')

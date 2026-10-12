@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requestPasswordReset, resetPasswordWithCode } from '@/app/lib/applicantAccounts'
 import { MINUTE, getClientIp, normalizeKey, checkLimit, recordAttempt, waitMessage } from '@/app/lib/rateLimit'
 import { serverError } from '@/app/lib/safeError'
+import { logApplicantActivity, applicantLabel } from '@/app/lib/activityLog'
 
 // Sept 30 2026: a reset code can be requested once a minute per email and
 // 10 times per 15 minutes per network address, so this endpoint can't be
@@ -49,6 +50,7 @@ export async function POST(request) {
       }
       const result = await resetPasswordWithCode(body.email, body.code, body.newPassword)
       if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
+      await logApplicantActivity(applicantLabel('', body.email), 'Applicant reset their password with an emailed code')
       return NextResponse.json({ success: true })
     }
 
