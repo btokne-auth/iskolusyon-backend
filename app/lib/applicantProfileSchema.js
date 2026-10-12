@@ -67,6 +67,9 @@ export const PROFILE_CATEGORIES = [
         fields: [
           { key: 'lgbtqi_member', label: 'LGBTQI+ Community Member' },
           { key: 'disability', label: 'Physical/Behavioral Condition or Disability' },
+          { key: 'solo_parent', label: 'Solo Parent' },
+          { key: 'indigenous_member', label: 'Indigenous Peoples (IP) Community Member' },
+          { key: 'underprivileged', label: 'Homeless or Underprivileged Sector' },
           { key: 'hobbies', label: 'Hobbies and Interests' },
         ],
         // supportdoc has no equivalent stack in Ivy's mockup -- folded in

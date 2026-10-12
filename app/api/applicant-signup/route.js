@@ -8,6 +8,7 @@ import {
 import { APPLICANT_COOKIE_NAME, createApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { serverError } from '@/app/lib/safeError'
 import { MINUTE, getClientIp, limitRequest } from '@/app/lib/rateLimit'
+import { logApplicantActivity, applicantLabel } from '@/app/lib/activityLog'
 
 // One endpoint, four actions — mirrors the action-in-body pattern already
 // used by /api/application (save vs submit) rather than spawning four
@@ -65,6 +66,7 @@ export async function POST(request) {
       }
       const result = await verifySignupCode(body.accountId, body.code)
       if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
+      await logApplicantActivity(applicantLabel(result.displayName, result.account.email), 'New applicant account created (email verified)')
 
       const { value, maxAge } = await createApplicantCookieValue(
         result.account.id,

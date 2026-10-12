@@ -1599,6 +1599,23 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                 <div className="modal-section-label">
                   General Information
                 </div>
+                {/* Oct 12 2026 (RA 10173): when the applicant agreed to the
+                    Data Privacy Consent. */}
+                {detail && (
+                  <p className="text-[11px] text-ccc-muted mb-2">
+                    Data Privacy Consent:{' '}
+                    {detail.privacy_agreed ? (
+                      <strong className="text-ccc-text">
+                        Agreed
+                        {detail.privacy_agreed_at
+                          ? ` on ${new Date(detail.privacy_agreed_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+                          : ''}
+                      </strong>
+                    ) : (
+                      <strong className="text-ccc-red">Not recorded</strong>
+                    )}
+                  </p>
+                )}
                 {detailError && (
                   <p className="text-[11px] text-ccc-red mb-2 flex items-center gap-2">
                     {detailError}
@@ -3966,6 +3983,11 @@ const STAT_SCHOLAR = [
   { key: 'pending_exam', label: 'Pending Exam', color: '#003CD0' },
 ]
 const STAT_APPLYING_COLORS = ['#0D2F6E', '#C8A84B', '#5A6B85', '#A7B4C8']
+// Oct 12 2026: one fixed color per department (the order of
+// DASHBOARD_DEPARTMENTS), so a department keeps its color whatever the
+// filter; same palette as the other Statistics panels.
+const STAT_DEPARTMENT_COLORS = ['#0D2F6E', '#C8A84B', '#5A6B85', '#A7B4C8']
+const STAT_NOT_CHOSEN_COLOR = '#E3E7EE'
 const STAT_POLL_MS = 15000
 
 function statPct(n, total) {
@@ -4117,6 +4139,7 @@ function AnalyticsPanel() {
     const elig = Object.fromEntries(STAT_ELIGIBILITY.map((s) => [s.key, 0]))
     const scholar = Object.fromEntries(STAT_SCHOLAR.map((s) => [s.key, 0]))
     const applying = new Map()
+    const departments = new Map()
     const programs = new Map()
     let profileComplete = 0
 
@@ -4127,6 +4150,8 @@ function AnalyticsPanel() {
       if (s in scholar) scholar[s] += 1
       const a = r.applying_as || 'Not yet specified'
       applying.set(a, (applying.get(a) || 0) + 1)
+      const d = statDepartmentOf(r.program_choice_1)
+      departments.set(d, (departments.get(d) || 0) + 1)
       if (PROFILE_SECTIONS.every((sec) => !!r[sec.key])) profileComplete += 1
 
       const program = r.program_choice_1 || 'Not yet chosen'
@@ -4151,6 +4176,14 @@ function AnalyticsPanel() {
       elig,
       scholar,
       applying: Array.from(applying.entries()).sort((a, b) => b[1] - a[1]),
+      departments: [
+        ...DASHBOARD_DEPARTMENTS.map((dep, i) => ({
+          label: dep.label,
+          count: departments.get(dep.label) || 0,
+          color: STAT_DEPARTMENT_COLORS[i % STAT_DEPARTMENT_COLORS.length],
+        })),
+        ...(departments.get('Not yet chosen') ? [{ label: 'Not yet chosen', count: departments.get('Not yet chosen'), color: STAT_NOT_CHOSEN_COLOR }] : []),
+      ],
       programRows,
     }
   }, [visibleRows, department])
@@ -4268,6 +4301,15 @@ function AnalyticsPanel() {
             color: STAT_APPLYING_COLORS[i % STAT_APPLYING_COLORS.length],
           }))}
           foot="Year level at admission: First Year, Transferee, or Old Curriculum & ALS Completer, as chosen on the application form."
+        />
+        {/* Oct 12 2026 (manuscript Ch. 1: "demographic distribution charts
+            by course, program, department, and year level"). */}
+        <StatSplitPanel
+          title="Department"
+          keyLabel="Department (1st choice)"
+          total={stats.total}
+          items={stats.departments}
+          foot="Department of the applicant's first-choice program."
         />
       </div>
 
@@ -5514,7 +5556,7 @@ function AdminAccountsPanel() {
 // read/unread flag; Communications posts stay their own separate list in
 // the Communications panel rather than merging into this feed.
 
-const ACTIVITY_CATEGORIES = ['Documents', 'Eligibility', 'Results', 'Communications', 'Allowance', 'Reports', 'Admin Accounts', 'System']
+const ACTIVITY_CATEGORIES = ['Applicants', 'Documents', 'Eligibility', 'Results', 'Communications', 'Allowance', 'Reports', 'Admin Accounts', 'System']
 
 function CycleSettingsCard() {
   const [settings, setSettings] = useState(() => peek('settings') ?? null)
