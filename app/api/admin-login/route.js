@@ -57,7 +57,8 @@ async function audit(actor, action, kind = 'info') {
 export async function GET(request) {
   const pending = await verifyMfaCookie(request.cookies.get(ADMIN_MFA_COOKIE_NAME)?.value)
   if (!pending) return NextResponse.json({ pending: false })
-  return NextResponse.json({ pending: true, sentTo: maskEmail(pending.email), minutes: ADMIN_CODE_TTL_MINUTES })
+  const secondsLeft = Math.max(0, pending.exp - Math.floor(Date.now() / 1000))
+  return NextResponse.json({ pending: true, sentTo: maskEmail(pending.email), minutes: ADMIN_CODE_TTL_MINUTES, secondsLeft })
 }
 
 function clearMfa(res) {

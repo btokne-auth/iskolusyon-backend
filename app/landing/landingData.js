@@ -191,7 +191,7 @@ export const QUALIFICATIONS = [
 
 export const REQ_TABS = [
   {
-    "label": "First Years",
+    "label": "First Year",
     "items": [
       "One (1) Photocopy of latest Grade 11 or 12 (1st or 2nd semester) Report Card/Form, if available",
       "One (1) Photocopy of PSA/NSO/Local Birth Certificate",
@@ -202,7 +202,7 @@ export const REQ_TABS = [
     "note": null
   },
   {
-    "label": "Transferees",
+    "label": "Transferee",
     "items": [
       "One (1) Photocopy of PSA/NSO/Local Birth Certificate",
       "One (1) Photocopy of Applicant/Parents’/Guardian’s Voter’s Identification or Certification",

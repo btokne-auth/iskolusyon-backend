@@ -373,8 +373,10 @@
 .lp .ofb svg { color: #1877F2; flex-shrink: 0; }
 .lp .mapframe { position: relative; border-radius: 20px; overflow: hidden; border: 1px solid var(--line); line-height: 0; }
 .lp .mapframe iframe { display: block; width: 100%; height: 420px; border: 0; }
-.lp .maplabel { position: absolute; top: 16px; left: 16px; right: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; line-height: 1.4; pointer-events: none; }
-.lp .maplabel > span { background: rgba(255,255,255,.95); border-radius: 12px; padding: 10px 14px; box-shadow: 0 6px 18px rgba(13,47,110,.18); font-family: var(--mont); font-size: 12.5px; font-weight: 700; color: var(--navy); display: inline-flex; align-items: center; gap: 8px; }
+/* Oct 12 2026: the address bar sits under the map instead of covering its
+   top-left corner (Ivy's Suggestions Log). */
+.lp .maplabel { position: static; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; line-height: 1.4; padding: 14px 16px; background: #fff; border-top: 1px solid var(--line); }
+.lp .maplabel > span { padding: 0; font-family: var(--mont); font-size: 12.5px; font-weight: 700; color: var(--navy); display: inline-flex; align-items: center; gap: 8px; }
 .lp .maplabel a { pointer-events: auto; background: var(--navy); color: #fff; border-radius: 12px; padding: 10px 14px; font-family: var(--mont); font-size: 12.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 6px 18px rgba(13,47,110,.25); }
 .lp .maplabel a:hover { background: var(--blue); text-decoration: none; }
 

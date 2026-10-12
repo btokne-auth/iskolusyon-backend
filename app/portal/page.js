@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { useRouter } from 'next/navigation'
 import '../portal-theme.css'
 import SiteHeader from '../components/SiteHeader'
+import ManilaClock from '../components/ManilaClock'
 import DocumentStatusTable from '../components/DocumentStatusTable'
 import PortalSidebar from '../components/PortalSidebar'
 import LoadingScreen from '../components/LoadingScreen'
@@ -1292,7 +1293,8 @@ function StatusToast({ tone, children }) {
 // ---------- Upload / submit pop-up (Oct 1 2026) ----------
 // Pau's request: after an upload or the final Submit, applicants should get a
 // clear "please wait" pop-up instead of a toast they might miss. The OK
-// button stays locked for 7 seconds so they actually read it.
+// button stays locked for a few seconds so they actually read it
+// (Oct 12 2026: 3 seconds, was 7).
 //  - Birth Certificate / Voter's ID: shows "Reading your document..." and
 //    switches to the auto-fill result as soon as it arrives (reading takes
 //    about 15-30 seconds, up to a minute if the reading service was asleep).
@@ -1310,7 +1312,7 @@ const UPLOAD_DOC_LABEL = {
   medcert: 'Medical Certificate',
   supportdoc: 'Supporting Document',
 }
-const NOTICE_LOCK_SECONDS = 7
+const NOTICE_LOCK_SECONDS = 3
 const SECTION_LABEL = {
   personal: 'Personal Information',
   academic: 'Educational Background',
@@ -2965,8 +2967,8 @@ function PortalApp({ accountSession, onLogout }) {
   return (
     <main className="applicant-portal min-h-screen bg-ccc-off text-ccc-text">
       <SiteHeader
-        topbarLabel="(049) 559-8900 to 8907 / (02) 8-539-5170 to 5171"
-        topbarLink={{ href: 'https://www.ccc.edu.ph', label: 'www.ccc.edu.ph' }}
+        topbarLabel="Official scholarship portal of the City College of Calamba"
+        topbarRight={<ManilaClock className="font-bold" />}
         subtitle="Scholarship Portal"
         logos={[
           { src: '/LOGO_CCC.png', alt: 'City College of Calamba Logo' },

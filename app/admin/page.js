@@ -865,11 +865,11 @@ function EligibilitySection({ row, onOverride, overriding }) {
 // Pau's request: after an admin action (save, send, invite, recompute, set a
 // status, verify a document...), show a pop-up instead of a corner toast so
 // it isn't overlooked. Same look as the applicant portal's pop-up (Ivy's
-// confirm-box), with OK locked for 5 seconds. The name stays AdminToast so
+// confirm-box), with OK locked for 3 seconds (was 5 until Oct 12 2026). The name stays AdminToast so
 // every place that already used the toast now gets the pop-up.
 // NOT used for the Admin Accounts notice that shows a temporary password:
 // that one stays on the page until the admin copies it and dismisses it.
-const ADMIN_NOTICE_LOCK_SECONDS = 5
+const ADMIN_NOTICE_LOCK_SECONDS = 3 // Oct 12 2026: was 5
 
 function AdminToast({ message, tone = 'success', onDone }) {
   const [secondsLeft, setSecondsLeft] = useState(ADMIN_NOTICE_LOCK_SECONDS)
@@ -2095,17 +2095,6 @@ function DashboardPanel({
   useEffect(() => {
     loadConflicts()
   }, [docs, eligibility])
-  const [deptOpen, setDeptOpen] = useState(false)
-  const [yearOpen, setYearOpen] = useState(false)
-  // Click-to-sort for the two breakdown tables. null = mockup's default
-  // department/program order. For the dept table, sorting only reorders
-  // programs WITHIN each department (breaking the grouping to sort the
-  // whole table flat would defeat the point of having departments at all).
-  // For the year-level table there's no single "Qualified" column to sort
-  // by -- it's a per-year-level matrix -- so each of its three count
-  // columns is independently sortable instead.
-  const [deptSortDesc, setDeptSortDesc] = useState(false)
-  const [yearSortKey, setYearSortKey] = useState(null) // null | a DASHBOARD_YEAR_LEVELS value
 
   const totalFlagged = docs.filter((d) => d.needs_review).length
 
@@ -2150,68 +2139,6 @@ function DashboardPanel({
     }
     return Array.from(set).sort()
   }, [eligibility])
-
-  // "Qualified Applicants per Department/Year Level" — mirrors Ivy's
-  // admin.html mockup's DEPARTMENTS/YEAR_LEVELS groupings and
-  // choice1-or-choice2 counting exactly (see DASHBOARD_DEPARTMENTS/
-  // DASHBOARD_YEAR_LEVELS above), rendered as real tables like hers rather
-  // than a bar-row simplification. Filtered down to applicants currently
-  // Qualified, same as hers.
-  // Qualified applicants counted for a program whenever it's EITHER of their
-  // two program choices — matches Ivy's mockup (renderDepartmentStats /
-  // renderYearLevelStats both check choice1 and choice2), not just choice 1.
-  const qualifiedRows = useMemo(
-    () => (eligibility || []).filter((row) => aplBucketOf(aplStatusOf(row)) === 'qualified'),
-    [eligibility]
-  )
-  // Oct 6 2026: after the exam, a qualified applicant counts under the
-  // program they were admitted in (1st choice, or the re-evaluated one);
-  // before it, under either choice as in Ivy's mockup.
-  const countsForProgram = (row, program) =>
-    APL_POST_EXAM[row.scholar_status] ? admittedProgramOf(row) === program : row.program_choice_1 === program || row.program_choice_2 === program
-
-  // "per Department": department-grouped rows (rowSpan on the department
-  // cell), one row per program — same shape as buildBreakdownRows() in the
-  // mockup. When deptSortDesc is on, programs within each department are
-  // reordered by count descending — the department grouping itself never
-  // gets flattened, so "which program has the most" stays answerable
-  // without losing the department context the table exists to show.
-  const deptBreakdown = useMemo(() => {
-    return DASHBOARD_DEPARTMENTS.map((dept) => {
-      const programs = dept.programs.map((program) => ({
-        label: program,
-        count: qualifiedRows.filter((row) => countsForProgram(row, program)).length,
-      }))
-      if (deptSortDesc) programs.sort((a, b) => b.count - a.count)
-      return { label: dept.label, programs }
-    })
-  }, [qualifiedRows, deptSortDesc])
-
-  // "per Year Level": one row per program (flat, same order as the mockup's
-  // allPrograms unless yearSortKey is set), one column per year level — the
-  // same pivoted matrix as renderYearLevelStats(). Since there's no single
-  // "Qualified" column here (it's a matrix), each year-level column header
-  // is independently clickable to sort the whole table by that column.
-  const yearBreakdown = useMemo(() => {
-    const allPrograms = DASHBOARD_DEPARTMENTS.reduce((acc, d) => acc.concat(d.programs), [])
-    const rows = allPrograms.map((program) => {
-      const matched = qualifiedRows.filter((row) => countsForProgram(row, program))
-      const levels = DASHBOARD_YEAR_LEVELS.map((yl) => ({
-        label: yl.label,
-        value: yl.value,
-        count: matched.filter((row) => row.applying_as === yl.value).length,
-      }))
-      return { label: program, levels }
-    })
-    if (yearSortKey) {
-      rows.sort((a, b) => {
-        const bCount = b.levels.find((l) => l.value === yearSortKey)?.count || 0
-        const aCount = a.levels.find((l) => l.value === yearSortKey)?.count || 0
-        return bCount - aCount
-      })
-    }
-    return rows
-  }, [qualifiedRows, yearSortKey])
 
   // Oct 3 2026 redesign: the status filter moved from "stat card sets a
   // hidden filter" to visible tabs above the table (the stat cards still set
@@ -2385,9 +2312,11 @@ function DashboardPanel({
         <div className="card-title">
           All Applicants
           {(loading || eligibilityLoading) && !error && <Skeleton width={110} height={20} radius={20} />}
-          {!loading && !eligibilityLoading && !error && (
+          {/* Oct 12 2026: the count only shows while a search, program or
+              status filter is on; unfiltered it just repeated the total. */}
+          {!loading && !eligibilityLoading && !error && (search.trim() || programFilter !== 'all' || statusFilter !== 'all') && (
             <span className="tag">
-              {groups.length} of {searchedGroups.length} applicant{searchedGroups.length === 1 ? '' : 's'}
+              {groups.length} matching applicant{groups.length === 1 ? '' : 's'}
             </span>
           )}
         </div>
@@ -2492,101 +2421,9 @@ function DashboardPanel({
         )}
       </div>
 
-      {/* ── Reports: Qualified Applicants per Department / per Year Level ──
-          Same tables, same data, same collapsed-by-default state as the
-          mockup -- just moved below the work queue instead of between the
-          KPIs and it, plus a section label so this reads as its own
-          "reference data" zone rather than a random interruption. ── */}
-      <div className="dashboard-section-label">Reports</div>
-      <div className="qualified-breakdown-columns">
-        <div className="qualified-breakdown-col">
-          <div className={`dept-divider${deptOpen ? ' expanded' : ''}`} onClick={() => setDeptOpen((v) => !v)}>
-            Qualified Applicants per Department
-            <span className="dept-divider-arrow">&#9662;</span>
-          </div>
-          <p className="dept-helper-text">
-            Grouped by the department each applicant&rsquo;s Program (Course) choice belongs to.
-          </p>
-          <div className={`dept-section-body${deptOpen ? '' : ' collapsed'}`}>
-            <div className="breakdown-table-wrap">
-              <table className="breakdown-table">
-                <thead>
-                  <tr>
-                    <th className="bd-group">Department</th>
-                    <th className="bd-program">Program</th>
-                    <th
-                      className={`bd-count bd-count-sortable${deptSortDesc ? ' bd-sorted' : ''}`}
-                      onClick={() => setDeptSortDesc((v) => !v)}
-                      title={deptSortDesc ? 'Sorted highest first within each department. Click to reset' : 'Click to sort each department by Qualified, highest first'}
-                    >
-                      Qualified {deptSortDesc ? '▼' : ''}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deptBreakdown.map((dept) =>
-                    dept.programs.map((p, i) => (
-                      <tr key={p.label} className={p.count === 0 ? 'bd-row-zero' : ''}>
-                        {i === 0 && (
-                          <td className="bd-group" rowSpan={dept.programs.length}>
-                            {dept.label}
-                          </td>
-                        )}
-                        <td className="bd-program">{p.label}</td>
-                        <td className={`bd-count${p.count > 0 ? ' bd-count-has' : ''}`}>{p.count}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <div className="qualified-breakdown-col">
-          <div className={`dept-divider${yearOpen ? ' expanded' : ''}`} onClick={() => setYearOpen((v) => !v)}>
-            Qualified Applicants per Year Level
-            <span className="dept-divider-arrow">&#9662;</span>
-          </div>
-          <p className="dept-helper-text">
-            Year level at admission, as classified on CCC&apos;s application form (Applying As): First Year,
-            Transferee, or Old Curriculum &amp; ALS Completer.
-          </p>
-          <div className={`dept-section-body${yearOpen ? '' : ' collapsed'}`}>
-            <div className="breakdown-table-wrap">
-              <table className="breakdown-table year-breakdown-table">
-                <thead>
-                  <tr>
-                    <th className="bd-program">Program</th>
-                    {DASHBOARD_YEAR_LEVELS.map((yl) => (
-                      <th
-                        key={yl.label}
-                        className={`bd-count bd-count-sortable${yearSortKey === yl.value ? ' bd-sorted' : ''}`}
-                        onClick={() => setYearSortKey((v) => (v === yl.value ? null : yl.value))}
-                        title={yearSortKey === yl.value ? 'Sorted highest first. Click to reset' : `Click to sort all programs by ${yl.label}, highest first`}
-                      >
-                        {yl.label} {yearSortKey === yl.value ? '▼' : ''}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {yearBreakdown.map((p) => (
-                    <tr key={p.label} className={p.levels.every((lvl) => lvl.count === 0) ? 'bd-row-zero' : ''}>
-                      <td className="bd-program">{p.label}</td>
-                      {p.levels.map((lvl) => (
-                        <td key={lvl.label} className={`bd-count${lvl.count > 0 ? ' bd-count-has' : ''}`}>
-                          {lvl.count}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Oct 12 2026: the "Reports" box (Qualified Applicants per
+          Department / per Year Level) was removed from the Dashboard; the
+          same breakdowns are in Statistics. */}
     </div>
   )
 }
@@ -3850,7 +3687,7 @@ function ResultsPanel() {
         <div className="card-title">
           All Applicants
           {loading && <Skeleton width={110} height={20} radius={20} />}
-          {!loading && (
+          {!loading && filtered.length !== rows.length && (
             <span className="tag">
               {filtered.length} of {rows.length} applicant{rows.length === 1 ? '' : 's'}
             </span>
@@ -4335,13 +4172,12 @@ function AnalyticsPanel() {
                 <th className="r">Waitlisted</th>
                 <th className="r">Pending Exam</th>
                 <th className="r">Incomplete</th>
-                <th>Distribution</th>
               </tr>
             </thead>
             <tbody>
               {programRowsShown.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="st-empty">No applicants in this department yet.</td>
+                  <td colSpan={7} className="st-empty">No applicants in this department yet.</td>
                 </tr>
               ) : (
                 programRowsShown.map((p) => (
@@ -4356,13 +4192,6 @@ function AnalyticsPanel() {
                     <td className="r">{p.waitlisted}</td>
                     <td className="r">{p.pending_exam}</td>
                     <td className="r">{p.incomplete}</td>
-                    <td>
-                      <span className="st-split st-split-sm" aria-hidden="true">
-                        {STAT_ELIGIBILITY.filter((s) => p[s.key] > 0).map((s) => (
-                          <span key={s.key} style={{ width: statPct(p[s.key], p.total), background: s.color }} />
-                        ))}
-                      </span>
-                    </td>
                   </tr>
                 ))
               )}
@@ -4376,7 +4205,6 @@ function AnalyticsPanel() {
                 <td className="r">{stats.elig.waitlisted}</td>
                 <td className="r">{stats.elig.pending_exam}</td>
                 <td className="r">{stats.elig.incomplete}</td>
-                <td />
               </tr>
             </tfoot>
           </table>
@@ -4426,7 +4254,9 @@ function CommunicationsPanel() {
   const [error, setError] = useState('')
   const [applicants, setApplicants] = useState(() => peek('commApplicants') ?? [])
 
-  const [commType, setCommType] = useState('')
+  // Oct 12 2026: opens on Announcement with its fields showing, like Exam
+  // Schedules' New Exam Batch (Ivy's Suggestions Log); Message is one click.
+  const [commType, setCommType] = useState('announcement')
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState('General')
   const [body, setBody] = useState('')
@@ -4468,7 +4298,7 @@ function CommunicationsPanel() {
   }, [])
 
   const resetForm = () => {
-    setCommType('')
+    setCommType('announcement')
     setTitle('')
     setCategory('General')
     setBody('')
@@ -4725,7 +4555,6 @@ function CommunicationsPanel() {
           <div className="cm-head cm-head-wrap">
             <div className="cm-head-left">
               <h2 className="cm-title">Posted</h2>
-              {loading ? <Skeleton width={60} height={20} radius={20} /> : <span className="tag">{items.length} total</span>}
             </div>
             <div className="cm-tabs" role="group" aria-label="Filter posts by type">
               {[
@@ -5194,9 +5023,6 @@ function AdminAccountsPanel() {
             removing accounts all ask for your password first.
           </p>
         </div>
-        <span className="aa-super-chip">
-          <IconShield className="w-3.5 h-3.5" /> Super Admin only
-        </span>
       </div>
 
       {/* Oct 1 2026: plain success/failure notices are toasts; a notice
@@ -5331,11 +5157,6 @@ function AdminAccountsPanel() {
           <div className="cm-head">
             <div className="cm-head-left">
               <h2 className="cm-title">Current accounts</h2>
-              {!loading && !error && (
-                <span className="tag">
-                  {accounts.length} account{accounts.length === 1 ? '' : 's'}
-                </span>
-              )}
             </div>
           </div>
           {loading ? (
@@ -6011,9 +5832,6 @@ function ArchiveCycleCard() {
     <section className="cm-card ac-card">
       <div className="cm-head">
         <h2 className="cm-title">End of cycle: archive applicants</h2>
-        <span className="aa-super-chip">
-          <IconShield className="w-3.5 h-3.5" /> Super Admin only
-        </span>
       </div>
       {loading && !data ? (
         <SkeletonText lines={4} label="Loading archive status..." />

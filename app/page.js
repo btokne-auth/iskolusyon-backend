@@ -431,7 +431,7 @@ function Requirements() {
       <div className="pane-head">
         <h3>Admission Requirements</h3>
         <div className="iam">
-          <span>I am a</span>
+          <span>Applying as</span>
           <div role="tablist" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {REQ_TABS.map((t, i) => (
               <button type="button" role="tab" aria-selected={tab === i} className={`seg${tab === i ? ' on' : ''}`} key={t.label} onClick={() => setTab(i)}>{t.label}</button>
@@ -618,7 +618,7 @@ function Contact() {
             referrerPolicy="no-referrer-when-downgrade"
           />
           <div className="maplabel">
-            <span>{ICON.pin} City College of Calamba &middot; Brgy. Real, Calamba City, Laguna 4027</span>
+            <span>{ICON.pin} City College of Calamba &middot; Old Municipal Site, Barreto St, Brgy. VII, Poblacion, Calamba City</span>
             <a href="https://maps.google.com/?q=City+College+of+Calamba" target="_blank" rel="noopener noreferrer">Open in Google Maps {ICON.arrow}</a>
           </div>
         </div>

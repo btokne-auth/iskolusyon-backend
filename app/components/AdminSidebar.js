@@ -146,7 +146,13 @@ const NAV_GROUPS = [
   {
     section: 'Overview',
     labelIcon: <IconOverview />,
-    items: [{ key: 'dashboard', label: 'Dashboard', icon: <IconDashboard />, badgeKey: 'flagged', badgeId: 'dashNewBadge' }],
+    // Oct 12 2026: Applicant Results and Statistics moved up here from
+    // their own "Results & Reporting" group (Ivy's Suggestions Log).
+    items: [
+      { key: 'dashboard', label: 'Dashboard', icon: <IconDashboard />, badgeKey: 'flagged', badgeId: 'dashNewBadge' },
+      { key: 'results', label: 'Applicant Results', icon: <IconApplicantResults /> },
+      { key: 'analytics', label: 'Statistics', icon: <IconStatistics /> },
+    ],
   },
   {
     section: 'Communications',
@@ -161,19 +167,9 @@ const NAV_GROUPS = [
       { key: 'exams', label: 'Exam Schedules', icon: <IconExamCalendar /> },
     ],
   },
-  // Applicant Information & Results + Statistical Data & Reporting --
-  // Ivy's former modules, built Sept 21 2026 (see ISKOLUSYON_HANDOFF.md §2,
-  // items 8-9). Not gated behind Super Admin -- nothing in the Roles PDF
-  // ties either module to that role, same as Scholarship Matching &
-  // Filtering living on the plain Dashboard.
-  {
-    section: 'Results & Reporting',
-    labelIcon: <IconResults />,
-    items: [
-      { key: 'results', label: 'Applicant Results', icon: <IconApplicantResults /> },
-      { key: 'analytics', label: 'Statistics', icon: <IconStatistics /> },
-    ],
-  },
+  // Applicant Results and Statistics (Applicant Information & Results +
+  // Statistical Data & Reporting, built Sept 21 2026) now sit under
+  // Overview above. Not gated behind Super Admin.
 ]
 
 function IconAllowance() {

@@ -40,67 +40,70 @@ function IconFacebook(props) {
   )
 }
 
+// Oct 12 2026: laid out like ccc.edu.ph's own footer (Ivy's Suggestions
+// Log): CCC's name, address and contacts on the left, the CCC logo on the
+// right. The Guidance and Registrar logos and the Resources column are gone;
+// Privacy Statement and FAQs moved to the bottom bar so the data privacy
+// notice (RA 10173) is still one click away on every public page.
+const PRIVACY_STATEMENT_URL = 'https://ccc.edu.ph/public/upload/files/CCC-Privacy-Statement-June-2026.pdf'
+const ICON_STYLE = { width: 20, height: 20, color: 'var(--ccc-gold)', flexShrink: 0 }
+
 export default function WelcomeFooter({ onBeforeYouApplyClick, onFaqClick }) {
   return (
     <>
       <footer className="w-footer">
         <div className="w-footer-inner">
-          <div className="w-footer-main">
-            <div className="w-footer-logo-col">
-              <img src="/LOGO_CCC-WHITE-ONLY.png" alt="City College of Calamba White Logo" />
-              <img src="/LOGO_CCC-WHITE_GUIDANCE.png" alt="CCC Guidance White Logo" />
-              <img src="/LOGO_CCC-WHITE_REGISTRAR.png" alt="CCC Registrar White Logo" />
+          <div className="w-footer-main w-footer-ccc">
+            <div className="w-footer-info">
+              <h4>City College of Calamba</h4>
+              <p className="w-footer-line w-footer-addr">Old Municipal Site, Barreto St, Brgy. VII, Poblacion, Calamba City, Laguna, Philippines</p>
+              <p className="w-footer-line">
+                <IconPhone style={ICON_STYLE} /> (049) 559 8900
+              </p>
+              <p className="w-footer-line">
+                <IconPhone style={ICON_STYLE} /> (02) 8 539 5170
+              </p>
+              <p className="w-footer-line">
+                <IconMail style={ICON_STYLE} />
+                <a href="mailto:info@ccc.edu.ph">info@ccc.edu.ph</a>
+              </p>
+              <p className="w-footer-line">
+                <IconGlobe style={ICON_STYLE} />
+                <a href="https://www.ccc.edu.ph" target="_blank" rel="noopener noreferrer">www.ccc.edu.ph</a>
+              </p>
+              <a
+                href="https://www.facebook.com/citycollegeofcalamba"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="CCC Facebook Page"
+                aria-label="CCC Facebook Page"
+                className="w-footer-fb"
+              >
+                <IconFacebook style={{ width: 17, height: 17 }} />
+              </a>
             </div>
-            <div className="w-footer-content-col">
-              <div className="w-footer-content-row">
-                <div>
-                  <h4>Connect Directly with CCC</h4>
-                  <p style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: '.8rem', color: 'rgba(255,255,255,.5)' }}>
-                    <IconPhone style={{ width: 15, height: 15, color: 'var(--ccc-gold)', flexShrink: 0 }} /> (049) 559 8900
-                  </p>
-                  <p style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: '.8rem', color: 'rgba(255,255,255,.5)' }}>
-                    <IconPhone style={{ width: 15, height: 15, color: 'var(--ccc-gold)', flexShrink: 0 }} /> (02) 8 539 5170
-                  </p>
-                  <p style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <IconGlobe style={{ width: 15, height: 15, color: 'var(--ccc-gold)', flexShrink: 0 }} />
-                    <a href="https://www.ccc.edu.ph" target="_blank" rel="noopener noreferrer">www.ccc.edu.ph</a>
-                  </p>
-                  <p style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <IconMail style={{ width: 15, height: 15, color: 'var(--ccc-gold)', flexShrink: 0 }} />
-                    <a href="mailto:info@ccc.edu.ph">info@ccc.edu.ph</a>
-                  </p>
-                  <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                    <a
-                      href="https://www.facebook.com/citycollegeofcalamba"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="CCC Facebook Page"
-                      style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0, marginBottom: 0 }}
-                    >
-                      <IconFacebook style={{ width: 17, height: 17 }} />
-                    </a>
-                  </div>
-                </div>
-                <div>
-                  <h4>Resources</h4>
-                  {onBeforeYouApplyClick ? (
-                    <a onClick={() => onBeforeYouApplyClick(2)} style={{ cursor: 'pointer' }}>Admission Requirements</a>
-                  ) : (
-                    <a href="/#before-you-apply">Admission Requirements</a>
-                  )}
-                  {onFaqClick ? (
-                    <a onClick={onFaqClick} style={{ cursor: 'pointer' }}>FAQs</a>
-                  ) : (
-                    <a href="/#faq">FAQs</a>
-                  )}
-                  <a href="https://ccc.edu.ph/public/upload/files/CCC-Privacy-Statement-June-2026.pdf" target="_blank" rel="noopener noreferrer">Privacy Statement</a>
-                </div>
-              </div>
+            <div className="w-footer-logo-col">
+              <img src="/LOGO_CCC-WHITE-TRANSPARENT.png" alt="City College of Calamba logo" />
             </div>
           </div>
         </div>
       </footer>
-      <div className="w-footer-bar">&copy; 2026 Iskolusyon Scholarship Management System &nbsp;|&nbsp; Developed for the City College of Calamba</div>
+      <div className="w-footer-bar">
+        &copy; 2026 Iskolusyon Scholarship Management System &nbsp;|&nbsp; Developed for the City College of Calamba
+        <span className="w-footer-bar-links">
+          <a href={PRIVACY_STATEMENT_URL} target="_blank" rel="noopener noreferrer">Privacy Statement</a>
+          {onFaqClick ? (
+            <a onClick={onFaqClick} style={{ cursor: 'pointer' }}>FAQs</a>
+          ) : (
+            <a href="/#faq">FAQs</a>
+          )}
+          {onBeforeYouApplyClick ? (
+            <a onClick={() => onBeforeYouApplyClick(2)} style={{ cursor: 'pointer' }}>Admission Requirements</a>
+          ) : (
+            <a href="/#before-you-apply">Admission Requirements</a>
+          )}
+        </span>
+      </div>
     </>
   )
 }

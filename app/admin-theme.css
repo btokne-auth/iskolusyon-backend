@@ -4042,10 +4042,13 @@
 }
 .admin-portal .st-kpi:last-child { border-right: none; }
 .admin-portal .st-kpi-label { font-size: 11px; font-weight: 600; color: #5a6b85; }
+/* Oct 12 2026: same number style as the Exam Schedules / Communications
+   strips (.cm-kpi-value), per Ivy's Suggestions Log. */
 .admin-portal .st-kpi-value {
   font-family: "Montserrat", sans-serif;
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 800;
+  font-variant-numeric: normal;
   color: var(--navy);
   line-height: 1;
 }
@@ -4143,8 +4146,7 @@
   cursor: pointer;
 }
 .admin-portal .st-scroll { overflow-x: auto; }
-.admin-portal .st-program-table { min-width: 880px; }
-.admin-portal .st-program-table td:last-child { width: 16%; }
+.admin-portal .st-program-table { min-width: 760px; }
 .admin-portal .st-prog { display: block; font-weight: 600; color: var(--navy); }
 .admin-portal .st-dept { display: block; margin-top: 2px; font-size: 10.8px; color: #5a6b85; }
 .admin-portal .st-table tr.zero .st-prog { color: #8c99ae; }

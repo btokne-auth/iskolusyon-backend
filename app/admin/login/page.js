@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import SiteHeader from '../../components/SiteHeader'
+import OtpBoxes from '../../components/OtpBoxes'
 // Sept 24 2026 reskin: this page never imported the shared admin theme or
 // carried the .admin-portal wrapper class, so it was pure ad hoc Tailwind
 // while every other admin page already reads from admin-theme.css. Needed
@@ -64,6 +65,25 @@ function AdminLoginForm() {
   const [code, setCode] = useState('')
   const [notice, setNotice] = useState('')
   const [codeMinutes, setCodeMinutes] = useState(10)
+  // Oct 12 2026: same code screen as the applicant sign-in (Ivy's Suggestions
+  // Log): 6 boxes, a "Code expires in" timer and a 1-minute wait before
+  // "Send a new code" (the server already allows one new code a minute).
+  const [expiresAt, setExpiresAt] = useState(null)
+  const [resendAt, setResendAt] = useState(null)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!sentTo) return undefined
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [sentTo])
+  const startTimers = (secondsLeft) => {
+    const t = Date.now()
+    setNow(t)
+    setExpiresAt(t + secondsLeft * 1000)
+    setResendAt(t + 60 * 1000)
+  }
+  const secondsLeft = expiresAt ? Math.max(0, Math.ceil((expiresAt - now) / 1000)) : null
+  const resendWait = resendAt ? Math.max(0, Math.ceil((resendAt - now) / 1000)) : 0
 
   // Reopen the code step after a refresh, or after setting a first password.
   useEffect(() => {
@@ -73,6 +93,10 @@ function AdminLoginForm() {
         if (data && data.pending) {
           setSentTo(data.sentTo || 'your email')
           setCodeMinutes(data.minutes || 10)
+          const left = typeof data.secondsLeft === 'number' ? data.secondsLeft : (data.minutes || 10) * 60
+          setNow(Date.now())
+          setExpiresAt(Date.now() + left * 1000)
+          setResendAt(null)
           if (searchParams.get('step') === 'code') {
             setNotice('Your new password is saved. We emailed you a sign-in code to finish signing in.')
           }
@@ -135,6 +159,7 @@ function AdminLoginForm() {
         return
       }
       setCode('')
+      startTimers((data.minutes || codeMinutes) * 60)
       setNotice(`A new code was sent to ${data.sentTo}. Only the newest code works.`)
     } catch {
       setError('Could not reach the server. Check your connection and try again.')
@@ -181,6 +206,7 @@ function AdminLoginForm() {
         setSentTo(data.sentTo || 'your email')
         setCodeMinutes(data.minutes || 10)
         setCode('')
+        startTimers((data.minutes || 10) * 60)
         return
       }
       goToConsole()
@@ -247,35 +273,43 @@ function AdminLoginForm() {
               {error}
             </div>
           )}
+          {secondsLeft === 0 && (
+            <div className="al-error" role="alert">
+              This code has expired. Send a new code below.
+            </div>
+          )}
           <div className="al-field">
-            <label htmlFor="adminCode" className="al-label">Sign-in code</label>
-            <input
-              id="adminCode"
-              className="al-input"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="000000"
-              style={{ letterSpacing: 6, fontSize: 20, fontWeight: 700, textAlign: 'center' }}
-              autoFocus
-              required
-            />
+            <span className="al-label">Sign-in code</span>
+            <OtpBoxes value={code} onChange={setCode} autoFocus />
+            {secondsLeft > 0 && (
+              <p className="al-note" style={{ textAlign: 'center', marginTop: 0 }}>
+                Code expires in {String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:{String(secondsLeft % 60).padStart(2, '0')}
+              </p>
+            )}
           </div>
-          <div className="al-row">
-            <button type="button" onClick={resendCode} className="al-forgot" style={{ background: 'none', border: 0, padding: 0, color: 'var(--ccc-blue)', fontWeight: 700, cursor: 'pointer' }}>
+          <button type="submit" disabled={loading || code.length !== 6 || secondsLeft === 0} className="al-submit">
+            {loading ? 'Checking...' : 'Verify and Open Console'}
+          </button>
+          <div style={{ textAlign: 'center', marginTop: 12 }}>
+            <button
+              type="button"
+              onClick={resendCode}
+              disabled={resendWait > 0}
+              className="al-forgot"
+              style={{ background: 'none', border: 0, padding: 0, color: resendWait > 0 ? 'var(--muted, #5a6b85)' : 'var(--ccc-blue)', fontWeight: 700, cursor: resendWait > 0 ? 'default' : 'pointer' }}
+            >
               Send a new code
             </button>
-            <button type="button" onClick={useDifferentAccount} className="al-forgot" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}>
+            {resendWait > 0 && (
+              <p className="al-note" style={{ marginTop: 4 }}>
+                You may request another code in {resendWait} second{resendWait === 1 ? '' : 's'}.
+              </p>
+            )}
+            <button type="button" onClick={useDifferentAccount} className="al-forgot" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', display: 'block', margin: '8px auto 0' }}>
               Use a different account
             </button>
           </div>
-          <button type="submit" disabled={loading || code.length !== 6} className="al-submit">
-            {loading ? 'Checking...' : 'Verify and Open Console'}
-          </button>
-          <p className="al-note">Didn&apos;t get it? Check Spam, or send a new code after a minute.</p>
+          <p className="al-note">Didn&apos;t get it? Check your Spam folder.</p>
         </form>
       ) : (
       <form onSubmit={handleSubmit} className="al-form">
@@ -336,17 +370,10 @@ function AdminLoginForm() {
             </button>
           </div>
         </div>
-        <div className="al-row">
-          {/* "Keep me signed in" is still not built, so it stays a disabled
-              placeholder exactly as before (Pau has her own plan for it). */}
-          <label
-            className="al-keep"
-            style={{ cursor: 'not-allowed' }}
-            title="Not built yet -- every sign-in behaves the same way until the User Account Module lands."
-          >
-            <input type="checkbox" disabled />
-            Keep me signed in
-          </label>
+        {/* Oct 12 2026: the disabled "Keep me signed in" placeholder was removed.
+            Console sessions always end after 8 hours or 30 idle minutes, and
+            every sign-in needs an emailed code, so it was never going to work. */}
+        <div className="al-row" style={{ justifyContent: 'flex-end' }}>
           <span className="al-forgot">Forgot your password? Ask a Super Admin.</span>
         </div>
         <button type="submit" disabled={loading} className="al-submit">
