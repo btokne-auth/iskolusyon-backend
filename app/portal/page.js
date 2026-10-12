@@ -649,15 +649,73 @@ function TextField({ label, required, type = 'text', value, onChange, placeholde
   )
 }
 
+// ---------- Eligibility Check card (Oct 12 2026) ----------
+// Chapter 1 p. 15: applicants get "a verified scholarship eligibility
+// listing"; Objective 2: matching runs "without administrative
+// intervention". So this shows the automatic check right away, and says
+// Verified once an admin has set the applicant's status. It never says
+// Qualified or Waitlisted: results still come only through Send Result.
+const ELIGIBILITY_SUMMARY = {
+  meets: { badge: 'badge-verified', text: 'You meet the requirements' },
+  not_met: { badge: 'badge-deficient', text: 'A requirement is not met' },
+  not_checked: { badge: 'badge-pending', text: 'Not fully checked yet' },
+}
+const ELIGIBILITY_ITEM_ICON = { met: '\u2713', not_met: '\u2715', not_checked: '\u2026' }
+
+function EligibilityCard({ eligibility, resultReleased }) {
+  const summary = ELIGIBILITY_SUMMARY[eligibility.status] || ELIGIBILITY_SUMMARY.not_checked
+  const items = Array.isArray(eligibility.items) ? eligibility.items : []
+  let desc
+  if (eligibility.status === 'meets') {
+    desc = eligibility.verified
+      ? 'Verified by the Scholarship Office.'
+      : "Checked automatically against CCC's Scholar Guidelines. The Scholarship Office will verify it."
+    desc += resultReleased ? ' Your exam result is in the Admission card below.' : ' Final admission still depends on the entrance exam.'
+  } else if (eligibility.status === 'not_met') {
+    desc = eligibility.verified
+      ? 'The Scholarship Office reviewed your application. Check Messages, or contact the Guidance Office for details.'
+      : 'Fix the item marked below. If you think this is wrong, contact the Guidance Office.'
+  } else {
+    desc = 'Each item is checked once you submit the section it comes from.'
+  }
+  return (
+    <div className="card elig-card">
+      <div className="card-title">
+        Eligibility Check
+        <span className={`tag${eligibility.verified ? ' tag-verified' : ''}`}>{eligibility.verified ? 'Verified' : 'Automatic check'}</span>
+      </div>
+      <div className="elig-summary">
+        <span className={`badge ${summary.badge}`}>{summary.text}</span>
+      </div>
+      <p className="elig-desc">{desc}</p>
+      <ul className="elig-list">
+        {items.map((item) => (
+          <li key={item.key} className={`elig-item elig-${item.state}`}>
+            <span className="elig-icon" aria-hidden="true">{ELIGIBILITY_ITEM_ICON[item.state] || ELIGIBILITY_ITEM_ICON.not_checked}</span>
+            <span>
+              <span className="elig-label">{item.label}</span>
+              <span className="elig-detail">{item.detail}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {eligibility.note && <p className="elig-note">{eligibility.note}</p>}
+    </div>
+  )
+}
+
 function SelectField({ label, required, value, onChange, options, disabled, full }) {
   const locked = useContext(FieldsLockedContext)
   return (
     <div className={`mfield${full ? ' full' : ''}`}>
       <label>
-        {label} {required && <span className="req-mark">*</span>}
+        {label} {required && !(locked && !value) && <span className="req-mark">*</span>}
       </label>
       <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled || locked}>
-        <option value="">Select</option>
+        {/* Oct 12 2026: a locked section with no answer (e.g. a question added
+            after the applicant submitted) reads "Not answered", not an
+            empty "Select" with a red asterisk that looks like a mistake. */}
+        <option value="">{locked ? 'Not answered' : 'Select'}</option>
         {options.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
     </div>
@@ -1741,6 +1799,9 @@ function PortalApp({ accountSession, onLogout }) {
   // only includes scholar_status once "Exam Results Visible to Applicants"
   // is on AND an admin has sent this applicant their result.
   const [releasedStatus, setReleasedStatus] = useState(null)
+  // Oct 12 2026: the applicant's own eligibility checklist (see
+  // applicantEligibility in app/lib/matching.js), sent by /api/application.
+  const [eligibility, setEligibility] = useState(null)
   // Sept 30 2026: the applicant's exam schedule, once an admin has sent it.
   const [examSchedule, setExamSchedule] = useState(null)
   // Oct 5 2026: end-of-cycle archive. The application is read-only.
@@ -2308,6 +2369,7 @@ function PortalApp({ accountSession, onLogout }) {
       })
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Submit failed')
+      if (data.application && 'eligibility' in data.application) setEligibility(data.application.eligibility || null)
       if (section === 'personal') setPersonalSubmittedAt(data.application.personal_info_submitted_at)
       if (section === 'academic') setAcademicSubmittedAt(data.application.academic_submitted_at)
       if (section === 'health') setHealthSubmittedAt(data.application.health_submitted_at)
@@ -2361,6 +2423,7 @@ function PortalApp({ accountSession, onLogout }) {
       setSubmitError('')
       setSaveState('idle')
       setSubmitted(true)
+      if ('eligibility' in data.application) setEligibility(data.application.eligibility || null)
       setSubmittedAt(data.application.submitted_at || null)
       if (data.application.application_number) setApplicationNumber(data.application.application_number)
       setUploadNotice({ kind: 'submit', applicationNumber: data.application.application_number || null })
@@ -2440,6 +2503,7 @@ function PortalApp({ accountSession, onLogout }) {
         setFinancialSubmittedAt(data.application.fam_financial_submitted_at || null)
         setApplicationNumber(data.application.application_number || null)
         setReleasedStatus(data.application.scholar_status || null)
+        setEligibility(data.application.eligibility || null)
         setExamSchedule(data.application.exam_schedule || null)
         setArchived(!!data.application.archived)
         // Keeps `applicantName` in sync with whatever this row is actually
@@ -3119,6 +3183,8 @@ function PortalApp({ accountSession, onLogout }) {
                     </div>
                   )}
                 </div>
+
+                {eligibility && <EligibilityCard eligibility={eligibility} resultReleased={!!releasedStatus} />}
 
                 <div className="section-divider">
                   <div className="section-divider-chip">
