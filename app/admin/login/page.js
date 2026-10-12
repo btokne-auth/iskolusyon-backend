@@ -370,17 +370,10 @@ function AdminLoginForm() {
             </button>
           </div>
         </div>
-        <div className="al-row">
-          {/* "Keep me signed in" is still not built, so it stays a disabled
-              placeholder exactly as before (Pau has her own plan for it). */}
-          <label
-            className="al-keep"
-            style={{ cursor: 'not-allowed' }}
-            title="Not built yet -- every sign-in behaves the same way until the User Account Module lands."
-          >
-            <input type="checkbox" disabled />
-            Keep me signed in
-          </label>
+        {/* Oct 12 2026: the disabled "Keep me signed in" placeholder was removed.
+            Console sessions always end after 8 hours or 30 idle minutes, and
+            every sign-in needs an emailed code, so it was never going to work. */}
+        <div className="al-row" style={{ justifyContent: 'flex-end' }}>
           <span className="al-forgot">Forgot your password? Ask a Super Admin.</span>
         </div>
         <button type="submit" disabled={loading} className="al-submit">
