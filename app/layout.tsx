@@ -38,9 +38,30 @@ const openSans = localFont({
   display: "swap",
 });
 
+// Oct 12 2026: link previews (Messenger, Facebook, etc.). The preview image
+// is app/opengraph-image.png (1200x630); metadataBase makes its address
+// absolute so shared links show it instead of the small favicon.
+// Same wording as the landing page's hero text.
+const SITE_DESCRIPTION =
+  "Your all-in-one platform providing comprehensive application procedures, guidelines, and real-time notifications for aspiring City College of Calamba scholars.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL("https://iskolusyon.dev"),
   title: "Iskolusyon | City College of Calamba",
-  description: "Iskolusyon Scholarship Application Portal",
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    type: "website",
+    url: "https://iskolusyon.dev",
+    siteName: "Iskolusyon",
+    title: "Iskolusyon | City College of Calamba Scholarship Portal",
+    description: SITE_DESCRIPTION,
+    locale: "en_PH",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Iskolusyon | City College of Calamba Scholarship Portal",
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
