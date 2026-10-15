@@ -2171,10 +2171,9 @@ function PortalApp({ accountSession, onLogout }) {
   // documents, Proof of Employment only for a working student).
   // Oct 15 2026 (client): one Voter's ID box. The applicant's own, or a
   // parent's/guardian's if they aren't a registered voter yet. Files from the
-  // former separate parent/guardian slot (parentid) still count and show here.
-  const voterIdFiles = [...(docsByType.voterid || []), ...(docsByType.parentid || [])].sort((a, b) =>
-    String(b.created_at || '').localeCompare(String(a.created_at || ''))
-  )
+  // former separate parent/guardian slot (parentid) still count, and show
+  // here only when there is no upload in the Voter's ID box itself.
+  const voterIdFiles = (docsByType.voterid || []).length > 0 ? docsByType.voterid : docsByType.parentid || []
   const hasVoterIdOnFile = hasUploaded('voterid') || hasUploaded('parentid')
   const requiredDocsForSubmit = ['profilepic', 'birthcert', 'voterid', 'form138']
   if (familyInfo.workingStudent === 'Yes') requiredDocsForSubmit.push('employmentcert')
@@ -2205,11 +2204,14 @@ function PortalApp({ accountSession, onLogout }) {
   // requirements (Appendix D, interview #2). The medical certificate comes
   // after passing the exam; a supporting document only with a request.
   // Oct 15 2026: Documents & Status shows one Voter's ID row. A file in the
-  // former parent/guardian slot (parentid) is shown on that row.
+  // former parent/guardian slot (parentid) is shown on that row only when
+  // nothing was uploaded in the Voter's ID box.
   const statusTableGroups = DOCUMENT_TYPE_OPTIONS.map((g) => ({ ...g, options: g.options.filter((o) => o.value !== 'parentid') })).filter(
     (g) => g.options.length > 0
   )
-  const statusTableDocs = myDocs.map((d) => (d.document_type === 'parentid' ? { ...d, document_type: 'voterid' } : d))
+  const statusTableDocs = hasUploaded('voterid')
+    ? myDocs.filter((d) => d.document_type !== 'parentid')
+    : myDocs.map((d) => (d.document_type === 'parentid' ? { ...d, document_type: 'voterid' } : d))
 
   const docRowRules = {
     employmentcert:

@@ -508,9 +508,10 @@ function integrityFor(doc, results) {
 // Oct 15 2026 (client): when an applicant re-uploads, the admin sees the
 // latest file per document type first, marked Current. Earlier files stay
 // (nothing is deleted) but are folded under "Previous uploads (N)".
-// parentid (the former parent/guardian Voter's ID slot) is grouped with
-// voterid, since both are now the one Voter's ID requirement.
-const uploadGroupKey = (type) => (type === 'parentid' ? 'voterid' : type)
+// parentid (the former parent/guardian Voter's ID slot) keeps its own group:
+// older applicants uploaded both their own and a parent's ID, and one is not
+// a re-upload of the other.
+const uploadGroupKey = (type) => type
 function groupUploadsByType(docs) {
   const sorted = [...docs].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
   const groups = new Map()
