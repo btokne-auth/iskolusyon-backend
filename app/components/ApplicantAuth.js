@@ -704,7 +704,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
     const nextFieldErrors = {}
     if (!lastName.trim()) nextFieldErrors.lastName = 'Please enter your last name.'
     if (!firstName.trim()) nextFieldErrors.firstName = 'Please enter your first name.'
-    if (!sex) nextFieldErrors.sex = 'Please select your sex.'
+    if (!sex) nextFieldErrors.sex = 'Please select your sex at birth.'
     if (!dateOfBirth) nextFieldErrors.dateOfBirth = 'Please enter your date of birth.'
     if (!civilStatus) nextFieldErrors.civilStatus = 'Please select your civil status.'
     if (!contactNumber.trim()) nextFieldErrors.contactNumber = 'Please enter your contact number.'
@@ -910,7 +910,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
               <TextField label="First Name" value={firstName} onChange={clearFieldError('firstName', setFirstName)} placeholder="e.g. Juan" error={fieldErrors.firstName} />
               <TextField label="Middle Name (if any)" value={middleName} onChange={setMiddleName} placeholder="e.g. Santos" />
               <SelectField label="Suffix (if any)" value={suffix} onChange={setSuffix} options={SUFFIX_OPTIONS} placeholder="None" />
-              <SelectField label="Sex" value={sex} onChange={clearFieldError('sex', setSex)} options={['Male', 'Female']} error={fieldErrors.sex} />
+              <SelectField label="Sex at birth" value={sex} onChange={clearFieldError('sex', setSex)} options={['Male', 'Female']} error={fieldErrors.sex} />
               <TextField label="Date of Birth" type="date" value={dateOfBirth} onChange={clearFieldError('dateOfBirth', setDateOfBirth)} error={fieldErrors.dateOfBirth} />
               <SelectField label="Civil Status" value={civilStatus} onChange={clearFieldError('civilStatus', setCivilStatus)} options={['Single', 'Married', 'Widowed', 'Legally Separated']} error={fieldErrors.civilStatus} />
               <TextField label="Contact Number" type="tel" value={contactNumber} onChange={(v) => clearFieldError('contactNumber', setContactNumber)(sanitizePhoneInput(v))} placeholder="e.g. 09XX XXX XXXX" error={fieldErrors.contactNumber} />

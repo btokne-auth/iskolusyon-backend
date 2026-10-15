@@ -489,7 +489,74 @@ function ActivityLog({ events }) {
 // small dot if it arrived in the last 2 days, the date on the right, a
 // "Message to you / Announcement · category" line, then the full body.
 
-function MessageCard({ m }) {
+// Oct 16 2026 (client recommendation, Registrar interview of Oct 15):
+// "the applicant didn't read it, but CCC has no proof". A new announcement
+// or message opens as this pop-up the next time the applicant opens the
+// portal. It can't be closed or skipped: the checkbox unlocks after the same
+// 3 seconds as the other pop-ups, then Confirm saves the date and time,
+// which admins see in Communications. One post at a time, oldest first.
+function AckDialog({ post, index, total, onConfirm }) {
+  const [secondsLeft, setSecondsLeft] = useState(NOTICE_LOCK_SECONDS)
+  const [checked, setChecked] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    setSecondsLeft(NOTICE_LOCK_SECONDS)
+    setChecked(false)
+    setError('')
+    const t = setInterval(() => setSecondsLeft((s) => (s > 0 ? s - 1 : 0)), 1000)
+    return () => clearInterval(t)
+  }, [post.id])
+  const locked = secondsLeft > 0
+  const isMessage = post.type === 'message'
+  const confirm = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await onConfirm(post.id)
+    } catch (err) {
+      setError(err.message || 'Could not save. Please try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="confirm-overlay open">
+      <div className="confirm-box ack-box" role="dialog" aria-modal="true" aria-labelledby="ackTitle">
+        <div className="ack-top">
+          <span className={`pmsg-icon ${isMessage ? 'is-message' : 'is-announcement'}`}>{isMessage ? '\u2709' : '\uD83D\uDCE3'}</span>
+          <span className="ack-kind">
+            {isMessage ? 'New message for you' : 'New announcement'}
+            {post.category ? ` \u00b7 ${post.category}` : ''}
+          </span>
+          {total > 1 && <span className="ack-count">{index} of {total}</span>}
+        </div>
+        <h3 id="ackTitle">{post.title}</h3>
+        <span className="ack-date">
+          {post.created_at ? new Date(post.created_at).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' }) : ''}
+        </span>
+        <div className="ack-body">{post.body}</div>
+        <label className={`ack-check${locked ? ' locked' : ''}`}>
+          <input type="checkbox" checked={checked} disabled={locked || busy} onChange={(e) => setChecked(e.target.checked)} />
+          <span>I have read and understood this {isMessage ? 'message' : 'announcement'}.</span>
+        </label>
+        <p className="ack-hint">
+          {locked
+            ? `Please read it first. You can confirm in ${secondsLeft} second${secondsLeft === 1 ? '' : 's'}.`
+            : 'The Guidance Office will see the date and time you confirmed. You can read it again anytime in Messages.'}
+        </p>
+        {error && <p className="ack-error">{error}</p>}
+        <div className="confirm-actions">
+          <button type="button" className="mbtn mbtn-primary" onClick={confirm} disabled={locked || !checked || busy}>
+            {busy ? 'Saving...' : locked ? `Confirm (${secondsLeft})` : 'Confirm'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MessageCard({ m, acknowledgedAt }) {
   const isMessage = m.type === 'message'
   const isNew = m.created_at && Date.now() - new Date(m.created_at).getTime() < 2 * 24 * 60 * 60 * 1000
   return (
@@ -510,6 +577,11 @@ function MessageCard({ m }) {
           {m.category ? ` \u00b7 ${m.category}` : ''}
         </div>
         <p className="pmsg-body">{m.body}</p>
+        {acknowledgedAt && (
+          <p className="pmsg-ack">
+            &#10003; You confirmed reading this on {new Date(acknowledgedAt).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })}
+          </p>
+        )}
       </div>
     </div>
   )
@@ -2082,17 +2154,64 @@ function PortalApp({ accountSession, onLogout }) {
   const [messages, setMessages] = useState([])
   const [messagesLoading, setMessagesLoading] = useState(true)
   const [messagesError, setMessagesError] = useState('')
+  // Oct 16 2026: { [postId]: acknowledgedAt } for this applicant.
+  const [acknowledged, setAcknowledged] = useState({})
 
   useEffect(() => {
     fetch('/api/portal-messages')
       .then((res) => res.json())
       .then((data) => {
-        if (data.success) setMessages(data.posts)
+        if (data.success) {
+          setMessages(data.posts)
+          setAcknowledged(data.acknowledged || {})
+        }
         else setMessagesError(data.error || 'Failed to load messages.')
       })
       .catch((err) => setMessagesError(err.message))
       .finally(() => setMessagesLoading(false))
+    // Oct 16 2026: a new announcement or message shows up (and pops up for
+    // confirmation) without a refresh: checked every 5 s while the tab is
+    // visible, and when the applicant comes back to the tab. Hidden tabs
+    // don't check, and a check never starts while the last one is running.
+    let busy = false
+    const refresh = () => {
+      if (busy || document.visibilityState !== 'visible') return
+      busy = true
+      fetch('/api/portal-messages')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) {
+            setMessages(data.posts)
+            setAcknowledged((prev) => ({ ...(data.acknowledged || {}), ...prev }))
+          }
+        })
+        .catch(() => {})
+        .finally(() => { busy = false })
+    }
+    const poll = setInterval(refresh, 5000)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      clearInterval(poll)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
   }, [])
+
+  // Posts still waiting for "I have read and understood", oldest first.
+  const pendingAcks = messages
+    .filter((m) => m.requires_ack === true && !acknowledged[m.id])
+    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
+  const confirmAck = async (id) => {
+    const res = await fetch('/api/portal-messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok || !data.success) throw new Error(data.error || 'Could not save. Please try again.')
+    setAcknowledged((prev) => ({ ...prev, [id]: data.acknowledgedAt || new Date().toISOString() }))
+  }
 
   const formCardRef = useRef(null)
 
@@ -3467,7 +3586,7 @@ function PortalApp({ accountSession, onLogout }) {
                   return (
                     <div className="pmsg-list">
                       {filtered.map((m) => (
-                        <MessageCard key={m.id} m={m} />
+                        <MessageCard key={m.id} m={m} acknowledgedAt={acknowledged[m.id]} />
                       ))}
                     </div>
                   )
@@ -3567,7 +3686,7 @@ function PortalApp({ accountSession, onLogout }) {
                   <TextField label="Suffix (if any)" value={personalInfo.suffix} onChange={(v) => updatePI('suffix', v)} placeholder="e.g. Jr., III" />
                   <TextField label="Date of Birth" type="date" required value={personalInfo.dateOfBirth} onChange={(v) => updatePI('dateOfBirth', v)} />
                   <TextField label="Place of Birth" required value={personalInfo.placeOfBirth} onChange={(v) => updatePI('placeOfBirth', v)} placeholder="e.g. Calamba City, Laguna" />
-                  <SelectField label="Sex" required value={personalInfo.sex} onChange={(v) => updatePI('sex', v)} options={['Male', 'Female']} />
+                  <SelectField label="Sex at birth" required value={personalInfo.sex} onChange={(v) => updatePI('sex', v)} options={['Male', 'Female']} />
                   <TextField label="Citizenship" required value={personalInfo.citizenship} onChange={(v) => updatePI('citizenship', v)} placeholder="e.g. Filipino" />
                   <TextField label="Religion" value={personalInfo.religion} onChange={(v) => updatePI('religion', v)} placeholder="e.g. Roman Catholic" />
                   <SelectField label="Civil Status" required value={personalInfo.civilStatus} onChange={(v) => updatePI('civilStatus', v)} options={['Single', 'Married', 'Widowed', 'Separated']} />
@@ -4393,6 +4512,9 @@ function PortalApp({ accountSession, onLogout }) {
 
       {/* History drawer — tucked away, opened deliberately */}
       <FilePreviewModal preview={preview} onClose={() => setPreview(null)} />
+      {!uploadNotice && pendingAcks.length > 0 && (
+        <AckDialog key={pendingAcks[0].id} post={pendingAcks[0]} index={1} total={pendingAcks.length} onConfirm={confirmAck} />
+      )}
       {uploadNotice && (
         <UploadNoticeDialog
           notice={uploadNotice}

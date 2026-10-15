@@ -5924,3 +5924,32 @@
   align-items: center;
   gap: 14px;
 }
+
+/* Oct 16 2026: read confirmations on Communications posts. */
+.admin-portal .cm-ack {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ccc-green, #1b6b3a);
+}
+.admin-portal .cm-ack:hover { text-decoration: underline; }
+.admin-portal .cm-ack:focus-visible { outline: 2px solid var(--ccc-blue, #003cd0); outline-offset: 2px; }
+.admin-portal .cm-acklist {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #e0e6f0);
+  border-radius: 8px;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.admin-portal .cm-ack-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: #4b5563; }
+.admin-portal .cm-ack-row b { color: var(--navy, #0d2f6e); font-weight: 700; }
+.admin-portal .cm-ack-none { font-size: 12.5px; color: #4b5563; line-height: 1.5; }

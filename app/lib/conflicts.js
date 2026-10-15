@@ -122,7 +122,7 @@ export function findConflicts(app, { birth, voter, others = [] } = {}) {
     const readSex = sexLetter(f.sex)
     const typedSex = sexLetter(app.sex)
     if (readSex && typedSex && readSex !== typedSex) {
-      add('sex', 'Sex', app.sex, 'Personal Information', f.sex, 'Birth Certificate', doc)
+      add('sex', 'Sex at Birth', app.sex, 'Personal Information', f.sex, 'Birth Certificate', doc)
     }
     const readPlace = placeCore(f.place_of_birth)
     const typedPlace = placeCore(app.place_of_birth)
