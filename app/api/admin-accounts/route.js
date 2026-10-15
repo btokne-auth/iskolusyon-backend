@@ -111,6 +111,11 @@ export async function POST(request) {
 
     // Oct 5 2026: `role` (admin, super_admin, registrar, lgu); older
     // clients still send isSuperAdmin.
+    // Oct 15 2026: 'lgu' is no longer offered; an unknown role is refused
+    // (not quietly turned into an Admin).
+    if (body.role && !ROLE_KEYS.includes(body.role)) {
+      return NextResponse.json({ error: 'That account type is not available.' }, { status: 400 })
+    }
     const role = ROLE_KEYS.includes(body.role) ? body.role : body.isSuperAdmin ? 'super_admin' : 'admin'
     const result = await inviteAdminAccount({
       name: body.name,

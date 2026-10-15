@@ -4,6 +4,7 @@ import { requireConsoleRole } from '@/app/lib/adminRoles'
 import { confirmOwnPassword } from '@/app/lib/adminAccounts'
 import { getSystemSettings } from '@/app/lib/systemSettings'
 import { serverError } from '@/app/lib/safeError'
+import { FORM3_DOWNLOAD_PREFIX } from '@/app/lib/chedForm3'
 
 // Oct 5 2026: end-of-cycle archive (Progress Table row 74, archive part;
 // Ivy's cell comment: a Super Admin option to archive all applicants once
@@ -11,6 +12,9 @@ import { serverError } from '@/app/lib/safeError'
 // conditions: archive, never delete; Super Admin only; only while
 // Applications Open is off; only after a CHED Form 3 was released to the LGU;
 // typed confirmation plus the Super Admin's password.
+// Oct 15 2026 (client): the LGU login is gone, so "released to the LGU"
+// became "CHED Form 3 exported": a Form 3 download in the Activity Log
+// since the last archive.
 //
 // GET              -> readiness checklist, cycle label, archived cycles
 // GET ?cycle=<x>   -> that archived cycle's applicants (read-only list)
@@ -54,7 +58,7 @@ async function readiness() {
 
   const settings = await getSystemSettings()
 
-  // The newest earlier archive, so a report released for a previous cycle
+  // The newest earlier archive, so an export made for a previous cycle
   // doesn't count for this one.
   const { data: lastArchive } = await supabase
     .from('applications')
@@ -64,15 +68,16 @@ async function readiness() {
     .limit(1)
   const since = lastArchive && lastArchive[0] ? lastArchive[0].archived_at : null
 
-  let reportQuery = supabase
-    .from('lgu_reports')
-    .select('id, reference_number, released_at')
-    .is('withdrawn_at', null)
-    .order('released_at', { ascending: false })
+  let exportQuery = supabase
+    .from('audit_log')
+    .select('actor, action, created_at')
+    .ilike('action', `${FORM3_DOWNLOAD_PREFIX}%`)
+    .order('created_at', { ascending: false })
     .limit(1)
-  if (since) reportQuery = reportQuery.gt('released_at', since)
-  const { data: reports, error: reportError } = await reportQuery
-  if (reportError) throw new Error(reportError.message)
+  if (since) exportQuery = exportQuery.gt('created_at', since)
+  const { data: exports, error: exportError } = await exportQuery
+  if (exportError) throw new Error(exportError.message)
+  const lastExport = exports && exports[0] ? exports[0] : null
 
   const cycle = cycleLabel(current || [])
   return {
@@ -80,7 +85,7 @@ async function readiness() {
     cycle,
     confirmPhrase: `${CONFIRM_PREFIX} ${cycle}`,
     applicationsOpen: !!settings.applications_open,
-    report: reports && reports[0] ? reports[0] : null,
+    exported: lastExport ? { by: lastExport.actor, at: lastExport.created_at } : null,
   }
 }
 
@@ -144,9 +149,9 @@ export async function POST(request) {
     if (ready.applicationsOpen) {
       return NextResponse.json({ error: 'Turn off Applications Open in Cycle Settings first.' }, { status: 409 })
     }
-    if (!ready.report) {
+    if (!ready.exported) {
       return NextResponse.json(
-        { error: 'Release this cycle’s CHED Form 3 to the LGU first (Dashboard, Export CHED Form 3).' },
+        { error: 'Export this cycle’s CHED Form 3 first (Dashboard, Export CHED Form 3, Download PDF).' },
         { status: 409 }
       )
     }
@@ -166,7 +171,7 @@ export async function POST(request) {
     const count = (data || []).length
     await logAudit(
       session.name,
-      `Archived all applicants of cycle ${ready.cycle} (${count} applicant${count === 1 ? '' : 's'}). CHED Form 3 ${ready.report.reference_number} was released to the LGU first.`,
+      `Archived all applicants of cycle ${ready.cycle} (${count} applicant${count === 1 ? '' : 's'}). CHED Form 3 was exported first.`,
       'warn'
     )
     return NextResponse.json({ success: true, count, cycle: ready.cycle })

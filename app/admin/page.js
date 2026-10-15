@@ -505,6 +505,24 @@ function integrityFor(doc, results) {
 
 // The core review unit: one document, file preview on the left, OCR + status
 // on the right. This is what replaces the mockup's dead viewDocument() stub.
+// Oct 15 2026 (client): when an applicant re-uploads, the admin sees the
+// latest file per document type first, marked Current. Earlier files stay
+// (nothing is deleted) but are folded under "Previous uploads (N)".
+// parentid (the former parent/guardian Voter's ID slot) keeps its own group:
+// older applicants uploaded both their own and a parent's ID, and one is not
+// a re-upload of the other.
+const uploadGroupKey = (type) => type
+function groupUploadsByType(docs) {
+  const sorted = [...docs].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+  const groups = new Map()
+  for (const d of sorted) {
+    const key = uploadGroupKey(d.document_type)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(d)
+  }
+  return [...groups.values()]
+}
+
 function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
   const [previewing, setPreviewing] = useState(false)
   const image = isImageFile(doc.file_path)
@@ -1434,7 +1452,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
           <span className="apl-avatar">{initials}</span>
           <span className="apl-who-text">
             <span className="apl-name">{name || 'Unknown applicant'}</span>
-            <span className="apl-sub">{email || 'No email on file'}</span>
+            <span className="apl-sub">{[eligibilityRow?.application_number, email || 'No email on file'].filter(Boolean).join(' \u00b7 ')}</span>
             {lockedByOther && (
               <span className="apl-lock-tag">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1681,7 +1699,8 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                     const visibleStacks = cat.stacks.filter((s) => !s.showIf || s.showIf(detail))
                     const catDocTypes = visibleStacks.flatMap((s) => s.docTypes)
                     const catDocs = docs.filter((d) => catDocTypes.includes(d.document_type))
-                    const catFlagged = catDocs.filter((d) => d.needs_review).length
+                    // Only the current (latest) file of each type counts as flagged.
+                    const catFlagged = groupUploadsByType(catDocs).filter((g) => g[0].needs_review).length
                     // Stacks that require a document but have none submitted
                     // yet -- the real-data equivalent of Ivy's tab count/
                     // asterisk (her mockup's exact numbers came from her own
@@ -1736,8 +1755,19 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                           )}
                           {stack.docTypes.length > 0 && (
                             stackDocs.length > 0 ? (
-                              stackDocs.map((doc) => (
-                                <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} integrity={integrityFor(doc, integrityResults)} />
+                              groupUploadsByType(stackDocs).map(([current, ...previous]) => (
+                                <div key={current.file_path} className="doc-upload-group">
+                                  {previous.length > 0 && <div className="doc-current-tag">Current (latest upload)</div>}
+                                  <DocumentReviewCard doc={current} onOverride={onOverride} overriding={overriding} integrity={integrityFor(current, integrityResults)} />
+                                  {previous.length > 0 && (
+                                    <details className="doc-prev-uploads">
+                                      <summary>Previous uploads ({previous.length})</summary>
+                                      {previous.map((doc) => (
+                                        <DocumentReviewCard key={doc.file_path} doc={doc} onOverride={onOverride} overriding={overriding} integrity={integrityFor(doc, integrityResults)} />
+                                      ))}
+                                    </details>
+                                  )}
+                                </div>
                               ))
                             ) : (
                               <p className="doc-cat-empty">No document submitted for this yet.</p>
@@ -2181,7 +2211,7 @@ function DashboardPanel({
       const status = aplStatusOf(eligRow)
       const flagged = g.docs.some((d) => d.needs_review)
       const openConflicts = eligRow ? (conflicts[eligRow.id] || []).filter((c) => !c.checked).length : 0
-      return { ...g, status, bucket: aplBucketOf(status), flagged, openConflicts, updatedAt: eligRow?.updated_at || null }
+      return { ...g, status, bucket: aplBucketOf(status), flagged, openConflicts, updatedAt: eligRow?.updated_at || null, appNo: eligRow?.application_number || '' }
     })
   }, [docs, search, programFilter, eligibilityByName, eligibility, conflicts])
 
@@ -2196,9 +2226,15 @@ function DashboardPanel({
     const list = searchedGroups.filter((g) => tab.match(g))
     // Default order (unchanged): applicants with flagged documents float to
     // the top so admins triage those first, then A-Z. Clicking the
-    // Applicant or Last Update header sorts by that column instead.
+    // Applicant, App. No. or Last Update header sorts by that instead.
     return list.sort((a, b) => {
       if (sort.key === 'name') return (a.name || '').localeCompare(b.name || '') * sort.dir
+      // Oct 15 2026 (client): order by application number. No number yet = last.
+      if (sort.key === 'appno') {
+        if (a.appNo && b.appNo) return a.appNo.localeCompare(b.appNo, 'en', { numeric: true }) * sort.dir
+        if (a.appNo || b.appNo) return a.appNo ? -1 : 1
+        return (a.name || '').localeCompare(b.name || '')
+      }
       if (sort.key === 'updated') {
         const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
         const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
@@ -2212,7 +2248,7 @@ function DashboardPanel({
 
   const toggleSort = (key) =>
     setSort((prev) =>
-      prev.key === key ? { key, dir: -prev.dir } : { key, dir: key === 'name' ? 1 : -1 }
+      prev.key === key ? { key, dir: -prev.dir } : { key, dir: key === 'name' || key === 'appno' ? 1 : -1 }
     )
   const sortArrow = (key) => (sort.key === key ? (sort.dir === 1 ? 'asc active' : 'active') : '')
 
@@ -2386,10 +2422,16 @@ function DashboardPanel({
           <div className="apl-scroll">
            <div className="apl-table">
             <div className="apl-head" role="presentation">
-              <button type="button" className="apl-th apl-th-sort" onClick={() => toggleSort('name')}>
-                Applicant
-                <svg className={`sort-icon ${sortArrow('name')}`} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 16l-6-6h12z" /></svg>
-              </button>
+              <span className="apl-th-pair">
+                <button type="button" className="apl-th apl-th-sort" onClick={() => toggleSort('name')}>
+                  Applicant
+                  <svg className={`sort-icon ${sortArrow('name')}`} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 16l-6-6h12z" /></svg>
+                </button>
+                <button type="button" className="apl-th apl-th-sort" onClick={() => toggleSort('appno')} title="Sort by application number (the order applications were submitted)">
+                  App. No.
+                  <svg className={`sort-icon ${sortArrow('appno')}`} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 16l-6-6h12z" /></svg>
+                </button>
+              </span>
               <span className="apl-th">Program (1st choice)</span>
               <span className="apl-th">Profile</span>
               <span className="apl-th">Documents</span>
@@ -3809,7 +3851,8 @@ const STAT_ELIGIBILITY = [
   { key: 'not_qualified', label: 'Not Qualified', color: '#C0392B' },
   { key: 'waitlisted', label: 'Waitlisted', color: '#C8A84B' },
   { key: 'pending_exam', label: 'Pending Exam', color: '#003CD0' },
-  { key: 'incomplete', label: 'Incomplete (Ongoing)', color: '#A7B4C8' },
+  // Oct 15 2026 (client): was "Incomplete (Ongoing)".
+  { key: 'incomplete', label: 'Not yet submitted', color: '#A7B4C8' },
 ]
 const STAT_SCHOLAR = [
   { key: 'passer', label: 'Passer', color: '#1B6B3A' },
@@ -4117,6 +4160,7 @@ function AnalyticsPanel() {
           title="Eligibility status"
           total={stats.total}
           items={STAT_ELIGIBILITY.map((s) => ({ ...s, count: stats.elig[s.key] }))}
+          foot="Not yet submitted includes accounts that started an application but never finished it."
         />
         <StatSplitPanel
           title="Scholar status (after exam)"
@@ -4154,7 +4198,9 @@ function AnalyticsPanel() {
         <div className="st-card-head st-card-head-wrap">
           <div>
             <h2 className="st-card-title">Applicants by program</h2>
-            <span className="st-meta">Grouped by 1st choice program. Eligibility status per program.</span>
+            <span className="st-meta">
+              Grouped by 1st choice program. Eligibility status per program. Applicants also counts those who have not submitted yet.
+            </span>
           </div>
           <label className="st-check">
             <input type="checkbox" checked={showEmptyPrograms} onChange={(e) => setShowEmptyPrograms(e.target.checked)} />
@@ -4171,13 +4217,12 @@ function AnalyticsPanel() {
                 <th className="r">Not Qualified</th>
                 <th className="r">Waitlisted</th>
                 <th className="r">Pending Exam</th>
-                <th className="r">Incomplete</th>
               </tr>
             </thead>
             <tbody>
               {programRowsShown.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="st-empty">No applicants in this department yet.</td>
+                  <td colSpan={6} className="st-empty">No applicants in this department yet.</td>
                 </tr>
               ) : (
                 programRowsShown.map((p) => (
@@ -4191,7 +4236,6 @@ function AnalyticsPanel() {
                     <td className="r">{p.not_qualified}</td>
                     <td className="r">{p.waitlisted}</td>
                     <td className="r">{p.pending_exam}</td>
-                    <td className="r">{p.incomplete}</td>
                   </tr>
                 ))
               )}
@@ -4204,7 +4248,6 @@ function AnalyticsPanel() {
                 <td className="r">{stats.elig.not_qualified}</td>
                 <td className="r">{stats.elig.waitlisted}</td>
                 <td className="r">{stats.elig.pending_exam}</td>
-                <td className="r">{stats.elig.incomplete}</td>
               </tr>
             </tfoot>
           </table>
@@ -4723,9 +4766,11 @@ const ADMIN_ROLE_OPTIONS = [
   { key: 'admin', label: 'Admin', desc: 'Reviews applicants, results, schedules, requests and communications.' },
   { key: 'super_admin', label: 'Super Admin', desc: 'Everything an Admin does, plus Admin Accounts and System & Activity.' },
   { key: 'registrar', label: 'Office of the Registrar', desc: 'Posts allowances for scholars. Sees Dashboard counts only.' },
-  { key: 'lgu', label: 'LGU (view only)', desc: 'Views and downloads reports CCC releases. Access ends on a set date.' },
 ]
-const ADMIN_ROLE_LABEL = Object.fromEntries(ADMIN_ROLE_OPTIONS.map((r) => [r.key, r.label]))
+// Oct 15 2026 (client): the LGU (view only) role was removed; CCC sends the
+// exported CHED Form 3 to the LGU itself. An old LGU account still shows
+// in the list (it can't sign in) until it is removed.
+const ADMIN_ROLE_LABEL = { ...Object.fromEntries(ADMIN_ROLE_OPTIONS.map((r) => [r.key, r.label])), lgu: 'LGU (no longer used)' }
 const ADMIN_ROLE_PHRASE = {
   admin: 'an Admin',
   super_admin: 'a Super Admin',
@@ -4825,22 +4870,10 @@ function AdminAccountsPanel() {
       setFormError('Please enter a full name and email.')
       return
     }
-    if (newRole === 'lgu') {
-      if (!newFrom || !newUntil) {
-        setFormError('Please set both access dates for the LGU account.')
-        return
-      }
-      if (newUntil < newFrom) {
-        setFormError('The access end date must be on or after the start date.')
-        return
-      }
-    }
     openConfirm({
       type: 'invite',
       title: 'Confirm Invite',
-      desc: `Re-enter your password to invite ${newName.trim()} (${newEmail.trim()}) as ${ADMIN_ROLE_PHRASE[newRole]}${
-        newRole === 'lgu' ? `, with access from ${formatYmd(newFrom)} to ${formatYmd(newUntil)}` : ''
-      }.`,
+      desc: `Re-enter your password to invite ${newName.trim()} (${newEmail.trim()}) as ${ADMIN_ROLE_PHRASE[newRole]}.`,
     })
   }
 
@@ -5000,7 +5033,6 @@ function AdminAccountsPanel() {
   const superCount = accounts.filter((a) => roleOf(a) === 'super_admin').length
   const adminCount = accounts.filter((a) => roleOf(a) === 'admin').length
   const registrarCount = accounts.filter((a) => roleOf(a) === 'registrar').length
-  const lguCount = accounts.filter((a) => roleOf(a) === 'lgu').length
   const waitingCount = accounts.filter((a) => pendingState(a)).length
   const confirmTone = confirmAction?.type === 'remove' ? 'danger' : 'primary'
   const confirmLabel =
@@ -5019,7 +5051,7 @@ function AdminAccountsPanel() {
           <h1>Admin Accounts</h1>
           <p>
             Invite and manage the people who can use this admin console. They&apos;ll get an email with a temporary
-            password and choose their own when they first sign in. Inviting, resetting, changing access dates and
+            password and choose their own when they first sign in. Inviting, resetting and
             removing accounts all ask for your password first.
           </p>
         </div>
@@ -5066,10 +5098,6 @@ function AdminAccountsPanel() {
             <span className="cm-kpi-value">{registrarCount}</span>
           </div>
           <div className="cm-kpi">
-            <span className="cm-kpi-label">LGU (view only)</span>
-            <span className="cm-kpi-value">{lguCount}</span>
-          </div>
-          <div className="cm-kpi">
             <span className="cm-kpi-label">Waiting to set a password</span>
             <span className="cm-kpi-value">{waitingCount}</span>
           </div>
@@ -5112,37 +5140,6 @@ function AdminAccountsPanel() {
                 ))}
               </div>
             </div>
-            {newRole === 'lgu' && (
-              <div className="aa-window">
-                <span className="cm-label">Access window</span>
-                <div className="aa-window-row">
-                  <div className="cm-field">
-                    <label className="aa-window-label" htmlFor="aaFrom">Access from</label>
-                    <input
-                      id="aaFrom"
-                      className="cm-input"
-                      type="date"
-                      value={newFrom}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setNewFrom(v)
-                        if (v) setNewUntil(addDaysYmd(v, LGU_DEFAULT_DAYS))
-                      }}
-                      required
-                    />
-                  </div>
-                  <div className="cm-field">
-                    <label className="aa-window-label" htmlFor="aaUntil">Access until</label>
-                    <input id="aaUntil" className="cm-input" type="date" value={newUntil} min={newFrom || undefined}
-                      onChange={(e) => setNewUntil(e.target.value)} required />
-                  </div>
-                </div>
-                <span className="aa-window-note">
-                  Starts as 7 days. Outside these dates their sign-in is refused. They only see reports CCC has released to
-                  the LGU.
-                </span>
-              </div>
-            )}
             <div className="cm-scope muted">
               <IconMail />
               <span>They get an email with a temporary password and choose their own the first time they sign in.</span>
@@ -5202,7 +5199,7 @@ function AdminAccountsPanel() {
                         expired: 'Their temporary password expired. Use Reset password to send a new one.',
                         pending: 'Invited. Waiting for them to sign in and choose their own password.',
                         notstarted: 'Their access start date has not come yet.',
-                        ended: 'Their access end date has passed. Use Change dates to give them more time.',
+                        ended: isLgu ? 'LGU accounts are no longer used and cannot sign in. Remove this account.' : 'Their access has ended.',
                         active: 'Signed in with their own password.',
                       }[status]
                       const onlyRegistrar = role === 'registrar' && registrarCount <= 1
@@ -5226,11 +5223,7 @@ function AdminAccountsPanel() {
                               <span className={`aa-chip ${role === 'super_admin' ? 'super' : role === 'admin' ? 'admin' : 'limited'}`}>
                                 {ADMIN_ROLE_LABEL[role]}
                               </span>
-                              {isLgu && (
-                                <span className="aa-access">
-                                  Access {formatYmd(acc.access_from, { month: 'short', day: 'numeric' })} to {formatYmd(acc.access_until)}
-                                </span>
-                              )}
+                              {isLgu && <span className="aa-access">Can&apos;t sign in. Remove this account.</span>}
                             </span>
                           </td>
                           <td>
@@ -5241,16 +5234,7 @@ function AdminAccountsPanel() {
                           </td>
                           <td className="r">
                             <span className="aa-actions">
-                              {isLgu && (
-                                <button type="button" onClick={() => requestDates(acc)} className="aa-act" title="Change when this LGU account can sign in">
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                    <rect x="3" y="5" width="18" height="16" rx="2" />
-                                    <path d="M3 10h18M8 3v4M16 3v4" />
-                                  </svg>
-                                  Change dates
-                                </button>
-                              )}
-                              <button
+                              {!isLgu && <button
                                 type="button"
                                 onClick={() => requestReset(acc)}
                                 disabled={isSelf}
@@ -5262,7 +5246,7 @@ function AdminAccountsPanel() {
                                   <path d="m11 12 9-9M17 6l3 3" />
                                 </svg>
                                 Reset password
-                              </button>
+                              </button>}
                               <button
                                 type="button"
                                 className="aa-act danger"
@@ -5290,8 +5274,7 @@ function AdminAccountsPanel() {
               <div className="aa-foot">
                 You can&apos;t reset or remove your own account, the last Super Admin, or the only Registrar account.{' '}
                 <b>Pending setup</b> means they haven&apos;t signed in to choose a password yet; <b>Invite expired</b> means use
-                Reset password to send a new one; <b>Access ended</b> means an LGU account&apos;s end date has passed, so use
-                Change dates to give it more time.
+                Reset password to send a new one.
               </div>
             </>
           )}
@@ -5727,7 +5710,8 @@ function ActivityLogCard() {
 // option to archive all applicants once admissions work is done, shown only
 // when Applications Open is off. Pau's conditions: archive, never delete;
 // only after this cycle's CHED Form 3 was released to the LGU; typed
-// confirmation plus the Super Admin's password. The server checks all of it
+// confirmation plus the Super Admin's password. Oct 15 2026: "released to
+// the LGU" is now "CHED Form 3 exported" (the LGU login was removed). The server checks all of it
 // again (app/api/archive-cycle/route.js).
 function ArchiveCycleCard() {
   const [data, setData] = useState(() => peek('archive') ?? null)
@@ -5768,7 +5752,7 @@ function ArchiveCycleCard() {
     }
   }, [])
 
-  const ready = !!data && !data.applicationsOpen && !!data.report && data.toArchive > 0
+  const ready = !!data && !data.applicationsOpen && !!data.exported && data.toArchive > 0
 
   const submit = async (e) => {
     e.preventDefault()
@@ -5819,11 +5803,11 @@ function ArchiveCycleCard() {
           note: data.applicationsOpen ? 'Turn it off in Cycle Settings above first.' : 'Turned off in Cycle Settings.',
         },
         {
-          ok: !!data.report,
-          title: data.report ? 'CHED Form 3 released to the LGU' : 'CHED Form 3 not released yet',
-          note: data.report
-            ? `${data.report.reference_number}, released ${new Date(data.report.released_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.`
-            : 'Release it from Dashboard, Export CHED Form 3.',
+          ok: !!data.exported,
+          title: data.exported ? 'CHED Form 3 exported' : 'CHED Form 3 not exported yet',
+          note: data.exported
+            ? `Downloaded by ${data.exported.by}, ${new Date(data.exported.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.`
+            : 'Download it from Dashboard, Export CHED Form 3.',
         },
       ]
     : []
@@ -7442,23 +7426,19 @@ function RegistrarAllowancePanel({ data, loading, error, onReload }) {
 // ---------- CHED Form 3 export (Oct 5 2026, Progress Table row 79) ----------
 // Dashboard "Export CHED Form 3" window. Behavior from Ivy's Patch 5
 // export (reference number + date, then a landscape PDF in the Form 3
-// layout), plus Release to LGU (Super Admin only): a frozen copy the LGU
-// (view only) account can see during its access dates. Design: canvas page
-// "Registrar, LGU and archive (Oct 5)".
+// layout).
+// Oct 15 2026 (client, interview of Oct 15): "Release to LGU", the
+// "Released to LGU" tab and the LGU (view only) login are removed. CCC
+// downloads the PDF and sends the file to the LGU itself. Each download is
+// recorded in the Activity Log, which the end-of-cycle archive checks.
 function ChedForm3Dialog({ onClose }) {
   const [data, setData] = useState(() => peek('form3') ?? null)
   const [loading, setLoading] = useState(() => peek('form3') === undefined)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState('new')
   const [referenceNumber, setReferenceNumber] = useState('')
   const [formDate, setFormDate] = useState(() => manilaTodayYmd())
   const [formError, setFormError] = useState('')
   const [downloading, setDownloading] = useState(false)
-  // { type: 'release' } | { type: 'withdraw', report }
-  const [confirm, setConfirm] = useState(null)
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [confirmError, setConfirmError] = useState('')
-  const [confirmBusy, setConfirmBusy] = useState(false)
 
   const load = async () => {
     if (peek('form3') === undefined) setLoading(true)
@@ -7480,8 +7460,6 @@ function ChedForm3Dialog({ onClose }) {
 
   const rows = data?.rows || []
   const counts = data?.counts || {}
-  const released = data?.released || []
-  const activeReleased = released.filter((r) => !r.withdrawn_at)
 
   const checkForm = () => {
     if (!referenceNumber.trim()) return 'Please enter the reference number.'
@@ -7510,105 +7488,19 @@ function ChedForm3Dialog({ onClose }) {
     }
   }
 
-  const downloadReleased = async (report) => {
-    try {
-      const res = await fetch(`/api/ched-form3?report=${report.id}`)
-      const result = await res.json()
-      if (!result.success) {
-        showAdminNotice(result.error || 'Could not load that report.', 'error')
-        return
-      }
-      const { downloadForm3Pdf } = await import('../lib/chedForm3Pdf')
-      await downloadForm3Pdf({ rows: result.report.rows, referenceNumber: result.report.reference_number, formDate: result.report.form_date })
-      fetch('/api/ched-form3', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'logDownload',
-          referenceNumber: result.report.reference_number,
-          rowCount: result.report.row_count,
-          reportId: report.id,
-        }),
-      }).catch(() => {})
-    } catch (err) {
-      showAdminNotice(err.message, 'error')
-    }
-  }
-
-  const askRelease = () => {
-    const problem = checkForm()
-    setFormError(problem)
-    if (problem) return
-    setConfirmPassword('')
-    setConfirmError('')
-    setConfirm({ type: 'release' })
-  }
-
-  const submitConfirm = async (e) => {
-    e.preventDefault()
-    if (!confirmPassword) {
-      setConfirmError('Please enter your password.')
-      return
-    }
-    setConfirmBusy(true)
-    setConfirmError('')
-    try {
-      const body =
-        confirm.type === 'release'
-          ? { action: 'release', referenceNumber: referenceNumber.trim(), formDate, confirmPassword }
-          : { action: 'withdraw', id: confirm.report.id, confirmPassword }
-      const res = await fetch('/api/ched-form3', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      const result = await res.json()
-      if (!res.ok || !result.success) {
-        setConfirmError(result.error || 'Something went wrong.')
-        return
-      }
-      const done = confirm
-      setConfirm(null)
-      setConfirmPassword('')
-      await load()
-      if (done.type === 'release') {
-        setTab('released')
-        showAdminNotice(
-          `CHED Form 3 ${result.report.reference_number} (${result.report.row_count} rows) was released to the LGU. LGU accounts can see it during their access dates.`
-        )
-      } else {
-        showAdminNotice(`CHED Form 3 ${done.report.reference_number} was withdrawn. The LGU can no longer see it.`)
-      }
-    } catch (err) {
-      setConfirmError(err.message)
-    } finally {
-      setConfirmBusy(false)
-    }
-  }
-
   return (
-    <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !confirm && onClose()}>
+    <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="cf-dialog" role="dialog" aria-modal="true" aria-label="Export CHED Form 3">
         <div className="cf-head">
           <h2 className="cf-title">Export CHED Form 3</h2>
           <p className="cf-sub">Free Higher Education Billing Details, admission fees (Section 7, Rule II of the IRR of RA 10931).</p>
-          <div className="cm-tabs" role="group" aria-label="Export or released reports">
-            {[
-              ['new', 'New export', rows.length],
-              ['released', 'Released to LGU', activeReleased.length],
-            ].map(([key, label, n]) => (
-              <button key={key} type="button" className={`cm-tab${tab === key ? ' on' : ''}`} aria-pressed={tab === key} onClick={() => setTab(key)}>
-                {label} <span className="cm-tab-count">{n}</span>
-              </button>
-            ))}
-          </div>
         </div>
 
         {loading && !data ? (
           <SkeletonRows rows={5} avatar={false} label="Loading the report..." />
         ) : error && !data ? (
           <p className="text-sm text-ccc-red text-center py-10">{error}</p>
-        ) : tab === 'new' ? (
+        ) : (
           <>
             <div className="cf-body">
               <div className="cf-side">
@@ -7639,7 +7531,7 @@ function ChedForm3Dialog({ onClose }) {
               </div>
               <div className="cf-preview">
                 <span className="cm-label">
-                  Preview {rows.length > 0 ? `(first ${Math.min(rows.length, 8)} of ${rows.length} rows, sorted A to Z by last name)` : ''}
+                  Preview {rows.length > 0 ? `(first ${Math.min(rows.length, 8)} of ${rows.length} rows, in application number order)` : ''}
                 </span>
                 {rows.length === 0 ? (
                   <p className="text-sm text-ccc-muted py-6">No rows yet. Rows appear once exam results are recorded in Applicant Results.</p>
@@ -7673,231 +7565,29 @@ function ChedForm3Dialog({ onClose }) {
             </div>
             <div className="cf-foot">
               <span className="cf-foot-note">
-                Download saves the PDF for you.{' '}
-                {data?.canRelease
-                  ? <>
-                      <b>Release to LGU</b> also saves a frozen copy that LGU accounts can see. Release only after enrollment is
-                      finished.
-                    </>
-                  : 'Only a Super Admin can release it to the LGU.'}
+                Download saves the PDF for you. Send that file to the LGU directly (for example by email). Downloading it also
+                completes the &ldquo;CHED Form 3 exported&rdquo; step for the end-of-cycle archive.
               </span>
               <span className="cf-foot-actions">
                 <button type="button" className="cm-btn cm-btn-secondary" onClick={onClose}>Cancel</button>
-                {data?.canRelease && (
-                  <button type="button" className="cm-btn cm-btn-secondary" onClick={askRelease}>Release to LGU</button>
-                )}
                 <button type="button" className="cm-btn cm-btn-primary" onClick={download} disabled={downloading}>
                   {downloading ? 'Preparing PDF...' : 'Download PDF'}
                 </button>
               </span>
             </div>
           </>
-        ) : (
-          <>
-            <div className="cf-released">
-              <p className="cf-released-note">
-                These frozen copies are what LGU accounts see. Changes in the system after a release don&apos;t change them.
-                {data?.canRelease ? ' Withdraw a report to hide it from the LGU.' : ''}
-              </p>
-              {released.length === 0 ? (
-                <p className="text-sm text-ccc-muted text-center py-8">Nothing has been released to the LGU yet.</p>
-              ) : (
-                <div className="st-scroll">
-                  <table className="st-table cf-rel-table">
-                    <thead>
-                      <tr>
-                        <th>Reference no.</th><th>Date on form</th><th>Rows</th><th>Released by</th><th>LGU downloads</th><th>Status</th>
-                        <th className="r">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {released.map((r) => (
-                        <tr key={r.id}>
-                          <td className="cf-strong">{r.reference_number}</td>
-                          <td>{formatYmd(r.form_date)}</td>
-                          <td>{r.row_count}</td>
-                          <td>
-                            {r.released_by}, {new Date(r.released_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </td>
-                          <td>{r.download_count || 0}</td>
-                          <td>
-                            <span className={`aa-chip ${r.withdrawn_at ? 'ended' : 'active'}`}>
-                              {r.withdrawn_at ? 'Withdrawn' : 'Visible to LGU'}
-                            </span>
-                          </td>
-                          <td className="r">
-                            <span className="aa-actions">
-                              <button type="button" className="aa-act" onClick={() => downloadReleased(r)}>Download</button>
-                              {data?.canRelease && !r.withdrawn_at && (
-                                <button
-                                  type="button"
-                                  className="aa-act danger"
-                                  onClick={() => {
-                                    setConfirmPassword('')
-                                    setConfirmError('')
-                                    setConfirm({ type: 'withdraw', report: r })
-                                  }}
-                                >
-                                  Withdraw
-                                </button>
-                              )}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            <div className="cf-foot cf-foot-end">
-              <button type="button" className="cm-btn cm-btn-secondary" onClick={onClose}>Close</button>
-            </div>
-          </>
         )}
       </div>
-
-      {confirm && (
-        <div className="confirm-overlay open" style={{ zIndex: 1600 }} onClick={(e) => e.target === e.currentTarget && !confirmBusy && setConfirm(null)}>
-          <form className="aa-confirm" role="dialog" aria-modal="true" aria-label={confirm.type === 'release' ? 'Release to LGU' : 'Withdraw report'} onSubmit={submitConfirm}>
-            <div className="aa-confirm-body">
-              <h3 className="aa-confirm-title">{confirm.type === 'release' ? 'Release this report to the LGU?' : 'Withdraw this report?'}</h3>
-              <p className="aa-confirm-desc">
-                {confirm.type === 'release'
-                  ? `A frozen copy of ${referenceNumber.trim()} (${rows.length} rows) becomes visible to LGU accounts during their access dates. Release only after enrollment is finished. Re-enter your password to continue.`
-                  : `LGU accounts will no longer see ${confirm.report.reference_number}. It stays listed here for the record. Re-enter your password to continue.`}
-              </p>
-              <label className="cm-label" htmlFor="cfPw">Your password</label>
-              <input id="cfPw" className="cm-input" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Your password" autoComplete="current-password" autoFocus />
-              {confirmError && <p className="aa-confirm-error">{confirmError}</p>}
-            </div>
-            <div className="aa-confirm-foot">
-              <button type="button" className="cm-btn cm-btn-secondary" disabled={confirmBusy} onClick={() => setConfirm(null)}>Cancel</button>
-              <button type="submit" className={`cm-btn ${confirm.type === 'release' ? 'cm-btn-primary' : 'cm-btn-danger'}`} disabled={confirmBusy}>
-                {confirmBusy ? 'Working...' : confirm.type === 'release' ? 'Release to LGU' : 'Withdraw'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ---------- LGU (view only) console: Released reports (Oct 5 2026) ----------
-function LguReportsPanel() {
-  const [data, setData] = useState(() => peek('lgu') ?? null)
-  const [loading, setLoading] = useState(() => peek('lgu') === undefined)
-  const [error, setError] = useState('')
-  const [busyId, setBusyId] = useState(null)
-
-  useEffect(() => {
-    fetch('/api/lgu-reports')
-      .then(async (res) => {
-        const result = await res.json()
-        if (res.status === 401) {
-          window.location.href = '/admin'
-          return
-        }
-        if (result.success) setData(keep('lgu', result))
-        else setError(result.error || 'Could not load reports.')
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [])
-
-  const download = async (report) => {
-    setBusyId(report.id)
-    try {
-      const res = await fetch(`/api/lgu-reports?id=${report.id}`)
-      const result = await res.json()
-      if (res.status === 401) {
-        window.location.href = '/admin'
-        return
-      }
-      if (!result.success) {
-        showAdminNotice(result.error || 'Could not download this report.', 'error')
-        return
-      }
-      const { downloadForm3Pdf } = await import('../lib/chedForm3Pdf')
-      await downloadForm3Pdf({ rows: result.report.rows, referenceNumber: result.report.reference_number, formDate: result.report.form_date })
-    } catch (err) {
-      showAdminNotice(err.message, 'error')
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  const reports = data?.reports || []
-  return (
-    <div>
-      <div className="portal-header">
-        <div>
-          <h1>Released reports</h1>
-          <p>Reports City College of Calamba has released to the LGU. This account can view and download them only.</p>
-        </div>
-      </div>
-      {data?.accessFrom && data?.accessUntil && (
-        <div className="cm-card ra-info lg-access">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <rect x="3" y="5" width="18" height="16" rx="2" />
-            <path d="M3 10h18M8 3v4M16 3v4" />
-          </svg>
-          <span>
-            Your access: <b>{formatYmd(data.accessFrom, { month: 'long', day: 'numeric', year: 'numeric' })} to {formatYmd(data.accessUntil, { month: 'long', day: 'numeric', year: 'numeric' })}</b>.
-            After that, this account can no longer sign in.
-          </span>
-        </div>
-      )}
-      <section className="cm-card lg-card">
-        <div className="cm-head">
-          <h2 className="cm-title">CHED Form 3: Free Higher Education Billing Details</h2>
-        </div>
-        {loading ? (
-          <SkeletonRows rows={2} avatar={false} label="Loading reports..." />
-        ) : error ? (
-          <p className="text-sm text-ccc-red text-center py-8">{error}</p>
-        ) : reports.length === 0 ? (
-          <p className="lg-empty">No report has been released yet. City College of Calamba will release the report once enrollment is finished.</p>
-        ) : (
-          <div className="st-scroll">
-            <table className="st-table lg-table">
-              <thead>
-                <tr>
-                  <th>Reference no.</th><th>Date on form</th><th>Rows</th><th>Released on</th><th className="r">File</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reports.map((r) => (
-                  <tr key={r.id}>
-                    <td className="cf-strong">{r.reference_number}</td>
-                    <td>{formatYmd(r.form_date, { month: 'long', day: 'numeric', year: 'numeric' })}</td>
-                    <td>{r.row_count}</td>
-                    <td>{new Date(r.released_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
-                    <td className="r">
-                      <button type="button" className="cm-btn cm-btn-primary lg-dl" onClick={() => download(r)} disabled={busyId === r.id}>
-                        {busyId === r.id ? 'Preparing...' : 'Download PDF'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <div className="aa-foot">Every sign-in and download is recorded by City College of Calamba.</div>
-      </section>
     </div>
   )
 }
 
 // ---------- Limited consoles: shell (Oct 5 2026) ----------
-// Office of the Registrar and LGU (view only) accounts see this instead of
-// the full console. Same header, sidebar look and log-out confirm.
+// Office of the Registrar accounts see this instead of the full console.
+// (Oct 15 2026: the LGU view-only console was removed.) Same header, sidebar look and log-out confirm.
 function LimitedConsole({ session }) {
   const role = session.role
-  const [activePanel, setActivePanel] = useState(role === 'registrar' ? 'allowance' : 'reports')
+  const [activePanel, setActivePanel] = useState('allowance')
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const [regData, setRegData] = useState(null)
@@ -7933,7 +7623,7 @@ function LimitedConsole({ session }) {
     if (role === 'registrar') loadRegistrar()
   }, [role])
 
-  const sessionLabel = role === 'registrar' ? 'Registrar Session' : 'LGU View-only Session'
+  const sessionLabel = 'Registrar Session'
 
   return (
     <main className="admin-portal">
@@ -8002,7 +7692,6 @@ function LimitedConsole({ session }) {
           {role === 'registrar' && activePanel === 'allowance' && (
             <RegistrarAllowancePanel data={regData} loading={regLoading} error={regError} onReload={loadRegistrar} />
           )}
-          {role === 'lgu' && activePanel === 'reports' && <LguReportsPanel session={session} />}
         </div>
       </div>
     </main>
@@ -8046,7 +7735,7 @@ function AdminRoleGate() {
       </main>
     )
   }
-  if (session.loggedIn && (session.role === 'registrar' || session.role === 'lgu')) {
+  if (session.loggedIn && session.role === 'registrar') {
     return <LimitedConsole session={session} />
   }
   return <AdminPageInner />

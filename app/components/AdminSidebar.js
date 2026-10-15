@@ -190,10 +190,9 @@ const REGISTRAR_GROUPS = [
     items: [{ key: 'allowance', label: 'Allowance Distribution', icon: <IconAllowance /> }],
   },
 ]
-const LGU_GROUPS = [
-  { section: 'Reports', labelIcon: <IconResults />, items: [{ key: 'reports', label: 'Released reports', icon: <IconRequests /> }] },
-]
-const ROLE_TEXT = { super_admin: 'Super Admin', admin: 'Admin', registrar: 'Registrar', lgu: 'LGU (view only)' }
+// Oct 15 2026: the LGU (view only) role and its "Released reports" item
+// were removed (client interview, Oct 15).
+const ROLE_TEXT = { super_admin: 'Super Admin', admin: 'Admin', registrar: 'Registrar' }
 
 const SUPER_ADMIN_GROUP = {
   section: 'Super Admin',
@@ -244,11 +243,9 @@ export default function AdminSidebar({
   const groups =
     role === 'registrar'
       ? REGISTRAR_GROUPS
-      : role === 'lgu'
-        ? LGU_GROUPS
-        : isSuperAdmin
-          ? [...NAV_GROUPS, SUPER_ADMIN_GROUP]
-          : NAV_GROUPS
+      : isSuperAdmin
+        ? [...NAV_GROUPS, SUPER_ADMIN_GROUP]
+        : NAV_GROUPS
   const roleText = ROLE_TEXT[role] || (isSuperAdmin ? 'Super Admin' : 'Admin')
   const initials = (displayName || 'A')
     .trim()

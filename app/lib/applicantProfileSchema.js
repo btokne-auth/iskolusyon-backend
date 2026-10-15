@@ -60,7 +60,9 @@ export const PROFILE_CATEGORIES = [
           { key: 'residency_years', label: 'Years of Residency' },
           { key: 'voter_precinct', label: "Voter's Precinct No." },
         ],
-        docTypes: ['voterid'],
+        // Oct 15 2026: one Voter's ID (applicant's or parent's/guardian's);
+        // parentid = files from the former separate parent/guardian slot.
+        docTypes: ['voterid', 'parentid'],
       },
       {
         label: 'Additional Information',
@@ -196,12 +198,13 @@ export const PROFILE_CATEGORIES = [
           { key: 'fam_emergency_contact', label: 'Person to be Notified in Case of Emergency' },
           { key: 'fam_emergency_contact_number', label: 'Emergency Contact Number' },
         ],
-        docTypes: ['parentid'],
+        docTypes: [],
       },
       {
         label: "Applicant's Employment",
         fields: [{ key: 'fam_working_student', label: 'Working Student' }],
-        docTypes: ['employmentcert'],
+        // Oct 15 2026 (client): Proof of Income moved here, optional, for everyone.
+        docTypes: ['employmentcert', 'indigency'],
       },
       {
         // Ivy's mockup keys this stack to a sibling-income number this
@@ -210,7 +213,7 @@ export const PROFILE_CATEGORIES = [
         // fabricating a figure. See file header.
         label: 'Sibling Information',
         fields: [{ key: 'fam_siblings', label: 'Siblings', format: 'siblings' }],
-        docTypes: ['indigency'],
+        docTypes: [],
       },
     ],
   },

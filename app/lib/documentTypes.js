@@ -24,13 +24,17 @@ export const DOCUMENT_TYPE_OPTIONS = [
   { group: 'Personal Information', options: [
     { value: 'profilepic', label: 'Profile Picture' },
     { value: 'birthcert', label: 'Birth Certificate / PSA / NSO' },
-    { value: 'voterid', label: "Voter's ID / Certification of Applicant" },
+    // Oct 15 2026 (client): one Voter's ID, the applicant's own or a
+    // parent's/guardian's if the applicant isn't a registered voter yet.
+    { value: 'voterid', label: "Voter's ID / Certification of Applicant or Parent/Guardian" },
   ]},
   { group: 'Academic Profile', options: [
     { value: 'form138', label: 'Grades (Proof of Grades / Form 138 / Report Card)' },
   ]},
+  // Oct 15 2026: no longer asked for (merged into voterid above). Kept so
+  // files already uploaded here stay valid and readable.
   { group: 'Family Information', options: [
-    { value: 'parentid', label: "Voter's ID / Certification of Parent/Guardian" },
+    { value: 'parentid', label: "Parent/Guardian's Voter's ID (earlier upload)" },
   ]},
   { group: 'Financial & Employment', options: [
     { value: 'employmentcert', label: 'Proof of Employment' },

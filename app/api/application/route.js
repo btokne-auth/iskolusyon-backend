@@ -156,7 +156,7 @@ function mergeApplicationRows(rows) {
 // The required set here is the real one, matched against actual uploaded
 // document_type rows — not the UI's own "requiredXComplete" booleans
 // further up in page.js, which also gate on unrelated filled-in text
-// fields. profilepic, birthcert, voterid, parentid, and form138 are always
+// fields. profilepic, birthcert, voterid (or a legacy parentid), and form138 are always
 // required; employmentcert only when fam_working_student === 'Yes'
 // (matches the already-built conditional logic in page.js). form138 was
 // previously left optional in the UI, which didn't match Appendix J
@@ -198,17 +198,25 @@ async function fetchUploadedDocumentTypes({ userId, email, name }) {
 // The documents an applicant must have uploaded: the ones each section's
 // Submit Section already asks for, plus Grades (CCC's Appendix J lists the
 // report card for freshmen). Proof of Employment only for a working student.
+//
+// Oct 15 2026 (client): one Voter's ID is enough. It can be the applicant's
+// own or, if the applicant isn't a registered voter yet, a parent's or
+// guardian's. Older applicants who uploaded into the former separate
+// parent/guardian slot (parentid) still count.
 function requiredDocumentTypes(workingStudent) {
-  const requiredTypes = ['profilepic', 'birthcert', 'voterid', 'parentid', 'form138']
+  const requiredTypes = ['profilepic', 'birthcert', 'voterid', 'form138']
   if (workingStudent === 'Yes') requiredTypes.push('employmentcert')
   return requiredTypes
+}
+
+function hasRequiredDoc(uploadedTypes, type) {
+  return uploadedTypes.has(type) || (type === 'voterid' && uploadedTypes.has('parentid'))
 }
 
 const REQUIRED_DOC_LABELS = {
   profilepic: 'Profile Picture',
   birthcert: 'Birth Certificate',
-  voterid: "Voter's ID",
-  parentid: "Parent/Guardian's Voter's ID",
+  voterid: "Voter's ID (yours or your parent's/guardian's)",
   form138: 'Grades (Form 138)',
   employmentcert: 'Proof of Employment',
 }
@@ -226,7 +234,7 @@ function missingForFinalSubmit(row, uploadedTypes) {
   if (!row?.academic_submitted_at) missing.push('submit Educational Background')
   if (!row?.fam_financial_submitted_at) missing.push('submit Family & Financial Information')
   for (const t of requiredDocumentTypes(row?.fam_working_student)) {
-    if (!uploadedTypes.has(t)) missing.push(`upload your ${REQUIRED_DOC_LABELS[t]}`)
+    if (!hasRequiredDoc(uploadedTypes, t)) missing.push(`upload your ${REQUIRED_DOC_LABELS[t]}`)
   }
   return missing
 }
@@ -268,7 +276,7 @@ function maybeAssignApplicationNumber(existingRow, updates, uploadedTypes) {
   const workingStudent = updates.fam_working_student ?? existingRow.fam_working_student
   const requiredTypes = requiredDocumentTypes(workingStudent)
 
-  const isComplete = requiredTypes.every((t) => uploadedTypes.has(t))
+  const isComplete = requiredTypes.every((t) => hasRequiredDoc(uploadedTypes, t))
   if (!isComplete) return {}
 
   const year = new Date().getFullYear()
@@ -516,6 +524,16 @@ export async function POST(request) {
     }
     if (action === 'submit-section' && !section) {
       return NextResponse.json({ error: 'Missing or invalid section' }, { status: 400 })
+    }
+    // Oct 15 2026 (client): the 2nd priority program can't repeat the 1st.
+    if (
+      action === 'submit-section' &&
+      section === 'academic' &&
+      !profileLocked &&
+      academicInfoColumns.program_choice_1 &&
+      academicInfoColumns.program_choice_1 === academicInfoColumns.program_choice_2
+    ) {
+      return NextResponse.json({ error: 'Your Second Priority Program must be different from your First Priority Program.' }, { status: 400 })
     }
     // Oct 6 2026: Appendix J p. 96 rule a. Educational Background can't be
     // submitted with a BSEd Mathematics / Science choice and no SHS grade.

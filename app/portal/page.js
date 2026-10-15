@@ -632,7 +632,7 @@ function sanitizeDateTextInput(value, allowNA) {
 // so re-upload requests still work.
 const FieldsLockedContext = createContext(false)
 
-function TextField({ label, required, type = 'text', value, onChange, placeholder, disabled, full }) {
+function TextField({ label, required, type = 'text', value, onChange, placeholder, disabled, full, hint }) {
   const locked = useContext(FieldsLockedContext)
   return (
     <div className={`mfield${full ? ' full' : ''}`}>
@@ -646,6 +646,7 @@ function TextField({ label, required, type = 'text', value, onChange, placeholde
         placeholder={placeholder}
         disabled={disabled || locked}
       />
+      {hint && <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{hint}</div>}
     </div>
   )
 }
@@ -1040,7 +1041,7 @@ const DOC_UPLOAD_PLACE = {
   birthcert: { panel: 'personal', label: 'Personal Information' },
   voterid: { panel: 'personal', label: 'Personal Information' },
   form138: { panel: 'academic', label: 'Educational Background' },
-  parentid: { panel: 'financial', label: 'Family & Financial Information' },
+  parentid: { panel: 'personal', label: 'Personal Information' },
   employmentcert: { panel: 'financial', label: 'Family & Financial Information' },
   indigency: { panel: 'financial', label: 'Family & Financial Information' },
   supportdoc: { panel: 'appeals', label: 'Appeals & Rescheduling' },
@@ -1916,7 +1917,10 @@ function PortalApp({ accountSession, onLogout }) {
   const needsShsGrade = bsedChoiceNames.length > 0
   const shsGradeText = String(academicInfo.shsMathScienceLowest ?? '').trim()
   const shsGradeValid = /^\d{2,3}(\.\d{1,2})?$/.test(shsGradeText) && Number(shsGradeText) >= 60 && Number(shsGradeText) <= 100
-  const updateAI = (field, value) => setAcademicInfo((a) => ({ ...a, [field]: value }))
+  // Oct 15 2026 (client): the 2nd priority program can't repeat the 1st.
+  // Picking a 1st choice that matches the 2nd clears the 2nd.
+  const updateAI = (field, value) =>
+    setAcademicInfo((a) => ({ ...a, [field]: value, ...(field === 'choice1' && value && value === a.choice2 ? { choice2: '' } : {}) }))
 
   // ---- Health & Wellness panel ---- Ivy's spec has exactly one field here
   // (Medical Status, free text) plus the Medical Examination Results/
@@ -1992,6 +1996,7 @@ function PortalApp({ accountSession, onLogout }) {
     academicInfo.termApplying &&
     academicInfo.choice1 &&
     academicInfo.choice2 &&
+    academicInfo.choice2 !== academicInfo.choice1 &&
     academicInfo.edu.prim.school.trim() &&
     academicInfo.edu.prim.address.trim() &&
     academicInfo.edu.prim.section.trim() &&
@@ -2036,12 +2041,10 @@ function PortalApp({ accountSession, onLogout }) {
   // "only once you have passed the applicant examination" — descriptive,
   // not an actual gate/disable in her markup either).
   const [medcertStatus, setMedcertStatus] = useState('idle')
-  // Family & Financial panel uploads — parentid (required), employmentcert
+  // Family & Financial panel uploads — employmentcert
   // (required only when workingStudent === 'Yes'), indigency (optional).
   // Same idle/uploading/done/flagged/rejected/error/queued contract as
   // every other inline upload row in this file.
-  const [parentIdStatus, setParentIdStatus] = useState('idle')
-  const [parentIdRejection, setParentIdRejection] = useState(null)
   const [employmentCertStatus, setEmploymentCertStatus] = useState('idle')
   const [indigencyStatus, setIndigencyStatus] = useState('idle')
 
@@ -2166,9 +2169,15 @@ function PortalApp({ accountSession, onLogout }) {
   // Oct 6 2026: what's left before the final Submit Application. Mirrors the
   // server's check in /api/application (sections submitted + required
   // documents, Proof of Employment only for a working student).
-  const requiredDocsForSubmit = ['profilepic', 'birthcert', 'voterid', 'form138', 'parentid']
+  // Oct 15 2026 (client): one Voter's ID box. The applicant's own, or a
+  // parent's/guardian's if they aren't a registered voter yet. Files from the
+  // former separate parent/guardian slot (parentid) still count, and show
+  // here only when there is no upload in the Voter's ID box itself.
+  const voterIdFiles = (docsByType.voterid || []).length > 0 ? docsByType.voterid : docsByType.parentid || []
+  const hasVoterIdOnFile = hasUploaded('voterid') || hasUploaded('parentid')
+  const requiredDocsForSubmit = ['profilepic', 'birthcert', 'voterid', 'form138']
   if (familyInfo.workingStudent === 'Yes') requiredDocsForSubmit.push('employmentcert')
-  const missingDocsForSubmit = requiredDocsForSubmit.filter((t) => !hasUploaded(t))
+  const missingDocsForSubmit = requiredDocsForSubmit.filter((t) => !(t === 'voterid' ? hasVoterIdOnFile : hasUploaded(t)))
   const goToSection = (panel) => () => {
     setActivePanel(panel)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -2194,15 +2203,22 @@ function PortalApp({ accountSession, onLogout }) {
   // siblings' income card (not an only child). Neither is in CCC's list of
   // requirements (Appendix D, interview #2). The medical certificate comes
   // after passing the exam; a supporting document only with a request.
+  // Oct 15 2026: Documents & Status shows one Voter's ID row. A file in the
+  // former parent/guardian slot (parentid) is shown on that row only when
+  // nothing was uploaded in the Voter's ID box.
+  const statusTableGroups = DOCUMENT_TYPE_OPTIONS.map((g) => ({ ...g, options: g.options.filter((o) => o.value !== 'parentid') })).filter(
+    (g) => g.options.length > 0
+  )
+  const statusTableDocs = hasUploaded('voterid')
+    ? myDocs.filter((d) => d.document_type !== 'parentid')
+    : myDocs.map((d) => (d.document_type === 'parentid' ? { ...d, document_type: 'voterid' } : d))
+
   const docRowRules = {
     employmentcert:
       familyInfo.workingStudent === 'Yes'
         ? {}
         : { badge: 'Not needed', note: 'Only for working students.', noLink: true, notCounted: true },
-    indigency:
-      familyInfo.onlyChild === 'No'
-        ? { badge: 'Optional', note: 'Optional. You can add it in the family income card.' }
-        : { badge: 'Not needed', note: 'Optional, and only asked when you have siblings.', noLink: true, notCounted: true },
+    indigency: { badge: 'Optional', note: "Optional. You can add it under Applicant's Employment.", notCounted: true },
     medcert: { badge: 'Later', note: 'After you pass the exam, during enrollment.', notCounted: true },
     supportdoc: { badge: 'Optional', note: 'Only for appeals or reschedule requests.', notCounted: true },
   }
@@ -2226,7 +2242,6 @@ function PortalApp({ accountSession, onLogout }) {
     familyInfo.onlyChild &&
     (familyInfo.onlyChild !== 'No' || (String(familyInfo.numSiblings).trim() && familyInfo.siblingCurrentStudent && familyInfo.siblingGraduate)) &&
     familyInfo.emergencyContact.trim() &&
-    (parentIdStatus === 'done' || hasUploaded('parentid')) &&
     familyInfo.workingStudent &&
     (familyInfo.workingStudent !== 'Yes' || employmentCertStatus === 'done' || hasUploaded('employmentcert'))
 
@@ -2312,7 +2327,7 @@ function PortalApp({ accountSession, onLogout }) {
       const missing = []
       if (!(profilePicStatus === 'done' || hasUploaded('profilepic'))) missing.push('Profile Picture')
       if (!(birthCertStatus === 'done' || hasUploaded('birthcert'))) missing.push('Birth Certificate / PSA / NSO')
-      if (!(voterIdStatus === 'done' || hasUploaded('voterid'))) missing.push("Voter's ID / Certification of Applicant")
+      if (!(voterIdStatus === 'done' || hasVoterIdOnFile)) missing.push("Voter's ID / Certification of Applicant or Parent/Guardian")
       if (missing.length) {
         setSectionErrors((e) => ({
           ...e,
@@ -2320,6 +2335,11 @@ function PortalApp({ accountSession, onLogout }) {
         }))
         return
       }
+    }
+
+    if (section === 'academic' && academicInfo.choice1 && academicInfo.choice1 === academicInfo.choice2) {
+      setSectionErrors((e) => ({ ...e, academic: 'Your Second Priority Program must be different from your First Priority Program.' }))
+      return
     }
 
     if (section === 'financial') {
@@ -2333,7 +2353,6 @@ function PortalApp({ accountSession, onLogout }) {
         if (!familyInfo.siblingGraduate) missing.push('Sibling graduated from CCC?')
       }
       if (!familyInfo.emergencyContact.trim()) missing.push('Person to be Notified in Case of Emergency')
-      if (!(parentIdStatus === 'done' || hasUploaded('parentid'))) missing.push("Voter's ID / Certification of Parent/Guardian")
       if (!familyInfo.workingStudent) missing.push('Are you a working student?')
       if (familyInfo.workingStudent === 'Yes' && !(employmentCertStatus === 'done' || hasUploaded('employmentcert'))) {
         missing.push('Proof of Employment')
@@ -2653,7 +2672,7 @@ function PortalApp({ accountSession, onLogout }) {
   const requiredInlineUploadsComplete =
     (profilePicStatus === 'done' || profilePicStatus === 'flagged' || hasUploaded('profilepic')) &&
     (birthCertStatus === 'done' || birthCertStatus === 'flagged' || hasUploaded('birthcert')) &&
-    (voterIdStatus === 'done' || voterIdStatus === 'flagged' || hasUploaded('voterid'))
+    (voterIdStatus === 'done' || voterIdStatus === 'flagged' || hasVoterIdOnFile)
 
   // Sept 20 2026: Grades (Form 138) is now a required upload — CCC's own
   // guidelines (Appendix J) list a Grade 11/12 report card as required for
@@ -3614,7 +3633,7 @@ function PortalApp({ accountSession, onLogout }) {
                         Suggested as future work in Chapter 5 instead. */}
                   </div>
                   <TextField full label="Present Home Address" required value={personalInfo.address} onChange={(v) => updatePI('address', v)} placeholder="House No., Street, Barangay, City, Province" />
-                  <TextField full label="Voter's Precinct No." required value={personalInfo.voterPrecinct} onChange={(v) => updatePI('voterPrecinct', v)} placeholder="e.g. 0142A" />
+                  <TextField full label="Voter's Precinct No." required value={personalInfo.voterPrecinct} onChange={(v) => updatePI('voterPrecinct', v)} placeholder="e.g. 0142A" hint="Yours, or your parent's/guardian's if you are using their Voter's ID." />
                 </div>
                 <div className="topic-doc-section">
                   <div className="topic-doc-label">
@@ -3623,14 +3642,14 @@ function PortalApp({ accountSession, onLogout }) {
                   <InlineUploadRow
                     id="up-voterid"
                     docType="voterid"
-                    files={docsByType.voterid || []}
+                    files={voterIdFiles}
                     onView={openPreview}
                     progress={uploadProgress.voterid}
                     reading={readingTypes.has('voterid')}
-                    label="Voter's ID / Certification of Applicant"
-                    sublabel="Issued by the Commission on Elections (COMELEC)"
+                    label="Voter's ID / Certification of Applicant or Parent/Guardian"
+                    sublabel="Issued by COMELEC. Upload your own if you are a registered voter. If not yet, upload your parent's or guardian's."
                     required
-                    status={voterIdStatus === 'idle' && hasUploaded('voterid') ? 'done' : voterIdStatus}
+                    status={voterIdStatus === 'idle' && hasVoterIdOnFile ? 'done' : voterIdStatus}
                     onFileSelected={(f) => handleInlineUpload('voterid', f, setVoterIdStatus, setVoterIdRejection)}
                   />
                   {voterIdRejection && <QualityRejectionAlert message={voterIdRejection} />}
@@ -3847,7 +3866,7 @@ function PortalApp({ accountSession, onLogout }) {
                 </div>
                 <div className="form-grid">
                   <SelectField label="First Priority Program" required value={academicInfo.choice1} onChange={(v) => updateAI('choice1', v)} options={PROGRAM_OPTIONS} />
-                  <SelectField label="Second Priority Program" required value={academicInfo.choice2} onChange={(v) => updateAI('choice2', v)} options={[...PROGRAM_OPTIONS, 'None of the above']} />
+                  <SelectField label="Second Priority Program" required value={academicInfo.choice2} onChange={(v) => updateAI('choice2', v)} options={[...PROGRAM_OPTIONS.filter((p) => p !== academicInfo.choice1), 'None of the above']} />
                 </div>
                 {needsShsGrade && (
                   <div className="form-grid" style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px dashed #D5DDEA' }}>
@@ -3999,6 +4018,22 @@ function PortalApp({ accountSession, onLogout }) {
                     />
                   )}
                 </div>
+                {/* Oct 15 2026 (client): the sibling list now sits here, right after
+                    Number of Siblings (it used to be its own "Family's Annual
+                    Income" card further down). */}
+                {familyInfo.onlyChild === 'No' && (
+                  <>
+                    <p className="topic-card-intro" style={{ margin: '12px 0 8px' }}>
+                      List each sibling from eldest to youngest. Use the + button to add another sibling.
+                    </p>
+                    <SiblingIncomeTable
+                      siblings={familyInfo.siblings}
+                      onChangeCell={updateSiblingCell}
+                      onAddColumn={addSiblingColumn}
+                      onRemoveColumn={removeSiblingColumn}
+                    />
+                  </>
+                )}
                 {familyInfo.onlyChild === 'No' && (
                   <div className="edu-table-wrap">
                     <table className="edu-table">
@@ -4061,23 +4096,6 @@ function PortalApp({ accountSession, onLogout }) {
                   />
                 </div>
 
-                <div className="topic-doc-section">
-                  <div className="topic-doc-label">Verifying Document <span className="tdl-count">1 required</span></div>
-                  <InlineUploadRow
-                    id="up-parentid"
-                    docType="parentid"
-                    files={docsByType.parentid || []}
-                    onView={openPreview}
-                    progress={uploadProgress.parentid}
-                    reading={readingTypes.has('parentid')}
-                    label="Voter's ID / Certification of Parent/Guardian"
-                    sublabel="Issued by the Commission on Elections (COMELEC)"
-                    required
-                    status={parentIdStatus === 'idle' && hasUploaded('parentid') ? 'done' : parentIdStatus}
-                    onFileSelected={(f) => handleInlineUpload('parentid', f, setParentIdStatus, setParentIdRejection)}
-                  />
-                  {parentIdRejection && <QualityRejectionAlert message={parentIdRejection} />}
-                </div>
               </div>
 
               {/* ---------- Card 2: Applicant's Employment ---------- */}
@@ -4111,39 +4129,26 @@ function PortalApp({ accountSession, onLogout }) {
                     />
                   </div>
                 )}
-              </div>
-
-              {/* ---------- Card 3: Family's Annual Income (only when there are siblings) ---------- */}
-              {familyInfo.onlyChild === 'No' && (
-                <div className="card">
-                  <div className="card-title">Family&rsquo;s Annual Income</div>
-                  <p className="topic-card-intro">
-                    List each sibling from eldest to youngest. Use the &plus; button to add another sibling.
-                  </p>
-                  <SiblingIncomeTable
-                    siblings={familyInfo.siblings}
-                    onChangeCell={updateSiblingCell}
-                    onAddColumn={addSiblingColumn}
-                    onRemoveColumn={removeSiblingColumn}
+                {/* Oct 15 2026 (client): Proof of Income moved here from the old
+                    "Family's Annual Income" card. Still optional, now shown to
+                    every applicant (not only those with siblings). */}
+                <div className="topic-doc-section">
+                  <div className="topic-doc-label">Proof of Income <span className="tdl-count">Optional</span></div>
+                  <InlineUploadRow
+                    id="up-indigency"
+                    docType="indigency"
+                    files={docsByType.indigency || []}
+                    onView={openPreview}
+                    progress={uploadProgress.indigency}
+                    reading={readingTypes.has('indigency')}
+                    rejectionInside
+                    label="Proof of Income (Family / Guardian)"
+                    sublabel="Certificate of Indigency / Income issued by your Barangay or the City Social Welfare Office"
+                    status={indigencyStatus === 'idle' && hasUploaded('indigency') ? 'done' : indigencyStatus}
+                    onFileSelected={(f) => handleInlineUpload('indigency', f, setIndigencyStatus, () => {})}
                   />
-                  <div className="topic-doc-section">
-                    <div className="topic-doc-label">Verifying Document <span className="tdl-count">Optional</span></div>
-                    <InlineUploadRow
-                      id="up-indigency"
-                      docType="indigency"
-                      files={docsByType.indigency || []}
-                      onView={openPreview}
-                      progress={uploadProgress.indigency}
-                      reading={readingTypes.has('indigency')}
-                      rejectionInside
-                      label="Proof of Income (Family / Guardian)"
-                      sublabel="Certificate of Indigency / Income issued by your Barangay or the City Social Welfare Office"
-                      status={indigencyStatus === 'idle' && hasUploaded('indigency') ? 'done' : indigencyStatus}
-                      onFileSelected={(f) => handleInlineUpload('indigency', f, setIndigencyStatus, () => {})}
-                    />
-                  </div>
                 </div>
-              )}
+              </div>
 
               <SectionSubmittedNote at={financialSubmittedAt} locked={profileLocked} />
 
@@ -4346,8 +4351,8 @@ function PortalApp({ accountSession, onLogout }) {
 
               {historyLoaded ? (
                 <DocumentStatusTable
-                  groups={DOCUMENT_TYPE_OPTIONS}
-                  docs={myDocs}
+                  groups={statusTableGroups}
+                  docs={statusTableDocs}
                   applicantName={applicantName}
                   onReupload={jumpToUploadFor}
                   uploadPlaces={DOC_UPLOAD_PLACE}
