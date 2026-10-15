@@ -4352,6 +4352,34 @@ function CommunicationsPanel() {
         if (data.success) setApplicants(keep('commApplicants', data.applications))
       })
       .catch(() => {})
+    // Oct 16 2026: read confirmations come in while the admin is looking,
+    // so the list refreshes by itself (every 5 s while the tab is visible,
+    // and when the admin comes back to the tab), like Statistics. A check
+    // never starts while the last one is still running.
+    let busy = false
+    const refresh = () => {
+      if (busy || document.visibilityState !== 'visible') return
+      busy = true
+      fetch('/api/announcements')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) {
+            setItems(keep('announcements', data.announcements))
+            setAcks(keep('announcementAcks', data.acknowledgments || {}))
+          }
+        })
+        .catch(() => {})
+        .finally(() => { busy = false })
+    }
+    const poll = setInterval(refresh, 5000)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      clearInterval(poll)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const resetForm = () => {

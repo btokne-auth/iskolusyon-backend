@@ -2169,6 +2169,33 @@ function PortalApp({ accountSession, onLogout }) {
       })
       .catch((err) => setMessagesError(err.message))
       .finally(() => setMessagesLoading(false))
+    // Oct 16 2026: a new announcement or message shows up (and pops up for
+    // confirmation) without a refresh: checked every 5 s while the tab is
+    // visible, and when the applicant comes back to the tab. Hidden tabs
+    // don't check, and a check never starts while the last one is running.
+    let busy = false
+    const refresh = () => {
+      if (busy || document.visibilityState !== 'visible') return
+      busy = true
+      fetch('/api/portal-messages')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success) {
+            setMessages(data.posts)
+            setAcknowledged((prev) => ({ ...(data.acknowledged || {}), ...prev }))
+          }
+        })
+        .catch(() => {})
+        .finally(() => { busy = false })
+    }
+    const poll = setInterval(refresh, 5000)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      clearInterval(poll)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
   }, [])
 
   // Posts still waiting for "I have read and understood", oldest first.
