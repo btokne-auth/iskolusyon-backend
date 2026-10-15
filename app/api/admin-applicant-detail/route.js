@@ -95,6 +95,13 @@ export async function PATCH(request) {
     const changed = Object.keys(updates).filter((key) => !same(current[key], updates[key]))
     if (changed.length === 0) return NextResponse.json({ success: true, changed: [], application: current })
 
+    // Oct 15 2026 (client): the 2nd priority program can't repeat the 1st.
+    const nextFirst = 'program_choice_1' in updates ? updates.program_choice_1 : current.program_choice_1
+    const nextSecond = 'program_choice_2' in updates ? updates.program_choice_2 : current.program_choice_2
+    if (nextFirst && nextFirst === nextSecond) {
+      return NextResponse.json({ error: 'The Second Priority Program must be different from the First Priority Program.' }, { status: 400 })
+    }
+
     const patch = {}
     for (const key of changed) patch[key] = updates[key]
 

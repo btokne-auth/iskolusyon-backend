@@ -64,12 +64,16 @@ export function remarkFor(app) {
   return app.distribution_status === 'enrollment_complete' ? 'passed-enrolled' : 'passed-did not enrol'
 }
 
+// Oct 15 2026: the Activity Log text written on each Form 3 download
+// (app/api/ched-form3). The end-of-cycle archive looks for it.
+export const FORM3_DOWNLOAD_PREFIX = 'Downloaded CHED Form 3'
+
 // Returns { rows, counts, leftOut }.
 export async function buildForm3Rows() {
   const { data, error } = await supabase
     .from('applications')
     .select(
-      'id, applicant_name, applicant_email, first_name, middle_name, last_name, suffix, sex, date_of_birth, contact_number, ' +
+      'id, applicant_name, applicant_email, application_number, first_name, middle_name, last_name, suffix, sex, date_of_birth, contact_number, ' +
         'program_choice_1, admitted_program, exam_result, scholar_status, distribution_status'
     )
     .is('archived_at', null)
@@ -87,6 +91,7 @@ export async function buildForm3Rows() {
     const last = clean(app.last_name) || fallback.last
     const suffix = clean(app.suffix)
     included.push({
+      applicationNumber: clean(app.application_number),
       lastName: suffix ? `${last} ${suffix}` : last,
       givenName: clean(app.first_name) || fallback.first,
       middleName: clean(app.middle_name),
@@ -102,11 +107,19 @@ export async function buildForm3Rows() {
     })
   }
 
-  included.sort(
-    (a, b) =>
+  // Oct 15 2026 (client): rows follow the application number (the order
+  // applicants submitted), not A-Z. Rows without a number go last, A-Z.
+  included.sort((a, b) => {
+    if (a.applicationNumber && b.applicationNumber) {
+      return a.applicationNumber.localeCompare(b.applicationNumber, 'en', { numeric: true })
+    }
+    if (a.applicationNumber) return -1
+    if (b.applicationNumber) return 1
+    return (
       a.lastName.localeCompare(b.lastName, 'en', { sensitivity: 'base' }) ||
       a.givenName.localeCompare(b.givenName, 'en', { sensitivity: 'base' })
-  )
+    )
+  })
   const rows = included.map((r, i) => ({ seq: i + 1, ...r }))
 
   const counts = { 'passed-enrolled': 0, 'passed-did not enrol': 0, failed: 0 }

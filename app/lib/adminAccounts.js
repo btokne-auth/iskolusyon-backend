@@ -39,12 +39,17 @@ const ACCOUNT_COLUMNS =
 // Registrar) only posts allowances and sees Dashboard counts. 'lgu' (view
 // only) only sees CHED Form 3 reports released to the LGU, and only between
 // access_from and access_until (inclusive, Manila dates).
-export const ROLE_KEYS = ['admin', 'super_admin', 'registrar', 'lgu']
+//
+// Oct 15 2026 (client, interview of Oct 15): the LGU login is removed. CCC
+// exports CHED Form 3 and sends the file to the LGU itself. 'lgu' stays a
+// known value only so an old LGU row is still recognized (and refused at
+// sign-in) until it is removed from Admin Accounts. It can't be invited.
+export const ROLE_KEYS = ['admin', 'super_admin', 'registrar']
 export const ROLE_LABELS = {
   admin: 'Admin',
   super_admin: 'Super Admin',
   registrar: 'Office of the Registrar',
-  lgu: 'LGU (view only)',
+  lgu: 'LGU (no longer used)',
 }
 
 // is_super_admin stays the source of truth for Super Admins (older code and
@@ -68,6 +73,8 @@ export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 // for every other role.
 export function accessState(row) {
   if (effectiveRole(row) !== 'lgu') return 'active'
+  // Oct 15 2026: LGU accounts can no longer sign in at all.
+  if (row) return 'ended'
   const today = manilaToday()
   if (!row.access_from || !row.access_until) return 'ended'
   if (today < String(row.access_from)) return 'not_started'
@@ -87,6 +94,9 @@ export function formatAccessDate(ymd) {
 export function accessRefusal(row) {
   const state = accessState(row)
   if (state === 'not_started') return `Your access starts on ${formatAccessDate(row.access_from)}.`
+  if (state === 'ended' && effectiveRole(row) === 'lgu') {
+    return 'LGU accounts are no longer used. City College of Calamba sends the CHED Form 3 report directly.'
+  }
   if (state === 'ended') return 'Your access has ended. Please contact City College of Calamba.'
   return null
 }
@@ -210,6 +220,7 @@ export function checkAccessDates(accessFrom, accessUntil) {
 export async function inviteAdminAccount({ name, email, isSuperAdmin, role, accessFrom, accessUntil }) {
   const normalizedEmail = (email || '').trim().toLowerCase()
   const trimmedName = (name || '').trim()
+  if (role && !ROLE_KEYS.includes(role)) return { error: 'That account type is not available.' }
   const finalRole = ROLE_KEYS.includes(role) ? role : isSuperAdmin ? 'super_admin' : 'admin'
 
   if (!trimmedName) return { error: 'Full name is required.' }
@@ -327,6 +338,8 @@ export async function updateLguAccess(email, accessFrom, accessUntil) {
   const current = await getAdminAccount(normalizedEmail)
   if (!current) return { error: 'That account no longer exists.' }
   if (effectiveRole(current) !== 'lgu') return { error: 'Only LGU accounts have access dates.' }
+  // Oct 15 2026: LGU accounts are no longer used, so their dates can't be reopened.
+  return { error: 'LGU accounts are no longer used. Remove this account instead.' }
   const { data, error } = await supabase
     .from('admin_accounts')
     .update({ access_from: accessFrom, access_until: accessUntil })
