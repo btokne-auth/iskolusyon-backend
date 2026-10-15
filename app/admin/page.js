@@ -7614,7 +7614,7 @@ function ChedForm3Dialog({ onClose }) {
                     <table className="st-table cf-table">
                       <thead>
                         <tr>
-                          <th>No.</th><th>Last name</th><th>Given name</th><th>Middle name</th><th>Sex</th><th>Birthdate</th>
+                          <th>No.</th><th>Last name</th><th>Given name</th><th>Middle name</th><th>Sex at birth</th><th>Birthdate</th>
                           <th>Degree program</th><th>Year level</th><th>Email</th><th>Phone</th><th>Fee</th><th>Remarks</th>
                         </tr>
                       </thead>
