@@ -40,7 +40,7 @@ export const PROFILE_CATEGORIES = [
           { key: 'suffix', label: 'Suffix' },
           { key: 'date_of_birth', label: 'Date of Birth' },
           { key: 'place_of_birth', label: 'Place of Birth' },
-          { key: 'sex', label: 'Sex' },
+          { key: 'sex', label: 'Sex at Birth' },
           { key: 'citizenship', label: 'Citizenship' },
           { key: 'religion', label: 'Religion' },
           { key: 'civil_status', label: 'Civil Status' },

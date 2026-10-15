@@ -17,6 +17,25 @@ import { serverError } from '@/app/lib/safeError'
 const VALID_CATEGORIES = new Set(['General', 'Exam', 'Deficiency', 'Result', 'Others'])
 const VALID_ELIGIBILITY_CATEGORIES = new Set(['qualified', 'waitlisted', 'not_qualified', 'pending_exam', 'incomplete'])
 
+// { [announcementId]: [{ name, at }] }, newest first. Empty if the
+// Oct 16 migration hasn't run yet.
+async function acknowledgmentsFor(ids) {
+  const out = {}
+  const { data: acks, error } = await supabase
+    .from('message_acknowledgments')
+    .select('announcement_id, applicant_user_id, acknowledged_at')
+    .in('announcement_id', ids)
+    .order('acknowledged_at', { ascending: false })
+  if (error || !acks || acks.length === 0) return out
+  const userIds = [...new Set(acks.map((a) => a.applicant_user_id))]
+  const { data: apps } = await supabase.from('applications').select('applicant_user_id, applicant_name').in('applicant_user_id', userIds)
+  const nameOf = new Map((apps || []).map((a) => [a.applicant_user_id, a.applicant_name]))
+  for (const a of acks) {
+    ;(out[a.announcement_id] = out[a.announcement_id] || []).push({ name: nameOf.get(a.applicant_user_id) || 'Applicant', at: a.acknowledged_at })
+  }
+  return out
+}
+
 export async function GET(request) {
   try {
     // Sept 30 2026: this used to hand EVERY row to anyone who asked, private
@@ -37,7 +56,14 @@ export async function GET(request) {
     const { data, error } = await query
 
     if (error) return serverError(error, 'api/announcements')
-    return NextResponse.json({ success: true, announcements: data })
+
+    // Oct 16 2026: admins also see who confirmed reading each post (name and
+    // time). Never sent to the public guest page.
+    let acknowledgments = {}
+    if (session && data && data.length) {
+      acknowledgments = await acknowledgmentsFor(data.map((p) => p.id))
+    }
+    return NextResponse.json({ success: true, announcements: data, acknowledgments })
   } catch (err) {
     return serverError(err, 'api/announcements')
   }

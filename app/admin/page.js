@@ -4291,6 +4291,15 @@ const COMM_CATEGORY_LABELS = {
 // pending_exam and incomplete into one bucket.
 const COMM_ELIGIBILITY_CATEGORIES = ['incomplete', 'pending_exam', 'qualified', 'waitlisted', 'not_qualified']
 
+function IconCheckRead() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12l5 5L18 6" />
+      <path d="M12 16l1 1L22 8" />
+    </svg>
+  )
+}
+
 function CommunicationsPanel() {
   const [items, setItems] = useState(() => peek('announcements') ?? [])
   const [loading, setLoading] = useState(() => peek('announcements') === undefined)
@@ -4314,6 +4323,9 @@ function CommunicationsPanel() {
   const [feedCategory, setFeedCategory] = useState('all')
   const [expandedIds, setExpandedIds] = useState([])
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  // Oct 16 2026: who confirmed reading each post { [id]: [{ name, at }] }.
+  const [acks, setAcks] = useState(() => peek('announcementAcks') ?? {})
+  const [ackOpenIds, setAckOpenIds] = useState([])
 
   const load = async () => {
     if (peek('announcements') === undefined) setLoading(true)
@@ -4321,8 +4333,10 @@ function CommunicationsPanel() {
     try {
       const res = await fetch('/api/announcements')
       const data = await res.json()
-      if (data.success) setItems(keep('announcements', data.announcements))
-      else setError(data.error || 'Failed to load announcements.')
+      if (data.success) {
+        setItems(keep('announcements', data.announcements))
+        setAcks(keep('announcementAcks', data.acknowledgments || {}))
+      } else setError(data.error || 'Failed to load announcements.')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -4675,6 +4689,21 @@ function CommunicationsPanel() {
                         <span>
                           {item.author} · {formatWhen(item.created_at)}
                         </span>
+                        {item.requires_ack === true && (
+                          <button
+                            type="button"
+                            className="cm-ack"
+                            aria-expanded={ackOpenIds.includes(item.id)}
+                            onClick={() =>
+                              setAckOpenIds((prev) => (prev.includes(item.id) ? prev.filter((x) => x !== item.id) : [...prev, item.id]))
+                            }
+                          >
+                            <IconCheckRead />
+                            {(acks[item.id] || []).length === 0
+                              ? 'Not confirmed by anyone yet'
+                              : `Read and confirmed by ${(acks[item.id] || []).length} applicant${(acks[item.id] || []).length === 1 ? '' : 's'}`}
+                          </button>
+                        )}
                         {long && (
                           <button
                             type="button"
@@ -4687,6 +4716,23 @@ function CommunicationsPanel() {
                           </button>
                         )}
                       </div>
+                      {item.requires_ack === true && ackOpenIds.includes(item.id) && (
+                        <div className="cm-acklist">
+                          {(acks[item.id] || []).length === 0 ? (
+                            <span className="cm-ack-none">
+                              Applicants see this as a pop-up the next time they open their portal, and must tick &ldquo;I have read and
+                              understood this message&rdquo; to continue.
+                            </span>
+                          ) : (
+                            (acks[item.id] || []).map((a, k) => (
+                              <span className="cm-ack-row" key={`${a.name}-${k}`}>
+                                <b>{a.name}</b>
+                                <span>{formatWhen(a.at)}</span>
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      )}
                       {confirmDeleteId === item.id && (
                         <div className="cm-confirm">
                           <span>
