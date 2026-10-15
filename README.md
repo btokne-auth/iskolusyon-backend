@@ -8,7 +8,7 @@ account, fill in their profile, and upload their documents; the system reads the
 documents (OCR), fingerprints them (SHA-256), checks eligibility against CCC's rules,
 and gives admins one place to review applicants, record results and send updates.
 
-Live site: [iskolusyon.dev](https://iskolusyon.dev) (access is restricted during development).
+Live site: [iskolusyon.dev](https://iskolusyon.dev)
 
 > **Still in development.** Some features are still being built, so this README will be
 > updated as the system changes.
@@ -20,14 +20,14 @@ Live site: [iskolusyon.dev](https://iskolusyon.dev) (access is restricted during
 | Module | What it covers |
 | --- | --- |
 | User Account | Sign-up with email verification, login with a one-time code, profile management, password reset |
-| Scholarship Matching & Filtering | Residency and voter checks, qualification evaluation, eligible program listing, document hash matching |
+| Scholarship Matching & Filtering | Residency and voter checks (the applicant's own Voter's ID, or a parent's/guardian's if not yet a registered voter), qualification evaluation, eligible program listing, conflict detection, document hash matching, an eligibility checklist shown to the applicant |
 | Application Information & Process | Step-by-step application, document upload with text detection and upload steps, auto-fill from documents, draft saving, final Submit once the requirements are complete (sections lock after it) |
-| Status of Application & Verification | Document status tracking, re-upload requests, deficiency alerts, upload history inside each upload area |
+| Status of Application & Verification | Document status tracking, re-upload requests, deficiency alerts, upload history inside each upload area; admins see the latest upload of each document first, with older ones folded underneath |
 | Notifications | Email and portal notifications (registration, login codes, submission, exam schedules, results, endorsements), appeals and rescheduling requests |
 | Guest | Scholarship information, announcements, About Us and contact details, FAQ |
-| Admin UI Dashboard | Admin accounts and roles (Super Admin, Admin, Office of the Registrar, LGU view only), applicant search and filters, global activity log, system settings |
+| Admin UI Dashboard | Admin accounts and roles (Super Admin, Admin, Office of the Registrar), applicant search, filters and sorting (including by application number), global activity log, document integrity check, system settings |
 | Applicant Information & Results | Applicant profiles, one-admin-at-a-time review, exam score entry, status updates, result notices, disqualification handling, end-of-cycle archive |
-| Statistical Data & Reporting | Demographic charts, applicant status analytics, allowance distribution (Office of the Registrar), CHED Form 3 PDF export and release to the LGU |
+| Statistical Data & Reporting | Demographic charts (year level and department), applicant status analytics, allowance distribution (Office of the Registrar), CHED Form 3 PDF export in application-number order, which CCC sends to the LGU |
 
 ## How it's built
 
@@ -57,21 +57,22 @@ From the manuscript's Chapter 3 (Cybersecurity Principles). ✅ = built,
 ⬜ = not built yet or only partly. Each one is confirmed during the security testing below.
 To mark an item done, change its ⬜ to ✅.
 
-**Progress (Oct 7, 2026): 26 of 26 built.** Security work: PR #33.
+**Progress (Oct 15, 2026): 28 of 28 built.** Security work: PR #33, plus the integrity re-check (PR #38) and applicant activity logging (PR #39).
 
 ### Confidentiality
 
 - ✅ Email-verified registration (a code is sent to the applicant's email at sign-up)
 - ✅ Multi-factor login for applicants: password, then a one-time code by email (expires, limited attempts)
-- ✅ Multi-factor login for every console account (Super Admin, Admin, Registrar, LGU): password, then a 6-digit code by email (10-minute expiry, one use, 5 tries)
+- ✅ Multi-factor login for every console account (Super Admin, Admin, Registrar): password, then a 6-digit code by email (10-minute expiry, one use, 5 tries)
 - ✅ HTTPS/TLS for all traffic (served by Vercel over HTTPS)
-- ✅ Encryption at rest: contact numbers, parents' employment and Medical Status are encrypted by the app (AES-256-GCM) before saving, on top of Supabase's own disk encryption
+- ✅ Encryption at rest: contact numbers, parents' employment, Medical Status and the special classification answers (LGBTQI+, disability, solo parent, Indigenous Peoples, underprivileged sector) are encrypted by the app (AES-256-GCM) before saving, on top of Supabase's own disk encryption
 
 ### Integrity
 
 - ✅ SHA-256 hash of every uploaded document, computed in the browser and on the server and compared
 - ✅ Upload validation: file type (PDF, JPG, PNG), 10 MB limit, image quality check, safe storage file names
 - ✅ Content check: the file's own bytes must be a real PDF, JPG or PNG matching its type; PDFs with scripts or attached files are refused
+- ✅ Stored files re-checked against their saved SHA-256: when an admin opens an applicant, with one click for all documents, and once a day through Vercel's scheduler; the database refuses any change to a saved hash (Oct 12, 2026)
 
 ### Availability
 
@@ -81,7 +82,7 @@ To mark an item done, change its ⬜ to ✅.
 
 ### Least privilege
 
-- ✅ Separate roles: applicant, Admin, Super Admin, Office of the Registrar, LGU (view only)
+- ✅ Separate roles: applicant, Admin, Super Admin, Office of the Registrar (the LGU view-only login was removed on Oct 15, 2026 at the client's request; CCC sends the CHED Form 3 file to the LGU itself)
 - ✅ The server refuses every action outside a role (not only hidden buttons)
 - ✅ Applicants can only see and change their own application
 - ✅ Submitted profile sections are locked; corrections go through the Guidance Office
@@ -100,6 +101,7 @@ To mark an item done, change its ⬜ to ✅.
 
 - ✅ Activity log of admin actions, sign-ins (including failed ones) and document processing, visible to Super Admins
 - ✅ Admin edits to applicant data are logged with the old and new values
+- ✅ Applicant actions are logged too: account created, sign-ins and failed sign-ins, lockouts, password resets, submissions and requests (Oct 12, 2026)
 
 ### Also in place
 
@@ -115,7 +117,7 @@ From the manuscript's Chapter 3 test plan. ✅ = done, ⬜ = not done yet. Most 
 tests are planned for one dedicated testing phase; results go into Chapter 4.
 
 
-**Progress (Oct 7, 2026):**
+**Progress (Oct 15, 2026):**
 
 | Testing area | Done |
 |---|---|
@@ -127,7 +129,10 @@ tests are planned for one dedicated testing phase; results go into Chapter 4.
 ### Security testing (OWASP Web Security Testing Guide)
 
 Automated run on a production build, Oct 7, 2026: 63 of 63 passed. Full results in
-[docs/security-testing.md](docs/security-testing.md).
+[docs/security-testing.md](docs/security-testing.md). The same suite has been re-run before
+each later merge as it grew; latest run, Oct 15, 2026 (PR #43): 76 of 76 passed (adds the
+document integrity checks, applicant activity logging, the Voter's ID and program rules, and
+the LGU login removal).
 
 - ✅ Authentication and brute-force testing (lockout thresholds, rate limiting, code expiry)
 - ✅ Authorization and access control testing (each role, including direct requests to admin addresses)
@@ -157,6 +162,21 @@ Automated run on a production build, Oct 7, 2026: 63 of 63 passed. Full results 
 ### User acceptance testing
 
 - ⬜ With applicant respondents and the Head Administrator (ISO/IEC 25010 and the four-point usability survey)
+
+## Recent changes
+
+| PR | What changed |
+| --- | --- |
+| #43 | From the client's Oct 15, 2026 interview: one Voter's ID requirement (the applicant's own, or a parent's/guardian's), the 2nd priority program can't repeat the 1st, sibling list moved under Number of Siblings and Proof of Income under Applicant's Employment, application-number order in CHED Form 3 and the Dashboard, "Not yet submitted" in Statistics, LGU login removed, latest upload shown first to admins |
+| #42 | Link preview image and description for iskolusyon.dev |
+| #41 | UI polish from the Suggestions Log (top bar, footer, code boxes, admin panels); removed the unused "Keep me signed in" option |
+| #40 | Eligibility Check card for applicants; "Not answered" in locked questions |
+| #39 | Special classification questions (encrypted), Data Privacy Consent date, applicant notice when a document is flagged, applicant activity in the Activity Log, Department chart |
+| #38 | Document integrity re-check (SHA-256) and Dashboard cards for documents to review |
+| #37 | Live password strength meter, one password rule for applicants and admins |
+| #35, #36 | Landing page redesign |
+| #34 | Removed the SMS updates checkbox (email is the agreed channel) |
+| #33 | Security hardening: MFA for console accounts, CSRF tokens, encryption at rest, upload content checks, security headers, Row Level Security |
 
 ## Running it locally
 
