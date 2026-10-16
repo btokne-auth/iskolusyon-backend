@@ -1789,6 +1789,77 @@ const ADMISSION_RESULT_TEXT = {
   disqualified: { label: 'Not Qualified', note: 'Check Messages for details.' },
 }
 
+// Oct 16 2026: the dashboard's "Step N of 6" follows the applicant's real
+// progress. It used to stop at Step 3 (Awaiting Document Verification) for
+// everyone who had submitted, even after the exam and enrollment.
+//   1 Account created (never shown here: the dashboard needs an account)
+//   2 Filling out the profile / Ready to Submit
+//   3 Documents still being checked (or one flagged for re-upload)
+//   4 All documents verified: waiting for, or scheduled for, the exam
+//   5 Exam result released to this applicant
+//   6 Enrollment complete
+// Steps 5 and 6 only use what /api/application sends once a result is
+// released (releasedStatus, releasedDistribution), so the card never shows
+// a result before the Guidance Office sends it.
+function applicationStep({ submitted, readyToSubmit, hasDocs, flagged, processing, eligibilityStatus, examDate, releasedStatus, releasedDistribution }) {
+  if (!submitted) {
+    return {
+      num: 2,
+      label: readyToSubmit ? 'Ready to Submit' : 'Filling Out Profile',
+      desc: readyToSubmit
+        ? 'Everything needed is in. Submit your application from Documents & Status to be counted for the exam schedule.'
+        : hasDocs
+        ? "You've started your application. Keep working through the sections below, then submit from Documents & Status when you're ready."
+        : "You've created and verified your account. You're now completing your applicant profile.",
+    }
+  }
+  const result = releasedStatus ? ADMISSION_RESULT_TEXT[releasedStatus] : null
+  if (result) {
+    const admitted = releasedStatus === 'passer' || releasedStatus === 'qualified_probationary'
+    if (admitted && releasedDistribution === 'enrollment_complete') {
+      return {
+        num: 6,
+        label: 'Enrollment Complete',
+        desc: "You're enrolled as a CCC scholar. Allowance updates from the Office of the College Registrar will appear in Messages.",
+      }
+    }
+    return { num: 5, label: `Result: ${result.label}`, desc: `Your exam result has been released. ${result.note}` }
+  }
+  if (flagged > 0) {
+    return {
+      num: 3,
+      label: 'Awaiting Document Verification',
+      desc: `${flagged === 1 ? 'One of your documents needs' : `${flagged} of your documents need`} attention. Open Documents & Status to see which, and upload a clearer or corrected copy.`,
+    }
+  }
+  if (processing > 0) {
+    return {
+      num: 3,
+      label: 'Awaiting Document Verification',
+      desc: "Your application is submitted and on file. You'll see document statuses update on the Documents & Status panel as they're reviewed.",
+    }
+  }
+  if (eligibilityStatus === 'not_met') {
+    return {
+      num: 3,
+      label: 'Requirement Not Met',
+      desc: "One of the automatic requirements isn't met. See the Eligibility Check below for what to fix, or contact the Guidance Office.",
+    }
+  }
+  if (examDate) {
+    return {
+      num: 4,
+      label: 'Exam Scheduled',
+      desc: `Your documents are verified. Your entrance exam is on ${examDate}. Details are in Messages.`,
+    }
+  }
+  return {
+    num: 4,
+    label: 'Awaiting Entrance Exam',
+    desc: 'Your documents are verified. The Guidance Office will send your entrance exam schedule in Messages.',
+  }
+}
+
 export default function PortalPage() {
   const router = useRouter()
   const [accountSession, setAccountSession] = useState(undefined) // undefined = checking, null = logged out, object = logged in
@@ -1874,6 +1945,9 @@ function PortalApp({ accountSession, onLogout }) {
   // only includes scholar_status once "Exam Results Visible to Applicants"
   // is on AND an admin has sent this applicant their result.
   const [releasedStatus, setReleasedStatus] = useState(null)
+  // Oct 16 2026: the released distribution status (only sent with a
+  // released result), for the dashboard's Step 6 (Enrollment Complete).
+  const [releasedDistribution, setReleasedDistribution] = useState(null)
   // Oct 12 2026: the applicant's own eligibility checklist (see
   // applicantEligibility in app/lib/matching.js), sent by /api/application.
   const [eligibility, setEligibility] = useState(null)
@@ -2643,6 +2717,7 @@ function PortalApp({ accountSession, onLogout }) {
         setFinancialSubmittedAt(data.application.fam_financial_submitted_at || null)
         setApplicationNumber(data.application.application_number || null)
         setReleasedStatus(data.application.scholar_status || null)
+        setReleasedDistribution(data.application.distribution_status || null)
         setEligibility(data.application.eligibility || null)
         setExamSchedule(data.application.exam_schedule || null)
         setArchived(!!data.application.archived)
@@ -3222,8 +3297,26 @@ function PortalApp({ accountSession, onLogout }) {
             // step card), not Health & Wellness, which is only needed during
             // enrollment. Once everything is in, the next step is to submit.
             const readyToSubmit = finalSubmitChecks.every((c) => c.ok)
-            const stepNum = !submitted ? 2 : 3
-            const stepLabel = submitted ? 'Awaiting Document Verification' : readyToSubmit ? 'Ready to Submit' : 'Filling Out Profile'
+            const examDate = examSchedule?.exam_date
+              ? (() => {
+                  try {
+                    return new Date(`${examSchedule.exam_date}T00:00:00+08:00`).toLocaleDateString('en-PH', { dateStyle: 'medium', timeZone: 'Asia/Manila' })
+                  } catch {
+                    return examSchedule.exam_date
+                  }
+                })()
+              : null
+            const step = applicationStep({
+              submitted,
+              readyToSubmit,
+              hasDocs: myDocs.length > 0,
+              flagged: flaggedCount,
+              processing: processingCount,
+              eligibilityStatus: eligibility?.status,
+              examDate,
+              releasedStatus,
+              releasedDistribution,
+            })
             const nextAction = submitted
               ? null
               : !personalSubmittedAt
@@ -3293,17 +3386,9 @@ function PortalApp({ accountSession, onLogout }) {
                 <div className="card status-hero">
                   <p className="status-hero-eyebrow">Application Status</p>
                   <div className="status-hero-value">
-                    <span className="badge badge-progress">Step {stepNum} of 6 &middot; {stepLabel}</span>
+                    <span className="badge badge-progress">Step {step.num} of 6 &middot; {step.label}</span>
                   </div>
-                  <p className="status-hero-desc">
-                    {submitted
-                      ? "Your application is submitted and on file. You'll see document statuses update on the Documents & Status panel as they're reviewed."
-                      : readyToSubmit
-                      ? 'Everything needed is in. Submit your application from Documents & Status to be counted for the exam schedule.'
-                      : myDocs.length > 0
-                      ? "You've started your application. Keep working through the sections below, then submit from Documents & Status when you're ready."
-                      : "You've created and verified your account. You're now completing your applicant profile."}
-                  </p>
+                  <p className="status-hero-desc">{step.desc}</p>
                   {nextAction && (
                     <div className="status-hero-next">
                       <div>
