@@ -571,6 +571,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
   // Oct 21 2026: asked first, so someone outside Calamba stops before
   // giving any personal details (CCC Scholar Guidelines: Calamba residents).
   const [calambaResident, setCalambaResident] = useState('')
+  const [residencyCertified, setResidencyCertified] = useState(false)
 
   // Step 2 — Program Application (matches academicInfo shape from app/page.js)
   const [applyingAs, setApplyingAs] = useState('')
@@ -620,6 +621,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
     const nextFieldErrors = {}
     if (!calambaResident) nextFieldErrors.calambaResident = 'Please answer this question.'
     else if (calambaResident !== 'Yes') return // the "not eligible" panel is showing instead of the form
+    else if (!residencyCertified) nextFieldErrors.residencyCertified = 'Please confirm that you live in Calamba City.'
     if (!email.trim()) nextFieldErrors.email = 'Please enter your email address.'
     else if (!isValidEmailFormat(email)) nextFieldErrors.email = 'Please enter a valid email address.'
     const passwordError = passwordStrengthError(password)
@@ -882,7 +884,12 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
             <SelectField
               label="Are you a resident of Calamba City?"
               value={calambaResident}
-              onChange={clearFieldError('calambaResident', setCalambaResident)}
+              onChange={(v) => {
+                // Changing the answer always clears the certification, so
+                // going No -> Yes means ticking it again on purpose.
+                setResidencyCertified(false)
+                clearFieldError('calambaResident', setCalambaResident)(v)
+              }}
               options={['Yes', 'No']}
               error={fieldErrors.calambaResident}
             />
@@ -906,6 +913,24 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
               </div>
             ) : (
               <>
+                {calambaResident === 'Yes' && (
+                  <div className="mb-3">
+                    <label className="flex items-start gap-2.5 text-[13px] text-ccc-text cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={residencyCertified}
+                        onChange={(e) => { setResidencyCertified(e.target.checked); if (fieldErrors.residencyCertified) setFieldErrors((f) => ({ ...f, residencyCertified: undefined })) }}
+                        className="mt-0.5 w-4 h-4 accent-ccc-blue shrink-0"
+                      />
+                      <span>
+                        I certify that I currently live in Calamba City, and I will submit a Voter&apos;s ID or Voter&apos;s Certification
+                        (mine or my parent&apos;s/guardian&apos;s) showing a Calamba City address. I understand that false information will
+                        disqualify my application.
+                      </span>
+                    </label>
+                    {fieldErrors.residencyCertified && <div className="text-[11px] text-red-600 mt-1">{fieldErrors.residencyCertified}</div>}
+                  </div>
+                )}
                 <TextField label="Email Address" type="email" value={email} onChange={clearFieldError('email', setEmail)} autoComplete="email" placeholder="e.g. yourname@email.com" error={fieldErrors.email} />
                 <TextField label="Password" type="password" value={password} onChange={clearFieldError('password', setPassword)} autoComplete="new-password" placeholder="Create a password" error={fieldErrors.password} />
                 <PasswordStrength password={password} />
