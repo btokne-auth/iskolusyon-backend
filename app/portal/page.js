@@ -10,7 +10,7 @@ import LoadingScreen from '../components/LoadingScreen'
 import { Skeleton, SkeletonRows, SkeletonList, SkeletonText } from '../components/Skeleton'
 import { DOCUMENT_TYPE_OPTIONS, getDocTypeLabel } from '../lib/documentTypes'
 import { BSED_MATH_SCIENCE_PROGRAMS } from '../lib/matching'
-import { validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '../lib/fieldValidation'
+import { formatMobileInput, withCalambaCity, validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '../lib/fieldValidation'
 import {
   saveDraftLocal,
   loadDraftLocal,
@@ -671,14 +671,9 @@ function sanitizePhoneInput(value, allowNA) {
   // every placeholder in this app already shows ("0917 123 4567") means
   // it's always readable regardless of how the applicant types it.
   if (allowNA && isNAInProgress(value)) return value
-  const leadingPlus = value.trim().startsWith('+') ? '+' : ''
-  const digits = value.replace(/\D/g, '')
-  if (leadingPlus) {
-    // Don't try to guess a grouping for an arbitrary country code —
-    // just keep the digits together after the +.
-    return leadingPlus + digits
-  }
-  return [digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 11)].filter(Boolean).join(' ')
+  // Oct 21 2026: always a PH mobile number starting with 09 (+63 is
+  // converted), see formatMobileInput in app/lib/fieldValidation.js.
+  return formatMobileInput(value)
 }
 function sanitizeDateTextInput(value, allowNA) {
   // For the free-text "MM/DD/YYYY" Date of Birth fields in the Family &
@@ -3858,7 +3853,14 @@ function PortalApp({ accountSession, onLogout }) {
                         SMS, the per-message cost was explained, and email was agreed.
                         Suggested as future work in Chapter 5 instead. */}
                   </div>
-                  <TextField full label="Present Home Address" required value={personalInfo.address} onChange={(v) => updatePI('address', v)} placeholder="House No., Street, Barangay, City, Province" />
+                  {/* Oct 21 2026 (panel): Calamba City only; the city and
+                      barangay are added when saved (see withCalambaCity). */}
+                  <TextField full label="Present Home Address (Calamba City only)" required value={personalInfo.address} onChange={(v) => updatePI('address', v)} placeholder="House No. and Street / Subdivision, e.g. 123 Rizal St." />
+                  {personalInfo.address?.trim() && (
+                    <div className="full text-[12px] text-ccc-muted -mt-1 mb-1">
+                      Saved as: <span className="text-ccc-text">{withCalambaCity(personalInfo.address, personalInfo.barangay)}</span>
+                    </div>
+                  )}
                   <TextField full label="Voter's Precinct No." required value={personalInfo.voterPrecinct} onChange={(v) => updatePI('voterPrecinct', v)} placeholder="e.g. 0142A" hint="Yours, or your parent's/guardian's if you are using their Voter's ID." />
                 </div>
                 <div className="topic-doc-section">

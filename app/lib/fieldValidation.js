@@ -29,7 +29,13 @@ export const CALAMBA_BARANGAYS = [
 ]
 
 export const CALAMBA_ONLY_MESSAGE =
-  'Iskolusyon scholarships are only for residents of Calamba City (CCC Scholar Guidelines). Please enter your address in Calamba City.'
+  'Iskolusyon scholarships are only for residents of Calamba City (CCC Scholar Guidelines).'
+
+// The sign-up and portal address field only takes the house number and
+// street; the barangay comes from the dropdown and the city is fixed to
+// Calamba City, so typing another town is refused instead of "fixed".
+export const ADDRESS_OTHER_PLACE_MESSAGE =
+  'Only Calamba City addresses are accepted. Type just your house number and street; the barangay and city (Calamba City) are filled in for you.'
 
 // Cities, municipalities and provinces an applicant near Calamba might type.
 // Used only to catch an address that clearly says it is somewhere else.
@@ -69,13 +75,27 @@ export function normalizeMobile(value) {
   return digits
 }
 
+// Oct 21 2026: phone inputs always start with 09. Typing 9171234567 or
+// pasting +63 917 123 4567 becomes 0917 123 4567; at most 11 digits, shown
+// in the app's 4-3-4 grouping. A lone "0" or an empty field is left alone so
+// the field can still be cleared.
+export function formatMobileInput(value) {
+  let digits = String(value ?? '').replace(/\D/g, '')
+  if (digits === '' || digits === '0') return digits
+  if (digits.startsWith('63')) digits = `0${digits.slice(2)}`
+  else if (digits.startsWith('9')) digits = `0${digits}`
+  if (!digits.startsWith('09')) digits = `09${digits.replace(/^0+/, '')}`
+  digits = digits.slice(0, 11)
+  return [digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 11)].filter(Boolean).join(' ')
+}
+
 export function isValidMobile(value) {
   return /^09\d{9}$/.test(normalizeMobile(value))
 }
 
-export function mentionsOtherPlace(address) {
+export function mentionsOtherPlace(address, { strict = false } = {}) {
   const p = ` ${plain(address).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ')} `
-  if (p.includes(' calamba ')) return null
+  if (!strict && p.includes(' calamba ')) return null
   for (const place of OTHER_PLACES) {
     const key = ` ${place.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()} `
     if (p.includes(key)) return place
@@ -184,9 +204,17 @@ export function addressError(address, barangay) {
   if (!v) return null
   if (v.length < 5 || letterCount(v) < 3) return 'Please enter your complete address (house no., street or subdivision).'
   if (v.length > 200) return 'Your address is too long.'
-  const other = mentionsOtherPlace(v)
-  if (other) return CALAMBA_ONLY_MESSAGE
+  // Oct 21 2026: "Cabuyao, Calamba" or "Sta. Rosa" is refused even when
+  // "Calamba" is also typed; the city is fixed, so no other town belongs here.
+  if (mentionsOtherPlace(v, { strict: true })) return ADDRESS_OTHER_PLACE_MESSAGE
   if (str(barangay) && !CALAMBA_BARANGAYS.includes(str(barangay))) return CALAMBA_ONLY_MESSAGE
+  // Just "Calamba" / "Brgy. Real, Calamba City" with no house or street.
+  const b = plain(barangay)
+  let rest = plain(v).replace(/\b(calamba|city|laguna|philippines|brgy|barangay|bgy)\b/g, ' ')
+  if (b) rest = rest.split(b).join(' ')
+  if (!/\d/.test(rest) && letterCount(rest) < 3) {
+    return 'Please type your house number and street or subdivision. The barangay and city are filled in for you.'
+  }
   return null
 }
 
@@ -196,10 +224,15 @@ export function addressError(address, barangay) {
 export function withCalambaCity(address, barangay) {
   const v = str(address)
   if (!v) return v
-  if (/calamba/i.test(v) || mentionsOtherPlace(v)) return v
+  if (mentionsOtherPlace(v, { strict: true })) return v
+  // A typed ", Calamba City, Laguna" at the end is dropped and re-added in
+  // the standard form, so the result never says Calamba twice.
+  const street = v.replace(/[,\s]*calamba(\s+city)?([,\s]+laguna)?[,.\s]*$/i, '').replace(/[,\s]+$/, '')
+  if (!street) return v
+  if (/calamba/i.test(street)) return v
   const b = str(barangay)
-  const brgy = b && CALAMBA_BARANGAYS.includes(b) && !plain(v).includes(plain(b)) ? `, Brgy. ${b}` : ''
-  return `${v.replace(/[,\s]+$/, '')}${brgy}, Calamba City`
+  const brgy = b && CALAMBA_BARANGAYS.includes(b) && !plain(street).includes(plain(b)) ? `, Brgy. ${b}` : ''
+  return `${street}${brgy}, Calamba City`
 }
 
 // ---------- Personal Information (sign-up step 3 and the portal) ----------
