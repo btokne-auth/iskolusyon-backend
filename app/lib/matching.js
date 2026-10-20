@@ -125,6 +125,19 @@ function looksLikeCalambaAddress(address) {
 // (the admin-facing status + reasons) and applicantEligibility() (the
 // applicant's own checklist in the portal), so both always agree.
 // Each check is true (met), false (not met) or null (not checked yet).
+// Oct 21 2026 (after the Oct 20 defense): a Voter's ID only counts once it
+// is VERIFIED (by the OCR worker plus the content check in
+// app/lib/documentContentCheck.js, or by an admin). Callers pass, next to
+// each uploaded document_type, a "verified:<type>" entry for documents that
+// are neither flagged nor still being read. documentTypeTokens() builds both.
+export const VERIFIED_PREFIX = 'verified:'
+export function documentTypeTokens(doc) {
+  const type = doc?.document_type
+  if (!type) return []
+  const verified = !doc.needs_review && doc.review_status !== 'processing'
+  return verified ? [type, `${VERIFIED_PREFIX}${type}`] : [type]
+}
+
 function checkEligibilityRules(row, uploadedTypes) {
   const types = uploadedTypes instanceof Set ? uploadedTypes : new Set(uploadedTypes || [])
   const personalIn = !!row.personal_info_submitted_at
@@ -133,7 +146,12 @@ function checkEligibilityRules(row, uploadedTypes) {
   const residency = !personalIn ? null : looksLikeCalambaAddress(row.address)
 
   // ---- Voter registration (Appendix J I.c) ----
-  const voter = !personalIn ? null : types.has('voterid') || types.has('parentid')
+  // Uploaded but flagged or still being read counts as "not checked yet"
+  // (incomplete), not as met; the admin's Verify moves it to met.
+  const voterUploaded = types.has('voterid') || types.has('parentid')
+  const voterVerified = types.has(`${VERIFIED_PREFIX}voterid`) || types.has(`${VERIFIED_PREFIX}parentid`)
+  const voter = !personalIn ? null : !voterUploaded ? false : voterVerified ? true : null
+  const voterPending = personalIn && voterUploaded && !voterVerified
 
   // ---- Transferee academic standing (Appendix J "Transferees" section) ----
   const transfereeApplies = row.applying_as === 'Transferee'
@@ -165,7 +183,7 @@ function checkEligibilityRules(row, uploadedTypes) {
   else if (residency === null || voter === null || t.ok === null) status = 'incomplete'
   else status = 'pending_exam'
 
-  return { residency, voter, transferee: t, status }
+  return { residency, voter, voterPending, transferee: t, status }
 }
 
 export function computeEligibility(row, uploadedTypes) {
@@ -178,7 +196,9 @@ export function computeEligibility(row, uploadedTypes) {
     reasons.push("Address on file doesn't indicate residency in Calamba City (Appendix J requires bonafide Calamba residency).")
   }
 
-  if (rules.voter === null) {
+  if (rules.voterPending) {
+    reasons.push("Voter's ID uploaded but not yet verified (flagged for review or still being read). Verify it in Document Review to continue.")
+  } else if (rules.voter === null) {
     reasons.push('Personal Information not yet submitted, so voter registration was not evaluated.')
   } else if (rules.voter === false) {
     reasons.push("No Voter's ID on file for the applicant or a parent/guardian (Appendix J requires one).")
@@ -245,7 +265,9 @@ export function applicantEligibility(row, uploadedTypes) {
     label: "Voter's ID (yours or a parent's or guardian's)",
     state: stateOf(rules.voter),
     detail:
-      rules.voter === null
+      rules.voterPending
+        ? "Your Voter's ID is being reviewed. It counts once it is verified."
+        : rules.voter === null
         ? 'Checked once you submit your Personal Information.'
         : rules.voter
         ? "A Voter's ID is on file."

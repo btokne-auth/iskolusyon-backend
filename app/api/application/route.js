@@ -3,7 +3,7 @@ import { supabase } from '@/app/supabaseClient'
 import { Resend } from 'resend'
 import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns, familyInfoToColumns } from '@/app/lib/applicationColumns'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
-import { computeEligibility, applicantEligibility, needsShsMathScienceGrade } from '@/app/lib/matching'
+import { computeEligibility, applicantEligibility, needsShsMathScienceGrade, documentTypeTokens } from '@/app/lib/matching'
 import { getSystemSettings, submitBlockedReason } from '@/app/lib/systemSettings'
 import { resultsVisible, applicantSafeRow } from '@/app/lib/resultVisibility'
 import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
@@ -11,6 +11,7 @@ import { serverError } from '@/app/lib/safeError'
 import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
 import { encryptApplicationFields, decryptApplicationFields } from '@/app/lib/fieldCrypto'
 import { logApplicantActivity, applicantLabel } from '@/app/lib/activityLog'
+import { validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '@/app/lib/fieldValidation'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -184,14 +185,14 @@ async function fetchUploadedDocumentTypes({ userId, email, name }) {
   async function addTypes(builder) {
     const { data, error } = await builder
     if (error) throw new Error(error.message)
-    for (const d of data || []) uploadedTypes.add(d.document_type)
+    for (const d of data || []) for (const t of documentTypeTokens(d)) uploadedTypes.add(t)
   }
-  if (userId) await addTypes(supabase.from('documents').select('document_type').eq('applicant_user_id', userId))
+  if (userId) await addTypes(supabase.from('documents').select('document_type, needs_review, review_status').eq('applicant_user_id', userId))
   // Sept 30 2026: email/name matches only count older documents that were
   // never linked to an account, so another applicant's upload with the same
   // name can never count toward this applicant's requirements.
-  if (email) await addTypes(supabase.from('documents').select('document_type').is('applicant_user_id', null).ilike('applicant_email', email))
-  if (name) await addTypes(supabase.from('documents').select('document_type').is('applicant_user_id', null).ilike('applicant_name', name))
+  if (email) await addTypes(supabase.from('documents').select('document_type, needs_review, review_status').is('applicant_user_id', null).ilike('applicant_email', email))
+  if (name) await addTypes(supabase.from('documents').select('document_type, needs_review, review_status').is('applicant_user_id', null).ilike('applicant_name', name))
   return uploadedTypes
 }
 
@@ -524,6 +525,19 @@ export async function POST(request) {
     }
     if (action === 'submit-section' && !section) {
       return NextResponse.json({ error: 'Missing or invalid section' }, { status: 400 })
+    }
+    // Oct 21 2026: format rules for the section being submitted (birthdate,
+    // mobile numbers, a Calamba address, years, names, essay answers). A
+    // draft 'save' is never blocked, only 'submit-section'.
+    if (action === 'submit-section' && !(profileLocked && PROFILE_LOCKED_SECTIONS.includes(section))) {
+      const problems =
+        section === 'personal' ? validatePersonalInfo(body.personalInfo)
+        : section === 'academic' ? validateAcademicInfo(body.academicInfo)
+        : section === 'financial' ? validateFamilyInfo(body.familyInfo)
+        : []
+      if (problems.length) {
+        return NextResponse.json({ error: errorSummary(problems), problems }, { status: 400 })
+      }
     }
     // Oct 15 2026 (client): the 2nd priority program can't repeat the 1st.
     if (

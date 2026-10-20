@@ -10,6 +10,7 @@ import LoadingScreen from '../components/LoadingScreen'
 import { Skeleton, SkeletonRows, SkeletonList, SkeletonText } from '../components/Skeleton'
 import { DOCUMENT_TYPE_OPTIONS, getDocTypeLabel } from '../lib/documentTypes'
 import { BSED_MATH_SCIENCE_PROGRAMS } from '../lib/matching'
+import { formatMobileInput, withCalambaCity, validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '../lib/fieldValidation'
 import {
   saveDraftLocal,
   loadDraftLocal,
@@ -670,14 +671,9 @@ function sanitizePhoneInput(value, allowNA) {
   // every placeholder in this app already shows ("0917 123 4567") means
   // it's always readable regardless of how the applicant types it.
   if (allowNA && isNAInProgress(value)) return value
-  const leadingPlus = value.trim().startsWith('+') ? '+' : ''
-  const digits = value.replace(/\D/g, '')
-  if (leadingPlus) {
-    // Don't try to guess a grouping for an arbitrary country code —
-    // just keep the digits together after the +.
-    return leadingPlus + digits
-  }
-  return [digits.slice(0, 4), digits.slice(4, 7), digits.slice(7, 11)].filter(Boolean).join(' ')
+  // Oct 21 2026: always a PH mobile number starting with 09 (+63 is
+  // converted), see formatMobileInput in app/lib/fieldValidation.js.
+  return formatMobileInput(value)
 }
 function sanitizeDateTextInput(value, allowNA) {
   // For the free-text "MM/DD/YYYY" Date of Birth fields in the Family &
@@ -1217,13 +1213,19 @@ function UploadRowFiles({ files, onView }) {
   )
 }
 
-function InlineUploadRow({ label, sublabel, required, status, onFileSelected, disabled, docType, progress, reading, rejectionInside, id, files = [], onView }) {
+function InlineUploadRow({ label, sublabel, required, status: statusProp, onFileSelected, disabled, docType, progress, reading, rejectionInside, id, files = [], onView }) {
+  // Oct 21 2026: once reading finishes, the latest file's own review state
+  // decides the card. Before, a file flagged after reading (or by the
+  // content check) still showed as green "done".
+  const latestFlagged = !!files[0]?.needs_review && files[0]?.review_status !== 'processing'
+  const status = statusProp === 'done' && latestFlagged ? 'flagged' : statusProp
+  const contentIssue = files[0]?.content_issue || ''
   const hasFile = ['done', 'flagged', 'uploading', 'queued'].includes(status)
   const readable = !NOT_READ_TYPES.includes(docType)
   const busy = status === 'uploading'
   const stillReading = !busy && reading && (status === 'done' || status === 'flagged')
   const justSecured = progress?.phase === 'done'
-  const rowClass = busy ? ' is-busy' : stillReading ? ' is-reading' : hasFile ? ' has-file' : ''
+  const rowClass = busy ? ' is-busy' : stillReading ? ' is-reading' : status === 'flagged' ? ' is-flagged' : hasFile ? ' has-file' : ''
   return (
     <div id={id} className="upload-row-wrap">
       <div
@@ -1248,7 +1250,9 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected, di
           {status === 'flagged' && !stillReading && (
             <div className="up-done">
               <span className="u-sub" style={{ color: 'var(--gold)', marginTop: 0 }}>
-                Uploaded. The text was hard to read, so an admin will check it. A clearer copy avoids delays.
+                {contentIssue
+                  ? `Needs review: ${contentIssue} An admin will check it. If this is the wrong file, upload the correct one.`
+                  : 'Uploaded. The text was hard to read, so an admin will check it. A clearer copy avoids delays.'}
               </span>
               <SecuredChip />
             </div>
@@ -1279,7 +1283,7 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected, di
             {status === 'done' || status === 'flagged' ? 'Change' : status === 'rejected' || status === 'error' ? 'Try again' : 'Upload'}
             <input
               type="file"
-              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              accept={docType === 'profilepic' ? '.jpg,.jpeg,.png,image/jpeg,image/png' : '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png'}
               disabled={disabled}
               onChange={(e) => {
                 const f = e.target.files[0]
@@ -2559,6 +2563,18 @@ function PortalApp({ accountSession, onLogout }) {
       }
     }
 
+    // Oct 21 2026: format rules (app/lib/fieldValidation.js), the same ones
+    // the server checks when the section is submitted.
+    const formatProblems =
+      section === 'personal' ? validatePersonalInfo(personalInfo)
+      : section === 'academic' ? validateAcademicInfo(academicInfo)
+      : section === 'financial' ? validateFamilyInfo(familyInfo)
+      : []
+    if (formatProblems.length) {
+      setSectionErrors((e) => ({ ...e, [section]: `Please fix the following before submitting: ${errorSummary(formatProblems)}` }))
+      return
+    }
+
     const setState =
       section === 'personal' ? setPersonalSectionState
       : section === 'academic' ? setAcademicSectionState
@@ -2601,7 +2617,10 @@ function PortalApp({ accountSession, onLogout }) {
       setUploadNotice({ kind: 'section', section, newApplicationNumber: newNumber })
     } catch (err) {
       console.error('Submit section failed:', err)
-      setSectionErrors((e) => ({ ...e, [section]: 'Could not submit this section. Please try again.' }))
+      // Oct 21 2026: show the server's reason (e.g. a format rule) instead
+      // of a generic message when there is one.
+      const reason = err?.message && !['Submit failed', 'Failed to fetch'].includes(err.message) ? err.message : null
+      setSectionErrors((e) => ({ ...e, [section]: reason || 'Could not submit this section. Please try again.' }))
       setState('error')
       setTimeout(() => setState('idle'), 3000)
     }
@@ -2837,6 +2856,12 @@ function PortalApp({ accountSession, onLogout }) {
       if (profilePicPreviewUrl) URL.revokeObjectURL(profilePicPreviewUrl)
     }
   }, [profilePicPreviewUrl])
+
+  // Oct 21 2026: a rejected photo (not square, not a white background)
+  // was never saved, so stop showing it as the avatar.
+  useEffect(() => {
+    if (profilePicStatus === 'rejected' || profilePicStatus === 'error') setProfilePicPreviewUrl(null)
+  }, [profilePicStatus])
 
   // Gates the Step 1 "Continue" button — requires the required Personal
   // Information fields (cards 2-3) plus all three inline uploads (cards
@@ -3741,7 +3766,7 @@ function PortalApp({ accountSession, onLogout }) {
                   progress={uploadProgress.profilepic}
                   reading={readingTypes.has('profilepic')}
                   label="Profile Picture"
-                  sublabel="A clear, recent 2x2 photo of yourself (white background)"
+                  sublabel="A recent 2x2 ID photo (square, at least 600×600px, JPG or PNG) on a plain white background"
                   required
                   status={profilePicStatus === 'idle' && hasUploaded('profilepic') ? 'done' : profilePicStatus}
                   onFileSelected={(f) => {
@@ -3836,7 +3861,14 @@ function PortalApp({ accountSession, onLogout }) {
                         SMS, the per-message cost was explained, and email was agreed.
                         Suggested as future work in Chapter 5 instead. */}
                   </div>
-                  <TextField full label="Present Home Address" required value={personalInfo.address} onChange={(v) => updatePI('address', v)} placeholder="House No., Street, Barangay, City, Province" />
+                  {/* Oct 21 2026 (panel): Calamba City only; the city and
+                      barangay are added when saved (see withCalambaCity). */}
+                  <TextField full label="Present Home Address (Calamba City only)" required value={personalInfo.address} onChange={(v) => updatePI('address', v)} placeholder="House No. and Street / Subdivision, e.g. 123 Rizal St." />
+                  {personalInfo.address?.trim() && (
+                    <div className="full text-[12px] text-ccc-muted -mt-1 mb-1">
+                      Saved as: <span className="text-ccc-text">{withCalambaCity(personalInfo.address, personalInfo.barangay)}</span>
+                    </div>
+                  )}
                   <TextField full label="Voter's Precinct No." required value={personalInfo.voterPrecinct} onChange={(v) => updatePI('voterPrecinct', v)} placeholder="e.g. 0142A" hint="Yours, or your parent's/guardian's if you are using their Voter's ID." />
                 </div>
                 <div className="topic-doc-section">

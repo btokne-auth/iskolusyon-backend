@@ -571,6 +571,12 @@ function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
             <ReviewStatusBadge needsReview={doc.needs_review} reviewStatus={doc.review_status} />
           </div>
 
+          {doc.content_issue && (
+            <p className="text-[11px] leading-snug text-ccc-orange bg-ccc-orange/10 rounded-md px-2 py-1.5">
+              <span className="font-bold">Flagged by content check:</span> {doc.content_issue}
+            </p>
+          )}
+
           <div className="space-y-1">
             <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
               OCR confidence

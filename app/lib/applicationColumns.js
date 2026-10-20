@@ -4,6 +4,8 @@
 // `applications` row from staged Program Application / Personal
 // Information) can reuse the exact same mapping instead of duplicating it.
 
+import { withCalambaCity } from '@/app/lib/fieldValidation'
+
 export function personalInfoToColumns(personalInfo) {
   const pi = personalInfo && typeof personalInfo === 'object' ? personalInfo : {}
   const text = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null)
@@ -22,7 +24,9 @@ export function personalInfoToColumns(personalInfo) {
     spouse_occupation: text(pi.spouseOccupation),
     spouse_contact: text(pi.spouseContact),
     contact_number: text(pi.contactNumber),
-    address: text(pi.address),
+    // Oct 21 2026: "123 Rizal St." with barangay Real is saved as
+    // "123 Rizal St., Brgy. Real, Calamba City" (see withCalambaCity).
+    address: text(withCalambaCity(pi.address, pi.barangay)),
     barangay: text(pi.barangay),
     residency_years: typeof pi.residencyYears === 'number' || /^\d+$/.test(String(pi.residencyYears || '').trim())
       ? Number(pi.residencyYears)

@@ -1,4 +1,5 @@
 import { supabase } from '@/app/supabaseClient'
+import { CONTENT_CHECK_FIELD } from '@/app/lib/documentContentCheck'
 
 // ---------------------------------------------------------------------------
 // Qualification Conflict Detection (Oct 6 2026)
@@ -232,6 +233,7 @@ export async function loadConflicts({ onlyId = null } = {}) {
       .from('extracted_fields')
       .select('file_path, field_name, extracted_value')
       .in('file_path', paths)
+      .neq('field_name', CONTENT_CHECK_FIELD)
     if (fieldsError) throw new Error(fieldsError.message)
     for (const r of rows || []) {
       const value = typeof r.extracted_value === 'string' ? r.extracted_value.trim() : r.extracted_value
