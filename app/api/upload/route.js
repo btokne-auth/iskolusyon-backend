@@ -16,6 +16,7 @@ import { getSystemSettings } from '@/app/lib/systemSettings'
 import { serverError } from '@/app/lib/safeError'
 import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
 import { checkDocumentContent, CONTENT_CHECKED_TYPES, CONTENT_CHECK_FIELD, CONTENT_CHECK_START } from '@/app/lib/documentContentCheck'
+import { refreshEligibilityForUser, ELIGIBILITY_DOC_TYPES } from '@/app/lib/eligibilityRefresh'
 
 // ---------- Validation limits ----------
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
@@ -511,6 +512,7 @@ async function applyContentChecks(docs) {
     if (value.startsWith('flagged: ')) reasons.set(m.file_path, value.slice('flagged: '.length))
   }
 
+  const refreshAfter = new Set()
   for (const doc of candidates) {
     if (checked.has(doc.file_path)) continue
     const result = checkDocumentContent({
@@ -526,6 +528,9 @@ async function applyContentChecks(docs) {
       needs_review: !result.passed,
     })
     if (markError) { console.error('Content check marker failed:', markError.message); continue }
+    // Oct 21 2026: a Voter's ID that just finished (verified or flagged)
+    // updates the applicant's saved eligibility right away.
+    if (ELIGIBILITY_DOC_TYPES.includes(doc.document_type)) refreshAfter.add(doc.applicant_user_id)
     if (result.passed) continue
 
     const { error: flagError } = await supabase
@@ -547,6 +552,7 @@ async function applyContentChecks(docs) {
       console.error('Audit log insert failed (non-blocking):', auditErr)
     }
   }
+  for (const userId of refreshAfter) await refreshEligibilityForUser(userId)
   return reasons
 }
 

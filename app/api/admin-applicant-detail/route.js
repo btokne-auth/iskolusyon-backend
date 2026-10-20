@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { EDITABLE_FIELDS, PRIVATE_LOG_FIELDS, cleanValue } from '@/app/lib/profileEditRules'
-import { computeEligibility } from '@/app/lib/matching'
+import { computeEligibility, documentTypeTokens } from '@/app/lib/matching'
 import { checkLock } from '@/app/lib/applicantLocks'
 import { serverError } from '@/app/lib/safeError'
 import { encryptApplicationFields, decryptApplicationFields, ENCRYPTED_FIELDS } from '@/app/lib/fieldCrypto'
@@ -110,13 +110,13 @@ export async function PATCH(request) {
     const uploadedTypes = new Set()
     const addTypes = async (builder) => {
       const { data } = await builder
-      for (const d of data || []) uploadedTypes.add(d.document_type)
+      for (const d of data || []) for (const t of documentTypeTokens(d)) uploadedTypes.add(t)
     }
     if (current.applicant_user_id) {
-      await addTypes(supabase.from('documents').select('document_type').eq('applicant_user_id', current.applicant_user_id))
+      await addTypes(supabase.from('documents').select('document_type, needs_review, review_status').eq('applicant_user_id', current.applicant_user_id))
     }
     if (current.applicant_email) {
-      await addTypes(supabase.from('documents').select('document_type').is('applicant_user_id', null).ilike('applicant_email', current.applicant_email))
+      await addTypes(supabase.from('documents').select('document_type, needs_review, review_status').is('applicant_user_id', null).ilike('applicant_email', current.applicant_email))
     }
     const merged = { ...current, ...patch }
     const { status, reasons } = computeEligibility(merged, uploadedTypes)

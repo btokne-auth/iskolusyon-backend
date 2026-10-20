@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
-import { computeEligibility } from '@/app/lib/matching'
+import { computeEligibility, documentTypeTokens } from '@/app/lib/matching'
 import { serverError } from '@/app/lib/safeError'
 
 // One-off / on-demand backfill for Scholarship Matching & Filtering.
@@ -40,21 +40,22 @@ export async function POST(request) {
     // so an applicant matches this exactly the way their own saves do.
     const { data: docs, error: docsError } = await supabase
       .from('documents')
-      .select('applicant_user_id, applicant_email, applicant_name, document_type')
+      .select('applicant_user_id, applicant_email, applicant_name, document_type, needs_review, review_status')
     if (docsError) return serverError(docsError, 'api/admin-eligibility/recompute')
 
     const byUserId = new Map()
     const byEmail = new Map()
     const byName = new Map()
-    const addTo = (map, key, type) => {
+    const addTo = (map, key, tokens) => {
       if (!key) return
       if (!map.has(key)) map.set(key, new Set())
-      map.get(key).add(type)
+      for (const t of tokens) map.get(key).add(t)
     }
     for (const d of docs || []) {
-      addTo(byUserId, d.applicant_user_id, d.document_type)
-      addTo(byEmail, (d.applicant_email || '').trim().toLowerCase(), d.document_type)
-      addTo(byName, (d.applicant_name || '').trim().toLowerCase(), d.document_type)
+      const tokens = documentTypeTokens(d)
+      addTo(byUserId, d.applicant_user_id, tokens)
+      addTo(byEmail, (d.applicant_email || '').trim().toLowerCase(), tokens)
+      addTo(byName, (d.applicant_name || '').trim().toLowerCase(), tokens)
     }
 
     let updated = 0

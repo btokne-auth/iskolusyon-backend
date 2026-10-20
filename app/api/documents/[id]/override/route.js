@@ -5,6 +5,7 @@ import { serverError } from '@/app/lib/safeError'
 import { sendResultEmail } from '@/app/lib/resultNotices'
 import { getDocTypeLabel } from '@/app/lib/documentTypes'
 import { CONTENT_CHECK_FIELD } from '@/app/lib/documentContentCheck'
+import { refreshEligibilityForUser, ELIGIBILITY_DOC_TYPES } from '@/app/lib/eligibilityRefresh'
 
 // Manual "Super Admin" override on a single document's review status.
 // Scoped ONLY to this project's own document/verification records (the
@@ -75,6 +76,12 @@ export async function PATCH(request, { params }) {
         needs_review: false,
       })
       if (markError) console.error('Content check marker failed (non-blocking):', markError.message)
+    }
+
+    // Oct 21 2026: a Voter's ID only counts toward eligibility once
+    // verified, so the admin's decision updates the applicant's status now.
+    if (ELIGIBILITY_DOC_TYPES.includes(existing.document_type)) {
+      await refreshEligibilityForUser(existing.applicant_user_id)
     }
 
     // Oct 12 2026 (manuscript: "email alerts for ... document submission
