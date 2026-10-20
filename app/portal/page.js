@@ -1213,13 +1213,19 @@ function UploadRowFiles({ files, onView }) {
   )
 }
 
-function InlineUploadRow({ label, sublabel, required, status, onFileSelected, disabled, docType, progress, reading, rejectionInside, id, files = [], onView }) {
+function InlineUploadRow({ label, sublabel, required, status: statusProp, onFileSelected, disabled, docType, progress, reading, rejectionInside, id, files = [], onView }) {
+  // Oct 21 2026: once reading finishes, the latest file's own review state
+  // decides the card. Before, a file flagged after reading (or by the
+  // content check) still showed as green "done".
+  const latestFlagged = !!files[0]?.needs_review && files[0]?.review_status !== 'processing'
+  const status = statusProp === 'done' && latestFlagged ? 'flagged' : statusProp
+  const contentIssue = files[0]?.content_issue || ''
   const hasFile = ['done', 'flagged', 'uploading', 'queued'].includes(status)
   const readable = !NOT_READ_TYPES.includes(docType)
   const busy = status === 'uploading'
   const stillReading = !busy && reading && (status === 'done' || status === 'flagged')
   const justSecured = progress?.phase === 'done'
-  const rowClass = busy ? ' is-busy' : stillReading ? ' is-reading' : hasFile ? ' has-file' : ''
+  const rowClass = busy ? ' is-busy' : stillReading ? ' is-reading' : status === 'flagged' ? ' is-flagged' : hasFile ? ' has-file' : ''
   return (
     <div id={id} className="upload-row-wrap">
       <div
@@ -1244,7 +1250,9 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected, di
           {status === 'flagged' && !stillReading && (
             <div className="up-done">
               <span className="u-sub" style={{ color: 'var(--gold)', marginTop: 0 }}>
-                Uploaded. The text was hard to read, so an admin will check it. A clearer copy avoids delays.
+                {contentIssue
+                  ? `Needs review: ${contentIssue} An admin will check it. If this is the wrong file, upload the correct one.`
+                  : 'Uploaded. The text was hard to read, so an admin will check it. A clearer copy avoids delays.'}
               </span>
               <SecuredChip />
             </div>
