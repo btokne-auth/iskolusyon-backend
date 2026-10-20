@@ -1,0 +1,299 @@
+// Oct 21 2026: input validation for the applicant's own typed details.
+//
+// Found during the Oct 20 final defense and the night before: sign-up and the
+// profile sections accepted a birthdate of today, a mobile number missing a
+// digit, "1234 567 8990", an address in Cabuyao, gibberish in Place of Birth /
+// Citizenship / Religion, "test)___" as a completion year, and one-word
+// answers to the essay questions.
+//
+// Pure functions, no imports, so the SAME rules run in the browser (instant
+// feedback in the sign-up wizard and the portal) and on the server (sign-up
+// 'save' and the portal's 'submit-section'), where they can't be skipped.
+//
+// Each validate* function takes the same object shape the forms already send
+// (personalInfo / academicInfo / familyInfo) and returns a list of
+// { field, message }. An empty list means everything checked is fine. Blank
+// optional fields are never an error here; "required" is still handled by the
+// existing checks in the forms and on the server.
+
+// The 54 barangays of Calamba City (the sign-up wizard's Barangay of Residence
+// dropdown). Moved here from ApplicantAuth.js so the server can check it too.
+export const CALAMBA_BARANGAYS = [
+  'Bagong Kalsada', 'Bañadero', 'Banlic', 'Barandal', 'Barangay 1', 'Barangay 2', 'Barangay 3',
+  'Barangay 4', 'Barangay 5', 'Barangay 6', 'Barangay 7', 'Batino', 'Bubuyan', 'Bucal', 'Bunggo',
+  'Burol', 'Camaligan', 'Canlubang', 'Halang', 'Hornalan', 'Kay-Anlog', 'La Mesa', 'Laguerta',
+  'Lawa', 'Lecheria', 'Lingga', 'Looc', 'Mabato', 'Majada Labas', 'Makiling', 'Mapagong', 'Masili',
+  'Maunong', 'Mayapa', 'Milagrosa', 'Paciano Rizal', 'Palingon', 'Palo-Alto', 'Pansol', 'Parian',
+  'Prinza', 'Punta', 'Puting Lupa', 'Real', 'Saimsim', 'Sampiruhan', 'San Cristobal', 'San Jose',
+  'San Juan', 'Sirang Lupa', 'Sucol', 'Turbina', 'Ulango', 'Uwisan',
+]
+
+export const CALAMBA_ONLY_MESSAGE =
+  'Iskolusyon scholarships are only for residents of Calamba City (CCC Scholar Guidelines). Please enter your address in Calamba City.'
+
+// Cities, municipalities and provinces an applicant near Calamba might type.
+// Used only to catch an address that clearly says it is somewhere else.
+const OTHER_PLACES = [
+  'cabuyao', 'santa rosa', 'sta rosa', 'sta. rosa', 'binan', 'biñan', 'san pedro', 'los banos', 'los baños',
+  'bay laguna', 'calauan', 'victoria laguna', 'san pablo', 'pila', 'santa cruz', 'sta cruz', 'sta. cruz',
+  'tanauan', 'santo tomas', 'sto tomas', 'sto. tomas', 'lipa', 'batangas', 'cavite', 'silang', 'carmona',
+  'general trias', 'dasmarinas', 'dasmariñas', 'imus', 'bacoor', 'tagaytay', 'muntinlupa',
+  'manila', 'quezon city', 'makati', 'taguig', 'pasig', 'paranaque', 'parañaque', 'las pinas', 'las piñas',
+  'pasay', 'mandaluyong', 'caloocan', 'valenzuela', 'marikina', 'rizal province', 'antipolo', 'cainta',
+  'bulacan', 'pampanga', 'quezon province', 'lucena', 'cebu', 'davao',
+]
+
+// "N/A", "NA", "None", "-" count as left blank (the forms' own placeholders
+// suggest N/A for rows that don't apply, e.g. a spouse or guardian).
+function str(v) {
+  const s = typeof v === 'string' ? v.trim() : v === null || v === undefined ? '' : String(v).trim()
+  return /^(n\s*\/?\s*a|none|not applicable|-+)$/i.test(s) ? '' : s
+}
+
+function plain(v) {
+  return str(v).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ')
+}
+
+const NAME_RE = /^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ .'-]*$/
+const PLACE_RE = /^[A-Za-zÀ-ÖØ-öø-ÿ0-9][A-Za-zÀ-ÖØ-öø-ÿ0-9 .,'()#/-]*$/
+
+function letterCount(v) {
+  return (str(v).match(/[A-Za-zÀ-ÖØ-öø-ÿ]/g) || []).length
+}
+
+// 0917 123 4567, 0917-123-4567, +63 917 123 4567 and 639171234567 are all
+// accepted; anything else (missing a digit, 1234 567 8990) is not.
+export function normalizeMobile(value) {
+  const digits = str(value).replace(/[\s()-]/g, '').replace(/^\+/, '')
+  if (/^639\d{9}$/.test(digits)) return `0${digits.slice(2)}`
+  return digits
+}
+
+export function isValidMobile(value) {
+  return /^09\d{9}$/.test(normalizeMobile(value))
+}
+
+export function mentionsOtherPlace(address) {
+  const p = ` ${plain(address).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ')} `
+  if (p.includes(' calamba ')) return null
+  for (const place of OTHER_PLACES) {
+    const key = ` ${place.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()} `
+    if (p.includes(key)) return place
+  }
+  return null
+}
+
+function ageOn(dateStr, today = new Date()) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str(dateStr))
+  if (!m) return null
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const d = Number(m[3])
+  const dt = new Date(Date.UTC(y, mo - 1, d))
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null
+  // Manila date, so "today" doesn't depend on the server's time zone.
+  const now = new Date(today.getTime() + 8 * 60 * 60 * 1000)
+  const ny = now.getUTCFullYear()
+  const nm = now.getUTCMonth() + 1
+  const nd = now.getUTCDate()
+  const isFutureOrToday = y > ny || (y === ny && (mo > nm || (mo === nm && d >= nd)))
+  let age = ny - y
+  if (nm < mo || (nm === mo && nd < d)) age -= 1
+  return { age, isFutureOrToday }
+}
+
+export const MIN_APPLICANT_AGE = 15
+export const MAX_APPLICANT_AGE = 65
+
+export function birthdateError(dateStr, { minAge = MIN_APPLICANT_AGE, maxAge = MAX_APPLICANT_AGE, who = 'your' } = {}) {
+  if (!str(dateStr)) return null
+  const info = ageOn(dateStr)
+  if (!info) return 'Please enter a valid date (YYYY-MM-DD).'
+  if (info.isFutureOrToday) return 'The date of birth cannot be today or a future date.'
+  if (info.age < minAge) return who === 'your' ? `Applicants must be at least ${minAge} years old. Please check your date of birth.` : `Please check ${who} date of birth.`
+  if (info.age > maxAge) return `Please check ${who} date of birth.`
+  return null
+}
+
+function nameError(value, label, { required = false } = {}) {
+  const v = str(value)
+  if (!v) return required ? `Please enter ${label}.` : null
+  if (v.length > 60) return `${capitalize(label)} is too long.`
+  if (!NAME_RE.test(v)) return `${capitalize(label)} can only contain letters, spaces, periods, apostrophes and hyphens.`
+  if (letterCount(v) < 2) return `Please enter a complete ${label}.`
+  return null
+}
+
+function capitalize(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function wordsError(value, label, { min = 3, max = 60, letters = 3 } = {}) {
+  const v = str(value)
+  if (!v) return null
+  if (v.length < min || letterCount(v) < letters) return `Please enter a complete ${label}.`
+  if (v.length > max) return `${capitalize(label)} is too long (${max} characters at most).`
+  if (/\d/.test(v)) return `${capitalize(label)} should not contain numbers.`
+  if (!NAME_RE.test(v.replace(/,/g, ''))) return `${capitalize(label)} can only contain letters and spaces.`
+  return null
+}
+
+function placeError(value, label, { min = 3, max = 150 } = {}) {
+  const v = str(value)
+  if (!v) return null
+  if (v.length < min || letterCount(v) < 3) return `Please enter a complete ${label}.`
+  if ((v.match(/\d/g) || []).length > letterCount(v)) return `Please enter a complete ${label}.`
+  if (v.length > max) return `${capitalize(label)} is too long.`
+  if (!PLACE_RE.test(v)) return `${capitalize(label)} has characters that aren't allowed.`
+  return null
+}
+
+function essayError(value, label, min = 20) {
+  const v = str(value)
+  if (!v) return null
+  const words = v.split(/\s+/).filter((w) => letterCount(w) > 0).length
+  if (v.length < min || words < 4) return `Please write a fuller answer for ${label} (at least ${min} characters).`
+  return null
+}
+
+function yearError(value, label) {
+  const v = str(value)
+  if (!v) return null
+  if (!/^\d{4}$/.test(v)) return `${capitalize(label)} must be a 4-digit year (e.g. 2024).`
+  const y = Number(v)
+  const max = new Date().getFullYear() + 1
+  if (y < 1950 || y > max) return `Please check ${label}.`
+  return null
+}
+
+function mobileError(value, label) {
+  if (!str(value)) return null
+  if (!isValidMobile(value)) return `${capitalize(label)} must be an 11-digit mobile number starting with 09 (e.g. 0917 123 4567).`
+  return null
+}
+
+function push(list, field, message) {
+  if (message) list.push({ field, message })
+}
+
+// Address rule shared by sign-up and the portal. With a Calamba barangay
+// picked, the address may leave the city out (it is added on save, see
+// withCalambaCity), but it may never name another city.
+export function addressError(address, barangay) {
+  const v = str(address)
+  if (!v) return null
+  if (v.length < 5 || letterCount(v) < 3) return 'Please enter your complete address (house no., street or subdivision).'
+  if (v.length > 200) return 'Your address is too long.'
+  const other = mentionsOtherPlace(v)
+  if (other) return CALAMBA_ONLY_MESSAGE
+  if (str(barangay) && !CALAMBA_BARANGAYS.includes(str(barangay))) return CALAMBA_ONLY_MESSAGE
+  return null
+}
+
+// "123 Rizal St." + "Real" -> "123 Rizal St., Brgy. Real, Calamba City".
+// Only when the address names no other place, so a Cabuyao address saved as a
+// draft is never quietly turned into a Calamba one.
+export function withCalambaCity(address, barangay) {
+  const v = str(address)
+  if (!v) return v
+  if (/calamba/i.test(v) || mentionsOtherPlace(v)) return v
+  const b = str(barangay)
+  const brgy = b && CALAMBA_BARANGAYS.includes(b) && !plain(v).includes(plain(b)) ? `, Brgy. ${b}` : ''
+  return `${v.replace(/[,\s]+$/, '')}${brgy}, Calamba City`
+}
+
+// ---------- Personal Information (sign-up step 3 and the portal) ----------
+export function validatePersonalInfo(pi, { signup = false } = {}) {
+  const p = pi && typeof pi === 'object' ? pi : {}
+  const errors = []
+  push(errors, 'lastName', nameError(p.lastName, 'your last name'))
+  push(errors, 'firstName', nameError(p.firstName, 'your first name'))
+  push(errors, 'middleName', nameError(p.middleName, 'your middle name'))
+  push(errors, 'dateOfBirth', birthdateError(p.dateOfBirth))
+  push(errors, 'contactNumber', mobileError(p.contactNumber, 'contact number'))
+  push(errors, 'address', addressError(p.address, p.barangay))
+  if (signup && str(p.barangay) && !CALAMBA_BARANGAYS.includes(str(p.barangay))) {
+    push(errors, 'barangay', 'Please choose your barangay in Calamba City.')
+  }
+  const years = str(p.residencyYears)
+  if (years) {
+    const age = ageOn(p.dateOfBirth)?.age
+    if (!/^\d{1,2}$/.test(years)) push(errors, 'residencyYears', 'Years of residency must be a whole number.')
+    else if (age !== undefined && age !== null && Number(years) > age) push(errors, 'residencyYears', 'Years of residency cannot be more than your age.')
+  }
+  if (signup) return errors
+
+  push(errors, 'placeOfBirth', placeError(p.placeOfBirth, 'place of birth', { max: 100 }))
+  push(errors, 'citizenship', wordsError(p.citizenship, 'citizenship', { max: 40 }))
+  push(errors, 'religion', wordsError(p.religion, 'religion', { min: 3, max: 50 }))
+  if (str(p.voterPrecinct) && !/^\d{3,5}[A-Za-z]{0,2}$/.test(str(p.voterPrecinct).replace(/\s+/g, ''))) {
+    push(errors, 'voterPrecinct', "Voter's precinct number looks like 0142A (numbers, then up to 2 letters).")
+  }
+  push(errors, 'spouseName', nameError(p.spouseName, "your spouse's name"))
+  push(errors, 'spouseContact', mobileError(p.spouseContact, "spouse's contact number"))
+  push(errors, 'hobbies', str(p.hobbies) && letterCount(p.hobbies) < 3 ? 'Please describe your hobbies and interests.' : null)
+  push(errors, 'motivation', essayError(p.motivation, 'Motivation for Applying'))
+  push(errors, 'selfDescription', essayError(p.selfDescription, 'Self-Description'))
+  push(errors, 'tenYears', essayError(p.tenYears, 'Ten-Year Aspiration'))
+  return errors
+}
+
+// ---------- Educational Background ----------
+export function validateAcademicInfo(ai) {
+  const a = ai && typeof ai === 'object' ? ai : {}
+  const edu = a.edu && typeof a.edu === 'object' ? a.edu : {}
+  const errors = []
+  const levels = [
+    ['prim', 'elementary'],
+    ['sec', 'senior high'],
+    ['tert', 'college'],
+  ]
+  let lastYear = 0
+  for (const [key, label] of levels) {
+    const lvl = edu[key] || {}
+    push(errors, `${key}.school`, placeError(lvl.school, `${label} school name`))
+    push(errors, `${key}.address`, placeError(lvl.address, `${label} school address`, { max: 200 }))
+    const ye = yearError(lvl.year, `${label} completion year`)
+    push(errors, `${key}.year`, ye)
+    if (!ye && str(lvl.year)) {
+      const y = Number(str(lvl.year))
+      if (y < lastYear) push(errors, `${key}.year`, `The ${label} completion year should not be earlier than the level before it.`)
+      lastYear = Math.max(lastYear, y)
+    }
+  }
+  push(errors, 'techVocSchool', placeError(a.techVocSchool, 'technical/vocational school name'))
+  push(errors, 'techVocCourse', placeError(a.techVocCourse, 'technical/vocational course name'))
+  push(errors, 'techVocAddress', placeError(a.techVocAddress, 'technical/vocational school address', { max: 200 }))
+  const gwa = str(a.transfereeGwa)
+  if (gwa && (!/^\d(\.\d{1,2})?$/.test(gwa) || Number(gwa) < 1 || Number(gwa) > 5)) {
+    push(errors, 'transfereeGwa', 'GWA must be between 1.00 and 5.00 (e.g. 1.75).')
+  }
+  const units = str(a.transfereeUnitsPassed)
+  if (units && (!/^\d{1,3}$/.test(units) || Number(units) > 300)) {
+    push(errors, 'transfereeUnitsPassed', 'Units passed must be a whole number from 0 to 300.')
+  }
+  return errors
+}
+
+// ---------- Family & Financial Information ----------
+export function validateFamilyInfo(fi) {
+  const f = fi && typeof fi === 'object' ? fi : {}
+  const errors = []
+  for (const [key, label] of [['mother', "mother's"], ['father', "father's"], ['guardian', "guardian's"]]) {
+    push(errors, `${key}Name`, nameError(f[`${key}Name`], `your ${label} name`))
+    push(errors, `${key}Contact`, mobileError(f[`${key}Contact`], `${label} contact number`))
+    push(errors, `${key}Citizenship`, wordsError(f[`${key}Citizenship`], `${label} citizenship`, { max: 40 }))
+    push(errors, `${key}Dob`, birthdateError(f[`${key}Dob`], { minAge: 15, maxAge: 110, who: `your ${label}` }))
+  }
+  push(errors, 'emergencyContact', nameError(f.emergencyContact, 'the emergency contact person'))
+  push(errors, 'emergencyContactNumber', mobileError(f.emergencyContactNumber, 'emergency contact number'))
+  const n = str(f.numSiblings)
+  if (n && (!/^\d{1,2}$/.test(n) || Number(n) > 20)) push(errors, 'numSiblings', 'Number of siblings must be a whole number from 0 to 20.')
+  return errors
+}
+
+// One readable sentence for a toast or banner.
+export function errorSummary(errors) {
+  const unique = [...new Set(errors.map((e) => e.message))]
+  return unique.join(' ')
+}

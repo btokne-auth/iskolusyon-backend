@@ -15,6 +15,7 @@ import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { getSystemSettings } from '@/app/lib/systemSettings'
 import { serverError } from '@/app/lib/safeError'
 import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
+import { checkDocumentContent, CONTENT_CHECKED_TYPES, CONTENT_CHECK_FIELD, CONTENT_CHECK_START } from '@/app/lib/documentContentCheck'
 
 // ---------- Validation limits ----------
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
@@ -97,6 +98,66 @@ const MIN_IMAGE_DIMENSION = 300
 // magic number, meant to be revisited against a larger sample set.
 const MIN_CONTRAST_STDEV = 10
 
+// Oct 21 2026 (panel, Oct 20 defense): the profile picture must be a
+// 1x1-style ID photo on a plain white background. Two checks:
+//   - shape: a real 2x2 photo, which is square. Width and height must be
+//     equal (2% leeway for a slightly uneven crop) and at least 600px,
+//     which is 2 inches at the standard 300 dpi print/scan resolution;
+//   - background: the top, left and right edges (where the background
+//     shows around the head) must be mostly white or very light grey.
+// Thresholds are constants so they can be tuned after more tests.
+const PROFILE_MIN_RATIO = 0.98
+const PROFILE_MAX_RATIO = 1.02
+const PROFILE_MIN_PIXELS = 600 // 2 inches x 300 dpi
+const WHITE_MIN_BRIGHTNESS = 200 // 0-255, each channel's average
+const WHITE_MAX_SATURATION = 40 // max(r,g,b) - min(r,g,b)
+const WHITE_MIN_SHARE = 0.6 // 60% of the edge pixels
+
+async function checkProfilePhoto(buffer, width, height) {
+  const ratio = width / height
+  if (ratio < PROFILE_MIN_RATIO || ratio > PROFILE_MAX_RATIO) {
+    return {
+      passed: false,
+      reason: 'not_square',
+      message: `Your photo is ${width}×${height}px, which is not square. Please upload a 2x2 ID photo (same width and height, e.g. 600×600px), not a stretched, wide or tall picture.`
+    }
+  }
+  if (width < PROFILE_MIN_PIXELS || height < PROFILE_MIN_PIXELS) {
+    return {
+      passed: false,
+      reason: 'too_small_for_2x2',
+      message: `Your photo is only ${width}×${height}px. A 2x2 ID photo needs at least ${PROFILE_MIN_PIXELS}×${PROFILE_MIN_PIXELS}px (2 inches at 300 dpi). Please upload a clearer scan or the original file from the photo studio.`
+    }
+  }
+
+  // Shrink to 100x100 first: fast, and enough to judge the background.
+  const size = 100
+  const { data } = await sharp(buffer).rotate().resize(size, size, { fit: 'fill' }).removeAlpha().raw().toBuffer({ resolveWithObject: true })
+  const band = 12 // edge band, in pixels of the 100x100 copy
+  let total = 0
+  let white = 0
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const inTop = y < band
+      const inSide = (x < band || x >= size - band) && y < size * 0.6
+      if (!inTop && !inSide) continue
+      const i = (y * size + x) * 3
+      const r = data[i], g = data[i + 1], b = data[i + 2]
+      total++
+      if (Math.min(r, g, b) >= WHITE_MIN_BRIGHTNESS && Math.max(r, g, b) - Math.min(r, g, b) <= WHITE_MAX_SATURATION) white++
+    }
+  }
+  if (total === 0 || white / total < WHITE_MIN_SHARE) {
+    return {
+      passed: false,
+      reason: 'not_white_background',
+      message: 'The background of your photo does not look plain white. Please upload an ID photo taken against a plain white wall or background, with no frames, borders or other objects behind you.'
+    }
+  }
+
+  return { passed: true }
+}
+
 async function checkImageQuality(buffer, documentType) {
   const metadata = await sharp(buffer).metadata()
   const { width = 0, height = 0 } = metadata
@@ -117,7 +178,7 @@ async function checkImageQuality(buffer, documentType) {
   // grayscale variance without being blurry at all). Skip it for that type
   // only; the resolution check above still applies to everything.
   if (documentType === 'profilepic') {
-    return { passed: true }
+    return checkProfilePhoto(buffer, width, height)
   }
 
   const stats = await sharp(buffer).grayscale().stats()
@@ -278,6 +339,12 @@ export async function POST(request) {
     // unusable photo is rejected outright rather than stored as a flagged
     // record, so the applicant fixes it at the point of capture instead of
     // it becoming something an admin has to triage later.
+    if (documentType === 'profilepic' && !realType.startsWith('image/')) {
+      return NextResponse.json(
+        { success: false, rejected: true, reason: 'not_image', message: 'Please upload your profile picture as a JPG or PNG photo, not a PDF.' },
+        { status: 422 }
+      )
+    }
     if (realType.startsWith('image/')) {
       let quality
       try {
@@ -415,6 +482,74 @@ export async function POST(request) {
   }
 }
 
+// Oct 21 2026: stricter auto-verify (see app/lib/documentContentCheck.js).
+// Runs once per document, the first time the list is loaded after the OCR
+// worker marked it verified. A document whose words don't match its type,
+// or that lacks the applicant's last name, is moved to "flagged" with the
+// reason saved, so an admin checks it. Errors here never break the list.
+async function applyContentChecks(docs) {
+  const candidates = docs.filter((d) =>
+    d.review_status === 'verified' &&
+    !d.needs_review &&
+    CONTENT_CHECKED_TYPES.includes(d.document_type) &&
+    d.created_at && new Date(d.created_at) >= new Date(CONTENT_CHECK_START)
+  )
+  const reasons = new Map()
+  const paths = docs.filter((d) => CONTENT_CHECKED_TYPES.includes(d.document_type)).map((d) => d.file_path)
+  if (paths.length === 0) return reasons
+
+  const { data: markers, error } = await supabase
+    .from('extracted_fields')
+    .select('file_path, extracted_value')
+    .eq('field_name', CONTENT_CHECK_FIELD)
+    .in('file_path', paths)
+  if (error) throw new Error(error.message)
+  const checked = new Set()
+  for (const m of markers || []) {
+    checked.add(m.file_path)
+    const value = String(m.extracted_value || '')
+    if (value.startsWith('flagged: ')) reasons.set(m.file_path, value.slice('flagged: '.length))
+  }
+
+  for (const doc of candidates) {
+    if (checked.has(doc.file_path)) continue
+    const result = checkDocumentContent({
+      documentType: doc.document_type,
+      extractedText: doc.extracted_text,
+      applicantName: doc.applicant_name,
+    })
+    const { error: markError } = await supabase.from('extracted_fields').insert({
+      file_path: doc.file_path,
+      document_type: doc.document_type,
+      field_name: CONTENT_CHECK_FIELD,
+      extracted_value: result.passed ? 'passed' : `flagged: ${result.reason}`,
+      needs_review: !result.passed,
+    })
+    if (markError) { console.error('Content check marker failed:', markError.message); continue }
+    if (result.passed) continue
+
+    const { error: flagError } = await supabase
+      .from('documents')
+      .update({ needs_review: true, review_status: 'flagged' })
+      .eq('file_path', doc.file_path)
+    if (flagError) { console.error('Content check flag failed:', flagError.message); continue }
+    doc.needs_review = true
+    doc.review_status = 'flagged'
+    reasons.set(doc.file_path, result.reason)
+    try {
+      await supabase.from('audit_log').insert([{
+        actor: 'System',
+        action: `Document auto-flagged by content check: ${doc.applicant_name || 'Unknown applicant'} \u00b7 ${doc.document_type} (${result.reason})`,
+        kind: 'warn',
+        category: 'Documents',
+      }])
+    } catch (auditErr) {
+      console.error('Audit log insert failed (non-blocking):', auditErr)
+    }
+  }
+  return reasons
+}
+
 export async function GET(request) {
   try {
     // Three callers share this route: the admin document-review page
@@ -489,6 +624,13 @@ export async function GET(request) {
       if (archivedUsers.size > 0) listDocs = listDocs.filter((doc) => !doc.applicant_user_id || !archivedUsers.has(doc.applicant_user_id))
     }
 
+    let contentIssues = new Map()
+    try {
+      contentIssues = await applyContentChecks(listDocs)
+    } catch (checkErr) {
+      console.error('Content check skipped (non-blocking):', checkErr)
+    }
+
     // 2. Loop through the records and generate fresh signed URLs for each
     const docsWithUrls = await Promise.all(listDocs.map(async (doc) => {
       const { data } = await supabase.storage
@@ -497,6 +639,7 @@ export async function GET(request) {
 
       return {
         ...doc,
+        content_issue: doc.needs_review ? contentIssues.get(doc.file_path) || null : null,
         publicUrl: data?.signedUrl
       }
     }))

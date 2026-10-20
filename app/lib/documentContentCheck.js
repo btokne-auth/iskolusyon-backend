@@ -1,0 +1,113 @@
+// Oct 21 2026 (after the Oct 20 defense): a stricter auto-verify.
+//
+// The OCR worker on Render marks a document "verified" when Tesseract reads
+// it with high confidence. Confidence only says the text was READABLE, not
+// that it is the RIGHT document: an overseas sample Voter's ID was
+// auto-verified at 91%, the same file was also verified as Grades, and a
+// marriage certificate was uploaded as a birth certificate.
+//
+// So after the worker finishes, a system-verified document must also:
+//   1. contain words that belong to its document type, and
+//   2. carry the applicant's last name (where the document is theirs).
+// If it doesn't, it is moved to "flagged" so an admin checks it. Nothing is
+// rejected or deleted; the admin still makes the final decision.
+//
+// Pure functions only (no database), so they can be tested on their own.
+// The database side lives in app/api/upload/route.js (GET).
+
+// Only documents uploaded from this date on are checked, so documents that
+// were already reviewed before this patch are not suddenly re-flagged.
+export const CONTENT_CHECK_START = '2026-10-21T00:00:00+08:00'
+
+// The extracted_fields row that records "this document was already
+// checked", so the check runs once per document (and never undoes an
+// admin's manual Verify).
+export const CONTENT_CHECK_FIELD = '_content_check'
+
+function normalize(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function hasAny(text, words) {
+  return words.some((w) => ` ${text} `.includes(` ${normalize(w)} `))
+}
+
+// Words that must appear (at least one) for each document type.
+const RULES = {
+  birthcert: {
+    label: 'Birth Certificate',
+    mustHave: ['certificate of live birth', 'live birth', 'philippine statistics authority', 'civil registrar', 'birth certificate'],
+    mustNotHave: ['certificate of marriage', 'marriage contract', 'certificate of death', 'death certificate'],
+    nameCheck: true,
+  },
+  voterid: {
+    label: "Voter's ID / Certification",
+    mustHave: ['comelec', 'commission on elections', 'voter s certification', 'voters certification', 'voter certification', 'voter s id', 'voters id'],
+    needsCalamba: true,
+    nameCheck: false, // may be a parent's or guardian's
+  },
+  parentid: {
+    label: "Parent/Guardian's Voter's ID",
+    mustHave: ['comelec', 'commission on elections', 'voter s certification', 'voters certification', 'voter certification', 'voter s id', 'voters id'],
+    needsCalamba: true,
+    nameCheck: false,
+  },
+  form138: {
+    label: 'Grades / Form 138',
+    mustHave: ['report card', 'form 138', 'sf9', 'sf 9', 'progress report', 'general average', 'final grade', 'final rating', 'grades', 'gwa', 'weighted average', 'transcript of records', 'certificate of grades', 'semester', 'quarter'],
+    nameCheck: true,
+  },
+  medcert: {
+    label: 'Medical Certificate',
+    mustHave: ['medical', 'physician', 'clinic', 'hospital', 'laboratory', 'diagnosis', 'fit to', 'physically fit', 'examination', 'health'],
+    nameCheck: true,
+  },
+}
+
+export const CONTENT_CHECKED_TYPES = Object.keys(RULES)
+
+// Last name from "First Middle Last" (or "Last, First"). Skips suffixes.
+export function lastNameOf(fullName) {
+  const raw = String(fullName || '').trim()
+  if (!raw) return ''
+  if (raw.includes(',')) return normalize(raw.split(',')[0]).split(' ').pop() || ''
+  const parts = normalize(raw).split(' ').filter((p) => !['jr', 'sr', 'ii', 'iii', 'iv'].includes(p))
+  return parts.length >= 2 ? parts[parts.length - 1] : ''
+}
+
+// Returns { passed: true } or { passed: false, reason }.
+export function checkDocumentContent({ documentType, extractedText, applicantName }) {
+  const rule = RULES[documentType]
+  if (!rule) return { passed: true }
+
+  const text = normalize(extractedText)
+  if (text.length < 20) {
+    return { passed: false, reason: `Too little readable text to confirm this is a ${rule.label}.` }
+  }
+
+  if (rule.mustNotHave && hasAny(text, rule.mustNotHave)) {
+    return { passed: false, reason: `This looks like a different document (marriage or death certificate), not a ${rule.label}.` }
+  }
+
+  if (!hasAny(text, rule.mustHave)) {
+    return { passed: false, reason: `No words expected on a ${rule.label} were found (for example: ${rule.mustHave.slice(0, 2).join(', ')}).` }
+  }
+
+  if (rule.needsCalamba && !text.includes('calamba')) {
+    return { passed: false, reason: 'The address on this document does not mention Calamba.' }
+  }
+
+  if (rule.nameCheck) {
+    const last = lastNameOf(applicantName)
+    if (last.length >= 2 && !` ${text} `.includes(` ${last} `)) {
+      return { passed: false, reason: `The applicant's last name (${last.toUpperCase()}) was not found on the document.` }
+    }
+  }
+
+  return { passed: true }
+}

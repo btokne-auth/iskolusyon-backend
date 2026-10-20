@@ -9,6 +9,7 @@ import { APPLICANT_COOKIE_NAME, createApplicantCookieValue } from '@/app/lib/app
 import { serverError } from '@/app/lib/safeError'
 import { MINUTE, getClientIp, limitRequest } from '@/app/lib/rateLimit'
 import { logApplicantActivity, applicantLabel } from '@/app/lib/activityLog'
+import { validatePersonalInfo, errorSummary } from '@/app/lib/fieldValidation'
 
 // One endpoint, four actions — mirrors the action-in-body pattern already
 // used by /api/application (save vs submit) rather than spawning four
@@ -36,6 +37,16 @@ export async function POST(request) {
 
     if (action === 'save') {
       if (!body.accountId) return NextResponse.json({ error: 'Missing accountId' }, { status: 400 })
+      // Oct 21 2026: the same rules as the form, checked here too so they
+      // can't be skipped (birthdate not today or later, an 11-digit 09
+      // mobile number, a Calamba barangay and an address in Calamba).
+      if (body.personalInfo && typeof body.personalInfo === 'object') {
+        const problems = validatePersonalInfo(body.personalInfo, { signup: true })
+        if (problems.length) {
+          const fieldErrors = Object.fromEntries(problems.map((p) => [p.field, p.message]))
+          return NextResponse.json({ error: errorSummary(problems), fieldErrors }, { status: 400 })
+        }
+      }
       const result = await saveSignupProgress(body.accountId, {
         academicInfo: body.academicInfo,
         personalInfo: body.personalInfo,

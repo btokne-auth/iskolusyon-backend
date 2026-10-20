@@ -4,6 +4,7 @@ import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { serverError } from '@/app/lib/safeError'
 import { sendResultEmail } from '@/app/lib/resultNotices'
 import { getDocTypeLabel } from '@/app/lib/documentTypes'
+import { CONTENT_CHECK_FIELD } from '@/app/lib/documentContentCheck'
 
 // Manual "Super Admin" override on a single document's review status.
 // Scoped ONLY to this project's own document/verification records (the
@@ -55,6 +56,25 @@ export async function PATCH(request, { params }) {
 
     if (updateError) {
       return serverError(updateError, 'api/documents/[id]/override')
+    }
+
+    // Oct 21 2026: an admin's decision is final, so the automatic content
+    // check (app/lib/documentContentCheck.js) never re-flags this document.
+    const { data: marker } = await supabase
+      .from('extracted_fields')
+      .select('file_path')
+      .eq('file_path', id)
+      .eq('field_name', CONTENT_CHECK_FIELD)
+      .limit(1)
+    if (!marker || marker.length === 0) {
+      const { error: markError } = await supabase.from('extracted_fields').insert({
+        file_path: id,
+        document_type: existing.document_type,
+        field_name: CONTENT_CHECK_FIELD,
+        extracted_value: `admin ${action}`,
+        needs_review: false,
+      })
+      if (markError) console.error('Content check marker failed (non-blocking):', markError.message)
     }
 
     // Oct 12 2026 (manuscript: "email alerts for ... document submission

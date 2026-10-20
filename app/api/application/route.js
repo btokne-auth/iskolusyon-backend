@@ -11,6 +11,7 @@ import { serverError } from '@/app/lib/safeError'
 import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
 import { encryptApplicationFields, decryptApplicationFields } from '@/app/lib/fieldCrypto'
 import { logApplicantActivity, applicantLabel } from '@/app/lib/activityLog'
+import { validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '@/app/lib/fieldValidation'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -524,6 +525,19 @@ export async function POST(request) {
     }
     if (action === 'submit-section' && !section) {
       return NextResponse.json({ error: 'Missing or invalid section' }, { status: 400 })
+    }
+    // Oct 21 2026: format rules for the section being submitted (birthdate,
+    // mobile numbers, a Calamba address, years, names, essay answers). A
+    // draft 'save' is never blocked, only 'submit-section'.
+    if (action === 'submit-section' && !(profileLocked && PROFILE_LOCKED_SECTIONS.includes(section))) {
+      const problems =
+        section === 'personal' ? validatePersonalInfo(body.personalInfo)
+        : section === 'academic' ? validateAcademicInfo(body.academicInfo)
+        : section === 'financial' ? validateFamilyInfo(body.familyInfo)
+        : []
+      if (problems.length) {
+        return NextResponse.json({ error: errorSummary(problems), problems }, { status: 400 })
+      }
     }
     // Oct 15 2026 (client): the 2nd priority program can't repeat the 1st.
     if (

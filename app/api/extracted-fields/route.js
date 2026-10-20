@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { serverError } from '@/app/lib/safeError'
+import { CONTENT_CHECK_FIELD } from '@/app/lib/documentContentCheck'
 
 // GET /api/extracted-fields?file=<file_path>
 //
@@ -53,6 +54,7 @@ export async function GET(request) {
       .from('extracted_fields')
       .select('field_name, extracted_value')
       .eq('file_path', filePath)
+      .neq('field_name', CONTENT_CHECK_FIELD)
 
     if (fieldsError) {
       return serverError(fieldsError, 'api/extracted-fields')

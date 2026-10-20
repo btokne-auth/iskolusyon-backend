@@ -10,6 +10,7 @@ import LoadingScreen from '../components/LoadingScreen'
 import { Skeleton, SkeletonRows, SkeletonList, SkeletonText } from '../components/Skeleton'
 import { DOCUMENT_TYPE_OPTIONS, getDocTypeLabel } from '../lib/documentTypes'
 import { BSED_MATH_SCIENCE_PROGRAMS } from '../lib/matching'
+import { validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '../lib/fieldValidation'
 import {
   saveDraftLocal,
   loadDraftLocal,
@@ -1279,7 +1280,7 @@ function InlineUploadRow({ label, sublabel, required, status, onFileSelected, di
             {status === 'done' || status === 'flagged' ? 'Change' : status === 'rejected' || status === 'error' ? 'Try again' : 'Upload'}
             <input
               type="file"
-              accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+              accept={docType === 'profilepic' ? '.jpg,.jpeg,.png,image/jpeg,image/png' : '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png'}
               disabled={disabled}
               onChange={(e) => {
                 const f = e.target.files[0]
@@ -2559,6 +2560,18 @@ function PortalApp({ accountSession, onLogout }) {
       }
     }
 
+    // Oct 21 2026: format rules (app/lib/fieldValidation.js), the same ones
+    // the server checks when the section is submitted.
+    const formatProblems =
+      section === 'personal' ? validatePersonalInfo(personalInfo)
+      : section === 'academic' ? validateAcademicInfo(academicInfo)
+      : section === 'financial' ? validateFamilyInfo(familyInfo)
+      : []
+    if (formatProblems.length) {
+      setSectionErrors((e) => ({ ...e, [section]: `Please fix the following before submitting: ${errorSummary(formatProblems)}` }))
+      return
+    }
+
     const setState =
       section === 'personal' ? setPersonalSectionState
       : section === 'academic' ? setAcademicSectionState
@@ -2601,7 +2614,10 @@ function PortalApp({ accountSession, onLogout }) {
       setUploadNotice({ kind: 'section', section, newApplicationNumber: newNumber })
     } catch (err) {
       console.error('Submit section failed:', err)
-      setSectionErrors((e) => ({ ...e, [section]: 'Could not submit this section. Please try again.' }))
+      // Oct 21 2026: show the server's reason (e.g. a format rule) instead
+      // of a generic message when there is one.
+      const reason = err?.message && !['Submit failed', 'Failed to fetch'].includes(err.message) ? err.message : null
+      setSectionErrors((e) => ({ ...e, [section]: reason || 'Could not submit this section. Please try again.' }))
       setState('error')
       setTimeout(() => setState('idle'), 3000)
     }
@@ -2837,6 +2853,12 @@ function PortalApp({ accountSession, onLogout }) {
       if (profilePicPreviewUrl) URL.revokeObjectURL(profilePicPreviewUrl)
     }
   }, [profilePicPreviewUrl])
+
+  // Oct 21 2026: a rejected photo (not square, not a white background)
+  // was never saved, so stop showing it as the avatar.
+  useEffect(() => {
+    if (profilePicStatus === 'rejected' || profilePicStatus === 'error') setProfilePicPreviewUrl(null)
+  }, [profilePicStatus])
 
   // Gates the Step 1 "Continue" button — requires the required Personal
   // Information fields (cards 2-3) plus all three inline uploads (cards
@@ -3741,7 +3763,7 @@ function PortalApp({ accountSession, onLogout }) {
                   progress={uploadProgress.profilepic}
                   reading={readingTypes.has('profilepic')}
                   label="Profile Picture"
-                  sublabel="A clear, recent 2x2 photo of yourself (white background)"
+                  sublabel="A recent 2x2 ID photo (square, at least 600×600px, JPG or PNG) on a plain white background"
                   required
                   status={profilePicStatus === 'idle' && hasUploaded('profilepic') ? 'done' : profilePicStatus}
                   onFileSelected={(f) => {

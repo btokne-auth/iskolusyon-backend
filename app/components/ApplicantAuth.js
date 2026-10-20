@@ -6,6 +6,7 @@ import WelcomeFooter from './WelcomeFooter'
 import OtpBoxes from './OtpBoxes'
 import PasswordStrength from './PasswordStrength'
 import { isStrongPassword } from '../lib/passwordRules'
+import { CALAMBA_BARANGAYS, CALAMBA_ONLY_MESSAGE, validatePersonalInfo } from '../lib/fieldValidation'
 
 // Mirrors isValidEmailFormat() in applicantAccounts.js — a real format
 // check, not just "contains an @". Catches "name@" / "name@domain" with no
@@ -131,17 +132,8 @@ function SelectField({ label, value, onChange, options, required, error, placeho
   )
 }
 
-// The 53 barangays of Calamba City — matches signup.html's Barangay of
-// Residence dropdown (p-barangay) exactly, option for option.
-const CALAMBA_BARANGAYS = [
-  'Bagong Kalsada', 'Bañadero', 'Banlic', 'Barandal', 'Barangay 1', 'Barangay 2', 'Barangay 3',
-  'Barangay 4', 'Barangay 5', 'Barangay 6', 'Barangay 7', 'Batino', 'Bubuyan', 'Bucal', 'Bunggo',
-  'Burol', 'Camaligan', 'Canlubang', 'Halang', 'Hornalan', 'Kay-Anlog', 'La Mesa', 'Laguerta',
-  'Lawa', 'Lecheria', 'Lingga', 'Looc', 'Mabato', 'Majada Labas', 'Makiling', 'Mapagong', 'Masili',
-  'Maunong', 'Mayapa', 'Milagrosa', 'Paciano Rizal', 'Palingon', 'Palo-Alto', 'Pansol', 'Parian',
-  'Prinza', 'Punta', 'Puting Lupa', 'Real', 'Saimsim', 'Sampiruhan', 'San Cristobal', 'San Jose',
-  'San Juan', 'Sirang Lupa', 'Sucol', 'Turbina', 'Ulango', 'Uwisan',
-]
+// The barangay list moved to app/lib/fieldValidation.js (Oct 21 2026) so
+// the server checks sign-up against the same list.
 
 const SUFFIX_OPTIONS = ['Jr.', 'Sr.', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII']
 
@@ -577,6 +569,9 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
+  // Oct 21 2026: asked first, so someone outside Calamba stops before
+  // giving any personal details (CCC Scholar Guidelines: Calamba residents).
+  const [calambaResident, setCalambaResident] = useState('')
 
   // Step 2 — Program Application (matches academicInfo shape from app/page.js)
   const [applyingAs, setApplyingAs] = useState('')
@@ -624,6 +619,8 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
     setError('')
 
     const nextFieldErrors = {}
+    if (!calambaResident) nextFieldErrors.calambaResident = 'Please answer this question.'
+    else if (calambaResident !== 'Yes') nextFieldErrors.calambaResident = CALAMBA_ONLY_MESSAGE
     if (!email.trim()) nextFieldErrors.email = 'Please enter your email address.'
     else if (!isValidEmailFormat(email)) nextFieldErrors.email = 'Please enter a valid email address.'
     const passwordError = passwordStrengthError(password)
@@ -672,6 +669,10 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
       })
       const data = await res.json()
       if (!res.ok) {
+        if (data.fieldErrors && typeof data.fieldErrors === 'object') {
+          setFieldErrors(data.fieldErrors)
+          return
+        }
         setError(data.error || 'Could not save your progress.')
         return
       }
@@ -711,6 +712,14 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
     if (!address.trim()) nextFieldErrors.address = 'Please enter your present home address.'
     if (!barangay) nextFieldErrors.barangay = 'Please enter your barangay of residence.'
     if (!String(residencyYears).trim()) nextFieldErrors.residencyYears = 'Please enter your years of residency.'
+    // Oct 21 2026: format rules (app/lib/fieldValidation.js), the same ones
+    // the server checks. A blank field keeps its "Please enter..." message.
+    for (const problem of validatePersonalInfo(
+      { firstName, middleName, lastName, dateOfBirth, contactNumber, address, barangay, residencyYears },
+      { signup: true }
+    )) {
+      if (!nextFieldErrors[problem.field]) nextFieldErrors[problem.field] = problem.message
+    }
     setFieldErrors(nextFieldErrors)
     if (Object.keys(nextFieldErrors).length > 0) return
 
@@ -871,6 +880,13 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
         {step === 1 && (
           <form onSubmit={handleStep1} noValidate>
             <Alert tone="info">A verification code will be sent to this email before your account is finalized.</Alert>
+            <SelectField
+              label="Are you a resident of Calamba City?"
+              value={calambaResident}
+              onChange={clearFieldError('calambaResident', setCalambaResident)}
+              options={['Yes', 'No']}
+              error={fieldErrors.calambaResident}
+            />
             <TextField label="Email Address" type="email" value={email} onChange={clearFieldError('email', setEmail)} autoComplete="email" placeholder="e.g. yourname@email.com" error={fieldErrors.email} />
             <TextField label="Password" type="password" value={password} onChange={clearFieldError('password', setPassword)} autoComplete="new-password" placeholder="Create a password" error={fieldErrors.password} />
             <PasswordStrength password={password} />
@@ -915,7 +931,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
               <SelectField label="Civil Status" value={civilStatus} onChange={clearFieldError('civilStatus', setCivilStatus)} options={['Single', 'Married', 'Widowed', 'Legally Separated']} error={fieldErrors.civilStatus} />
               <TextField label="Contact Number" type="tel" value={contactNumber} onChange={(v) => clearFieldError('contactNumber', setContactNumber)(sanitizePhoneInput(v))} placeholder="e.g. 09XX XXX XXXX" error={fieldErrors.contactNumber} />
             </div>
-            <TextField label="Present Home Address" value={address} onChange={clearFieldError('address', setAddress)} placeholder="e.g. 123 Rizal St., Brgy. Real, Calamba City" error={fieldErrors.address} />
+            <TextField label="Present Home Address" value={address} onChange={clearFieldError('address', setAddress)} placeholder="House No., Street or Subdivision (in Calamba City)" error={fieldErrors.address} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
               <SelectField label="Barangay of Residence" value={barangay} onChange={clearFieldError('barangay', setBarangay)} options={CALAMBA_BARANGAYS} error={fieldErrors.barangay} />
               <div className="mb-3">
