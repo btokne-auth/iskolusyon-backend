@@ -1856,7 +1856,15 @@ const ADMISSION_RESULT_TEXT = {
 // Steps 5 and 6 only use what /api/application sends once a result is
 // released (releasedStatus, releasedDistribution), so the card never shows
 // a result before the Guidance Office sends it.
-function applicationStep({ submitted, readyToSubmit, hasDocs, flagged, processing, eligibilityStatus, examDate, releasedStatus, releasedDistribution }) {
+function applicationStep({ submitted, readyToSubmit, needsAttention, hasDocs, flagged, processing, eligibilityStatus, examDate, releasedStatus, releasedDistribution }) {
+  if (!submitted && needsAttention) {
+    return {
+      num: 2,
+      label: 'Needs Attention',
+      tone: 'warn',
+      desc: `${needsAttention}. You can submit your application once it is verified: upload the correct file, or wait for the Guidance Office to verify it.`,
+    }
+  }
   if (!submitted) {
     return {
       num: 2,
@@ -2426,6 +2434,24 @@ function PortalApp({ accountSession, onLogout }) {
   const requiredDocsForSubmit = ['profilepic', 'birthcert', 'voterid', 'form138']
   if (familyInfo.workingStudent === 'Yes') requiredDocsForSubmit.push('employmentcert')
   const missingDocsForSubmit = requiredDocsForSubmit.filter((t) => !(t === 'voterid' ? hasVoterIdOnFile : hasUploaded(t)))
+  // Oct 26 2026 (panel): a required document whose latest upload is flagged
+  // or still being read blocks the final Submit, so no application with an
+  // unverified document reaches the office. Re-uploading the right file, or
+  // an admin verifying it, unblocks it. Mirrors the server check.
+  const latestFileFor = (t) => (t === 'voterid' ? voterIdFiles[0] : (docsByType[t] || [])[0])
+  const reviewDocsForSubmit = requiredDocsForSubmit
+    .filter((t) => !missingDocsForSubmit.includes(t))
+    .map((t) => ({ type: t, doc: latestFileFor(t) }))
+    .filter(({ doc }) => doc && (doc.needs_review || doc.review_status === 'processing'))
+  const reviewNote = reviewDocsForSubmit.length
+    ? reviewDocsForSubmit
+        .map(({ type, doc }) =>
+          doc.review_status === 'processing' && !doc.needs_review
+            ? `${getDocTypeLabel(type)} is still being read`
+            : `${getDocTypeLabel(type)} needs review${doc.content_issue ? ` (${doc.content_issue.replace(/\.$/, '')})` : ''}`
+        )
+        .join('; ')
+    : ''
   const goToSection = (panel) => () => {
     setActivePanel(panel)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -2436,12 +2462,18 @@ function PortalApp({ accountSession, onLogout }) {
     { title: 'Family & Financial Information', ok: !!financialSubmittedAt, note: financialSubmittedAt ? 'submitted' : 'not submitted yet', onGo: goToSection('financial') },
     {
       title: 'Required documents',
-      ok: missingDocsForSubmit.length === 0,
+      ok: missingDocsForSubmit.length === 0 && reviewDocsForSubmit.length === 0,
       note:
-        missingDocsForSubmit.length === 0
-          ? 'all uploaded'
-          : `still needed: ${missingDocsForSubmit.map((t) => getDocTypeLabel(t)).join(', ')}`,
-      onGo: missingDocsForSubmit.length ? () => jumpToUploadFor(missingDocsForSubmit[0]) : null,
+        missingDocsForSubmit.length
+          ? `still needed: ${missingDocsForSubmit.map((t) => getDocTypeLabel(t)).join(', ')}`
+          : reviewDocsForSubmit.length
+          ? `${reviewNote}. Upload the correct file, or wait for the Guidance Office to verify it.`
+          : 'all uploaded and verified',
+      onGo: missingDocsForSubmit.length
+        ? () => jumpToUploadFor(missingDocsForSubmit[0])
+        : reviewDocsForSubmit.length
+        ? () => jumpToUploadFor(reviewDocsForSubmit[0].type)
+        : null,
     },
   ]
 
@@ -3385,6 +3417,7 @@ function PortalApp({ accountSession, onLogout }) {
             const step = applicationStep({
               submitted,
               readyToSubmit,
+              needsAttention: reviewNote,
               hasDocs: myDocs.length > 0,
               flagged: flaggedCount,
               processing: processingCount,
@@ -3403,6 +3436,8 @@ function PortalApp({ accountSession, onLogout }) {
               ? { label: 'Complete and submit your Family & Financial Information', panel: 'financial' }
               : missingDocsForSubmit.length
               ? { label: `Upload your ${getDocTypeLabel(missingDocsForSubmit[0])}`, panel: DOC_UPLOAD_PLACE[missingDocsForSubmit[0]]?.panel || 'status' }
+              : reviewDocsForSubmit.length
+              ? { label: `Check your ${getDocTypeLabel(reviewDocsForSubmit[0].type)}`, panel: DOC_UPLOAD_PLACE[reviewDocsForSubmit[0].type]?.panel || 'status' }
               : { label: 'Submit your application', panel: 'status' }
 
             if (!appLoaded || !historyLoaded) {
@@ -3462,7 +3497,7 @@ function PortalApp({ accountSession, onLogout }) {
                 <div className="card status-hero">
                   <p className="status-hero-eyebrow">Application Status</p>
                   <div className="status-hero-value">
-                    <span className="badge badge-progress">Step {step.num} of 6 &middot; {step.label}</span>
+                    <span className={`badge ${step.tone === 'warn' ? 'badge-pending' : 'badge-progress'}`}>Step {step.num} of 6 &middot; {step.label}</span>
                   </div>
                   <p className="status-hero-desc">{step.desc}</p>
                   {nextAction && (
