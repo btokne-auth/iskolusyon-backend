@@ -115,6 +115,23 @@ function parseDate(dateStr) {
   return null
 }
 
+// Oct 25 2026: every birthdate is now a calendar picker (YYYY-MM-DD). Older
+// parent/sibling dates were saved as MM/DD/YYYY text; this turns those into
+// the picker's format so they still show. Anything else shows as empty.
+export function toDateInputValue(value) {
+  const parsed = parseDate(value)
+  if (!parsed) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${parsed.y}-${pad(parsed.mo)}-${pad(parsed.d)}`
+}
+
+// The latest date a birthdate picker allows: yesterday in Manila, so today
+// and future dates can't be picked.
+export function latestBirthdate(now = new Date()) {
+  const manila = new Date(now.getTime() + 8 * 60 * 60 * 1000 - 24 * 60 * 60 * 1000)
+  return manila.toISOString().slice(0, 10)
+}
+
 function ageOn(dateStr, today = new Date()) {
   const parsed = parseDate(dateStr)
   if (!parsed) return null
@@ -138,8 +155,8 @@ export const MAX_APPLICANT_AGE = 65
 export function birthdateError(dateStr, { minAge = MIN_APPLICANT_AGE, maxAge = MAX_APPLICANT_AGE, who = 'your' } = {}) {
   if (!str(dateStr)) return null
   const info = ageOn(dateStr)
-  if (!info) return who === 'your' ? 'Please enter a valid date of birth.' : `Please enter ${who} date of birth as MM/DD/YYYY (e.g. 05/10/1980).`
-  if (info.isFutureOrToday) return 'The date of birth cannot be today or a future date.'
+  if (!info) return who === 'your' ? 'Please enter a valid date of birth.' : `Please pick ${who} date of birth from the calendar.`
+  if (info.isFutureOrToday) return who === 'your' ? 'The date of birth cannot be today or a future date.' : `${capitalize(who)} date of birth cannot be today or a future date.`
   if (info.age < minAge) return who === 'your' ? `Applicants must be at least ${minAge} years old. Please check your date of birth.` : `Please check ${who} date of birth.`
   if (info.age > maxAge) return `Please check ${who} date of birth.`
   return null
