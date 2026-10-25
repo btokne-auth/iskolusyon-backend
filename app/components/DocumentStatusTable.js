@@ -195,7 +195,11 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
                       {rule?.note
                         ? rule.note
                         : state === 'needs_review'
-                        ? 'Low OCR confidence. Please check and re-upload if needed.'
+                        ? doc?.content_issue
+                          // Oct 26 2026: the content check's own reason ("does not
+                          // mention Calamba") instead of a generic OCR message.
+                          ? `${doc.content_issue} If this is the wrong file, please upload the correct one.`
+                          : 'The text was hard to read. Please check and re-upload a clearer copy if needed.'
                         : state === 'processing'
                           ? 'Reading your document. This updates by itself in about a minute.'
                           : submittedNote || ''}
