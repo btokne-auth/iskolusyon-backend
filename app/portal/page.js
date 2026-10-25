@@ -872,10 +872,35 @@ const EDU_LEVELS = ['prim', 'sec', 'tert']
 // Uses applicant.html's .edu-table classes (design-parity pass 5,
 // Sept 19 2026) — was a plain gray-header Tailwind table with none of
 // spec's full cell grid, navy header text, or inset focus highlight.
-function EduTable({ edu, onChangeCell, disabled: disabledProp }) {
+function hasCollegeData(edu) {
+  return EDU_ROWS.some((row) => {
+    const v = String(edu?.tert?.[row.field] || '').trim().toLowerCase()
+    return v && v !== 'n/a' && v !== 'na' && v !== 'none'
+  })
+}
+
+function EduTable({ edu, onChangeCell, disabled: disabledProp, transferee }) {
   const lockedByPanel = useContext(FieldsLockedContext)
   const disabled = disabledProp || lockedByPanel
+  // Oct 25 2026: same idea as the Guardian column. A First Year applicant
+  // who hasn't attended college answers No and the column is cleared and
+  // locked; a Transferee always has a college, so it's Yes and required.
+  const [attendedCollege, setAttendedCollege] = useState(() => (transferee || hasCollegeData(edu) ? 'Yes' : 'No'))
+  const collegeOn = transferee || attendedCollege === 'Yes'
+  const chooseCollege = (value) => {
+    setAttendedCollege(value)
+    if (value === 'No') for (const row of EDU_ROWS) onChangeCell('tert', row.field, '')
+  }
   return (
+    <>
+    <div className="mfield" style={{ maxWidth: 520, marginBottom: 12 }}>
+      <label>Have you attended college before?</label>
+      <select value={collegeOn ? 'Yes' : 'No'} onChange={(e) => chooseCollege(e.target.value)} disabled={disabled || transferee}>
+        <option value="No">No</option>
+        <option value="Yes">Yes</option>
+      </select>
+      {transferee && <div className="text-[11px] text-ccc-muted mt-1">Transferees fill in their previous college.</div>}
+    </div>
     <div className="edu-table-wrap">
       <table className="edu-table">
         <thead>
@@ -899,9 +924,9 @@ function EduTable({ edu, onChangeCell, disabled: disabledProp }) {
                     inputMode={row.field === 'year' ? 'numeric' : undefined}
                     maxLength={row.field === 'year' ? 4 : undefined}
                     onChange={(e) => onChangeCell(level, row.field, row.field === 'year' ? e.target.value.replace(/\D/g, '').slice(0, 4) : e.target.value)}
-                    placeholder={row.placeholders[i]}
-                    required={level === 'prim' && row.field !== 'honors'}
-                    disabled={disabled}
+                    placeholder={level === 'tert' && !collegeOn ? 'Not applicable' : row.placeholders[i]}
+                    required={(level === 'prim' || (level === 'tert' && collegeOn)) && row.field !== 'honors'}
+                    disabled={disabled || (level === 'tert' && !collegeOn)}
                   />
                 </td>
               ))}
@@ -910,6 +935,7 @@ function EduTable({ edu, onChangeCell, disabled: disabledProp }) {
         </tbody>
       </table>
     </div>
+    </>
   )
 }
 
@@ -4171,7 +4197,7 @@ function PortalApp({ accountSession, onLogout }) {
                   Fill in your school details for each level you&rsquo;ve completed. <strong>Primary / Elementary is required for all applicants.</strong> Secondary / Senior High and Tertiary / College are optional (except Honors / Awards Received, which is optional for all levels).
                 </p>
 
-                <EduTable edu={academicInfo.edu} onChangeCell={updateEduCell} />
+                <EduTable edu={academicInfo.edu} onChangeCell={updateEduCell} transferee={academicInfo.applyingAs === 'Transferee'} />
 
                 <div className="form-grid" style={{ marginTop: '15px' }}>
                   <SelectField
