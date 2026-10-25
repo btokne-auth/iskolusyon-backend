@@ -10,7 +10,7 @@ import LoadingScreen from '../components/LoadingScreen'
 import { Skeleton, SkeletonRows, SkeletonList, SkeletonText } from '../components/Skeleton'
 import { DOCUMENT_TYPE_OPTIONS, getDocTypeLabel } from '../lib/documentTypes'
 import { BSED_MATH_SCIENCE_PROGRAMS } from '../lib/matching'
-import { formatMobileInput, withCalambaCity, toDateInputValue, latestBirthdate, validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '../lib/fieldValidation'
+import { formatMobileInput, withCalambaCity, toDateInputValue, latestBirthdate, earliestBirthdate, MIN_APPLICANT_AGE, MAX_APPLICANT_AGE, validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '../lib/fieldValidation'
 import {
   saveDraftLocal,
   loadDraftLocal,
@@ -692,7 +692,7 @@ function sanitizePhoneInput(value, allowNA) {
 // so re-upload requests still work.
 const FieldsLockedContext = createContext(false)
 
-function TextField({ label, required, type = 'text', value, onChange, placeholder, disabled, full, hint, max }) {
+function TextField({ label, required, type = 'text', value, onChange, placeholder, disabled, full, hint, max, min }) {
   const locked = useContext(FieldsLockedContext)
   return (
     <div className={`mfield${full ? ' full' : ''}`}>
@@ -703,6 +703,7 @@ function TextField({ label, required, type = 'text', value, onChange, placeholde
         type={type}
         value={value}
         max={max}
+        min={min}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled || locked}
@@ -927,10 +928,34 @@ const PARENT_ROWS = [
 ]
 const PARENT_PEOPLE = ['mother', 'father', 'guardian']
 
+const GUARDIAN_FIELDS = PARENT_ROWS.map((row) => `guardian${row.field}`)
+function hasGuardianData(familyInfo) {
+  return GUARDIAN_FIELDS.some((key) => {
+    const v = String(familyInfo[key] || '').trim().toLowerCase()
+    return v && v !== 'n/a' && v !== 'na' && v !== 'none'
+  })
+}
+
 function ParentGuardianTable({ familyInfo, onChange, disabled: disabledProp }) {
   const lockedByPanel = useContext(FieldsLockedContext)
   const disabled = disabledProp || lockedByPanel
+  // Oct 25 2026: the Guardian column used to take any text ("N/asdasd").
+  // Now the applicant first says whether they have a guardian other than
+  // their parents; if not, the column is cleared and locked.
+  const [hasGuardian, setHasGuardian] = useState(() => (hasGuardianData(familyInfo) ? 'Yes' : 'No'))
+  const chooseGuardian = (value) => {
+    setHasGuardian(value)
+    if (value === 'No') for (const key of GUARDIAN_FIELDS) onChange(key, '')
+  }
   return (
+    <>
+    <div className="mfield" style={{ maxWidth: 520, marginBottom: 12 }}>
+      <label>Do you have a guardian other than your parents?</label>
+      <select value={hasGuardian} onChange={(e) => chooseGuardian(e.target.value)} disabled={disabled}>
+        <option value="No">No</option>
+        <option value="Yes">Yes</option>
+      </select>
+    </div>
     <div className="edu-table-wrap">
       <table className="edu-table">
         <thead>
@@ -953,7 +978,8 @@ function ParentGuardianTable({ familyInfo, onChange, disabled: disabledProp }) {
                       // Oct 25 2026: birthdates use the same calendar picker as
                       // the applicant's own (no typed MM/DD/YYYY, no future dates).
                       type={row.field === 'Dob' ? 'date' : 'text'}
-                      max={row.field === 'Dob' ? latestBirthdate() : undefined}
+                      max={row.field === 'Dob' ? latestBirthdate(15) : undefined}
+                      min={row.field === 'Dob' ? earliestBirthdate(110) : undefined}
                       inputMode={row.field === 'Contact' ? 'tel' : undefined}
                       value={row.field === 'Dob' ? toDateInputValue(familyInfo[key]) : familyInfo[key]}
                       onChange={(e) => {
@@ -962,9 +988,9 @@ function ParentGuardianTable({ familyInfo, onChange, disabled: disabledProp }) {
                         if (row.field === 'Contact') v = sanitizePhoneInput(v, allowNA)
                         onChange(key, v)
                       }}
-                      placeholder={row.placeholders[i]}
-                      required={person !== 'guardian'}
-                      disabled={disabled}
+                      placeholder={person === 'guardian' && hasGuardian === 'No' ? 'Not applicable' : row.placeholders[i]}
+                      required={person !== 'guardian' || hasGuardian === 'Yes'}
+                      disabled={disabled || (person === 'guardian' && hasGuardian === 'No')}
                     />
                   </td>
                 )
@@ -974,6 +1000,7 @@ function ParentGuardianTable({ familyInfo, onChange, disabled: disabledProp }) {
         </tbody>
       </table>
     </div>
+    </>
   )
 }
 
@@ -3792,7 +3819,7 @@ function PortalApp({ accountSession, onLogout }) {
                   <TextField label="Middle Name (if any)" value={personalInfo.middleName} onChange={(v) => updatePI('middleName', v)} placeholder="e.g. Santos" />
                   <TextField label="Last Name" required value={personalInfo.lastName} onChange={(v) => updatePI('lastName', v)} placeholder="e.g. Dela Cruz" />
                   <TextField label="Suffix (if any)" value={personalInfo.suffix} onChange={(v) => updatePI('suffix', v)} placeholder="e.g. Jr., III" />
-                  <TextField label="Date of Birth" type="date" required max={latestBirthdate()} value={personalInfo.dateOfBirth} onChange={(v) => updatePI('dateOfBirth', v)} />
+                  <TextField label="Date of Birth" type="date" required max={latestBirthdate(MIN_APPLICANT_AGE)} min={earliestBirthdate(MAX_APPLICANT_AGE)} value={personalInfo.dateOfBirth} onChange={(v) => updatePI('dateOfBirth', v)} />
                   <TextField label="Place of Birth" required value={personalInfo.placeOfBirth} onChange={(v) => updatePI('placeOfBirth', v)} placeholder="e.g. Calamba City, Laguna" />
                   <SelectField label="Sex at birth" required value={personalInfo.sex} onChange={(v) => updatePI('sex', v)} options={['Male', 'Female']} />
                   <TextField label="Citizenship" required value={personalInfo.citizenship} onChange={(v) => updatePI('citizenship', v)} placeholder="e.g. Filipino" />

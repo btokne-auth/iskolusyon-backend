@@ -125,11 +125,24 @@ export function toDateInputValue(value) {
   return `${parsed.y}-${pad(parsed.mo)}-${pad(parsed.d)}`
 }
 
-// The latest date a birthdate picker allows: yesterday in Manila, so today
-// and future dates can't be picked.
-export function latestBirthdate(now = new Date()) {
-  const manila = new Date(now.getTime() + 8 * 60 * 60 * 1000 - 24 * 60 * 60 * 1000)
-  return manila.toISOString().slice(0, 10)
+// The latest / earliest dates a birthdate picker allows (Manila time).
+// latestBirthdate(15) = exactly 15 years ago, so a 15-year-old is the
+// youngest that can be picked; latestBirthdate() = yesterday (siblings).
+// earliestBirthdate(65) = 65 years ago.
+function yearsAgo(years, now = new Date()) {
+  const manila = new Date(now.getTime() + 8 * 60 * 60 * 1000)
+  manila.setUTCFullYear(manila.getUTCFullYear() - years)
+  return manila
+}
+export function latestBirthdate(minAge = 0, now = new Date()) {
+  const d = yearsAgo(minAge, now)
+  if (minAge === 0) d.setUTCDate(d.getUTCDate() - 1)
+  return d.toISOString().slice(0, 10)
+}
+export function earliestBirthdate(maxAge, now = new Date()) {
+  const d = yearsAgo(maxAge + 1, now)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
 }
 
 function ageOn(dateStr, today = new Date()) {
@@ -164,12 +177,13 @@ export function birthdateError(dateStr, { minAge = MIN_APPLICANT_AGE, maxAge = M
 
 // Oct 25 2026: keyboard-mash answers ("akjsdjasd", "sjhajkhsd") have a run
 // of 5 or more consonants inside a word, which real Filipino and English
-// names, schools and job words don't. A light check, not a dictionary.
+// names, schools and job words don't; so does a chunk typed 3 times in a
+// row ("asdasdasd"). A light check, not a dictionary.
 function looksLikeGibberish(v) {
   return str(v)
     .toLowerCase()
     .split(/[^a-zà-öø-ÿ]+/)
-    .some((word) => /[bcdfghjklmnpqrstvwxz]{5,}/.test(word) || /(.)\1{3,}/.test(word))
+    .some((word) => /[bcdfghjklmnpqrstvwxz]{5,}/.test(word) || /(.)\1{3,}/.test(word) || /(.{2,4})\1{2,}/.test(word))
 }
 
 function nameError(value, label, { required = false } = {}) {
