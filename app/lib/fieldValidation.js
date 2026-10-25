@@ -121,8 +121,11 @@ function parseDate(dateStr) {
 export function toDateInputValue(value) {
   const parsed = parseDate(value)
   if (!parsed) return ''
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${parsed.y}-${pad(parsed.mo)}-${pad(parsed.d)}`
+  // Oct 25 2026: the year is padded to 4 digits too. While a year is being
+  // typed, the picker reports "0001-12-02", "0019-12-02"...; turning that
+  // into "1-12-02" made the picker reset and wipe what was typed.
+  const pad = (n, len = 2) => String(n).padStart(len, '0')
+  return `${pad(parsed.y, 4)}-${pad(parsed.mo)}-${pad(parsed.d)}`
 }
 
 // The latest / earliest dates a birthdate picker allows (Manila time).
@@ -347,6 +350,10 @@ export function validateAcademicInfo(ai) {
       if (y < lastYear) push(errors, `${key}.year`, `The ${label} completion year should not be earlier than the level before it.`)
       lastYear = Math.max(lastYear, y)
     }
+  }
+  // Oct 25 2026: a Transferee must name the college they're transferring from.
+  if (str(a.applyingAs) === 'Transferee' && !str((edu.tert || {}).school)) {
+    push(errors, 'tert.school', 'Transferees must fill in their previous college (Tertiary / College column).')
   }
   push(errors, 'techVocSchool', placeError(a.techVocSchool, 'technical/vocational school name'))
   push(errors, 'techVocCourse', placeError(a.techVocCourse, 'technical/vocational course name'))
