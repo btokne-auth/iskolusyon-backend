@@ -10,7 +10,7 @@ import LoadingScreen from '../components/LoadingScreen'
 import { Skeleton, SkeletonRows, SkeletonList, SkeletonText } from '../components/Skeleton'
 import { DOCUMENT_TYPE_OPTIONS, getDocTypeLabel } from '../lib/documentTypes'
 import { BSED_MATH_SCIENCE_PROGRAMS } from '../lib/matching'
-import { formatMobileInput, withCalambaCity, validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '../lib/fieldValidation'
+import { formatMobileInput, withCalambaCity, toDateInputValue, latestBirthdate, earliestBirthdate, MIN_APPLICANT_AGE, MAX_APPLICANT_AGE, validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '../lib/fieldValidation'
 import {
   saveDraftLocal,
   loadDraftLocal,
@@ -675,14 +675,6 @@ function sanitizePhoneInput(value, allowNA) {
   // converted), see formatMobileInput in app/lib/fieldValidation.js.
   return formatMobileInput(value)
 }
-function sanitizeDateTextInput(value, allowNA) {
-  // For the free-text "MM/DD/YYYY" Date of Birth fields in the Family &
-  // Financial tables below (Parent/Guardian, Sibling Income) — Personal
-  // Information's own Date of Birth field uses a native <input
-  // type="date"> picker already, so it can't accept invalid text at all.
-  if (allowNA && isNAInProgress(value)) return value
-  return value.replace(/[^\d/]/g, '')
-}
 
 // Small reusable form controls for the Personal Information cards (Step 1,
 // cards 2-3) — kept local to this file since they're only used here, styled
@@ -700,7 +692,7 @@ function sanitizeDateTextInput(value, allowNA) {
 // so re-upload requests still work.
 const FieldsLockedContext = createContext(false)
 
-function TextField({ label, required, type = 'text', value, onChange, placeholder, disabled, full, hint }) {
+function TextField({ label, required, type = 'text', value, onChange, placeholder, disabled, full, hint, max, min }) {
   const locked = useContext(FieldsLockedContext)
   return (
     <div className={`mfield${full ? ' full' : ''}`}>
@@ -710,6 +702,8 @@ function TextField({ label, required, type = 'text', value, onChange, placeholde
       <input
         type={type}
         value={value}
+        max={max}
+        min={min}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled || locked}
@@ -901,7 +895,10 @@ function EduTable({ edu, onChangeCell, disabled: disabledProp }) {
                   <input
                     type="text"
                     value={edu[level][row.field]}
-                    onChange={(e) => onChangeCell(level, row.field, e.target.value)}
+                    // Oct 25 2026: the year cells take digits only, 4 at most.
+                    inputMode={row.field === 'year' ? 'numeric' : undefined}
+                    maxLength={row.field === 'year' ? 4 : undefined}
+                    onChange={(e) => onChangeCell(level, row.field, row.field === 'year' ? e.target.value.replace(/\D/g, '').slice(0, 4) : e.target.value)}
                     placeholder={row.placeholders[i]}
                     required={level === 'prim' && row.field !== 'honors'}
                     disabled={disabled}
@@ -924,17 +921,41 @@ function EduTable({ edu, onChangeCell, disabled: disabledProp }) {
 const PARENT_ROWS = [
   { field: 'Name', placeholders: ['e.g. Juana Dela Cruz', 'e.g. Juan Dela Cruz', 'e.g. N/A'] },
   { field: 'Citizenship', placeholders: ['e.g. Filipino', 'e.g. Filipino', 'e.g. N/A'] },
-  { field: 'Dob', label: 'Date of Birth', placeholders: ['e.g. MM/DD/YYYY', 'e.g. MM/DD/YYYY', 'e.g. N/A'] },
+  { field: 'Dob', label: 'Date of Birth', placeholders: ['', '', ''] },
   { field: 'Contact', label: 'Contact No.', placeholders: ['e.g. 0917 123 4567', 'e.g. 0917 123 4567', 'e.g. N/A'] },
   { field: 'Education', label: 'Highest Educational Attainment', placeholders: ['e.g. College Graduate', 'e.g. College Graduate', 'e.g. N/A'] },
   { field: 'Employment', label: 'Employment Status', placeholders: ['e.g. Employed', 'e.g. Employed', 'e.g. N/A'] },
 ]
 const PARENT_PEOPLE = ['mother', 'father', 'guardian']
 
+const GUARDIAN_FIELDS = PARENT_ROWS.map((row) => `guardian${row.field}`)
+function hasGuardianData(familyInfo) {
+  return GUARDIAN_FIELDS.some((key) => {
+    const v = String(familyInfo[key] || '').trim().toLowerCase()
+    return v && v !== 'n/a' && v !== 'na' && v !== 'none'
+  })
+}
+
 function ParentGuardianTable({ familyInfo, onChange, disabled: disabledProp }) {
   const lockedByPanel = useContext(FieldsLockedContext)
   const disabled = disabledProp || lockedByPanel
+  // Oct 25 2026: the Guardian column used to take any text ("N/asdasd").
+  // Now the applicant first says whether they have a guardian other than
+  // their parents; if not, the column is cleared and locked.
+  const [hasGuardian, setHasGuardian] = useState(() => (hasGuardianData(familyInfo) ? 'Yes' : 'No'))
+  const chooseGuardian = (value) => {
+    setHasGuardian(value)
+    if (value === 'No') for (const key of GUARDIAN_FIELDS) onChange(key, '')
+  }
   return (
+    <>
+    <div className="mfield" style={{ maxWidth: 520, marginBottom: 12 }}>
+      <label>Do you have a guardian other than your parents?</label>
+      <select value={hasGuardian} onChange={(e) => chooseGuardian(e.target.value)} disabled={disabled}>
+        <option value="No">No</option>
+        <option value="Yes">Yes</option>
+      </select>
+    </div>
     <div className="edu-table-wrap">
       <table className="edu-table">
         <thead>
@@ -954,19 +975,22 @@ function ParentGuardianTable({ familyInfo, onChange, disabled: disabledProp }) {
                 return (
                   <td key={person}>
                     <input
-                      type="text"
-                      inputMode={row.field === 'Contact' ? 'tel' : row.field === 'Dob' ? 'numeric' : undefined}
-                      value={familyInfo[key]}
+                      // Oct 25 2026: birthdates use the same calendar picker as
+                      // the applicant's own (no typed MM/DD/YYYY, no future dates).
+                      type={row.field === 'Dob' ? 'date' : 'text'}
+                      max={row.field === 'Dob' ? latestBirthdate(15) : undefined}
+                      min={row.field === 'Dob' ? earliestBirthdate(110) : undefined}
+                      inputMode={row.field === 'Contact' ? 'tel' : undefined}
+                      value={row.field === 'Dob' ? toDateInputValue(familyInfo[key]) : familyInfo[key]}
                       onChange={(e) => {
                         let v = e.target.value
                         const allowNA = person === 'guardian'
                         if (row.field === 'Contact') v = sanitizePhoneInput(v, allowNA)
-                        if (row.field === 'Dob') v = sanitizeDateTextInput(v, allowNA)
                         onChange(key, v)
                       }}
-                      placeholder={row.placeholders[i]}
-                      required={person !== 'guardian'}
-                      disabled={disabled}
+                      placeholder={person === 'guardian' && hasGuardian === 'No' ? 'Not applicable' : row.placeholders[i]}
+                      required={person !== 'guardian' || hasGuardian === 'Yes'}
+                      disabled={disabled || (person === 'guardian' && hasGuardian === 'No')}
                     />
                   </td>
                 )
@@ -976,6 +1000,7 @@ function ParentGuardianTable({ familyInfo, onChange, disabled: disabledProp }) {
         </tbody>
       </table>
     </div>
+    </>
   )
 }
 
@@ -1033,13 +1058,13 @@ function SiblingIncomeTable({ siblings, onChangeCell, onAddColumn, onRemoveColum
                 ) : (
                   <td key={i}>
                     <input
-                      type="text"
-                      inputMode={row.field === 'contact' ? 'tel' : row.field === 'dob' ? 'numeric' : undefined}
-                      value={sib[row.field]}
+                      type={row.field === 'dob' ? 'date' : 'text'}
+                      max={row.field === 'dob' ? latestBirthdate() : undefined}
+                      inputMode={row.field === 'contact' ? 'tel' : undefined}
+                      value={row.field === 'dob' ? toDateInputValue(sib[row.field]) : sib[row.field]}
                       onChange={(e) => {
                         let v = e.target.value
                         if (row.field === 'contact') v = sanitizePhoneInput(v)
-                        if (row.field === 'dob') v = sanitizeDateTextInput(v)
                         onChangeCell(i, row.field, v)
                       }}
                       placeholder={row.placeholder}
@@ -3794,7 +3819,7 @@ function PortalApp({ accountSession, onLogout }) {
                   <TextField label="Middle Name (if any)" value={personalInfo.middleName} onChange={(v) => updatePI('middleName', v)} placeholder="e.g. Santos" />
                   <TextField label="Last Name" required value={personalInfo.lastName} onChange={(v) => updatePI('lastName', v)} placeholder="e.g. Dela Cruz" />
                   <TextField label="Suffix (if any)" value={personalInfo.suffix} onChange={(v) => updatePI('suffix', v)} placeholder="e.g. Jr., III" />
-                  <TextField label="Date of Birth" type="date" required value={personalInfo.dateOfBirth} onChange={(v) => updatePI('dateOfBirth', v)} />
+                  <TextField label="Date of Birth" type="date" required max={latestBirthdate(MIN_APPLICANT_AGE)} min={earliestBirthdate(MAX_APPLICANT_AGE)} value={personalInfo.dateOfBirth} onChange={(v) => updatePI('dateOfBirth', v)} />
                   <TextField label="Place of Birth" required value={personalInfo.placeOfBirth} onChange={(v) => updatePI('placeOfBirth', v)} placeholder="e.g. Calamba City, Laguna" />
                   <SelectField label="Sex at birth" required value={personalInfo.sex} onChange={(v) => updatePI('sex', v)} options={['Male', 'Female']} />
                   <TextField label="Citizenship" required value={personalInfo.citizenship} onChange={(v) => updatePI('citizenship', v)} placeholder="e.g. Filipino" />

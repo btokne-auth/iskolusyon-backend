@@ -6,7 +6,7 @@ import WelcomeFooter from './WelcomeFooter'
 import OtpBoxes from './OtpBoxes'
 import PasswordStrength from './PasswordStrength'
 import { isStrongPassword } from '../lib/passwordRules'
-import { CALAMBA_BARANGAYS, formatMobileInput, validatePersonalInfo, withCalambaCity } from '../lib/fieldValidation'
+import { CALAMBA_BARANGAYS, formatMobileInput, latestBirthdate, earliestBirthdate, MIN_APPLICANT_AGE, MAX_APPLICANT_AGE, validatePersonalInfo, withCalambaCity } from '../lib/fieldValidation'
 
 // Mirrors isValidEmailFormat() in applicantAccounts.js — a real format
 // check, not just "contains an @". Catches "name@" / "name@domain" with no
@@ -67,7 +67,7 @@ function EyeOffIcon(props) {
   )
 }
 
-function TextField({ label, value, onChange, type = 'text', placeholder, required, error, autoComplete }) {
+function TextField({ label, value, onChange, type = 'text', placeholder, required, error, autoComplete, max, min }) {
   const [visible, setVisible] = useState(false)
   const isPassword = type === 'password'
   const inputType = isPassword ? (visible ? 'text' : 'password') : type
@@ -85,6 +85,8 @@ function TextField({ label, value, onChange, type = 'text', placeholder, require
           placeholder={placeholder}
           required={required}
           autoComplete={autoComplete}
+          max={max}
+          min={min}
           className={`w-full px-3 py-2 border rounded-md text-sm outline-none focus:ring-2 focus:ring-ccc-blue/20 focus:border-ccc-blue ${
             isPassword ? 'pr-9' : ''
           } ${error ? 'border-red-500' : 'border-ccc-border'}`}
@@ -973,7 +975,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
               <TextField label="Middle Name (if any)" value={middleName} onChange={setMiddleName} placeholder="e.g. Santos" />
               <SelectField label="Suffix (if any)" value={suffix} onChange={setSuffix} options={SUFFIX_OPTIONS} placeholder="None" />
               <SelectField label="Sex at birth" value={sex} onChange={clearFieldError('sex', setSex)} options={['Male', 'Female']} error={fieldErrors.sex} />
-              <TextField label="Date of Birth" type="date" value={dateOfBirth} onChange={clearFieldError('dateOfBirth', setDateOfBirth)} error={fieldErrors.dateOfBirth} />
+              <TextField label="Date of Birth" type="date" max={latestBirthdate(MIN_APPLICANT_AGE)} min={earliestBirthdate(MAX_APPLICANT_AGE)} value={dateOfBirth} onChange={clearFieldError('dateOfBirth', setDateOfBirth)} error={fieldErrors.dateOfBirth} />
               <SelectField label="Civil Status" value={civilStatus} onChange={clearFieldError('civilStatus', setCivilStatus)} options={['Single', 'Married', 'Widowed', 'Legally Separated']} error={fieldErrors.civilStatus} />
               <TextField label="Contact Number" type="tel" value={contactNumber} onChange={(v) => clearFieldError('contactNumber', setContactNumber)(sanitizePhoneInput(v))} placeholder="09XX XXX XXXX" error={fieldErrors.contactNumber} />
             </div>
