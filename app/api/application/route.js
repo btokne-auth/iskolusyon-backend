@@ -240,6 +240,26 @@ function missingForFinalSubmit(row, uploadedTypes) {
   return missing
 }
 
+// Oct 26 2026: required documents whose LATEST upload is flagged or still
+// being read (labels). The Voter's ID counts the applicant's own box, or the
+// older parent/guardian box only when the own box is empty.
+async function unverifiedRequiredDocs(session, row) {
+  const { data, error } = await supabase
+    .from('documents')
+    .select('document_type, needs_review, review_status, created_at')
+    .eq('applicant_user_id', session.id)
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  const latest = {}
+  for (const d of data || []) if (d.document_type && !latest[d.document_type]) latest[d.document_type] = d
+  const out = []
+  for (const t of requiredDocumentTypes(row?.fam_working_student)) {
+    const doc = t === 'voterid' ? latest.voterid || latest.parentid : latest[t]
+    if (doc && (doc.needs_review || doc.review_status === 'processing')) out.push(REQUIRED_DOC_LABELS[t])
+  }
+  return out
+}
+
 // Oct 6 2026: once the final Submit is done, the three profile sections
 // that were reviewed (Personal, Educational, Family & Financial) can't be
 // changed by the applicant any more. Changes go through the Guidance
@@ -470,6 +490,20 @@ export async function POST(request) {
         const merged = ownRows.length ? mergeApplicationRows(ownRows) : null
         const uploadedTypes = await fetchUploadedDocumentTypes({ userId: session.id, email: session.email, name: merged?.applicant_name })
         const missing = missingForFinalSubmit(merged, uploadedTypes)
+        // Oct 26 2026 (panel): a required document whose latest upload is
+        // flagged or still being read blocks the final Submit too.
+        if (!missing.length) {
+          const unverified = await unverifiedRequiredDocs(session, merged)
+          if (unverified.length) {
+            return NextResponse.json(
+              {
+                error: `Before submitting your application, your ${unverified.join(', ')} must be verified. Upload the correct file, or wait for the Guidance Office to verify it.`,
+                unverified,
+              },
+              { status: 400 }
+            )
+          }
+        }
         if (missing.length) {
           return NextResponse.json(
             { error: `Before submitting your application, please ${missing.join(', ')}.`, missing },
