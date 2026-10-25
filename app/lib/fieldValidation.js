@@ -103,12 +103,22 @@ export function mentionsOtherPlace(address, { strict = false } = {}) {
   return null
 }
 
+// Oct 25 2026: the Family & Financial table takes parents' birthdates as
+// MM/DD/YYYY text (the applicant's own uses a date picker, YYYY-MM-DD).
+// Both are accepted, plus YYYY/MM/DD.
+function parseDate(dateStr) {
+  const v = str(dateStr)
+  let m = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(v)
+  if (m) return { y: Number(m[1]), mo: Number(m[2]), d: Number(m[3]) }
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v)
+  if (m) return { y: Number(m[3]), mo: Number(m[1]), d: Number(m[2]) }
+  return null
+}
+
 function ageOn(dateStr, today = new Date()) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str(dateStr))
-  if (!m) return null
-  const y = Number(m[1])
-  const mo = Number(m[2])
-  const d = Number(m[3])
+  const parsed = parseDate(dateStr)
+  if (!parsed) return null
+  const { y, mo, d } = parsed
   const dt = new Date(Date.UTC(y, mo - 1, d))
   if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null
   // Manila date, so "today" doesn't depend on the server's time zone.
@@ -128,11 +138,21 @@ export const MAX_APPLICANT_AGE = 65
 export function birthdateError(dateStr, { minAge = MIN_APPLICANT_AGE, maxAge = MAX_APPLICANT_AGE, who = 'your' } = {}) {
   if (!str(dateStr)) return null
   const info = ageOn(dateStr)
-  if (!info) return 'Please enter a valid date (YYYY-MM-DD).'
+  if (!info) return who === 'your' ? 'Please enter a valid date of birth.' : `Please enter ${who} date of birth as MM/DD/YYYY (e.g. 05/10/1980).`
   if (info.isFutureOrToday) return 'The date of birth cannot be today or a future date.'
   if (info.age < minAge) return who === 'your' ? `Applicants must be at least ${minAge} years old. Please check your date of birth.` : `Please check ${who} date of birth.`
   if (info.age > maxAge) return `Please check ${who} date of birth.`
   return null
+}
+
+// Oct 25 2026: keyboard-mash answers ("akjsdjasd", "sjhajkhsd") have a run
+// of 5 or more consonants inside a word, which real Filipino and English
+// names, schools and job words don't. A light check, not a dictionary.
+function looksLikeGibberish(v) {
+  return str(v)
+    .toLowerCase()
+    .split(/[^a-zà-öø-ÿ]+/)
+    .some((word) => /[bcdfghjklmnpqrstvwxz]{5,}/.test(word) || /(.)\1{3,}/.test(word))
 }
 
 function nameError(value, label, { required = false } = {}) {
@@ -141,6 +161,7 @@ function nameError(value, label, { required = false } = {}) {
   if (v.length > 60) return `${capitalize(label)} is too long.`
   if (!NAME_RE.test(v)) return `${capitalize(label)} can only contain letters, spaces, periods, apostrophes and hyphens.`
   if (letterCount(v) < 2) return `Please enter a complete ${label}.`
+  if (looksLikeGibberish(v)) return `Please check ${label}: it doesn't look like a real entry.`
   return null
 }
 
@@ -155,6 +176,7 @@ function wordsError(value, label, { min = 3, max = 60, letters = 3 } = {}) {
   if (v.length > max) return `${capitalize(label)} is too long (${max} characters at most).`
   if (/\d/.test(v)) return `${capitalize(label)} should not contain numbers.`
   if (!NAME_RE.test(v.replace(/,/g, ''))) return `${capitalize(label)} can only contain letters and spaces.`
+  if (looksLikeGibberish(v)) return `Please check ${label}: it doesn't look like a real entry.`
   return null
 }
 
@@ -165,6 +187,7 @@ function placeError(value, label, { min = 3, max = 150 } = {}) {
   if ((v.match(/\d/g) || []).length > letterCount(v)) return `Please enter a complete ${label}.`
   if (v.length > max) return `${capitalize(label)} is too long.`
   if (!PLACE_RE.test(v)) return `${capitalize(label)} has characters that aren't allowed.`
+  if (looksLikeGibberish(v)) return `Please check ${label}: it doesn't look like a real entry.`
   return null
 }
 
@@ -317,6 +340,8 @@ export function validateFamilyInfo(fi) {
     push(errors, `${key}Contact`, mobileError(f[`${key}Contact`], `${label} contact number`))
     push(errors, `${key}Citizenship`, wordsError(f[`${key}Citizenship`], `${label} citizenship`, { max: 40 }))
     push(errors, `${key}Dob`, birthdateError(f[`${key}Dob`], { minAge: 15, maxAge: 110, who: `your ${label}` }))
+    push(errors, `${key}Education`, wordsError(f[`${key}Education`], `${label} educational attainment`, { max: 60 }))
+    push(errors, `${key}Employment`, wordsError(f[`${key}Employment`], `${label} employment status`, { max: 60 }))
   }
   push(errors, 'emergencyContact', nameError(f.emergencyContact, 'the emergency contact person'))
   push(errors, 'emergencyContactNumber', mobileError(f.emergencyContactNumber, 'emergency contact number'))

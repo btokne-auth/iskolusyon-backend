@@ -901,7 +901,10 @@ function EduTable({ edu, onChangeCell, disabled: disabledProp }) {
                   <input
                     type="text"
                     value={edu[level][row.field]}
-                    onChange={(e) => onChangeCell(level, row.field, e.target.value)}
+                    // Oct 25 2026: the year cells take digits only, 4 at most.
+                    inputMode={row.field === 'year' ? 'numeric' : undefined}
+                    maxLength={row.field === 'year' ? 4 : undefined}
+                    onChange={(e) => onChangeCell(level, row.field, row.field === 'year' ? e.target.value.replace(/\D/g, '').slice(0, 4) : e.target.value)}
                     placeholder={row.placeholders[i]}
                     required={level === 'prim' && row.field !== 'honors'}
                     disabled={disabled}
