@@ -343,7 +343,8 @@ function QualityRejectionAlert({ message }) {
 
 const getCleanFileName = (path) => {
   if (!path) return 'Unknown File'
-  const parts = path.split('-')
+  // Only the file's own name (sign-up checks sit in a signup-check/<id>/ folder).
+  const parts = path.split('/').pop().split('-')
   return parts.length > 1 ? parts.slice(1).join('-') : path
 }
 
