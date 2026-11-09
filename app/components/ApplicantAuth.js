@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import '../welcome-theme.css'
 import WelcomeNavbar from './WelcomeNavbar'
 import WelcomeFooter from './WelcomeFooter'
@@ -254,6 +254,10 @@ function Alert({ tone = 'info', children }) {
 
 export default function ApplicantAuth({ onAuthenticated, initialMode = 'login', expired = false }) {
   const [mode, setMode] = useState(initialMode) // 'login' | 'signup' | 'forgot'
+  // Nov 2026 (panel revision S4): after sign-up the applicant signs in once
+  // with email, password and a login code, instead of being signed in
+  // straight after the email code.
+  const [createdEmail, setCreatedEmail] = useState('')
 
   // Sept 23, 2026: was just a bare SiteHeader + centered card on a plain
   // ccc-off background. Pau asked for /login and signup to carry the same
@@ -273,12 +277,21 @@ export default function ApplicantAuth({ onAuthenticated, initialMode = 'login', 
           {mode === 'login' && (
             <LoginPanel
               expired={expired}
+              createdEmail={createdEmail}
               onSwitch={() => setMode('signup')}
               onForgot={() => setMode('forgot')}
               onAuthenticated={onAuthenticated}
             />
           )}
-          {mode === 'signup' && <SignupPanel onSwitch={() => setMode('login')} onAuthenticated={onAuthenticated} />}
+          {mode === 'signup' && (
+            <SignupPanel
+              onSwitch={() => setMode('login')}
+              onCreated={(createdAs) => {
+                setCreatedEmail(createdAs)
+                setMode('login')
+              }}
+            />
+          )}
           {mode === 'forgot' && <ForgotPasswordPanel onSwitch={() => setMode('login')} />}
         </div>
       </div>
@@ -289,13 +302,13 @@ export default function ApplicantAuth({ onAuthenticated, initialMode = 'login', 
 
 const LOGIN_OTP_TTL_SECONDS = 10 * 60
 
-function LoginPanel({ expired, onSwitch, onForgot, onAuthenticated }) {
+function LoginPanel({ expired, createdEmail, onSwitch, onForgot, onAuthenticated }) {
   // stage: 'credentials' -> 'otp' — login-time MFA, added Sept 19. The
   // credentials step no longer sets the session cookie itself; it sends a
   // login code and hands off to the OTP step, same shape as
   // ForgotPasswordPanel's lookup -> reset staging below.
   const [stage, setStage] = useState('credentials')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(createdEmail || '')
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   const [accountId, setAccountId] = useState(null)
@@ -424,6 +437,9 @@ function LoginPanel({ expired, onSwitch, onForgot, onAuthenticated }) {
             </h2>
             <p className="text-sm text-ccc-muted mb-3">Enter your credentials to access your account.</p>
             {/* Oct 7 2026: shown after the 60-minute inactivity sign-out. */}
+            {createdEmail && !error && (
+              <Alert tone="success">Your account was created. Please sign in with your email and password to continue your application.</Alert>
+            )}
             {expired && !error && (
               <Alert tone="info">You were signed out after 60 minutes without activity, to keep your account safe. Your saved sections are still there. Please sign in again.</Alert>
             )}
@@ -544,7 +560,72 @@ function passwordStrengthError(password) {
   return null
 }
 
-function SignupPanel({ onSwitch, onAuthenticated }) {
+// Nov 2026 (panel revisions S3/S4): the residency check box on sign-up
+// step 1. The applicant uploads a Voter's ID or Voter's Certification; the
+// system reads it and only lets them continue if it is a COMELEC record
+// with a Calamba City address.
+function ResidencyCheckBox({ voterOwner, setVoterOwner, checkState, checkMessage, error, onFile, onRetryPoll }) {
+  const busy = checkState === 'uploading' || checkState === 'processing'
+  return (
+    <div className="rounded-md border border-ccc-border bg-ccc-off px-4 py-4 mb-3">
+      <div className="text-sm font-bold text-ccc-navy mb-1">Residency check</div>
+      <p className="text-[12px] text-ccc-muted leading-relaxed mb-3">
+        Upload a clear photo or scan of a Voter&apos;s ID or Voter&apos;s Certification (COMELEC) showing a Calamba City address.
+        If you are not a registered voter yet, use your parent&apos;s or guardian&apos;s.
+      </p>
+      <SelectField
+        label="Whose Voter's ID is it?"
+        value={voterOwner}
+        onChange={setVoterOwner}
+        options={['Mine', "My parent's or guardian's"]}
+      />
+      {voterOwner && checkState !== 'passed' && (
+        <label className={`block w-full text-center py-2.5 rounded-md border border-dashed border-ccc-blue text-ccc-blue font-bold text-sm ${busy ? 'opacity-60 cursor-wait' : 'cursor-pointer hover:bg-white'}`}>
+          {busy ? 'Checking…' : checkState === 'failed' ? 'Upload a different file' : "Upload Voter's ID (JPG, PNG or PDF)"}
+          <input
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+            className="hidden"
+            disabled={busy}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              onFile(file)
+            }}
+          />
+        </label>
+      )}
+      {busy && (
+        <p className="text-[12px] text-ccc-muted mt-2" role="status" aria-live="polite">
+          Reading your document. This usually takes about 20 seconds, and up to a minute and a half if the reader was idle.
+        </p>
+      )}
+      {checkState === 'slow' && (
+        <p className="text-[12px] text-ccc-gold mt-2">
+          This is taking longer than usual.{' '}
+          <button type="button" onClick={onRetryPoll} className="font-bold underline">Check again</button>
+        </p>
+      )}
+      {checkState === 'passed' && (
+        <div className="text-[13px] text-green-800 bg-green-50 border border-green-200 rounded-md px-3 py-2 mt-1">
+          <span className="font-bold">Calamba City voter record confirmed.</span> It is saved as the Voter&apos;s ID of your application.
+          You can now create your account.
+        </div>
+      )}
+      {checkState === 'failed' && (
+        <div className="text-[13px] text-red-800 bg-red-50 border border-red-200 rounded-md px-3 py-2 mt-2">
+          <span className="font-bold">Not confirmed:</span> {checkMessage}
+          <div className="text-[12px] mt-1">
+            This file was not kept. If it was the wrong file or a blurry photo, upload the correct one. Only residents of Calamba City can apply.
+          </div>
+        </div>
+      )}
+      {error && <div className="text-[11px] text-red-600 mt-2">{error}</div>}
+    </div>
+  )
+}
+
+function SignupPanel({ onSwitch, onCreated }) {
   // Step 0 = Data Privacy Consent screen. Described in index.html's own
   // "How to Apply" guide text ("A Data Privacy Consent screen will appear.
   // Read it carefully and click I Agree to proceed.") but never actually
@@ -574,6 +655,15 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
   // giving any personal details (CCC Scholar Guidelines: Calamba residents).
   const [calambaResident, setCalambaResident] = useState('')
   const [residencyCertified, setResidencyCertified] = useState(false)
+  // Nov 2026 (panel revisions S3/S4): the Voter's ID is checked here, before
+  // any account exists (app/api/signup-residency-check). checkState:
+  // idle | uploading | processing | passed | failed | slow
+  const [voterOwner, setVoterOwner] = useState('')
+  const [residencyToken, setResidencyToken] = useState('')
+  const [checkState, setCheckState] = useState('idle')
+  const [checkMessage, setCheckMessage] = useState('')
+  const [voterPrecinct, setVoterPrecinct] = useState('')
+  const pollRef = useRef(null)
 
   // Step 2 — Program Application (matches academicInfo shape from app/page.js)
   const [applyingAs, setApplyingAs] = useState('')
@@ -616,6 +706,68 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
     return () => clearInterval(timer)
   }, [codeSent, secondsLeft])
 
+  useEffect(() => () => clearTimeout(pollRef.current), [])
+
+  function applyPrefill(prefill) {
+    if (!prefill) return
+    if (prefill.street) setAddress((v) => v || prefill.street)
+    if (prefill.barangay) setBarangay((v) => v || prefill.barangay)
+    if (prefill.voterPrecinct) setVoterPrecinct(prefill.voterPrecinct)
+  }
+
+  function pollCheck(token, startedAt) {
+    clearTimeout(pollRef.current)
+    pollRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/signup-residency-check?token=${encodeURIComponent(token)}`)
+        const data = await res.json()
+        if (res.ok && data.status === 'passed') {
+          setCheckState('passed')
+          setCheckMessage('')
+          applyPrefill(data.prefill)
+          return
+        }
+        if (res.ok && data.status === 'failed') {
+          setCheckState('failed')
+          setCheckMessage(data.reason || 'This document could not be confirmed as a Calamba City voter record.')
+          return
+        }
+      } catch {
+        // keep trying below
+      }
+      if (Date.now() - startedAt > 150000) {
+        setCheckState('slow')
+        return
+      }
+      pollCheck(token, startedAt)
+    }, 4000)
+  }
+
+  async function uploadVoterId(file) {
+    if (!file) return
+    setFieldErrors((f) => ({ ...f, voterId: undefined }))
+    setCheckState('uploading')
+    setCheckMessage('')
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      if (residencyToken) form.append('token', residencyToken)
+      const res = await fetch('/api/signup-residency-check', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) {
+        setCheckState('failed')
+        setCheckMessage(data.message || data.error || 'The file could not be uploaded.')
+        return
+      }
+      setResidencyToken(data.token)
+      setCheckState('processing')
+      pollCheck(data.token, Date.now())
+    } catch {
+      setCheckState('failed')
+      setCheckMessage('Could not reach the server. Check your connection and try again.')
+    }
+  }
+
   async function handleStep1(e) {
     e.preventDefault()
     setError('')
@@ -624,6 +776,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
     if (!calambaResident) nextFieldErrors.calambaResident = 'Please answer this question.'
     else if (calambaResident !== 'Yes') return // the "not eligible" panel is showing instead of the form
     else if (!residencyCertified) nextFieldErrors.residencyCertified = 'Please confirm that you live in Calamba City.'
+    else if (checkState !== 'passed') nextFieldErrors.voterId = "Please upload a Voter's ID or Voter's Certification and wait for it to be confirmed."
     if (!email.trim()) nextFieldErrors.email = 'Please enter your email address.'
     else if (!isValidEmailFormat(email)) nextFieldErrors.email = 'Please enter a valid email address.'
     const passwordError = passwordStrengthError(password)
@@ -638,7 +791,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
       const res = await fetch('/api/applicant-signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start', email, password }),
+        body: JSON.stringify({ action: 'start', email, password, residencyToken }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -648,6 +801,11 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
         // consistent with steps 2/3's per-field errors instead of being a
         // one-off exception.
         const message = data.error || 'Could not start signup.'
+        if (data.residency) {
+          setCheckState('idle')
+          setFieldErrors({ voterId: message })
+          return
+        }
         setFieldErrors({ [/password/i.test(message) ? 'password' : 'email']: message })
         return
       }
@@ -729,7 +887,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
     saveProgressAndAdvance(4, {
       personalInfo: {
         firstName, middleName, lastName, suffix, sex, dateOfBirth, civilStatus,
-        contactNumber, address, barangay, residencyYears,
+        contactNumber, address, barangay, residencyYears, voterPrecinct,
       },
     })
   }
@@ -757,7 +915,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
           accountId,
           personalInfo: {
             firstName, middleName, lastName, suffix, sex, dateOfBirth, civilStatus,
-            contactNumber, address, barangay, residencyYears, termsCertified, privacyAgreed,
+            contactNumber, address, barangay, residencyYears, voterPrecinct, termsCertified, privacyAgreed,
           },
         }),
       })
@@ -807,7 +965,7 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
         setError(data.error || 'Verification failed.')
         return
       }
-      onAuthenticated({ id: accountId, email, name: data.name })
+      onCreated(data.email || email)
     } catch {
       setError('Could not reach the server. Check your connection and try again.')
     } finally {
@@ -882,7 +1040,10 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
 
         {step === 1 && (
           <form onSubmit={handleStep1} noValidate>
-            <Alert tone="info">A verification code will be sent to this email before your account is finalized.</Alert>
+            <Alert tone="info">
+              Iskolusyon is for <strong>residents of Calamba City</strong> only. Before creating an account, we check your residency
+              using a Voter&apos;s ID or Voter&apos;s Certification (yours, or a parent&apos;s or guardian&apos;s).
+            </Alert>
             <SelectField
               label="Are you a resident of Calamba City?"
               value={calambaResident}
@@ -933,6 +1094,23 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
                     {fieldErrors.residencyCertified && <div className="text-[11px] text-red-600 mt-1">{fieldErrors.residencyCertified}</div>}
                   </div>
                 )}
+                {calambaResident === 'Yes' && residencyCertified && (
+                  <ResidencyCheckBox
+                    voterOwner={voterOwner}
+                    setVoterOwner={setVoterOwner}
+                    checkState={checkState}
+                    checkMessage={checkMessage}
+                    error={fieldErrors.voterId}
+                    onFile={uploadVoterId}
+                    onRetryPoll={() => {
+                      setCheckState('processing')
+                      pollCheck(residencyToken, Date.now())
+                    }}
+                  />
+                )}
+                {checkState === 'passed' && (
+                <>
+                <Alert tone="info">A verification code will be sent to this email before your account is finalized.</Alert>
                 <TextField label="Email Address" type="email" value={email} onChange={clearFieldError('email', setEmail)} autoComplete="email" placeholder="e.g. yourname@email.com" error={fieldErrors.email} />
                 <TextField label="Password" type="password" value={password} onChange={clearFieldError('password', setPassword)} autoComplete="new-password" placeholder="Create a password" error={fieldErrors.password} />
                 <PasswordStrength password={password} />
@@ -940,6 +1118,8 @@ function SignupPanel({ onSwitch, onAuthenticated }) {
                 <button type="submit" disabled={loading} className="w-full mt-2 py-2.5 rounded-md bg-ccc-blue text-white font-bold text-sm uppercase tracking-wide hover:bg-[#002fa8] disabled:opacity-60">
                   {loading ? 'Please wait…' : 'Continue →'}
                 </button>
+                </>
+                )}
               </>
             )}
             <p className="text-center text-[13px] text-ccc-muted mt-4">
