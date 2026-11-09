@@ -126,6 +126,7 @@ function Hero({ paused, onTogglePause, onHowTo }) {
           <span className="eyebrow rise" style={{ color: 'var(--green)', '--d': '.05s' }}>City College of Calamba</span>
           <h1><span className="rise" style={{ '--d': '.15s' }}>Scholarship</span> <span className="rise" style={{ '--d': '.3s' }}><span className="hl">Portal</span></span></h1>
           <p className="hero-sub rise" style={{ '--d': '.45s' }}>Your all-in-one platform providing comprehensive application procedures, guidelines, and real-time notifications for aspiring City College of Calamba scholars.</p>
+          <ResidencyNotice />
           <div className="hero-btns rise" style={{ '--d': '.6s' }}>
             <a href="/login?mode=signup" className="btn btn-navy shine">Apply Now {ICON.arrow}</a>
             <a href="#how-to-apply" className="btn btn-light" onClick={(e) => { e.preventDefault(); onHowTo() }}>How to Apply</a>
@@ -159,6 +160,30 @@ function Hero({ paused, onTogglePause, onHowTo }) {
         </div>
       </div>
     </section>
+  )
+}
+
+// Nov 2026 (panel revisions S3): who can apply, in the top third of the page,
+// before anyone clicks Apply Now. Sign-up itself checks the Voter's ID first
+// (app/api/signup-residency-check).
+const KEY_FACTS = [
+  'Resident of Calamba City',
+  'Voter’s ID or Certification (yours or a parent’s)',
+  'No failing grades',
+  'Entrance exam taken onsite',
+]
+function ResidencyNotice() {
+  return (
+    <div className="resnote rise" style={{ '--d': '.52s' }} role="note">
+      <span className="resnote-kick">Who can apply</span>
+      <p className="resnote-title">Residents of the City of Calamba only</p>
+      <p className="resnote-main">
+        Sign-up starts with your <strong>Voter&rsquo;s ID or COMELEC Voter&rsquo;s Certification (yours, or a parent&rsquo;s or guardian&rsquo;s)</strong>. If it does not show a Calamba address, no account is created and the file is not kept.
+      </p>
+      <ul className="resnote-facts" aria-label="Who can apply">
+        {KEY_FACTS.map((f) => <li key={f}><Check size={13} width={2.8} />{f}</li>)}
+      </ul>
+    </div>
   )
 }
 
@@ -385,7 +410,7 @@ function CheckBox({ checked, onChange, children }) {
 
 const ELIGIBILITY = [
   { text: <>I live in the <b>City of Calamba</b></>, missing: 'residency in Calamba' },
-  { text: <>I have a <b>Voter&rsquo;s ID or COMELEC Voter&rsquo;s Certificate</b>, or my parent or guardian does</>, missing: 'a voter’s ID or certificate' },
+  { text: <>I have a <b>Voter&rsquo;s ID or COMELEC Voter&rsquo;s Certificate</b> with a Calamba address, or my parent or guardian does (it is checked when you sign up)</>, missing: 'a voter’s ID or certificate' },
   { text: <>I have <b>no failing grades</b> on my academic record</>, missing: 'a record with no failing grades' },
 ]
 function Qualifications() {

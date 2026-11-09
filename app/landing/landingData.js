@@ -10,7 +10,7 @@
 export const STEPS = [
   {
     "title": "Create Account",
-    "desc": "Sign up with your email and verify your identity"
+    "desc": "Confirm you live in Calamba, then sign up with your email"
   },
   {
     "title": "Fill Profile",
@@ -29,8 +29,8 @@ export const STEPS = [
     "desc": "Complete the scholarship qualifying exam on schedule"
   },
   {
-    "title": "Track Result",
-    "desc": "Get real-time updates on your application status"
+    "title": "Result & Medical",
+    "desc": "See your result; passers take a medical exam before enrollment"
   }
 ]
 
@@ -44,10 +44,11 @@ export const STEP_GUIDES = [
         "items": [
           "Click the **Sign Up** button on the navigation bar or homepage.",
           "A **Data Privacy Consent** screen will appear. Read it carefully and click **I Agree** to proceed.",
-          "Fill in the registration form with your **personal information** (full name, date of birth, address, contact number, etc.). Ensure all details are accurate and correct, as these will be used for your scholarship application.",
-          "Enter your **email address** and create a secure **password**.",
-          "Click **Send Verification Code**. A one-time code will be sent to your registered email address.",
-          "Enter the verification code in the provided field and click **Verify & Create Account**. Your account will be created upon successful verification."
+          "**Residency check first:** answer that you live in Calamba City and upload a **Voter’s ID or COMELEC Voter’s Certification** (yours, or your parent’s or guardian’s). The system reads it and looks for a Calamba address. If it is not confirmed, you cannot continue and the file is not kept.",
+          "Once confirmed, enter your **email address** and create a secure **password**. Your address and precinct number are filled in from the Voter’s ID; check them.",
+          "Fill in the rest of the registration form with your **personal information**. Ensure all details are accurate, as these will be used for your scholarship application.",
+          "Enter the one-time code sent to your email and click **Verify & Create Account**.",
+          "You are then asked to **log in** with your new email and password (and another emailed code) before you continue your application."
         ]
       },
       {
@@ -131,7 +132,7 @@ export const STEP_GUIDES = [
     "note": "Missing your exam without an approved reschedule forfeits your application."
   },
   {
-    "title": "Track Your Application Result",
+    "title": "Track Your Result & Take the Medical Exam",
     "draft": true,
     "groups": [
       {
@@ -139,8 +140,9 @@ export const STEP_GUIDES = [
         "items": [
           "Results are announced on this website. Check your **Dashboard** and **Messages**.",
           "Your result shows as **Passed**, **Qualified (Probationary)**, **Waitlisted**, **Not Qualified** or **Forfeited**.",
-          "If you passed, **Messages** tells you how to proceed with your medical exam and enrollment.",
-          "As a scholar, you can follow your allowance in **Scholar’s Allowance**."
+          "If you passed, take your **medical exam**. It is required before enrollment; **Messages** tells you when and where.",
+          "After the medical exam, proceed with **official enrollment** and bring your **original documents**.",
+          "Once enrolled, fill in **Health & Wellness** in the portal and follow your allowance in **Scholar’s Allowance**."
         ]
       }
     ],
@@ -241,7 +243,7 @@ export const FAQ_DATA = [
           },
           {
             "q": "Who is eligible to apply?",
-            "a": "Applicants must be bonafide residents of Calamba and must have a voter’s registration."
+            "a": "Applicants must be bonafide residents of Calamba and must have a voter’s registration (their own, or a parent’s or guardian’s). This is checked at the very start of sign-up: you upload the Voter’s ID or Voter’s Certification first, and an account is only created if it shows a Calamba address."
           },
           {
             "q": "Are there specific grade requirements?",
@@ -283,7 +285,7 @@ export const FAQ_DATA = [
           },
           {
             "q": "What happens after passing the exam?",
-            "a": "Passers are identified as scholars and will be issued a recommendation to proceed with their medical exam and official enrollment."
+            "a": "Passers are qualified as students of the City College and are issued a recommendation to take their medical exam, which is required before official enrollment. They become scholars once enrolled."
           }
         ]
       }
