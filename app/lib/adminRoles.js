@@ -14,7 +14,10 @@ import { ADMIN_COOKIE_NAME, verifyAnyAdminCookie } from '@/app/lib/adminAuth'
 import { getAdminAccount, effectiveRole, accessRefusal } from '@/app/lib/adminAccounts'
 import { serverError } from '@/app/lib/safeError'
 
-// roles: e.g. ['registrar'] or ['admin', 'super_admin'].
+// roles: e.g. ['registrar'] or ['admin', 'guidance_head'].
+// Nov 2026 (panel revisions S8): 'super_admin' is the System Admin, which
+// manages accounts and logs only; applicant routes list 'admin' and
+// 'guidance_head', cycle routes list only 'guidance_head'.
 // Returns { session } with session = { name, email, role, account } or
 // { response } (a 401/403 to return as is).
 export async function requireConsoleRole(request, roles) {
@@ -35,7 +38,7 @@ export async function requireConsoleRole(request, roles) {
   }
 
   const role = effectiveRole(account)
-  if (role !== cookieSession.role && !(role === 'super_admin' && cookieSession.role === 'admin')) {
+  if (role !== cookieSession.role) {
     // The account's role changed since sign-in: make them sign in again.
     return { response: NextResponse.json({ error: 'Your account changed. Please sign in again.' }, { status: 401 }) }
   }

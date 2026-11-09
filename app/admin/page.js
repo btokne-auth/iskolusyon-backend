@@ -2265,7 +2265,7 @@ function DashboardPanel({
         <div>
           <h1>Dashboard</h1>
           <p>
-            A summary of applicant statuses across the scholarship pipeline. Available to all types of Admins.
+            A summary of applicant statuses across the scholarship pipeline, for the Guidance Head and Guidance Staff.
           </p>
         </div>
         <span className="cf-header-actions">
@@ -2804,7 +2804,7 @@ function ResultNoticeBox({ row, onSent, kind = 'result', number = null }) {
               </div>
               {!draft.resultsVisible && (
                 <p style={{ color: 'var(--red, #b91c1c)' }}>
-                  Exam results are hidden from applicants right now. Turn on &ldquo;Exam Results Visible to Applicants&rdquo; in System &amp; Activity first.
+                  Exam results are hidden from applicants right now. The Guidance Head needs to turn on &ldquo;Exam Results Visible to Applicants&rdquo; in Admission Cycle first.
                 </p>
               )}
               {needsResend && (
@@ -4843,18 +4843,22 @@ function IconTrash() {
 
 
 // Oct 5 2026: role cards for Admin Accounts (Registrar and LGU added).
+// Nov 2026 (panel revisions S8): roles by function. The System Admin runs
+// the system; the Guidance Head and Registrar are unit admins.
 const ADMIN_ROLE_OPTIONS = [
-  { key: 'admin', label: 'Admin', desc: 'Reviews applicants, results, schedules, requests and communications.' },
-  { key: 'super_admin', label: 'Super Admin', desc: 'Everything an Admin does, plus Admin Accounts and System & Activity.' },
+  { key: 'admin', label: 'Guidance Staff', desc: 'Processes applicants: documents, results, exam schedules, requests and communications.' },
+  { key: 'guidance_head', label: 'Guidance Head', desc: 'Everything Guidance Staff does, plus opening/closing applications, releasing results and the archive.' },
   { key: 'registrar', label: 'Office of the Registrar', desc: 'Posts allowances for scholars. Sees Dashboard counts only.' },
+  { key: 'super_admin', label: 'System Admin', desc: 'Manages accounts and the Activity Log. Sees Dashboard counts only, no applicant details.' },
 ]
 // Oct 15 2026 (client): the LGU (view only) role was removed; CCC sends the
 // exported CHED Form 3 to the LGU itself. An old LGU account still shows
 // in the list (it can't sign in) until it is removed.
 const ADMIN_ROLE_LABEL = { ...Object.fromEntries(ADMIN_ROLE_OPTIONS.map((r) => [r.key, r.label])), lgu: 'LGU (no longer used)' }
 const ADMIN_ROLE_PHRASE = {
-  admin: 'an Admin',
-  super_admin: 'a Super Admin',
+  admin: 'a Guidance Staff account',
+  guidance_head: 'the Guidance Head',
+  super_admin: 'a System Admin',
   registrar: 'the Office of the Registrar',
   lgu: 'an LGU (view only) account',
 }
@@ -5113,6 +5117,7 @@ function AdminAccountsPanel() {
   const roleOf = (a) => a.role_key || (a.is_super_admin ? 'super_admin' : 'admin')
   const superCount = accounts.filter((a) => roleOf(a) === 'super_admin').length
   const adminCount = accounts.filter((a) => roleOf(a) === 'admin').length
+  const headCount = accounts.filter((a) => roleOf(a) === 'guidance_head').length
   const registrarCount = accounts.filter((a) => roleOf(a) === 'registrar').length
   const waitingCount = accounts.filter((a) => pendingState(a)).length
   const confirmTone = confirmAction?.type === 'remove' ? 'danger' : 'primary'
@@ -5163,15 +5168,15 @@ function AdminAccountsPanel() {
       {!loading && !error && (
         <div className="cm-card cm-kpis">
           <div className="cm-kpi">
-            <span className="cm-kpi-label">Accounts</span>
-            <span className="cm-kpi-value">{accounts.length}</span>
-          </div>
-          <div className="cm-kpi">
-            <span className="cm-kpi-label">Super Admins</span>
+            <span className="cm-kpi-label">System Admins</span>
             <span className="cm-kpi-value">{superCount}</span>
           </div>
           <div className="cm-kpi">
-            <span className="cm-kpi-label">Admins</span>
+            <span className="cm-kpi-label">Guidance Head</span>
+            <span className="cm-kpi-value">{headCount}</span>
+          </div>
+          <div className="cm-kpi">
+            <span className="cm-kpi-label">Guidance Staff</span>
             <span className="cm-kpi-value">{adminCount}</span>
           </div>
           <div className="cm-kpi">
@@ -5284,7 +5289,8 @@ function AdminAccountsPanel() {
                         active: 'Signed in with their own password.',
                       }[status]
                       const onlyRegistrar = role === 'registrar' && registrarCount <= 1
-                      const removeOff = isSelf || onlyRegistrar
+                      const onlyHead = role === 'guidance_head' && headCount <= 1
+                      const removeOff = isSelf || onlyRegistrar || onlyHead
                       return (
                         <tr key={acc.email}>
                           <td>
@@ -5301,7 +5307,7 @@ function AdminAccountsPanel() {
                           </td>
                           <td>
                             <span className="aa-role-cell">
-                              <span className={`aa-chip ${role === 'super_admin' ? 'super' : role === 'admin' ? 'admin' : 'limited'}`}>
+                              <span className={`aa-chip ${role === 'super_admin' ? 'super' : role === 'admin' || role === 'guidance_head' ? 'admin' : 'limited'}`}>
                                 {ADMIN_ROLE_LABEL[role]}
                               </span>
                               {isLgu && <span className="aa-access">Can&apos;t sign in. Remove this account.</span>}
@@ -5338,7 +5344,9 @@ function AdminAccountsPanel() {
                                     ? 'You cannot remove your own account while signed in as it.'
                                     : onlyRegistrar
                                       ? 'This is the only Registrar account. Invite another Registrar account first.'
-                                      : 'Remove this account'
+                                      : onlyHead
+                                        ? 'This is the only Guidance Head account. Invite another Guidance Head first.'
+                                        : 'Remove this account'
                                 }
                               >
                                 <IconTrash />
@@ -5353,7 +5361,7 @@ function AdminAccountsPanel() {
                 </table>
               </div>
               <div className="aa-foot">
-                You can&apos;t reset or remove your own account, the last Super Admin, or the only Registrar account.{' '}
+                You can&apos;t reset or remove your own account, the last System Admin, the only Guidance Head, or the only Registrar account.{' '}
                 <b>Pending setup</b> means they haven&apos;t signed in to choose a password yet; <b>Invite expired</b> means use
                 Reset password to send a new one.
               </div>
@@ -6055,21 +6063,42 @@ function ArchiveCycleCard() {
   )
 }
 
-function SystemActivityPanel() {
+// Nov 2026 (panel revisions S8): the old "System & Activity" panel is split
+// by function. The Guidance Head owns the admission cycle; the System Admin
+// keeps the Activity Log (and Admin Accounts).
+function AdmissionCyclePanel() {
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
-          System &amp; Activity
+          Admission Cycle
         </h1>
         <p className="text-xs text-ccc-muted mt-0.5">
-          Application cycle controls, the end-of-cycle archive, and a running, auto-recorded timeline of system
-          activity: document uploads, manual overrides, and announcement posts.
+          Guidance Head only. Open or close applications, set the slots and acceptance dates, release exam results to
+          applicants, and archive the cycle when admissions are done. Guidance Staff decisions reach applicants only
+          when these switches allow it.
         </p>
       </div>
 
       <CycleSettingsCard />
       <ArchiveCycleCard />
+    </div>
+  )
+}
+
+function ActivityLogPanel() {
+  return (
+    <div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-extrabold tracking-tight text-ccc-navy" style={{ fontFamily: 'var(--font-montserrat)' }}>
+          Activity Log
+        </h1>
+        <p className="text-xs text-ccc-muted mt-0.5">
+          System Admin only. An automatic, read-only record of what happens in the system: sign-ins, account changes,
+          document uploads and overrides, cycle changes and announcements. Entries cannot be edited or deleted.
+        </p>
+      </div>
+
       <ActivityLogCard />
     </div>
   )
@@ -7052,7 +7081,7 @@ function RequestReviewDialog({ request: r, note, onNote, saving, onDecide, onClo
 
 // ---------- Page shell ----------
 
-const VALID_PANELS = ['dashboard', 'communications', 'reschedule', 'admins', 'system']
+const VALID_PANELS = ['dashboard', 'communications', 'reschedule', 'cycle']
 
 // ---------- Office of the Registrar console (Oct 5 2026) ----------
 // Progress Table row 78, Allowance Distribution Monitoring. Behavior from
@@ -7064,14 +7093,14 @@ const VALID_PANELS = ['dashboard', 'communications', 'reschedule', 'admins', 'sy
 
 const REGISTRAR_STAT_CARDS = DASHBOARD_STAT_CARDS
 
-function RegistrarDashboardPanel({ data, loading, error, onGoAllowance }) {
+function RegistrarDashboardPanel({ data, loading, error, onGoAllowance, who = 'The Registrar' }) {
   return (
     <div>
       <div className="portal-header">
         <div>
           <h1>Dashboard</h1>
           <p>
-            A summary of where applicants are this cycle. The Registrar can view these counts only. Applicant details stay
+            A summary of where applicants are this cycle. {who} can view these counts only. Applicant details stay
             with the Guidance Office.
           </p>
         </div>
@@ -7091,7 +7120,7 @@ function RegistrarDashboardPanel({ data, loading, error, onGoAllowance }) {
               </div>
             ))}
           </div>
-          <div className="cm-card ra-info">
+          {onGoAllowance && <div className="cm-card ra-info">
             <IconAlert className="w-4 h-4 shrink-0" />
             <span>
               To post an allowance, open{' '}
@@ -7100,7 +7129,7 @@ function RegistrarDashboardPanel({ data, loading, error, onGoAllowance }) {
               </button>
               . Scholars with a Passer or Qualified (Probationary) status are listed there.
             </span>
-          </div>
+          </div>}
         </>
       )}
     </div>
@@ -7666,9 +7695,15 @@ function ChedForm3Dialog({ onClose }) {
 // ---------- Limited consoles: shell (Oct 5 2026) ----------
 // Office of the Registrar accounts see this instead of the full console.
 // (Oct 15 2026: the LGU view-only console was removed.) Same header, sidebar look and log-out confirm.
+// Nov 2026 (panel revisions S8): the System Admin uses this shell too. It
+// runs the system (Admin Accounts, Activity Log) and sees Dashboard counts
+// only, never applicant details.
 function LimitedConsole({ session }) {
   const role = session.role
-  const [activePanel, setActivePanel] = useState('allowance')
+  const isSystemAdmin = role === 'super_admin'
+  const [activePanel, setActivePanel] = useState(isSystemAdmin ? 'dashboard' : 'allowance')
+  const [sysData, setSysData] = useState(null)
+  const [sysError, setSysError] = useState('')
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const [regData, setRegData] = useState(null)
@@ -7702,9 +7737,22 @@ function LimitedConsole({ session }) {
 
   useEffect(() => {
     if (role === 'registrar') loadRegistrar()
+    if (role === 'super_admin') {
+      fetch('/api/console-summary')
+        .then(async (res) => {
+          if (res.status === 401) {
+            window.location.href = '/admin/login'
+            return
+          }
+          const data = await res.json()
+          if (data.success) setSysData(data)
+          else setSysError(data.error || 'Could not load the summary.')
+        })
+        .catch((err) => setSysError(err.message))
+    }
   }, [role])
 
-  const sessionLabel = 'Registrar Session'
+  const sessionLabel = isSystemAdmin ? 'System Admin Session' : 'Registrar Session'
 
   return (
     <main className="admin-portal">
@@ -7767,6 +7815,11 @@ function LimitedConsole({ session }) {
           </div>
         )}
         <div className="portal-main">
+          {isSystemAdmin && activePanel === 'dashboard' && (
+            <RegistrarDashboardPanel data={sysData} loading={!sysData && !sysError} error={sysError} who="The System Admin" />
+          )}
+          {isSystemAdmin && activePanel === 'admins' && <AdminAccountsPanel />}
+          {isSystemAdmin && activePanel === 'system' && <ActivityLogPanel />}
           {role === 'registrar' && activePanel === 'dashboard' && (
             <RegistrarDashboardPanel data={regData} loading={regLoading && !regData} error={regError} onGoAllowance={() => setActivePanel('allowance')} />
           )}
@@ -7816,7 +7869,7 @@ function AdminRoleGate() {
       </main>
     )
   }
-  if (session.loggedIn && session.role === 'registrar') {
+  if (session.loggedIn && (session.role === 'registrar' || session.role === 'super_admin')) {
     return <LimitedConsole session={session} />
   }
   return <AdminPageInner />
@@ -7837,7 +7890,9 @@ function AdminPageInner() {
   const [eligibilityError, setEligibilityError] = useState('')
   const [recomputing, setRecomputing] = useState(false)
   const [adminName, setAdminName] = useState('')
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  // Nov 2026 (panel revisions S8): 'guidance_head' or 'admin' (Guidance Staff).
+  const [role, setRole] = useState('')
+  const isGuidanceHead = role === 'guidance_head'
   const [adminEmail, setAdminEmail] = useState('')
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -7878,7 +7933,7 @@ function AdminPageInner() {
       .then((data) => {
         if (data.loggedIn) {
           setAdminName(data.name)
-          setIsSuperAdmin(!!data.isSuperAdmin)
+          setRole(data.role || 'admin')
           setAdminEmail(data.email || '')
         }
       })
@@ -7932,10 +7987,10 @@ function AdminPageInner() {
   // Super-Admin-only panel (e.g. by an old bookmark) — bounce back to
   // Dashboard the moment the role is known.
   useEffect(() => {
-    if (!isSuperAdmin && (activePanel === 'admins' || activePanel === 'system')) {
+    if (role && !isGuidanceHead && activePanel === 'cycle') {
       setActivePanel('dashboard')
     }
-  }, [isSuperAdmin, activePanel])
+  }, [role, isGuidanceHead, activePanel])
 
   const handleLogout = async () => {
     await fetch('/api/admin-logout', { method: 'POST' })
@@ -8043,7 +8098,7 @@ function AdminPageInner() {
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
-            {isSuperAdmin ? 'Super Admin Session' : 'Admin Session'}
+            {isGuidanceHead ? 'Guidance Head Session' : 'Guidance Staff Session'}
           </span>
         }
         portalBadge="Admin Console"
@@ -8085,7 +8140,8 @@ function AdminPageInner() {
           onSelectPanel={setActivePanel}
           displayName={adminName}
           email={adminEmail}
-          isSuperAdmin={isSuperAdmin}
+          isSuperAdmin={false}
+          role={role || 'admin'}
           flaggedCount={totalFlagged}
           onLogout={() => setConfirmLogout(true)}
           portalLink
@@ -8149,8 +8205,7 @@ function AdminPageInner() {
           {activePanel === 'exams' && <ExamSchedulesPanel />}
           {activePanel === 'results' && <ResultsPanel />}
           {activePanel === 'analytics' && <AnalyticsPanel />}
-          {activePanel === 'admins' && isSuperAdmin && <AdminAccountsPanel />}
-          {activePanel === 'system' && isSuperAdmin && <SystemActivityPanel />}
+          {activePanel === 'cycle' && isGuidanceHead && <AdmissionCyclePanel />}
         </div>
       </div>
     </main>

@@ -192,15 +192,29 @@ const REGISTRAR_GROUPS = [
 ]
 // Oct 15 2026: the LGU (view only) role and its "Released reports" item
 // were removed (client interview, Oct 15).
-const ROLE_TEXT = { super_admin: 'Super Admin', admin: 'Admin', registrar: 'Registrar' }
+// Nov 2026 (panel revisions S8): roles by function, not by rank.
+const ROLE_TEXT = { super_admin: 'System Admin', guidance_head: 'Guidance Head', admin: 'Guidance Staff', registrar: 'Registrar' }
 
-const SUPER_ADMIN_GROUP = {
-  section: 'Super Admin',
+// System Admin: runs the system (accounts, logs). No applicant tabs; its
+// Dashboard shows counts only.
+const SYSTEM_ADMIN_GROUPS = [
+  { section: 'Overview', labelIcon: <IconOverview />, items: [{ key: 'dashboard', label: 'Dashboard', icon: <IconDashboard /> }] },
+  {
+    section: 'System Administration',
+    labelIcon: <IconSuperAdmin />,
+    items: [
+      { key: 'admins', label: 'Admin Accounts', icon: <IconAccounts /> },
+      { key: 'system', label: 'Activity Log', icon: <IconRequests /> },
+    ],
+  },
+]
+
+// Guidance Head: owns the admission cycle (open/close, slots and dates,
+// result release, end-of-cycle archive), on top of the Guidance Staff tabs.
+const GUIDANCE_HEAD_GROUP = {
+  section: 'Guidance Head',
   labelIcon: <IconSuperAdmin />,
-  items: [
-    { key: 'admins', label: 'Admin Accounts', icon: <IconAccounts /> },
-    { key: 'system', label: 'System & Activity', icon: <IconSettings /> },
-  ],
+  items: [{ key: 'cycle', label: 'Admission Cycle', icon: <IconSettings /> }],
 }
 
 function NavButton({ item, active, onSelect, flaggedCount }) {
@@ -243,10 +257,12 @@ export default function AdminSidebar({
   const groups =
     role === 'registrar'
       ? REGISTRAR_GROUPS
-      : isSuperAdmin
-        ? [...NAV_GROUPS, SUPER_ADMIN_GROUP]
-        : NAV_GROUPS
-  const roleText = ROLE_TEXT[role] || (isSuperAdmin ? 'Super Admin' : 'Admin')
+      : role === 'super_admin' || isSuperAdmin
+        ? SYSTEM_ADMIN_GROUPS
+        : role === 'guidance_head'
+          ? [...NAV_GROUPS, GUIDANCE_HEAD_GROUP]
+          : NAV_GROUPS
+  const roleText = ROLE_TEXT[role] || (isSuperAdmin ? 'System Admin' : 'Guidance Staff')
   const initials = (displayName || 'A')
     .trim()
     .split(/\s+/)

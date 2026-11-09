@@ -29,7 +29,7 @@ function cleanReference(value) {
 
 export async function GET(request) {
   try {
-    const { session, response } = await requireConsoleRole(request, ['admin', 'super_admin'])
+    const { session, response } = await requireConsoleRole(request, ['admin', 'guidance_head'])
     if (!session) return response
 
     const { rows, counts, leftOut } = await buildForm3Rows()
@@ -41,7 +41,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const { session, response } = await requireConsoleRole(request, ['admin', 'super_admin'])
+    const { session, response } = await requireConsoleRole(request, ['admin', 'guidance_head'])
     if (!session) return response
 
     const body = await request.json().catch(() => ({}))
