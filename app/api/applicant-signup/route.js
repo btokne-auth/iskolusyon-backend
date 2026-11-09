@@ -5,11 +5,12 @@ import {
   sendVerificationCode,
   verifySignupCode,
 } from '@/app/lib/applicantAccounts'
-import { APPLICANT_COOKIE_NAME, createApplicantCookieValue } from '@/app/lib/applicantAuth'
 import { serverError } from '@/app/lib/safeError'
+import { supabase } from '@/app/supabaseClient'
 import { MINUTE, getClientIp, limitRequest } from '@/app/lib/rateLimit'
 import { logApplicantActivity, applicantLabel } from '@/app/lib/activityLog'
 import { validatePersonalInfo, errorSummary } from '@/app/lib/fieldValidation'
+import { claimPassedCheck, getCheckStatus, isValidTokenShape } from '@/app/lib/signupResidencyCheck'
 
 // One endpoint, four actions — mirrors the action-in-body pattern already
 // used by /api/application (save vs submit) rather than spawning four
@@ -30,8 +31,18 @@ export async function POST(request) {
       const limited = await limitRequest(`signup-start:ip:${getClientIp(request)}`, 10, 60 * MINUTE,
         'Too many sign-ups from this network. Please try again later.')
       if (limited) return limited
+      // Nov 2026 (panel revisions S3/S4): no account without a passed
+      // residency check (a Voter's ID or Certification read as a COMELEC
+      // record with a Calamba address). Checked here on the server too.
+      const token = String(body.residencyToken || '')
+      const check = isValidTokenShape(token) ? await getCheckStatus(token) : { status: 'none' }
+      if (check.status !== 'passed') {
+        return NextResponse.json({ error: 'Please complete the residency check (Voter\'s ID) first.', residency: true }, { status: 400 })
+      }
       const result = await startSignup(body.email, body.password)
       if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
+      const claimed = await claimPassedCheck(token, { accountId: result.accountId, email: String(body.email || '').trim().toLowerCase() })
+      if (claimed.error) return NextResponse.json({ error: claimed.error, residency: true }, { status: 400 })
       return NextResponse.json({ success: true, accountId: result.accountId })
     }
 
@@ -78,21 +89,20 @@ export async function POST(request) {
       const result = await verifySignupCode(body.accountId, body.code)
       if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
       await logApplicantActivity(applicantLabel(result.displayName, result.account.email), 'New applicant account created (email verified)')
+      // Nov 2026: the Voter's ID checked before the account existed gets the
+      // applicant's name now that it is known.
+      try {
+        await supabase.from('documents').update({ applicant_name: result.displayName })
+          .eq('applicant_user_id', result.account.id).is('applicant_name', null)
+      } catch (nameErr) {
+        console.error('Could not name the sign-up Voter\'s ID (non-blocking):', nameErr)
+      }
 
-      const { value, maxAge } = await createApplicantCookieValue(
-        result.account.id,
-        result.account.email,
-        result.displayName
-      )
-      const res = NextResponse.json({ success: true, name: result.displayName, email: result.account.email })
-      res.cookies.set(APPLICANT_COOKIE_NAME, value, {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-        path: '/',
-        maxAge,
-      })
-      return res
+      // Nov 2026 (panel revision S4): no session here any more. The new
+      // applicant signs in once with email, password and a login code (the
+      // same two-step sign-in as every later visit), which confirms a real
+      // person who knows the password and owns the inbox.
+      return NextResponse.json({ success: true, name: result.displayName, email: result.account.email })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
