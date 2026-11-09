@@ -121,7 +121,7 @@ export async function POST(request) {
     // applicants, or the message would sit invisible in their portal.
     if (!(await resultsVisible())) {
       return NextResponse.json(
-        { error: 'Turn on "Exam Results Visible to Applicants" in System & Activity first.', resultsHidden: true },
+        { error: 'The Guidance Head needs to turn on "Exam Results Visible to Applicants" in Admission Cycle first.', resultsHidden: true },
         { status: 409 }
       )
     }

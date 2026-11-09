@@ -109,7 +109,7 @@ export async function POST(request) {
 
     if (!(await resultsVisible())) {
       return NextResponse.json(
-        { error: 'Turn on "Exam Results Visible to Applicants" in System & Activity first.', resultsHidden: true },
+        { error: 'The Guidance Head needs to turn on "Exam Results Visible to Applicants" in Admission Cycle first.', resultsHidden: true },
         { status: 409 }
       )
     }

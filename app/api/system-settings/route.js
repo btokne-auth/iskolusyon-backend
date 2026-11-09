@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
-import { ADMIN_COOKIE_NAME, verifyAdminCookieFull } from '@/app/lib/adminAuth'
+import { requireConsoleRole } from '@/app/lib/adminRoles'
 import { getSystemSettings, updateSystemSettings } from '@/app/lib/systemSettings'
 import { serverError } from '@/app/lib/safeError'
 
-// Backs the Application Cycle Settings card. Super Admin only, same as
-// the rest of the System & Activity panel.
+// Backs the Application Cycle Settings card.
+// Nov 2026 (panel revisions S8): Guidance Head only. Opening/closing
+// applications, slots, dates and result release belong to the unit that
+// runs admissions, not to the System Admin.
 export async function GET(request) {
   try {
-    const cookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value
-    const session = await verifyAdminCookieFull(cookie)
-    if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
-    if (!session.isSuperAdmin) return NextResponse.json({ error: 'Super Admin access required.' }, { status: 403 })
+    const { session, response } = await requireConsoleRole(request, ['guidance_head'])
+    if (!session) return response
 
     const settings = await getSystemSettings()
     return NextResponse.json({ success: true, settings })
@@ -22,10 +22,8 @@ export async function GET(request) {
 
 export async function PATCH(request) {
   try {
-    const cookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value
-    const session = await verifyAdminCookieFull(cookie)
-    if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
-    if (!session.isSuperAdmin) return NextResponse.json({ error: 'Super Admin access required.' }, { status: 403 })
+    const { session, response } = await requireConsoleRole(request, ['guidance_head'])
+    if (!session) return response
 
     const patch = await request.json()
     if (patch.applicant_slots != null && (!Number.isFinite(Number(patch.applicant_slots)) || Number(patch.applicant_slots) < 0)) {

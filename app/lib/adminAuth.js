@@ -104,12 +104,14 @@ async function hmacHex(message, secret) {
 // routes built for the limited roles use verifyAnyAdminCookie() plus
 // app/lib/adminRoles.js instead.
 export const LIMITED_ROLES = new Set(['registrar', 'lgu'])
+// Nov 2026 (panel revisions S8): the Guidance Head carries `r` too.
+const ROLE_IN_PAYLOAD = new Set(['registrar', 'lgu', 'guidance_head'])
 
 export async function createAdminCookieValue(name, isSuperAdmin, email, role) {
   const secret = getSecret()
   const now = nowSeconds()
   const payload = { n: name, s: !!isSuperAdmin, e: email, iat: now, la: now }
-  if (LIMITED_ROLES.has(role)) {
+  if (ROLE_IN_PAYLOAD.has(role)) {
     payload.s = false
     payload.r = role
   }
@@ -163,11 +165,19 @@ export async function refreshAdminCookieValue(cookieValue) {
 // null if the cookie is missing, malformed, tampered, or from before the
 // Sept 18 (role) / Sept 22 (email) payload-format changes.
 // Oct 5 2026: also null for a Registrar or LGU session (see LIMITED_ROLES).
+//
+// Nov 2026 (panel revisions S8): this is now the check for the GUIDANCE
+// side, i.e. the routes that handle applicants. Only Guidance Staff
+// ('admin') and the Guidance Head pass. The System Admin is refused here on
+// purpose: it runs the system, not admissions (least privilege), so every
+// applicant route closes to it without each route needing a new rule.
 export async function verifyAdminCookieFull(cookieValue) {
   const payload = await readSignedPayload(cookieValue)
   if (!payload) return null
-  if (payload.r !== undefined) return null
-  return { name: payload.n, isSuperAdmin: !!payload.s, email: payload.e }
+  if (payload.s) return null
+  if (payload.r !== undefined && payload.r !== 'guidance_head') return null
+  const role = payload.r || 'admin'
+  return { name: payload.n, isSuperAdmin: false, isGuidanceHead: role === 'guidance_head', email: payload.e, role }
 }
 
 // Oct 5 2026: any signed-in console account, including the limited roles.
@@ -176,7 +186,7 @@ export async function verifyAdminCookieFull(cookieValue) {
 export async function verifyAnyAdminCookie(cookieValue) {
   const payload = await readSignedPayload(cookieValue)
   if (!payload) return null
-  if (payload.r !== undefined && !LIMITED_ROLES.has(payload.r)) return null
+  if (payload.r !== undefined && !ROLE_IN_PAYLOAD.has(payload.r)) return null
   const role = payload.r || (payload.s ? 'super_admin' : 'admin')
   return { name: payload.n, isSuperAdmin: role === 'super_admin', email: payload.e, role }
 }

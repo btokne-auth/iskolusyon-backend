@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
-import { ADMIN_COOKIE_NAME, verifyAdminCookieFull } from '@/app/lib/adminAuth'
+import { requireConsoleRole } from '@/app/lib/adminRoles'
 import { serverError } from '@/app/lib/safeError'
 
 // Sept 22 2026: category and read/unread filters added, matching the
@@ -14,10 +14,9 @@ import { serverError } from '@/app/lib/safeError'
 // /api/system-settings).
 export async function GET(request) {
   try {
-    const cookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value
-    const session = await verifyAdminCookieFull(cookie)
-    if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
-    if (!session.isSuperAdmin) return NextResponse.json({ error: 'Super Admin access required.' }, { status: 403 })
+    // Nov 2026 (panel revisions S8): System Admin only.
+    const { session, response } = await requireConsoleRole(request, ['super_admin'])
+    if (!session) return response
 
     const { searchParams } = new URL(request.url)
     const category = searchParams.get('category')
@@ -42,9 +41,8 @@ export async function GET(request) {
 // else that writes to this table.
 export async function PATCH(request) {
   try {
-    const cookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value
-    const session = await verifyAdminCookieFull(cookie)
-    if (!session) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
+    const { session, response } = await requireConsoleRole(request, ['super_admin'])
+    if (!session) return response
 
     const { error } = await supabase.from('audit_log').update({ read: true }).eq('read', false)
     if (error) return serverError(error, 'api/audit-log')

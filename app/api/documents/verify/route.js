@@ -41,7 +41,7 @@ async function selectDocs(build) {
 
 export async function POST(request) {
   try {
-    const { session, response } = await requireConsoleRole(request, ['admin', 'super_admin'])
+    const { session, response } = await requireConsoleRole(request, ['admin', 'guidance_head'])
     if (response) return response
 
     const limited = await limitRequest(`doc-verify:${session.email}`, 120, 10 * MINUTE)

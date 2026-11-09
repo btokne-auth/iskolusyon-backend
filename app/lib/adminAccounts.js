@@ -44,20 +44,35 @@ const ACCOUNT_COLUMNS =
 // exports CHED Form 3 and sends the file to the LGU itself. 'lgu' stays a
 // known value only so an old LGU row is still recognized (and refused at
 // sign-in) until it is removed from Admin Accounts. It can't be invited.
-export const ROLE_KEYS = ['admin', 'super_admin', 'registrar']
+//
+// Nov 2026 (panel revisions S8, final defense Oct 20-23): roles are defined
+// by function, not by rank.
+//   super_admin   -> shown as "System Admin". Runs the system: admin
+//                    accounts, the Activity Log, a counts-only Dashboard.
+//                    Does NOT handle applicants (least privilege, Data
+//                    Privacy Act). The key stays 'super_admin' so existing
+//                    accounts (is_super_admin) carry over with no data change.
+//   guidance_head -> "Guidance Head" (unit admin). Owns the admission cycle:
+//                    everything Guidance Staff does, plus Applications Open,
+//                    slots and dates, result release, and the archive.
+//   admin         -> shown as "Guidance Staff". Processes applicants.
+//   registrar     -> "Office of the Registrar" (unit admin). Allowances.
+// Needs docs/migrations/2026-11-09-role-hierarchy.sql (adds guidance_head).
+export const ROLE_KEYS = ['admin', 'guidance_head', 'super_admin', 'registrar']
 export const ROLE_LABELS = {
-  admin: 'Admin',
-  super_admin: 'Super Admin',
+  admin: 'Guidance Staff',
+  guidance_head: 'Guidance Head',
+  super_admin: 'System Admin',
   registrar: 'Office of the Registrar',
   lgu: 'LGU (no longer used)',
 }
 
-// is_super_admin stays the source of truth for Super Admins (older code and
+// is_super_admin stays the source of truth for System Admins (older code and
 // the seed script only set that column).
 export function effectiveRole(row) {
   if (!row) return null
   if (row.is_super_admin) return 'super_admin'
-  if (row.role === 'registrar' || row.role === 'lgu') return row.role
+  if (row.role === 'registrar' || row.role === 'lgu' || row.role === 'guidance_head') return row.role
   return 'admin'
 }
 

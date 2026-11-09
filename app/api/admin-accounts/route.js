@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
-import { ADMIN_COOKIE_NAME, verifyAdminCookieFull } from '@/app/lib/adminAuth'
+import { requireConsoleRole } from '@/app/lib/adminRoles'
 import {
   listAdminAccounts,
   countSuperAdmins,
@@ -29,14 +29,9 @@ import { serverError } from '@/app/lib/safeError'
 // and the admin must choose their own on first sign-in. Resend sends from
 // the verified iskolusyon.dev domain, so invites reach any inbox.
 
+// Nov 2026 (panel revisions S8): managing accounts is the System Admin's job.
 async function requireSuperAdmin(request) {
-  const cookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value
-  const session = await verifyAdminCookieFull(cookie)
-  if (!session) return { response: NextResponse.json({ error: 'Not signed in.' }, { status: 401 }) }
-  if (!session.isSuperAdmin) {
-    return { response: NextResponse.json({ error: 'Super Admin access required.' }, { status: 403 }) }
-  }
-  return { session }
+  return requireConsoleRole(request, ['super_admin'])
 }
 
 // The Super Admin's own password, re-entered in the confirm pop-up.
@@ -79,10 +74,11 @@ function withRole(row) {
 }
 
 function roleLabelWithArticle(role) {
-  if (role === 'admin') return 'an Admin'
+  if (role === 'admin') return 'a Guidance Staff account'
+  if (role === 'guidance_head') return 'the Guidance Head'
   if (role === 'lgu') return 'an LGU (view only) account'
   if (role === 'registrar') return 'the Office of the Registrar'
-  return 'a Super Admin'
+  return 'a System Admin'
 }
 
 // Roster. Never returns password hashes.
@@ -264,7 +260,19 @@ export async function DELETE(request) {
       const superAdminCount = await countSuperAdmins()
       if (superAdminCount <= 1) {
         return NextResponse.json(
-          { error: 'This is the last Super Admin account. Promote another admin to Super Admin before removing this one.' },
+          { error: 'This is the last System Admin account. Invite another System Admin before removing this one.' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Nov 2026: keep at least one Guidance Head, or nobody could open/close
+    // applications or release results.
+    if (effectiveRole(target) === 'guidance_head') {
+      const headCount = await countRole('guidance_head')
+      if (headCount <= 1) {
+        return NextResponse.json(
+          { error: 'This is the only Guidance Head account. Invite another Guidance Head before removing this one.' },
           { status: 400 }
         )
       }

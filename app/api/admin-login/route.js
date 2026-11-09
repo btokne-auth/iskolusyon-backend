@@ -217,7 +217,7 @@ export async function POST(request) {
     if (account.mustChangePassword) {
       if (account.tempExpired) {
         return NextResponse.json(
-          { error: 'Your temporary password has expired. Ask a Super Admin to send you a new one.' },
+          { error: 'Your temporary password has expired. Ask a System Admin to send you a new one.' },
           { status: 401 }
         )
       }

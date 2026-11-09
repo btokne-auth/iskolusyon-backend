@@ -374,7 +374,7 @@ function AdminLoginForm() {
             Console sessions always end after 8 hours or 30 idle minutes, and
             every sign-in needs an emailed code, so it was never going to work. */}
         <div className="al-row" style={{ justifyContent: 'flex-end' }}>
-          <span className="al-forgot">Forgot your password? Ask a Super Admin.</span>
+          <span className="al-forgot">Forgot your password? Ask a System Admin.</span>
         </div>
         <button type="submit" disabled={loading} className="al-submit">
           {loading ? 'Checking...' : 'Continue'}

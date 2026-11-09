@@ -23,8 +23,9 @@ function escapeHtml(text) {
 // Oct 5 2026: role can also be 'registrar' or 'lgu'. LGU invites mention
 // what the account is for and its access dates.
 const ROLE_PHRASE = {
-  super_admin: 'a Super Admin',
-  admin: 'an Admin',
+  super_admin: 'a System Admin',
+  guidance_head: 'the Guidance Head',
+  admin: 'Guidance Staff',
   registrar: 'the Office of the Registrar',
   lgu: 'a view-only LGU account',
 }
@@ -61,7 +62,7 @@ export async function sendAdminTempPasswordEmail({ kind, name, email, role, acce
           Sign in at <a href="${escapeHtml(loginUrl)}">${escapeHtml(loginUrl)}</a> using this email address.
           You'll be asked to choose your own password right away.
         </p>
-        <p>This temporary password stops working in ${TEMP_PASSWORD_DAYS} days. If it expires, ask a Super Admin to send a new one.</p>
+        <p>This temporary password stops working in ${TEMP_PASSWORD_DAYS} days. If it expires, ask a System Admin to send a new one.</p>
         <p>If you weren't expecting this email, you can ignore it.</p>
         <p>City College of Calamba, Iskolusyon Scholarship System</p>
       `,
@@ -86,7 +87,7 @@ export async function sendAdminLoginCodeEmail({ name, email, code, minutes }) {
         <p>Your sign-in code for the Iskolusyon Admin Console is:</p>
         <p style="font-size:28px;font-weight:800;letter-spacing:4px;">${escapeHtml(code)}</p>
         <p>This code expires in ${minutes} minutes and works only once.</p>
-        <p>If you didn't just try to sign in, someone may know your password. Sign in and ask a Super Admin to reset it.</p>
+        <p>If you didn't just try to sign in, someone may know your password. Sign in and ask a System Admin to reset it.</p>
         <p>City College of Calamba, Iskolusyon Scholarship System</p>
       `,
     })

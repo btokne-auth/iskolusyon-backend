@@ -111,7 +111,7 @@ async function archivedCycles() {
 
 export async function GET(request) {
   try {
-    const { session, response } = await requireConsoleRole(request, ['super_admin'])
+    const { session, response } = await requireConsoleRole(request, ['guidance_head'])
     if (!session) return response
 
     const cycle = new URL(request.url).searchParams.get('cycle')
@@ -135,7 +135,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const { session, response } = await requireConsoleRole(request, ['super_admin'])
+    const { session, response } = await requireConsoleRole(request, ['guidance_head'])
     if (!session) return response
 
     const body = await request.json().catch(() => ({}))
