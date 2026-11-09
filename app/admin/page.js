@@ -2265,7 +2265,7 @@ function DashboardPanel({
         <div>
           <h1>Dashboard</h1>
           <p>
-            A summary of applicant statuses across the scholarship pipeline. Available to all types of Admins.
+            A summary of applicant statuses across the scholarship pipeline, for the Guidance Head and Guidance Staff.
           </p>
         </div>
         <span className="cf-header-actions">

@@ -5,6 +5,7 @@ import { DATE_RE, manilaToday, formatAccessDate } from '@/app/lib/adminAccounts'
 import { sendResultEmail } from '@/app/lib/resultNotices'
 import { resultsVisible } from '@/app/lib/resultVisibility'
 import { serverError } from '@/app/lib/safeError'
+import { dashboardCounts } from '@/app/lib/dashboardCounts'
 
 // Oct 5 2026: Allowance Distribution (Progress Table row 78), Office of the
 // Registrar only. Behavior follows Ivy's admin.html Registrar panel (Student
@@ -47,20 +48,10 @@ export async function GET(request) {
 
     // Dashboard counts: the same six cards the Admin Dashboard shows,
     // view-only for the Registrar.
-    const counts = { all: 0, incomplete: 0, qualified: 0, not_qualified: 0, waitlisted: 0, appealed: 0 }
-    for (const app of apps || []) {
-      counts.all += 1
-      const status = app.eligibility_override || app.eligibility_status || 'incomplete'
-      if (status in counts) counts[status] += 1
-    }
+    // Nov 2026: same counting rule as the Guidance Dashboard (after-exam
+    // status first); see app/lib/dashboardCounts.js.
     const { data: requests } = await supabase.from('reschedule_requests').select('request_type, applicant_user_id, applicant_email, applicant_name')
-    const activeUsers = new Set((apps || []).map((app) => app.applicant_user_id).filter(Boolean))
-    counts.appealed = new Set(
-      (requests || [])
-        .filter((r) => (r.request_type || '').startsWith('Appeal'))
-        .filter((r) => !r.applicant_user_id || activeUsers.has(r.applicant_user_id))
-        .map((r) => r.applicant_user_id || r.applicant_email || r.applicant_name)
-    ).size
+    const counts = dashboardCounts(apps, requests)
 
     // Scholars: Passer or Qualified (Probationary) whose result was already
     // sent to them (so an allowance never reveals a result early).
