@@ -7,7 +7,7 @@
   --text: #2C3E50; --muted: #5A6B85; --line: #E0E6F0; --soft: #F1F4FA; --r: 12px; --r2: 20px;
   --mont: var(--font-montserrat), 'Montserrat', system-ui, sans-serif;
   --sans: var(--font-open-sans), 'Open Sans', system-ui, sans-serif;
-  background: #fff; color: var(--text); font-family: var(--sans); overflow-x: hidden;
+  background: #fff; color: var(--text); font-family: var(--sans); overflow-x: clip; /* clip, not hidden: hidden stops the sticky header */
 }
 .lp *, .lp *::before, .lp *::after { box-sizing: border-box; }
 .lp a { color: var(--blue); text-decoration: none; }
@@ -49,6 +49,15 @@
 .lp .hero-sub { margin: 0; font-size: 18px; line-height: 1.65; color: var(--muted); max-width: 520px; }
 .lp .hero-btns { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
 .lp .rise { animation: lp-rise .8s cubic-bezier(.2,.7,.2,1) var(--d, 0s) both; }
+.lp .resnote { max-width: 540px; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; }
+.lp .resnote-kick { font-size: 11.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--green); }
+.lp .resnote-title { margin: 0; font-family: var(--mont); font-size: 17px; font-weight: 800; color: var(--navy); }
+.lp .resnote-main { margin: 0; font-size: 14px; line-height: 1.6; color: var(--muted); }
+.lp .resnote-main strong { color: var(--navy); font-weight: 700; }
+.lp .resnote-facts { list-style: none; margin: 10px 0 0; padding: 12px 0 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; }
+.lp .resnote-facts li { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--text); line-height: 1.4; }
+.lp .resnote-facts svg { color: var(--green); flex-shrink: 0; margin-top: 2px; }
+@media (max-width: 520px) { .lp .resnote-facts { grid-template-columns: 1fr; } }
 .lp .stats { display: flex; gap: 44px; margin-top: 18px; padding-top: 26px; border-top: 1px solid var(--line); }
 .lp .stat { display: flex; flex-direction: column; gap: 6px; min-width: 120px; }
 .lp .num { font-family: var(--mont); font-weight: 900; font-size: 72px; line-height: 1; color: var(--navy); letter-spacing: -2px; font-variant-numeric: tabular-nums; display: block; transform-origin: left bottom; }
