@@ -91,7 +91,7 @@ export const STEP_GUIDES = [
           "Prepare the documents for your applicant type: First Year, Transferee, or Old Curriculum and ALS. See **Admission Requirements** below.",
           "Scan or photograph each one clearly. Accepted files are **PDF, JPG or PNG**, up to **10 MB** each.",
           "Upload each file in its labeled slot.",
-          "The system reads each document. Its status shows **Processing**, then **Verified** or **Needs review**.",
+          "The system reads each document and checks it. Its status shows **Processing**, then **System check passed** or **Needs review**. It becomes **Verified** once the Guidance Office confirms it.",
           "If a document needs review, upload a clearer copy with **Change**.",
           "When every section is complete, click **Submit your application**."
         ]
@@ -285,7 +285,7 @@ export const FAQ_DATA = [
           },
           {
             "q": "What happens after passing the exam?",
-            "a": "Passers are qualified as students of the City College and are issued a recommendation to take their medical exam, which is required before official enrollment. They become scholars once enrolled."
+            "a": "Applicants who pass the entrance exam are qualified as students of the City College and are issued a recommendation to take their medical exam, which is required before official enrollment. They become scholars once enrolled."
           }
         ]
       }

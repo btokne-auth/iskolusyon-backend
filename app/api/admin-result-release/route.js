@@ -22,7 +22,7 @@ import { serverError } from '@/app/lib/safeError'
 // POST { id, subject, message, resend? }
 
 const STATUS_LABELS = {
-  passer: 'Passer',
+  passer: 'Qualified as a Student',
   waitlisted_probationary: 'Waitlisted (Probationary)',
   qualified_probationary: 'Qualified (Probationary)',
   forfeited: 'Forfeited',

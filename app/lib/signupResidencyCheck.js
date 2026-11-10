@@ -84,6 +84,22 @@ export function findBarangay(text) {
   return ''
 }
 
+// Nov 2026: certificates often write the address inside a sentence ("is a
+// registered voter of Blk 3 Lot 9 Sampaguita St., Barangay Parian, City of
+// Calamba, Laguna, with Precinct No. 0521B") instead of on labeled lines,
+// so the OCR worker leaves the address / precinct fields empty. These read
+// them from the text itself. The applicant still checks and can edit both.
+export function addressFromText(text) {
+  const flat = String(text || '').replace(/\s+/g, ' ')
+  const m = flat.match(/(?:registered voter of|resident of|residing at|address\s*:?)\s*(.+?(?:calamba)[^,.]*)/i)
+  return m ? m[1].trim() : ''
+}
+
+export function precinctFromText(text) {
+  const m = String(text || '').replace(/\s+/g, ' ').match(/precinct\s*(?:no\.?|number|#)?\s*:?\s*([0-9]{3,4}\s?[A-Z]?)\b/i)
+  return m ? m[1].replace(/\s+/g, '').toUpperCase() : ''
+}
+
 // "Blk 5 Lot 12 Mabini St., Brgy. Real, Calamba City, Laguna" -> "Blk 5 Lot 12 Mabini St."
 export function streetPart(address) {
   const v = String(address || '').trim()
@@ -133,13 +149,14 @@ export async function getCheckStatus(token) {
   }
 
   const fields = await readFields(doc.file_path)
-  const sourceText = fields.address || doc.extracted_text
+  const address = fields.address || addressFromText(doc.extracted_text)
+  const sourceText = address || doc.extracted_text
   return {
     status: 'passed',
     prefill: {
-      street: streetPart(fields.address),
+      street: streetPart(address),
       barangay: findBarangay(sourceText),
-      voterPrecinct: fields.voter_precinct || '',
+      voterPrecinct: fields.voter_precinct || precinctFromText(doc.extracted_text),
     },
   }
 }

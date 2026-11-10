@@ -22,7 +22,7 @@ import { dashboardCounts } from '@/app/lib/dashboardCounts'
 // DELETE { id }
 
 const SCHOLAR_STATUSES = ['passer', 'qualified_probationary']
-const STATUS_LABEL = { passer: 'Passer', qualified_probationary: 'Qualified (Probationary)' }
+const STATUS_LABEL = { passer: 'Qualified as a Student', qualified_probationary: 'Qualified (Probationary)' }
 const TYPES = ['Wi-Fi', 'Other']
 
 async function logAudit(actor, action, kind) {
@@ -131,7 +131,7 @@ export async function POST(request) {
     if (appError) return serverError(appError, 'api/registrar-allowance')
     if (!app || app.archived_at) return NextResponse.json({ error: 'That scholar could not be found.' }, { status: 404 })
     if (!SCHOLAR_STATUSES.includes(app.scholar_status)) {
-      return NextResponse.json({ error: 'Only Passer and Qualified (Probationary) scholars can receive an allowance.' }, { status: 400 })
+      return NextResponse.json({ error: 'Only students Qualified as a Student (regular or Probationary) can receive an allowance.' }, { status: 400 })
     }
     if (!app.result_notified_at || !(await resultsVisible())) {
       return NextResponse.json({ error: "This scholar's result hasn't been released to them yet." }, { status: 409 })

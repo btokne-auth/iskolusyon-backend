@@ -39,7 +39,7 @@ async function loadApplication(id) {
 
 function notReady(app) {
   if (!['passer', 'qualified_probationary'].includes(app.scholar_status)) {
-    return 'Endorsements are only for Passers and Qualified (Probationary) applicants.'
+    return 'Endorsements are only for applicants Qualified as a Student (regular or Probationary).'
   }
   if (!app.result_notified_at) return 'Send the applicant their result first.'
   if (!ENDORSEMENT_STEPS.has(app.distribution_status)) {

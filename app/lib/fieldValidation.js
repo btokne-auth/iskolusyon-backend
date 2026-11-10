@@ -148,7 +148,7 @@ export function earliestBirthdate(maxAge, now = new Date()) {
   return d.toISOString().slice(0, 10)
 }
 
-function ageOn(dateStr, today = new Date()) {
+export function ageOn(dateStr, today = new Date()) {
   const parsed = parseDate(dateStr)
   if (!parsed) return null
   const { y, mo, d } = parsed

@@ -134,7 +134,9 @@ export const VERIFIED_PREFIX = 'verified:'
 export function documentTypeTokens(doc) {
   const type = doc?.document_type
   if (!type) return []
-  const verified = !doc.needs_review && doc.review_status !== 'processing'
+  // Nov 2026 (panel revisions S2): passing the OCR / content check is not
+  // enough any more; a staff member has to confirm it (app/lib/documentState.js).
+  const verified = !doc.needs_review && doc.review_status !== 'processing' && !!doc.staff_confirmed_at
   return verified ? [type, `${VERIFIED_PREFIX}${type}`] : [type]
 }
 

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, createContext, useContext } from 'react'
+import { docState } from '../lib/documentState'
 import { useRouter } from 'next/navigation'
 import '../portal-theme.css'
 import SiteHeader from '../components/SiteHeader'
@@ -10,7 +11,7 @@ import LoadingScreen from '../components/LoadingScreen'
 import { Skeleton, SkeletonRows, SkeletonList, SkeletonText } from '../components/Skeleton'
 import { DOCUMENT_TYPE_OPTIONS, getDocTypeLabel } from '../lib/documentTypes'
 import { BSED_MATH_SCIENCE_PROGRAMS } from '../lib/matching'
-import { formatMobileInput, withCalambaCity, toDateInputValue, latestBirthdate, earliestBirthdate, MIN_APPLICANT_AGE, MAX_APPLICANT_AGE, validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '../lib/fieldValidation'
+import { formatMobileInput, withCalambaCity, toDateInputValue, ageOn, latestBirthdate, earliestBirthdate, MIN_APPLICANT_AGE, MAX_APPLICANT_AGE, validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '../lib/fieldValidation'
 import {
   saveDraftLocal,
   loadDraftLocal,
@@ -375,7 +376,9 @@ function buildActivityLog({ myDocs, personalSubmittedAt, academicSubmittedAt, he
         ? { date: doc.created_at, dot: 'warn', title: `${label} needs review`, body: 'Needs your attention. See Document Verification Status above.', status: 'review' }
         : doc.review_status === 'processing'
           ? { date: doc.created_at, dot: 'info', title: `${label} uploaded`, body: 'We are reading it now. This updates by itself.', status: 'processing' }
-          : { date: doc.created_at, dot: 'done', title: `${label} uploaded`, body: 'Received and on file.', status: 'verified' }
+          : docState(doc) === 'checked'
+            ? { date: doc.created_at, dot: 'done', title: `${label} uploaded`, body: 'Passed the system check. Waiting for the Guidance Office to confirm it.', status: 'checked' }
+            : { date: doc.created_at, dot: 'done', title: `${label} verified`, body: 'Confirmed by the Guidance Office.', status: 'verified' }
     )
   })
 
@@ -425,6 +428,7 @@ function buildActivityLog({ myDocs, personalSubmittedAt, academicSubmittedAt, he
 const LOG_ICON = { done: '\u2713', warn: '!', info: '\u2026', section: '\u2713', submit: '\u2605' }
 const LOG_STATUS = {
   verified: { label: 'Verified', cls: 'is-good' },
+  checked: { label: 'System check passed', cls: 'is-info' },
   processing: { label: 'Processing', cls: 'is-info' },
   review: { label: 'Needs review', cls: 'is-warn' },
 }
@@ -692,6 +696,14 @@ function sanitizePhoneInput(value, allowNA) {
 // read-only without passing a prop to each one. Upload rows don't use it,
 // so re-upload requests still work.
 const FieldsLockedContext = createContext(false)
+
+// Nov 2026 (panel revisions S6): the age is worked out from the date of
+// birth (ages 15 to 65 only, as the calendar already allows).
+function ageHint(dateOfBirth) {
+  const info = ageOn(dateOfBirth)
+  if (!info || info.isFutureOrToday) return 'Pick from the calendar. Applicants must be 15 to 65 years old.'
+  return `Age: ${info.age} years old`
+}
 
 function TextField({ label, required, type = 'text', value, onChange, placeholder, disabled, full, hint, max, min }) {
   const locked = useContext(FieldsLockedContext)
@@ -1717,7 +1729,9 @@ function FilePreviewModal({ preview, onClose }) {
       ? { label: 'Processing', cls: 'is-wait' }
       : doc.needs_review
         ? { label: 'Needs review', cls: 'is-warn' }
-        : { label: 'Verified', cls: 'is-ok' }
+        : docState(doc) === 'checked'
+          ? { label: 'System check passed', cls: 'is-wait' }
+          : { label: 'Verified', cls: 'is-ok' }
   return (
     <div
       className="fp-overlay"
@@ -1838,7 +1852,7 @@ function LogoutConfirmModal({ open, onCancel, onConfirm }) {
 // Sept 30 2026: what the dashboard's Admission card says once a result has
 // been released to the applicant. Details are in the result message itself.
 const ADMISSION_RESULT_TEXT = {
-  passer: { label: 'Passed', note: 'Check Messages for your medical exam and pre-registration steps.' },
+  passer: { label: 'Qualified as a Student', note: 'Check Messages for your medical exam and pre-registration steps.' },
   waitlisted_probationary: { label: 'Waitlisted', note: 'You are on the waiting list. Check Messages for details.' },
   qualified_probationary: { label: 'Qualified (Probationary)', note: 'Check Messages for how to sign your probationary contract.' },
   forfeited: { label: 'Forfeited', note: 'Check Messages for what to do next.' },
@@ -3881,7 +3895,7 @@ function PortalApp({ accountSession, onLogout }) {
                   <TextField label="Middle Name (if any)" value={personalInfo.middleName} onChange={(v) => updatePI('middleName', v)} placeholder="e.g. Santos" />
                   <TextField label="Last Name" required value={personalInfo.lastName} onChange={(v) => updatePI('lastName', v)} placeholder="e.g. Dela Cruz" />
                   <TextField label="Suffix (if any)" value={personalInfo.suffix} onChange={(v) => updatePI('suffix', v)} placeholder="e.g. Jr., III" />
-                  <TextField label="Date of Birth" type="date" required max={latestBirthdate(MIN_APPLICANT_AGE)} min={earliestBirthdate(MAX_APPLICANT_AGE)} value={personalInfo.dateOfBirth} onChange={(v) => updatePI('dateOfBirth', v)} />
+                  <TextField label="Date of Birth" type="date" required max={latestBirthdate(MIN_APPLICANT_AGE)} min={earliestBirthdate(MAX_APPLICANT_AGE)} value={personalInfo.dateOfBirth} onChange={(v) => updatePI('dateOfBirth', v)} hint={ageHint(personalInfo.dateOfBirth)} />
                   <TextField label="Place of Birth" required value={personalInfo.placeOfBirth} onChange={(v) => updatePI('placeOfBirth', v)} placeholder="e.g. Calamba City, Laguna" />
                   <SelectField label="Sex at birth" required value={personalInfo.sex} onChange={(v) => updatePI('sex', v)} options={['Male', 'Female']} />
                   <TextField label="Citizenship" required value={personalInfo.citizenship} onChange={(v) => updatePI('citizenship', v)} placeholder="e.g. Filipino" />

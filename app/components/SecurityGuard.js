@@ -30,7 +30,11 @@ import {
 
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const SHARED_KEY = 'iskolusyon_last_activity'
-const WARN_SECONDS = 60
+// Nov 2026 (panel revisions S1: the session timed out during the live
+// demo): the "Still there?" warning now shows 2 minutes before, not 1, so a
+// presenter who is talking has time to notice it. The 30/60-minute idle
+// limits themselves stay (Session Management Testing, C1-C10).
+const WARN_SECONDS = 120
 const CHECK_IN_EVERY_MS = 4 * 60 * 1000
 
 let lastActivity = Date.now()

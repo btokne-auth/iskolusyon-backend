@@ -564,7 +564,13 @@ function passwordStrengthError(password) {
 // step 1. The applicant uploads a Voter's ID or Voter's Certification; the
 // system reads it and only lets them continue if it is a COMELEC record
 // with a Calamba City address.
-function ResidencyCheckBox({ voterOwner, setVoterOwner, checkState, checkMessage, error, onFile, onRetryPoll }) {
+// Nov 2026 (panel revisions S2): OCR can misread a real Voter's ID (an old
+// card, a weak camera). After two tries that were not confirmed, the page
+// points to the GCTCDO office, so a genuine Calamba resident always has a
+// way in, without keeping their file online.
+const OFFICE_FALLBACK_AFTER = 2
+
+function ResidencyCheckBox({ voterOwner, setVoterOwner, checkState, checkMessage, error, onFile, onRetryPoll, failCount = 0 }) {
   const busy = checkState === 'uploading' || checkState === 'processing'
   return (
     <div className="rounded-md border border-ccc-border bg-ccc-off px-4 py-4 mb-3">
@@ -620,6 +626,14 @@ function ResidencyCheckBox({ voterOwner, setVoterOwner, checkState, checkMessage
           </div>
         </div>
       )}
+      {checkState === 'failed' && failCount >= OFFICE_FALLBACK_AFTER && (
+        <div className="text-[13px] text-ccc-navy bg-white border border-ccc-border rounded-md px-3 py-2 mt-2">
+          <span className="font-bold">Still not passing?</span> If you really live in Calamba City, the system may just be
+          having trouble reading your document. Bring your Voter&apos;s ID or Voter&apos;s Certification to the{' '}
+          <span className="font-bold">GCTCDO, 1st Floor, Admin Building, City College of Calamba</span>, and the Guidance
+          Office will check it for you.
+        </div>
+      )}
       {error && <div className="text-[11px] text-red-600 mt-2">{error}</div>}
     </div>
   )
@@ -662,6 +676,7 @@ function SignupPanel({ onSwitch, onCreated }) {
   const [residencyToken, setResidencyToken] = useState('')
   const [checkState, setCheckState] = useState('idle')
   const [checkMessage, setCheckMessage] = useState('')
+  const [failCount, setFailCount] = useState(0)
   const [voterPrecinct, setVoterPrecinct] = useState('')
   const pollRef = useRef(null)
 
@@ -728,6 +743,7 @@ function SignupPanel({ onSwitch, onCreated }) {
           return
         }
         if (res.ok && data.status === 'failed') {
+          setFailCount((n) => n + 1)
           setCheckState('failed')
           setCheckMessage(data.reason || 'This document could not be confirmed as a Calamba City voter record.')
           return
@@ -755,6 +771,7 @@ function SignupPanel({ onSwitch, onCreated }) {
       const res = await fetch('/api/signup-residency-check', { method: 'POST', body: form })
       const data = await res.json()
       if (!res.ok) {
+        if (res.status === 422) setFailCount((n) => n + 1)
         setCheckState('failed')
         setCheckMessage(data.message || data.error || 'The file could not be uploaded.')
         return
@@ -1100,6 +1117,7 @@ function SignupPanel({ onSwitch, onCreated }) {
                     setVoterOwner={setVoterOwner}
                     checkState={checkState}
                     checkMessage={checkMessage}
+                    failCount={failCount}
                     error={fieldErrors.voterId}
                     onFile={uploadVoterId}
                     onRetryPoll={() => {

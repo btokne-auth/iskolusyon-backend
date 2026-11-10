@@ -7,6 +7,7 @@ import AdminSidebar from '../components/AdminSidebar'
 import LoadingScreen from '../components/LoadingScreen'
 import { Skeleton, SkeletonRows, SkeletonList, SkeletonForm, SkeletonText, SkeletonStatGrid } from '../components/Skeleton'
 import { getDocTypeLabel } from '../lib/documentTypes'
+import { docState, DOC_STATE_LABEL } from '../lib/documentState'
 import { peek, keep, forgetAll } from '../lib/panelCache'
 import { onConnectivityChange, isNetworkError } from '../lib/offlineSync'
 import { suggestExamResult, eligibleProgramsForScore, admittedProgramOf, reachedFirstChoice, bsedGradeBelow, BSED_MATH_SCIENCE_PROGRAMS } from '../lib/matching'
@@ -355,7 +356,19 @@ function RetryableImage({ src, alt, className }) {
 // Sept 29: same fix as the applicant portal. A new upload sits in
 // review_status 'processing' until the OCR worker on Render reads it, and
 // used to show as Verified here during that time.
-function ReviewStatusBadge({ needsReview, reviewStatus }) {
+// Nov 2026 (panel revisions S2): a fourth state, "System check passed",
+// for documents the OCR accepted but no staff member has confirmed yet.
+// Only a staff Confirm makes a document Verified (app/lib/documentState.js).
+function ReviewStatusBadge({ needsReview, reviewStatus, doc }) {
+  const state = doc ? docState(doc) : null
+  if (state === 'checked') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-navy/30 bg-ccc-off px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-navy shrink-0 whitespace-nowrap">
+        <IconClock className="w-3 h-3" />
+        System check passed
+      </span>
+    )
+  }
   if (reviewStatus === 'processing') {
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-ccc-blue/40 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-blue shrink-0 whitespace-nowrap">
@@ -375,7 +388,7 @@ function ReviewStatusBadge({ needsReview, reviewStatus }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-ccc-green/40 bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-green shrink-0 whitespace-nowrap">
       <IconCheck className="w-3 h-3" />
-      Verified
+      {doc ? 'Verified by staff' : 'Verified'}
     </span>
   )
 }
@@ -530,6 +543,7 @@ function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
   const pdf = isPdfFile(doc.file_path)
   const isBusy = overriding === doc.file_path
   const isProcessing = doc.review_status === 'processing'
+  const state = docState(doc)
 
   return (
     <div
@@ -569,8 +583,23 @@ function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
               </p>
               <p className="text-[11px] text-ccc-muted truncate">{getCleanFileName(doc.file_path)}</p>
             </div>
-            <ReviewStatusBadge needsReview={doc.needs_review} reviewStatus={doc.review_status} />
+            <ReviewStatusBadge needsReview={doc.needs_review} reviewStatus={doc.review_status} doc={doc} />
           </div>
+
+          {state === 'checked' && (
+            <p className="text-[11px] leading-snug text-ccc-navy bg-ccc-off rounded-md px-2 py-1.5">
+              <span className="font-bold">Passed the system check.</span> Compare the file with the text read from it,
+              then Confirm. It counts as Verified only after a staff member confirms it.
+            </p>
+          )}
+          {state === 'verified' && doc.staff_confirmed_by && (
+            <p className="text-[11px] leading-snug text-ccc-green">
+              Confirmed by {doc.staff_confirmed_by}
+              {doc.staff_confirmed_at && !String(doc.staff_confirmed_by).startsWith('Accepted before')
+                ? ` · ${new Date(doc.staff_confirmed_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+                : ''}
+            </p>
+          )}
 
           {doc.content_issue && (
             <p className="text-[11px] leading-snug text-ccc-orange bg-ccc-orange/10 rounded-md px-2 py-1.5">
@@ -618,15 +647,15 @@ function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
           {onOverride && (
             <div className="flex items-center gap-2 pt-1 border-t border-ccc-border mt-1">
               <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest mr-auto">
-                Manual override
+                Staff decision
               </span>
               <button
                 type="button"
-                disabled={isBusy || isProcessing || !doc.needs_review}
+                disabled={isBusy || isProcessing || state === 'verified'}
                 onClick={() => onOverride(doc, 'verify')}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-ccc-green/50 text-ccc-green bg-green-50 hover:bg-green-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                {isBusy ? 'Saving...' : 'Mark Verified'}
+                {isBusy ? 'Saving...' : state === 'flagged' ? 'Mark Verified' : 'Confirm'}
               </button>
               <button
                 type="button"
@@ -652,7 +681,7 @@ const ELIGIBILITY_META = {
   qualified: { label: 'Qualified', className: 'bg-green-50 text-ccc-green border-ccc-green/30' },
   waitlisted: { label: 'Waitlisted', className: 'bg-ccc-gold/10 text-ccc-navy border-ccc-gold/50' },
   not_qualified: { label: 'Not Qualified', className: 'bg-red-50 text-ccc-red border-ccc-red/30' },
-  pending_exam: { label: 'Pending Exam Result', className: 'bg-blue-50 text-ccc-blue border-ccc-blue/30' },
+  pending_exam: { label: 'Eligible for Exam', className: 'bg-blue-50 text-ccc-blue border-ccc-blue/30' },
   incomplete: { label: 'Incomplete Profile', className: 'bg-ccc-off text-ccc-muted border-ccc-border' },
 }
 
@@ -671,7 +700,7 @@ const APL_STATUS_PILL = {
 // Carlo, who failed, missing from Waitlisted). Before the exam it's the
 // eligibility check, as before. `bucket` is the stat card / tab it counts in.
 const APL_POST_EXAM = {
-  passer: { label: 'Passer', cls: 'apl-pill-green', bucket: 'qualified' },
+  passer: { label: 'Qualified as a Student', cls: 'apl-pill-green', bucket: 'qualified' },
   qualified_probationary: { label: 'Qualified (Probationary)', cls: 'apl-pill-gold', bucket: 'qualified' },
   waitlisted_probationary: { label: 'Waitlisted (Probationary)', cls: 'apl-pill-gold', bucket: 'waitlisted' },
   disqualified: { label: 'Disqualified', cls: 'apl-pill-red', bucket: 'not_qualified' },
@@ -735,8 +764,7 @@ function AdminFilePreview({ doc, onClose }) {
   const name = getCleanFileName(doc.file_path)
   const image = isImageFile(doc.file_path)
   const pdf = isPdfFile(doc.file_path)
-  const status =
-    doc.review_status === 'processing' && !doc.needs_review ? 'Processing' : doc.needs_review ? 'Needs review' : 'Verified'
+  const status = DOC_STATE_LABEL[docState(doc)] || 'Processing'
   return (
     <div
       className="dpv-overlay"
@@ -1381,7 +1409,8 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
   const flaggedCount = docs.filter((d) => d.needs_review).length
   // Sept 29: documents still waiting on the OCR worker are neither.
   const processingCount = docs.filter((d) => d.review_status === 'processing' && !d.needs_review).length
-  const verifiedCount = docs.filter((d) => !d.needs_review && d.review_status !== 'processing').length
+  const verifiedCount = docs.filter((d) => docState(d) === 'verified').length
+  const toConfirmCount = docs.filter((d) => docState(d) === 'checked').length
   const sectionsDone = PROFILE_SECTIONS.filter((s) => !!eligibilityRow?.[s.key]).length
   const openConflicts = (conflicts || []).filter((c) => !c.checked).length
   const profilePct = Math.round((sectionsDone / PROFILE_SECTIONS.length) * 100)
@@ -1498,6 +1527,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               </span>
             )}
             {processingCount > 0 && <span className="apl-chip apl-chip-proc">{processingCount} processing</span>}
+            {toConfirmCount > 0 && <span className="apl-chip apl-chip-proc">{toConfirmCount} to confirm</span>}
             {openConflicts > 0 && (
               <span className="apl-chip apl-chip-conflict" title="What the applicant typed doesn't match a document. Open to check.">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1507,7 +1537,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                 {openConflicts} conflict{openConflicts === 1 ? '' : 's'}
               </span>
             )}
-            {flaggedCount === 0 && processingCount === 0 && openConflicts === 0 && docs.length > 0 && (
+            {flaggedCount === 0 && processingCount === 0 && toConfirmCount === 0 && openConflicts === 0 && docs.length > 0 && (
               <span className="apl-chip apl-chip-ok">All verified</span>
             )}
           </span>
@@ -1589,7 +1619,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               <div className="mini-summary ms-docs">
                 <div className="ms-label">Documents</div>
                 <div className="ms-value">
-                  {verifiedCount} Verified{processingCount > 0 ? ` · ${processingCount} Processing` : ''} · {flaggedCount} Pending Review
+                  {verifiedCount} Verified{toConfirmCount > 0 ? ` · ${toConfirmCount} To confirm` : ''}{processingCount > 0 ? ` · ${processingCount} Processing` : ''} · {flaggedCount} Pending Review
                   {integrityProblems > 0 && (
                     <span style={{ color: '#B71C1C', fontWeight: 700 }}>{` · ✗ ${integrityProblems} changed since upload`}</span>
                   )}
@@ -1830,13 +1860,13 @@ const DASHBOARD_STAT_CARDS = [
     key: 'incomplete',
     label: 'Pending for Review',
     className: 'stat-pending',
-    note: 'Profile or documents not yet fully submitted/verified.',
+    note: 'Profile or documents not yet complete, or not yet confirmed by staff.',
   },
   {
     key: 'qualified',
-    label: 'Qualified',
+    label: 'Qualified as a Student',
     className: 'stat-qualified',
-    note: 'Passed the exam, or accepted as Qualified (Probationary).',
+    note: 'Passed the entrance exam, or accepted on probation (Qualified as a Student, Probationary).',
   },
   {
     key: 'not_qualified',
@@ -1867,8 +1897,8 @@ const DASHBOARD_STAT_CARDS = [
 const APL_TABS = [
   { key: 'all', label: 'All', match: () => true },
   { key: 'action', label: 'Needs action', match: (g) => g.flagged || g.openConflicts > 0 || g.bucket === 'pending_exam' },
-  { key: 'pending_exam', label: 'Pending Exam Result', match: (g) => g.bucket === 'pending_exam' },
-  { key: 'qualified', label: 'Qualified', match: (g) => g.bucket === 'qualified' },
+  { key: 'pending_exam', label: 'Eligible for Exam', match: (g) => g.bucket === 'pending_exam' },
+  { key: 'qualified', label: 'Qualified as a Student', match: (g) => g.bucket === 'qualified' },
   { key: 'not_qualified', label: 'Not Qualified', match: (g) => g.bucket === 'not_qualified' },
   { key: 'waitlisted', label: 'Waitlisted', match: (g) => g.bucket === 'waitlisted' },
   { key: 'incomplete', label: 'Incomplete Profile', match: (g) => g.bucket === 'incomplete' },
@@ -1988,7 +2018,7 @@ function useVerifyAllDocuments(docs) {
 // "Document integrity" shows how many files still match the SHA-256
 // fingerprint saved at upload, turns red when one doesn't, and holds the
 // "Verify all documents" action.
-function DocumentStatCards({ check, flaggedCount, docsLoading, onShowFlagged }) {
+function DocumentStatCards({ check, flaggedCount, toConfirmCount = 0, docsLoading, onShowFlagged }) {
   const { running, progress, total, problems, runError, verifyAll, verified, lastChecked } = check
   const changed = problems.length
   const when = lastChecked
@@ -2045,7 +2075,10 @@ function DocumentStatCards({ check, flaggedCount, docsLoading, onShowFlagged }) 
         ) : (
           <p className="stat-value">{flaggedCount}</p>
         )}
-        <p className="stat-note">Flagged by OCR or an admin and waiting for a decision.</p>
+        <p className="stat-note">
+          Flagged by OCR or an admin and waiting for a decision.
+          {toConfirmCount > 0 ? ` Plus ${toConfirmCount} that passed the system check and wait for staff to confirm.` : ''}
+        </p>
         <p className="stat-card-hint">
           <IconSearch className="w-3 h-3" /> Show applicants
         </p>
@@ -2323,6 +2356,7 @@ function DashboardPanel({
         <DocumentStatCards
           check={integrityCheck}
           flaggedCount={totalFlagged}
+          toConfirmCount={docs.filter((d) => docState(d) === 'checked').length}
           docsLoading={loading}
           onShowFlagged={() => {
             setStatusFilter('action')
@@ -2489,8 +2523,8 @@ function DashboardPanel({
 // Results panel's design-parity pass. badge-orange (gold) covers both
 // probationary statuses to match the gold treatment they had before.
 const SCHOLAR_STATUS_META = {
-  pending_exam: { label: 'Pending Exam', className: 'badge-progress' },
-  passer: { label: 'Passer', className: 'badge-verified' },
+  pending_exam: { label: 'Eligible for Exam', className: 'badge-progress' },
+  passer: { label: 'Qualified as a Student', className: 'badge-verified' },
   waitlisted_probationary: { label: 'Waitlisted (Probationary)', className: 'badge-orange' },
   qualified_probationary: { label: 'Qualified (Probationary)', className: 'badge-orange' },
   disqualified: { label: 'Disqualified', className: 'badge-deficient' },
@@ -2855,6 +2889,24 @@ const RESULT_RELEASABLE = ['passer', 'waitlisted_probationary', 'qualified_proba
 
 const EXAM_RESULT_LABELS = { passed: 'Passed', failed: 'Failed', absent: 'Absent' }
 
+// Nov 2026: before an exam result exists, Applicant Results used to call
+// everyone "Pending Exam". After the rename to "Eligible for Exam" that was
+// wrong for applicants who are still incomplete or not qualified (Results
+// said 34 eligible while the Dashboard said 3). Before the exam, the
+// eligibility check decides the label, the same as the Dashboard.
+function isEligibleForExam(row) {
+  return (row.eligibility_override || row.eligibility_status) === 'pending_exam'
+}
+function resultsStageOf(row) {
+  const s = row.scholar_status || 'pending_exam'
+  if (s !== 'pending_exam') return { label: SCHOLAR_STATUS_META[s]?.label || s, cls: SCHOLAR_PILL_CLASS[s] || 'apl-pill-blue' }
+  const e = row.eligibility_override || row.eligibility_status || 'incomplete'
+  if (e === 'pending_exam') return { label: 'Eligible for Exam', cls: 'apl-pill-blue' }
+  if (e === 'not_qualified') return { label: 'Not Qualified', cls: 'apl-pill-red' }
+  if (e === 'qualified' || e === 'waitlisted') return { label: ELIGIBILITY_META[e]?.label || e, cls: e === 'qualified' ? 'apl-pill-green' : 'apl-pill-gold' }
+  return { label: 'Incomplete Profile', cls: 'apl-pill-gray' }
+}
+
 const SCHOLAR_PILL_CLASS = {
   pending_exam: 'apl-pill-blue',
   passer: 'apl-pill-green',
@@ -2974,7 +3026,7 @@ function EligibleProgramsBox({ row, busy, onAccept }) {
               <span className="font-bold text-ccc-navy">{pick}</span>?
             </>
           }
-          message="This sets the scholar status to Passer and the admitted program to this one. The recorded exam result stays as entered. The result notice, CHED Form 3 and the Registrar will use the admitted program. It is logged in the Activity Log."
+          message="This sets the scholar status to Qualified as a Student and the admitted program to this one. The recorded exam result stays as entered. The result notice, CHED Form 3 and the Registrar will use the admitted program. It is logged in the Activity Log."
           onConfirm={() => {
             setConfirming(false)
             onAccept(row.id, pick)
@@ -3063,8 +3115,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
   const lockedByOther = !!lockInfo && !lockInfo.mine && !modalOpen
 
   const scholarStatus = row.scholar_status || 'pending_exam'
-  const scholarLabel = SCHOLAR_STATUS_META[scholarStatus]?.label || scholarStatus
-  const pillClass = SCHOLAR_PILL_CLASS[scholarStatus] || 'apl-pill-blue'
+  const { label: scholarLabel, cls: pillClass } = resultsStageOf(row)
   const hint = getNextStepHint(row)
   const examLabel = EXAM_RESULT_LABELS[row.exam_result] || ''
   const examSummary = row.exam_result
@@ -3323,7 +3374,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           )}
           <p className="rr-muted-line">
             Nothing here is saved until you click Save &amp; verify. Saving also sets the Scholar Status: Passed becomes
-            Passer, Failed becomes Waitlisted (Probationary), Absent becomes Forfeited.
+            Qualified as a Student, Failed becomes Waitlisted (Probationary), Absent becomes Forfeited.
           </p>
           {firstIsBsed && (bsedGradeMissing || bsedGradeBelow(row.program_choice_1, row)) && (
             <p className="ep-warn">
@@ -3492,7 +3543,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           {!canDistribute ? (
             !hasStaleDistribution && (
               <p className="rr-muted-line">
-                Not applicable yet. Becomes available once this applicant is a Passer or Qualified (Probationary).
+                Not applicable yet. Becomes available once this applicant is Qualified as a Student (regular or Probationary).
               </p>
             )
           ) : (
@@ -3564,19 +3615,159 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
 const RESULT_TABS = [
   { key: 'all', label: 'All', match: () => true },
   { key: 'action', label: 'Needs action', match: (r) => getNextStepHint(r).tone === 'go' },
-  { key: 'pending_exam', label: 'Pending Exam', match: (r) => (r.scholar_status || 'pending_exam') === 'pending_exam' },
-  { key: 'passer', label: 'Passer', match: (r) => r.scholar_status === 'passer' },
-  {
-    key: 'probationary',
-    label: 'Probationary',
-    match: (r) => r.scholar_status === 'qualified_probationary' || r.scholar_status === 'waitlisted_probationary',
-  },
-  {
-    key: 'out',
-    label: 'Disqualified / Forfeited',
-    match: (r) => r.scholar_status === 'disqualified' || r.scholar_status === 'forfeited',
-  },
+  // Nov 2026: the same groups, in the same order, as the Dashboard tabs and
+  // cards (aplStatusOf / aplBucketOf), so every count matches tab for tab.
+  // Qualified as a Student includes Qualified (Probationary); Not Qualified
+  // includes Disqualified and Forfeited, exactly like the Dashboard.
+  { key: 'pending_exam', label: 'Eligible for Exam', match: (r) => aplBucketOf(aplStatusOf(r)) === 'pending_exam' },
+  { key: 'qualified', label: 'Qualified as a Student', match: (r) => aplBucketOf(aplStatusOf(r)) === 'qualified' },
+  { key: 'waitlisted', label: 'Waitlisted', match: (r) => aplBucketOf(aplStatusOf(r)) === 'waitlisted' },
+  { key: 'not_qualified', label: 'Not Qualified', match: (r) => aplBucketOf(aplStatusOf(r)) === 'not_qualified' },
+  { key: 'incomplete', label: 'Incomplete Profile', match: (r) => aplBucketOf(aplStatusOf(r)) === 'incomplete' },
 ]
+
+// Nov 2026 (panel revisions S7): exam scores by CSV. The exam is still
+// face-to-face, pen and paper; staff download the score sheet, fill in the
+// scores, and upload it. The server shows a preview first and saves only
+// after "Save these results" (app/api/admin-results/import).
+function csvCell(v) {
+  const s = String(v ?? '')
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+function ExamCsvCard({ rows, onSaved }) {
+  const [csv, setCsv] = useState('')
+  const [fileName, setFileName] = useState('')
+  const [preview, setPreview] = useState(null)
+  const [working, setWorking] = useState(false)
+  const [error, setError] = useState('')
+  const fileRef = useRef(null)
+
+  const sheetRows = rows.filter((r) => (r.eligibility_override || r.eligibility_status) === 'pending_exam' || r.exam_result)
+
+  const downloadSheet = () => {
+    const lines = [['application_number', 'name', 'program_choice_1', 'exam_date', 'score', 'result']]
+    for (const r of [...sheetRows].sort((a, b) => String(a.application_number || '').localeCompare(String(b.application_number || '')))) {
+      lines.push([r.application_number || '', r.applicant_name || '', r.program_choice_1 || '', r.exam_date || '', r.exam_score ?? '', r.exam_result || ''])
+    }
+    const blob = new Blob(['﻿' + lines.map((l) => l.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `exam-score-sheet-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const send = async (text, apply) => {
+    setWorking(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin-results/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv: text, apply }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'The file could not be read.')
+      if (!apply) {
+        setPreview(data.preview)
+      } else {
+        setPreview(null)
+        setCsv('')
+        setFileName('')
+        if (fileRef.current) fileRef.current.value = ''
+        const extra = data.failed?.length ? ` ${data.failed.length} could not be saved (${data.failed.map((f) => `line ${f.line}: ${f.reason}`).join('; ')}).` : ''
+        showAdminNotice(`Saved ${data.saved} exam result${data.saved === 1 ? '' : 's'} from the CSV.${extra}`)
+        onSaved()
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  const onFile = async (file) => {
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      setError('The CSV file is too large (2 MB at most).')
+      return
+    }
+    const text = await file.text()
+    setFileName(file.name)
+    setCsv(text)
+    send(text, false)
+  }
+
+  const okCount = preview ? preview.filter((r) => r.ok).length : 0
+  return (
+    <div className="card">
+      <div className="card-title">Exam scores by CSV</div>
+      <p className="text-xs text-ccc-muted leading-relaxed mb-3">
+        The entrance exam is taken face-to-face, on paper. After checking, download the score sheet, fill in the
+        <b> score</b> (and <b>result</b> only for <i>absent</i>, or to override), then upload it. Blank result = from the
+        1st-choice program&apos;s passing grade, same as typing it in. Nothing is saved until you review the preview.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className="cm-btn cm-btn-secondary" onClick={downloadSheet} disabled={sheetRows.length === 0}>
+          Download score sheet ({sheetRows.length})
+        </button>
+        <label className="cm-btn cm-btn-secondary" style={{ cursor: working ? 'wait' : 'pointer' }}>
+          {working && !preview ? 'Reading…' : 'Upload filled sheet (.csv)'}
+          <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" disabled={working} onChange={(e) => onFile(e.target.files?.[0])} />
+        </label>
+        {fileName && <span className="text-xs text-ccc-muted">{fileName}</span>}
+      </div>
+      {error && <div className="text-xs text-ccc-red mt-2">{error}</div>}
+      {preview && (
+        <div className="mt-3">
+          <p className="text-xs text-ccc-navy mb-2">
+            <b>{okCount}</b> row{okCount === 1 ? '' : 's'} ready to save, <b>{preview.length - okCount}</b> skipped.
+          </p>
+          <div className="overflow-x-auto max-h-80 overflow-y-auto border border-ccc-border rounded-lg">
+            <table className="w-full text-xs">
+              <thead className="bg-ccc-off sticky top-0">
+                <tr>
+                  <th className="text-left p-2">Line</th>
+                  <th className="text-left p-2">Applicant</th>
+                  <th className="text-left p-2">Score</th>
+                  <th className="text-left p-2">Result</th>
+                  <th className="text-left p-2">Becomes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.map((r) => (
+                  <tr key={r.line} className="border-t border-ccc-border">
+                    <td className="p-2">{r.line}</td>
+                    <td className="p-2">{r.name || r.number || '—'}{r.number && r.name ? <span className="text-ccc-muted"> · {r.number}</span> : null}</td>
+                    {r.ok ? (
+                      <>
+                        <td className="p-2">{r.score ?? '—'}</td>
+                        <td className="p-2">{r.result}{r.replaces ? <span className="text-ccc-muted"> (was {r.replaces})</span> : null}</td>
+                        <td className="p-2">{SCHOLAR_STATUS_META[r.status]?.label || r.status}</td>
+                      </>
+                    ) : (
+                      <td className="p-2 text-ccc-red" colSpan={3}>Skipped: {r.reason}</td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button type="button" className="cm-btn cm-btn-primary" disabled={working || okCount === 0} onClick={() => send(csv, true)}>
+              {working ? 'Saving…' : `Save these ${okCount} result${okCount === 1 ? '' : 's'}`}
+            </button>
+            <button type="button" className="cm-btn cm-btn-secondary" disabled={working} onClick={() => { setPreview(null); setCsv(''); setFileName(''); if (fileRef.current) fileRef.current.value = '' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function ResultsPanel() {
   const locks = useApplicantLocks()
@@ -3644,7 +3835,7 @@ function ResultsPanel() {
       } else if (payload.field === 'reevaluate') {
         showAdminNotice(
           payload.program
-            ? `${name} was accepted in ${payload.program} by re-evaluation. Scholar Status is now Passer.`
+            ? `${name} was accepted in ${payload.program} by re-evaluation. Scholar Status is now Qualified as a Student.`
             : `The re-evaluation of ${name} was undone.`
         )
       } else if (payload.field === 'distribution_status') {
@@ -3728,6 +3919,8 @@ function ResultsPanel() {
           </p>
         </div>
       </div>
+
+      <ExamCsvCard rows={rows} onSaved={() => load(true)} />
 
       {/* Oct 1 2026 reskin: same card + filter bar as the Dashboard's All
           Applicants card, so the two lists look and behave alike. Rows and
@@ -3854,20 +4047,20 @@ function ResultsPanel() {
 // Same data sources as before (/api/admin-eligibility + /api/admin-results,
 // joined by id, plus the appeal count from /api/admin-reschedule).
 const STAT_ELIGIBILITY = [
-  { key: 'qualified', label: 'Qualified', color: '#1B6B3A' },
+  { key: 'qualified', label: 'Qualified as a Student', color: '#1B6B3A' },
   { key: 'not_qualified', label: 'Not Qualified', color: '#C0392B' },
   { key: 'waitlisted', label: 'Waitlisted', color: '#C8A84B' },
-  { key: 'pending_exam', label: 'Pending Exam', color: '#003CD0' },
+  { key: 'pending_exam', label: 'Eligible for Exam', color: '#003CD0' },
   // Oct 15 2026 (client): was "Incomplete (Ongoing)".
   { key: 'incomplete', label: 'Not yet submitted', color: '#A7B4C8' },
 ]
 const STAT_SCHOLAR = [
-  { key: 'passer', label: 'Passer', color: '#1B6B3A' },
+  { key: 'passer', label: 'Qualified as a Student', color: '#1B6B3A' },
   { key: 'qualified_probationary', label: 'Qualified (Probationary)', color: '#E07B39' },
   { key: 'waitlisted_probationary', label: 'Waitlisted (Probationary)', color: '#C8A84B' },
   { key: 'disqualified', label: 'Disqualified', color: '#C0392B' },
   { key: 'forfeited', label: 'Forfeited', color: '#5A6B85' },
-  { key: 'pending_exam', label: 'Pending Exam', color: '#003CD0' },
+  { key: 'pending_exam', label: 'Eligible for Exam', color: '#003CD0' },
 ]
 const STAT_APPLYING_COLORS = ['#0D2F6E', '#C8A84B', '#5A6B85', '#A7B4C8']
 // Oct 12 2026: one fixed color per department (the order of
@@ -4032,9 +4225,13 @@ function AnalyticsPanel() {
 
     for (const r of visibleRows) {
       const e = r.eligibility_override || r.eligibility_status || 'incomplete'
-      if (e in elig) elig[e] += 1
+      // Nov 2026: same rule as the Dashboard cards (after-exam status first),
+      // so Statistics, the Dashboard and the counts-only dashboards agree.
+      const bucket = aplBucketOf(aplStatusOf(r))
+      if (bucket in elig) elig[bucket] += 1
       const s = r.scholar_status || 'pending_exam'
-      if (s in scholar) scholar[s] += 1
+      // Nov 2026: "Eligible for Exam" only counts applicants who are.
+      if (s in scholar && (s !== 'pending_exam' || e === 'pending_exam')) scholar[s] += 1
       const a = r.applying_as || 'Not yet specified'
       applying.set(a, (applying.get(a) || 0) + 1)
       const d = statDepartmentOf(r.program_choice_1)
@@ -4045,7 +4242,7 @@ function AnalyticsPanel() {
       if (!programs.has(program)) programs.set(program, { total: 0, ...Object.fromEntries(STAT_ELIGIBILITY.map((x) => [x.key, 0])) })
       const p = programs.get(program)
       p.total += 1
-      if (e in p) p[e] += 1
+      if (bucket in p) p[bucket] += 1
     }
 
     // Every program CCC offers (in the selected department), so empty ones
@@ -4088,7 +4285,7 @@ function AnalyticsPanel() {
         </div>
         <div className="st-card st-kpis" role="status" aria-live="polite">
           <span className="sk-sr">Loading statistics...</span>
-          {['Total applications', 'Profile complete', 'Pending exam result', 'Qualified', 'Appeals filed'].map((label) => (
+          {['Total applications', 'Profile complete', 'Eligible for Exam', 'Qualified as a Student', 'Appeals filed'].map((label) => (
             <div key={label} className="st-kpi">
               <span className="st-kpi-label">{label}</span>
               <span className="st-kpi-value">
@@ -4115,8 +4312,8 @@ function AnalyticsPanel() {
   const kpis = [
     { label: 'Total applications', value: stats.total, sub: department === 'all' ? 'All applicants this cycle' : department },
     { label: 'Profile complete', value: stats.profileComplete, sub: `${statPct(stats.profileComplete, stats.total)} of applicants` },
-    { label: 'Pending exam result', value: stats.elig.pending_exam, sub: `${statPct(stats.elig.pending_exam, stats.total)} of applicants` },
-    { label: 'Qualified', value: stats.elig.qualified, sub: `${statPct(stats.elig.qualified, stats.total)} of applicants` },
+    { label: 'Eligible for Exam', value: stats.elig.pending_exam, sub: `${statPct(stats.elig.pending_exam, stats.total)} of applicants` },
+    { label: 'Qualified as a Student', value: stats.elig.qualified, sub: `${statPct(stats.elig.qualified, stats.total)} of applicants` },
     { label: 'Appeals filed', value: appealCount, sub: 'Retake or re-application, all departments' },
   ]
 
@@ -4220,10 +4417,10 @@ function AnalyticsPanel() {
               <tr>
                 <th>Program</th>
                 <th className="r">Applicants</th>
-                <th className="r">Qualified</th>
+                <th className="r">Qualified as a Student</th>
                 <th className="r">Not Qualified</th>
                 <th className="r">Waitlisted</th>
-                <th className="r">Pending Exam</th>
+                <th className="r">Eligible for Exam</th>
               </tr>
             </thead>
             <tbody>
@@ -5561,16 +5758,23 @@ function CycleSettingsCard() {
       </div>
       <div className={`toggle-detail-panel${draft.applications_open ? '' : ' collapsed'}`}>
         <div className="efield">
-          <label>Applicant Slots</label>
+          <label>Total Applicant Slots (whole cycle)</label>
           <input
             type="number"
             min="0"
-            placeholder="e.g. 100"
+            placeholder="Blank = no limit (e.g. 3000)"
             value={draft.applicant_slots ?? ''}
             onChange={(e) =>
               setDraft((d) => ({ ...d, applicant_slots: e.target.value === '' ? null : Number(e.target.value) }))
             }
           />
+          {/* Nov 2026 (panel revisions S8): the panel read the demo's "100"
+              as a yearly cap. 100 is the size of one exam batch (Exam
+              Schedules); this field is the whole cycle's total. */}
+          <span className="text-[11px] text-ccc-muted leading-snug block mt-1">
+            CCC receives about 1,500&ndash;3,000 applicants a year, so leave this blank or set the cycle&apos;s total.
+            This is not the exam batch size: each exam batch holds up to 100 applicants and is set up in Exam Schedules.
+          </span>
         </div>
         <div className="efield">
           <label>Acceptance Start Date</label>
@@ -6045,7 +6249,7 @@ function ArchiveCycleCard() {
                           <td className="cf-strong">{a.applicant_name || 'Unnamed applicant'}</td>
                           <td>{a.application_number || ''}</td>
                           <td>{a.program_choice_1 || ''}</td>
-                          <td>{SCHOLAR_STATUS_META[a.scholar_status]?.label || 'Pending Exam'}</td>
+                          <td>{SCHOLAR_STATUS_META[a.scholar_status]?.label || 'Eligible for Exam'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -7127,7 +7331,7 @@ function RegistrarDashboardPanel({ data, loading, error, onGoAllowance, who = 'T
               <button type="button" className="ra-link" onClick={onGoAllowance}>
                 Allowance Distribution
               </button>
-              . Scholars with a Passer or Qualified (Probationary) status are listed there.
+              . Students Qualified as a Student (regular or Probationary) are listed there.
             </span>
           </div>}
         </>
@@ -7254,7 +7458,7 @@ function RegistrarAllowancePanel({ data, loading, error, onReload }) {
         <div>
           <h1>Allowance Distribution</h1>
           <p>
-            Post allowance distributions for scholars. Only scholars with a Passer or Qualified (Probationary) status whose
+            Post allowance distributions for scholars. Only students Qualified as a Student (regular or Probationary) whose
             result was already sent to them are listed. Each post appears right away on the scholar&apos;s Allowance page.
           </p>
         </div>
@@ -7333,7 +7537,7 @@ function RegistrarAllowancePanel({ data, loading, error, onReload }) {
                         <div className="ra-options" role="listbox" aria-label="Scholars">
                           {scholars.length === 0 ? (
                             <div className="ra-empty">
-                              No scholars yet. Scholars appear here once their result (Passer or Qualified (Probationary))
+                              No scholars yet. Scholars appear here once their result (Qualified as a Student, regular or Probationary)
                               has been sent to them.
                             </div>
                           ) : matches.length === 0 ? (
@@ -7667,7 +7871,7 @@ function ChedForm3Dialog({ onClose }) {
                   </div>
                 )}
                 <span className="ra-hint">
-                  Passers and Qualified (Probationary) scholars show as <b>passed</b>: <b>passed-enrolled</b> once Distribution
+                  Students Qualified as a Student (regular or Probationary) show as <b>passed</b>: <b>passed-enrolled</b> once Distribution
                   Status reached Enrollment complete, otherwise <b>passed-did not enrol</b>. The PDF is landscape A4 with the
                   Form 3 header and no signatures or seals. Sign the printed copy.
                 </span>
