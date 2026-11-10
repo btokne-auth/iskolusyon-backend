@@ -2904,7 +2904,7 @@ function resultsStageOf(row) {
   if (e === 'pending_exam') return { label: 'Eligible for Exam', cls: 'apl-pill-blue' }
   if (e === 'not_qualified') return { label: 'Not Qualified', cls: 'apl-pill-red' }
   if (e === 'qualified' || e === 'waitlisted') return { label: ELIGIBILITY_META[e]?.label || e, cls: e === 'qualified' ? 'apl-pill-green' : 'apl-pill-gold' }
-  return { label: 'Incomplete', cls: 'apl-pill-gray' }
+  return { label: 'Incomplete Profile', cls: 'apl-pill-gray' }
 }
 
 const SCHOLAR_PILL_CLASS = {
@@ -3615,19 +3615,15 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
 const RESULT_TABS = [
   { key: 'all', label: 'All', match: () => true },
   { key: 'action', label: 'Needs action', match: (r) => getNextStepHint(r).tone === 'go' },
-  { key: 'pending_exam', label: 'Eligible for Exam', match: (r) => (r.scholar_status || 'pending_exam') === 'pending_exam' && isEligibleForExam(r) },
-  { key: 'not_yet', label: 'Incomplete / Not Qualified', match: (r) => (r.scholar_status || 'pending_exam') === 'pending_exam' && !isEligibleForExam(r) },
-  { key: 'passer', label: 'Qualified as a Student', match: (r) => r.scholar_status === 'passer' },
-  {
-    key: 'probationary',
-    label: 'Probationary',
-    match: (r) => r.scholar_status === 'qualified_probationary' || r.scholar_status === 'waitlisted_probationary',
-  },
-  {
-    key: 'out',
-    label: 'Disqualified / Forfeited',
-    match: (r) => r.scholar_status === 'disqualified' || r.scholar_status === 'forfeited',
-  },
+  // Nov 2026: the same groups, in the same order, as the Dashboard tabs and
+  // cards (aplStatusOf / aplBucketOf), so every count matches tab for tab.
+  // Qualified as a Student includes Qualified (Probationary); Not Qualified
+  // includes Disqualified and Forfeited, exactly like the Dashboard.
+  { key: 'pending_exam', label: 'Eligible for Exam', match: (r) => aplBucketOf(aplStatusOf(r)) === 'pending_exam' },
+  { key: 'qualified', label: 'Qualified as a Student', match: (r) => aplBucketOf(aplStatusOf(r)) === 'qualified' },
+  { key: 'waitlisted', label: 'Waitlisted', match: (r) => aplBucketOf(aplStatusOf(r)) === 'waitlisted' },
+  { key: 'not_qualified', label: 'Not Qualified', match: (r) => aplBucketOf(aplStatusOf(r)) === 'not_qualified' },
+  { key: 'incomplete', label: 'Incomplete Profile', match: (r) => aplBucketOf(aplStatusOf(r)) === 'incomplete' },
 ]
 
 // Nov 2026 (panel revisions S7): exam scores by CSV. The exam is still
