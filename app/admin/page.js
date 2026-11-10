@@ -4051,7 +4051,7 @@ function ResultsPanel() {
 // Same data sources as before (/api/admin-eligibility + /api/admin-results,
 // joined by id, plus the appeal count from /api/admin-reschedule).
 const STAT_ELIGIBILITY = [
-  { key: 'qualified', label: 'Qualified', color: '#1B6B3A' },
+  { key: 'qualified', label: 'Qualified as a Student', color: '#1B6B3A' },
   { key: 'not_qualified', label: 'Not Qualified', color: '#C0392B' },
   { key: 'waitlisted', label: 'Waitlisted', color: '#C8A84B' },
   { key: 'pending_exam', label: 'Eligible for Exam', color: '#003CD0' },
@@ -4229,7 +4229,10 @@ function AnalyticsPanel() {
 
     for (const r of visibleRows) {
       const e = r.eligibility_override || r.eligibility_status || 'incomplete'
-      if (e in elig) elig[e] += 1
+      // Nov 2026: same rule as the Dashboard cards (after-exam status first),
+      // so Statistics, the Dashboard and the counts-only dashboards agree.
+      const bucket = aplBucketOf(aplStatusOf(r))
+      if (bucket in elig) elig[bucket] += 1
       const s = r.scholar_status || 'pending_exam'
       // Nov 2026: "Eligible for Exam" only counts applicants who are.
       if (s in scholar && (s !== 'pending_exam' || e === 'pending_exam')) scholar[s] += 1
@@ -4243,7 +4246,7 @@ function AnalyticsPanel() {
       if (!programs.has(program)) programs.set(program, { total: 0, ...Object.fromEntries(STAT_ELIGIBILITY.map((x) => [x.key, 0])) })
       const p = programs.get(program)
       p.total += 1
-      if (e in p) p[e] += 1
+      if (bucket in p) p[bucket] += 1
     }
 
     // Every program CCC offers (in the selected department), so empty ones
@@ -4286,7 +4289,7 @@ function AnalyticsPanel() {
         </div>
         <div className="st-card st-kpis" role="status" aria-live="polite">
           <span className="sk-sr">Loading statistics...</span>
-          {['Total applications', 'Profile complete', 'Pending exam result', 'Qualified', 'Appeals filed'].map((label) => (
+          {['Total applications', 'Profile complete', 'Eligible for Exam', 'Qualified as a Student', 'Appeals filed'].map((label) => (
             <div key={label} className="st-kpi">
               <span className="st-kpi-label">{label}</span>
               <span className="st-kpi-value">
@@ -4313,8 +4316,8 @@ function AnalyticsPanel() {
   const kpis = [
     { label: 'Total applications', value: stats.total, sub: department === 'all' ? 'All applicants this cycle' : department },
     { label: 'Profile complete', value: stats.profileComplete, sub: `${statPct(stats.profileComplete, stats.total)} of applicants` },
-    { label: 'Pending exam result', value: stats.elig.pending_exam, sub: `${statPct(stats.elig.pending_exam, stats.total)} of applicants` },
-    { label: 'Qualified', value: stats.elig.qualified, sub: `${statPct(stats.elig.qualified, stats.total)} of applicants` },
+    { label: 'Eligible for Exam', value: stats.elig.pending_exam, sub: `${statPct(stats.elig.pending_exam, stats.total)} of applicants` },
+    { label: 'Qualified as a Student', value: stats.elig.qualified, sub: `${statPct(stats.elig.qualified, stats.total)} of applicants` },
     { label: 'Appeals filed', value: appealCount, sub: 'Retake or re-application, all departments' },
   ]
 
@@ -4418,7 +4421,7 @@ function AnalyticsPanel() {
               <tr>
                 <th>Program</th>
                 <th className="r">Applicants</th>
-                <th className="r">Qualified</th>
+                <th className="r">Qualified as a Student</th>
                 <th className="r">Not Qualified</th>
                 <th className="r">Waitlisted</th>
                 <th className="r">Eligible for Exam</th>
