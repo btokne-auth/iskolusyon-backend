@@ -1898,7 +1898,7 @@ const APL_TABS = [
   { key: 'all', label: 'All', match: () => true },
   { key: 'action', label: 'Needs action', match: (g) => g.flagged || g.openConflicts > 0 || g.bucket === 'pending_exam' },
   { key: 'pending_exam', label: 'Eligible for Exam', match: (g) => g.bucket === 'pending_exam' },
-  { key: 'qualified', label: 'Qualified', match: (g) => g.bucket === 'qualified' },
+  { key: 'qualified', label: 'Qualified as a Student', match: (g) => g.bucket === 'qualified' },
   { key: 'not_qualified', label: 'Not Qualified', match: (g) => g.bucket === 'not_qualified' },
   { key: 'waitlisted', label: 'Waitlisted', match: (g) => g.bucket === 'waitlisted' },
   { key: 'incomplete', label: 'Incomplete Profile', match: (g) => g.bucket === 'incomplete' },
@@ -2889,6 +2889,24 @@ const RESULT_RELEASABLE = ['passer', 'waitlisted_probationary', 'qualified_proba
 
 const EXAM_RESULT_LABELS = { passed: 'Passed', failed: 'Failed', absent: 'Absent' }
 
+// Nov 2026: before an exam result exists, Applicant Results used to call
+// everyone "Pending Exam". After the rename to "Eligible for Exam" that was
+// wrong for applicants who are still incomplete or not qualified (Results
+// said 34 eligible while the Dashboard said 3). Before the exam, the
+// eligibility check decides the label, the same as the Dashboard.
+function isEligibleForExam(row) {
+  return (row.eligibility_override || row.eligibility_status) === 'pending_exam'
+}
+function resultsStageOf(row) {
+  const s = row.scholar_status || 'pending_exam'
+  if (s !== 'pending_exam') return { label: SCHOLAR_STATUS_META[s]?.label || s, cls: SCHOLAR_PILL_CLASS[s] || 'apl-pill-blue' }
+  const e = row.eligibility_override || row.eligibility_status || 'incomplete'
+  if (e === 'pending_exam') return { label: 'Eligible for Exam', cls: 'apl-pill-blue' }
+  if (e === 'not_qualified') return { label: 'Not Qualified', cls: 'apl-pill-red' }
+  if (e === 'qualified' || e === 'waitlisted') return { label: ELIGIBILITY_META[e]?.label || e, cls: e === 'qualified' ? 'apl-pill-green' : 'apl-pill-gold' }
+  return { label: 'Incomplete', cls: 'apl-pill-gray' }
+}
+
 const SCHOLAR_PILL_CLASS = {
   pending_exam: 'apl-pill-blue',
   passer: 'apl-pill-green',
@@ -3097,8 +3115,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
   const lockedByOther = !!lockInfo && !lockInfo.mine && !modalOpen
 
   const scholarStatus = row.scholar_status || 'pending_exam'
-  const scholarLabel = SCHOLAR_STATUS_META[scholarStatus]?.label || scholarStatus
-  const pillClass = SCHOLAR_PILL_CLASS[scholarStatus] || 'apl-pill-blue'
+  const { label: scholarLabel, cls: pillClass } = resultsStageOf(row)
   const hint = getNextStepHint(row)
   const examLabel = EXAM_RESULT_LABELS[row.exam_result] || ''
   const examSummary = row.exam_result
@@ -3598,7 +3615,8 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
 const RESULT_TABS = [
   { key: 'all', label: 'All', match: () => true },
   { key: 'action', label: 'Needs action', match: (r) => getNextStepHint(r).tone === 'go' },
-  { key: 'pending_exam', label: 'Eligible for Exam', match: (r) => (r.scholar_status || 'pending_exam') === 'pending_exam' },
+  { key: 'pending_exam', label: 'Eligible for Exam', match: (r) => (r.scholar_status || 'pending_exam') === 'pending_exam' && isEligibleForExam(r) },
+  { key: 'not_yet', label: 'Incomplete / Not Qualified', match: (r) => (r.scholar_status || 'pending_exam') === 'pending_exam' && !isEligibleForExam(r) },
   { key: 'passer', label: 'Qualified as a Student', match: (r) => r.scholar_status === 'passer' },
   {
     key: 'probationary',
@@ -4213,7 +4231,8 @@ function AnalyticsPanel() {
       const e = r.eligibility_override || r.eligibility_status || 'incomplete'
       if (e in elig) elig[e] += 1
       const s = r.scholar_status || 'pending_exam'
-      if (s in scholar) scholar[s] += 1
+      // Nov 2026: "Eligible for Exam" only counts applicants who are.
+      if (s in scholar && (s !== 'pending_exam' || e === 'pending_exam')) scholar[s] += 1
       const a = r.applying_as || 'Not yet specified'
       applying.set(a, (applying.get(a) || 0) + 1)
       const d = statDepartmentOf(r.program_choice_1)
