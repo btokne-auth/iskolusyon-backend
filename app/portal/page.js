@@ -11,7 +11,7 @@ import LoadingScreen from '../components/LoadingScreen'
 import { Skeleton, SkeletonRows, SkeletonList, SkeletonText } from '../components/Skeleton'
 import { DOCUMENT_TYPE_OPTIONS, getDocTypeLabel } from '../lib/documentTypes'
 import { BSED_MATH_SCIENCE_PROGRAMS } from '../lib/matching'
-import { formatMobileInput, withCalambaCity, toDateInputValue, latestBirthdate, earliestBirthdate, MIN_APPLICANT_AGE, MAX_APPLICANT_AGE, validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '../lib/fieldValidation'
+import { formatMobileInput, withCalambaCity, toDateInputValue, ageOn, latestBirthdate, earliestBirthdate, MIN_APPLICANT_AGE, MAX_APPLICANT_AGE, validatePersonalInfo, validateAcademicInfo, validateFamilyInfo, errorSummary } from '../lib/fieldValidation'
 import {
   saveDraftLocal,
   loadDraftLocal,
@@ -696,6 +696,14 @@ function sanitizePhoneInput(value, allowNA) {
 // read-only without passing a prop to each one. Upload rows don't use it,
 // so re-upload requests still work.
 const FieldsLockedContext = createContext(false)
+
+// Nov 2026 (panel revisions S6): the age is worked out from the date of
+// birth (ages 15 to 65 only, as the calendar already allows).
+function ageHint(dateOfBirth) {
+  const info = ageOn(dateOfBirth)
+  if (!info || info.isFutureOrToday) return 'Pick from the calendar. Applicants must be 15 to 65 years old.'
+  return `Age: ${info.age} years old`
+}
 
 function TextField({ label, required, type = 'text', value, onChange, placeholder, disabled, full, hint, max, min }) {
   const locked = useContext(FieldsLockedContext)
@@ -3887,7 +3895,7 @@ function PortalApp({ accountSession, onLogout }) {
                   <TextField label="Middle Name (if any)" value={personalInfo.middleName} onChange={(v) => updatePI('middleName', v)} placeholder="e.g. Santos" />
                   <TextField label="Last Name" required value={personalInfo.lastName} onChange={(v) => updatePI('lastName', v)} placeholder="e.g. Dela Cruz" />
                   <TextField label="Suffix (if any)" value={personalInfo.suffix} onChange={(v) => updatePI('suffix', v)} placeholder="e.g. Jr., III" />
-                  <TextField label="Date of Birth" type="date" required max={latestBirthdate(MIN_APPLICANT_AGE)} min={earliestBirthdate(MAX_APPLICANT_AGE)} value={personalInfo.dateOfBirth} onChange={(v) => updatePI('dateOfBirth', v)} />
+                  <TextField label="Date of Birth" type="date" required max={latestBirthdate(MIN_APPLICANT_AGE)} min={earliestBirthdate(MAX_APPLICANT_AGE)} value={personalInfo.dateOfBirth} onChange={(v) => updatePI('dateOfBirth', v)} hint={ageHint(personalInfo.dateOfBirth)} />
                   <TextField label="Place of Birth" required value={personalInfo.placeOfBirth} onChange={(v) => updatePI('placeOfBirth', v)} placeholder="e.g. Calamba City, Laguna" />
                   <SelectField label="Sex at birth" required value={personalInfo.sex} onChange={(v) => updatePI('sex', v)} options={['Male', 'Female']} />
                   <TextField label="Citizenship" required value={personalInfo.citizenship} onChange={(v) => updatePI('citizenship', v)} placeholder="e.g. Filipino" />
