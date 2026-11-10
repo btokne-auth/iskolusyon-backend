@@ -681,7 +681,7 @@ const ELIGIBILITY_META = {
   qualified: { label: 'Qualified', className: 'bg-green-50 text-ccc-green border-ccc-green/30' },
   waitlisted: { label: 'Waitlisted', className: 'bg-ccc-gold/10 text-ccc-navy border-ccc-gold/50' },
   not_qualified: { label: 'Not Qualified', className: 'bg-red-50 text-ccc-red border-ccc-red/30' },
-  pending_exam: { label: 'Pending Exam Result', className: 'bg-blue-50 text-ccc-blue border-ccc-blue/30' },
+  pending_exam: { label: 'Eligible for Exam', className: 'bg-blue-50 text-ccc-blue border-ccc-blue/30' },
   incomplete: { label: 'Incomplete Profile', className: 'bg-ccc-off text-ccc-muted border-ccc-border' },
 }
 
@@ -700,7 +700,7 @@ const APL_STATUS_PILL = {
 // Carlo, who failed, missing from Waitlisted). Before the exam it's the
 // eligibility check, as before. `bucket` is the stat card / tab it counts in.
 const APL_POST_EXAM = {
-  passer: { label: 'Passer', cls: 'apl-pill-green', bucket: 'qualified' },
+  passer: { label: 'Qualified as a Student', cls: 'apl-pill-green', bucket: 'qualified' },
   qualified_probationary: { label: 'Qualified (Probationary)', cls: 'apl-pill-gold', bucket: 'qualified' },
   waitlisted_probationary: { label: 'Waitlisted (Probationary)', cls: 'apl-pill-gold', bucket: 'waitlisted' },
   disqualified: { label: 'Disqualified', cls: 'apl-pill-red', bucket: 'not_qualified' },
@@ -1860,13 +1860,13 @@ const DASHBOARD_STAT_CARDS = [
     key: 'incomplete',
     label: 'Pending for Review',
     className: 'stat-pending',
-    note: 'Profile or documents not yet fully submitted/verified.',
+    note: 'Profile or documents not yet complete, or not yet confirmed by staff.',
   },
   {
     key: 'qualified',
-    label: 'Qualified',
+    label: 'Qualified as a Student',
     className: 'stat-qualified',
-    note: 'Passed the exam, or accepted as Qualified (Probationary).',
+    note: 'Passed the entrance exam, or accepted on probation (Qualified as a Student, Probationary).',
   },
   {
     key: 'not_qualified',
@@ -1897,7 +1897,7 @@ const DASHBOARD_STAT_CARDS = [
 const APL_TABS = [
   { key: 'all', label: 'All', match: () => true },
   { key: 'action', label: 'Needs action', match: (g) => g.flagged || g.openConflicts > 0 || g.bucket === 'pending_exam' },
-  { key: 'pending_exam', label: 'Pending Exam Result', match: (g) => g.bucket === 'pending_exam' },
+  { key: 'pending_exam', label: 'Eligible for Exam', match: (g) => g.bucket === 'pending_exam' },
   { key: 'qualified', label: 'Qualified', match: (g) => g.bucket === 'qualified' },
   { key: 'not_qualified', label: 'Not Qualified', match: (g) => g.bucket === 'not_qualified' },
   { key: 'waitlisted', label: 'Waitlisted', match: (g) => g.bucket === 'waitlisted' },
@@ -2523,8 +2523,8 @@ function DashboardPanel({
 // Results panel's design-parity pass. badge-orange (gold) covers both
 // probationary statuses to match the gold treatment they had before.
 const SCHOLAR_STATUS_META = {
-  pending_exam: { label: 'Pending Exam', className: 'badge-progress' },
-  passer: { label: 'Passer', className: 'badge-verified' },
+  pending_exam: { label: 'Eligible for Exam', className: 'badge-progress' },
+  passer: { label: 'Qualified as a Student', className: 'badge-verified' },
   waitlisted_probationary: { label: 'Waitlisted (Probationary)', className: 'badge-orange' },
   qualified_probationary: { label: 'Qualified (Probationary)', className: 'badge-orange' },
   disqualified: { label: 'Disqualified', className: 'badge-deficient' },
@@ -3008,7 +3008,7 @@ function EligibleProgramsBox({ row, busy, onAccept }) {
               <span className="font-bold text-ccc-navy">{pick}</span>?
             </>
           }
-          message="This sets the scholar status to Passer and the admitted program to this one. The recorded exam result stays as entered. The result notice, CHED Form 3 and the Registrar will use the admitted program. It is logged in the Activity Log."
+          message="This sets the scholar status to Qualified as a Student and the admitted program to this one. The recorded exam result stays as entered. The result notice, CHED Form 3 and the Registrar will use the admitted program. It is logged in the Activity Log."
           onConfirm={() => {
             setConfirming(false)
             onAccept(row.id, pick)
@@ -3357,7 +3357,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           )}
           <p className="rr-muted-line">
             Nothing here is saved until you click Save &amp; verify. Saving also sets the Scholar Status: Passed becomes
-            Passer, Failed becomes Waitlisted (Probationary), Absent becomes Forfeited.
+            Qualified as a Student, Failed becomes Waitlisted (Probationary), Absent becomes Forfeited.
           </p>
           {firstIsBsed && (bsedGradeMissing || bsedGradeBelow(row.program_choice_1, row)) && (
             <p className="ep-warn">
@@ -3526,7 +3526,7 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
           {!canDistribute ? (
             !hasStaleDistribution && (
               <p className="rr-muted-line">
-                Not applicable yet. Becomes available once this applicant is a Passer or Qualified (Probationary).
+                Not applicable yet. Becomes available once this applicant is Qualified as a Student (regular or Probationary).
               </p>
             )
           ) : (
@@ -3598,8 +3598,8 @@ function ResultRow({ row, onSaveExam, onSetScholarStatus, onAdvanceDistribution,
 const RESULT_TABS = [
   { key: 'all', label: 'All', match: () => true },
   { key: 'action', label: 'Needs action', match: (r) => getNextStepHint(r).tone === 'go' },
-  { key: 'pending_exam', label: 'Pending Exam', match: (r) => (r.scholar_status || 'pending_exam') === 'pending_exam' },
-  { key: 'passer', label: 'Passer', match: (r) => r.scholar_status === 'passer' },
+  { key: 'pending_exam', label: 'Eligible for Exam', match: (r) => (r.scholar_status || 'pending_exam') === 'pending_exam' },
+  { key: 'passer', label: 'Qualified as a Student', match: (r) => r.scholar_status === 'passer' },
   {
     key: 'probationary',
     label: 'Probationary',
@@ -3678,7 +3678,7 @@ function ResultsPanel() {
       } else if (payload.field === 'reevaluate') {
         showAdminNotice(
           payload.program
-            ? `${name} was accepted in ${payload.program} by re-evaluation. Scholar Status is now Passer.`
+            ? `${name} was accepted in ${payload.program} by re-evaluation. Scholar Status is now Qualified as a Student.`
             : `The re-evaluation of ${name} was undone.`
         )
       } else if (payload.field === 'distribution_status') {
@@ -3891,17 +3891,17 @@ const STAT_ELIGIBILITY = [
   { key: 'qualified', label: 'Qualified', color: '#1B6B3A' },
   { key: 'not_qualified', label: 'Not Qualified', color: '#C0392B' },
   { key: 'waitlisted', label: 'Waitlisted', color: '#C8A84B' },
-  { key: 'pending_exam', label: 'Pending Exam', color: '#003CD0' },
+  { key: 'pending_exam', label: 'Eligible for Exam', color: '#003CD0' },
   // Oct 15 2026 (client): was "Incomplete (Ongoing)".
   { key: 'incomplete', label: 'Not yet submitted', color: '#A7B4C8' },
 ]
 const STAT_SCHOLAR = [
-  { key: 'passer', label: 'Passer', color: '#1B6B3A' },
+  { key: 'passer', label: 'Qualified as a Student', color: '#1B6B3A' },
   { key: 'qualified_probationary', label: 'Qualified (Probationary)', color: '#E07B39' },
   { key: 'waitlisted_probationary', label: 'Waitlisted (Probationary)', color: '#C8A84B' },
   { key: 'disqualified', label: 'Disqualified', color: '#C0392B' },
   { key: 'forfeited', label: 'Forfeited', color: '#5A6B85' },
-  { key: 'pending_exam', label: 'Pending Exam', color: '#003CD0' },
+  { key: 'pending_exam', label: 'Eligible for Exam', color: '#003CD0' },
 ]
 const STAT_APPLYING_COLORS = ['#0D2F6E', '#C8A84B', '#5A6B85', '#A7B4C8']
 // Oct 12 2026: one fixed color per department (the order of
@@ -4257,7 +4257,7 @@ function AnalyticsPanel() {
                 <th className="r">Qualified</th>
                 <th className="r">Not Qualified</th>
                 <th className="r">Waitlisted</th>
-                <th className="r">Pending Exam</th>
+                <th className="r">Eligible for Exam</th>
               </tr>
             </thead>
             <tbody>
@@ -5595,16 +5595,23 @@ function CycleSettingsCard() {
       </div>
       <div className={`toggle-detail-panel${draft.applications_open ? '' : ' collapsed'}`}>
         <div className="efield">
-          <label>Applicant Slots</label>
+          <label>Total Applicant Slots (whole cycle)</label>
           <input
             type="number"
             min="0"
-            placeholder="e.g. 100"
+            placeholder="Blank = no limit (e.g. 3000)"
             value={draft.applicant_slots ?? ''}
             onChange={(e) =>
               setDraft((d) => ({ ...d, applicant_slots: e.target.value === '' ? null : Number(e.target.value) }))
             }
           />
+          {/* Nov 2026 (panel revisions S8): the panel read the demo's "100"
+              as a yearly cap. 100 is the size of one exam batch (Exam
+              Schedules); this field is the whole cycle's total. */}
+          <span className="text-[11px] text-ccc-muted leading-snug block mt-1">
+            CCC receives about 1,500&ndash;3,000 applicants a year, so leave this blank or set the cycle&apos;s total.
+            This is not the exam batch size: each exam batch holds up to 100 applicants and is set up in Exam Schedules.
+          </span>
         </div>
         <div className="efield">
           <label>Acceptance Start Date</label>
@@ -6079,7 +6086,7 @@ function ArchiveCycleCard() {
                           <td className="cf-strong">{a.applicant_name || 'Unnamed applicant'}</td>
                           <td>{a.application_number || ''}</td>
                           <td>{a.program_choice_1 || ''}</td>
-                          <td>{SCHOLAR_STATUS_META[a.scholar_status]?.label || 'Pending Exam'}</td>
+                          <td>{SCHOLAR_STATUS_META[a.scholar_status]?.label || 'Eligible for Exam'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -7161,7 +7168,7 @@ function RegistrarDashboardPanel({ data, loading, error, onGoAllowance, who = 'T
               <button type="button" className="ra-link" onClick={onGoAllowance}>
                 Allowance Distribution
               </button>
-              . Scholars with a Passer or Qualified (Probationary) status are listed there.
+              . Students Qualified as a Student (regular or Probationary) are listed there.
             </span>
           </div>}
         </>
@@ -7288,7 +7295,7 @@ function RegistrarAllowancePanel({ data, loading, error, onReload }) {
         <div>
           <h1>Allowance Distribution</h1>
           <p>
-            Post allowance distributions for scholars. Only scholars with a Passer or Qualified (Probationary) status whose
+            Post allowance distributions for scholars. Only students Qualified as a Student (regular or Probationary) whose
             result was already sent to them are listed. Each post appears right away on the scholar&apos;s Allowance page.
           </p>
         </div>
@@ -7367,7 +7374,7 @@ function RegistrarAllowancePanel({ data, loading, error, onReload }) {
                         <div className="ra-options" role="listbox" aria-label="Scholars">
                           {scholars.length === 0 ? (
                             <div className="ra-empty">
-                              No scholars yet. Scholars appear here once their result (Passer or Qualified (Probationary))
+                              No scholars yet. Scholars appear here once their result (Qualified as a Student, regular or Probationary)
                               has been sent to them.
                             </div>
                           ) : matches.length === 0 ? (
@@ -7701,7 +7708,7 @@ function ChedForm3Dialog({ onClose }) {
                   </div>
                 )}
                 <span className="ra-hint">
-                  Passers and Qualified (Probationary) scholars show as <b>passed</b>: <b>passed-enrolled</b> once Distribution
+                  Students Qualified as a Student (regular or Probationary) show as <b>passed</b>: <b>passed-enrolled</b> once Distribution
                   Status reached Enrollment complete, otherwise <b>passed-did not enrol</b>. The PDF is landscape A4 with the
                   Form 3 header and no signatures or seals. Sign the printed copy.
                 </span>

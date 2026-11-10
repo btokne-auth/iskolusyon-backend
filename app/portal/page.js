@@ -1844,7 +1844,7 @@ function LogoutConfirmModal({ open, onCancel, onConfirm }) {
 // Sept 30 2026: what the dashboard's Admission card says once a result has
 // been released to the applicant. Details are in the result message itself.
 const ADMISSION_RESULT_TEXT = {
-  passer: { label: 'Passed', note: 'Check Messages for your medical exam and pre-registration steps.' },
+  passer: { label: 'Qualified as a Student', note: 'Check Messages for your medical exam and pre-registration steps.' },
   waitlisted_probationary: { label: 'Waitlisted', note: 'You are on the waiting list. Check Messages for details.' },
   qualified_probationary: { label: 'Qualified (Probationary)', note: 'Check Messages for how to sign your probationary contract.' },
   forfeited: { label: 'Forfeited', note: 'Check Messages for what to do next.' },

@@ -285,7 +285,7 @@ export const FAQ_DATA = [
           },
           {
             "q": "What happens after passing the exam?",
-            "a": "Passers are qualified as students of the City College and are issued a recommendation to take their medical exam, which is required before official enrollment. They become scholars once enrolled."
+            "a": "Applicants who pass the entrance exam are qualified as students of the City College and are issued a recommendation to take their medical exam, which is required before official enrollment. They become scholars once enrolled."
           }
         ]
       }
