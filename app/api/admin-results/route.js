@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { checkLock } from '@/app/lib/applicantLocks'
-import { deriveScholarStatus, SCHOLAR_STATUS_VALUES, DISTRIBUTION_STATUS_VALUES, bsedGradeBelow, eligibleProgramsForScore, reachedFirstChoice } from '@/app/lib/matching'
+import { deriveScholarStatus, SCHOLAR_STATUS_VALUES, DISTRIBUTION_STATUS_VALUES, eligibleProgramsForScore, reachedFirstChoice } from '@/app/lib/matching'
 import { serverError } from '@/app/lib/safeError'
+import { buildExamUpdate } from '@/app/lib/examResults'
 
 // Applicant Information & Results Module -- admin-facing read + the three
 // admin actions the Roles PDF describes for it: Exam Score Entry and
@@ -104,34 +105,9 @@ export async function PATCH(request) {
         return NextResponse.json({ error: 'Exam score must be a number.' }, { status: 400 })
       }
 
-      let { status: derivedStatus, reason: derivedReason } = deriveScholarStatus(examResult)
-      // Oct 6 2026, Appendix J p. 96 rule a: a BSEd Mathematics / Science
-      // 1st choice is closed when the lowest SHS Math/Science grade is below
-      // 85, whatever the score. The applicant then waits for re-evaluation
-      // in another program (rule b), which an admin does in section 1.
-      if (derivedStatus === 'passer' && bsedGradeBelow(existing.program_choice_1, existing)) {
-        derivedStatus = 'waitlisted_probationary'
-        derivedReason = `Passing score, but ${existing.program_choice_1} needs 85 or higher in every SHS Mathematics and Science subject (Appendix J, rule a). Re-evaluate in another program.`
-      }
-
-      const { error: updateError } = await supabase
-        .from('applications')
-        .update({
-          exam_score: score,
-          exam_result: examResult || null,
-          exam_date: examDate || null,
-          exam_verified_by: adminName,
-          exam_verified_at: now,
-          scholar_status: derivedStatus,
-          scholar_status_reason: derivedReason,
-          scholar_status_set_by: adminName,
-          scholar_status_set_at: now,
-          // A new exam entry starts over: any earlier re-evaluation is cleared.
-          admitted_program: null,
-          admitted_program_set_by: null,
-          admitted_program_set_at: null,
-        })
-        .eq('id', id)
+      // Nov 2026: shared with the CSV import (app/lib/examResults.js).
+      const { status: derivedStatus, update } = buildExamUpdate(existing, { score, examResult, examDate, adminName, now })
+      const { error: updateError } = await supabase.from('applications').update(update).eq('id', id)
       if (updateError) return serverError(updateError, 'api/admin-results')
 
       try {

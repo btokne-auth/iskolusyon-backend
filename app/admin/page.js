@@ -3612,6 +3612,149 @@ const RESULT_TABS = [
   },
 ]
 
+// Nov 2026 (panel revisions S7): exam scores by CSV. The exam is still
+// face-to-face, pen and paper; staff download the score sheet, fill in the
+// scores, and upload it. The server shows a preview first and saves only
+// after "Save these results" (app/api/admin-results/import).
+function csvCell(v) {
+  const s = String(v ?? '')
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+function ExamCsvCard({ rows, onSaved }) {
+  const [csv, setCsv] = useState('')
+  const [fileName, setFileName] = useState('')
+  const [preview, setPreview] = useState(null)
+  const [working, setWorking] = useState(false)
+  const [error, setError] = useState('')
+  const fileRef = useRef(null)
+
+  const sheetRows = rows.filter((r) => (r.eligibility_override || r.eligibility_status) === 'pending_exam' || r.exam_result)
+
+  const downloadSheet = () => {
+    const lines = [['application_number', 'name', 'program_choice_1', 'exam_date', 'score', 'result']]
+    for (const r of [...sheetRows].sort((a, b) => String(a.application_number || '').localeCompare(String(b.application_number || '')))) {
+      lines.push([r.application_number || '', r.applicant_name || '', r.program_choice_1 || '', r.exam_date || '', r.exam_score ?? '', r.exam_result || ''])
+    }
+    const blob = new Blob(['﻿' + lines.map((l) => l.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `exam-score-sheet-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const send = async (text, apply) => {
+    setWorking(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin-results/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv: text, apply }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'The file could not be read.')
+      if (!apply) {
+        setPreview(data.preview)
+      } else {
+        setPreview(null)
+        setCsv('')
+        setFileName('')
+        if (fileRef.current) fileRef.current.value = ''
+        const extra = data.failed?.length ? ` ${data.failed.length} could not be saved (${data.failed.map((f) => `line ${f.line}: ${f.reason}`).join('; ')}).` : ''
+        showAdminNotice(`Saved ${data.saved} exam result${data.saved === 1 ? '' : 's'} from the CSV.${extra}`)
+        onSaved()
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  const onFile = async (file) => {
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      setError('The CSV file is too large (2 MB at most).')
+      return
+    }
+    const text = await file.text()
+    setFileName(file.name)
+    setCsv(text)
+    send(text, false)
+  }
+
+  const okCount = preview ? preview.filter((r) => r.ok).length : 0
+  return (
+    <div className="card">
+      <div className="card-title">Exam scores by CSV</div>
+      <p className="text-xs text-ccc-muted leading-relaxed mb-3">
+        The entrance exam is taken face-to-face, on paper. After checking, download the score sheet, fill in the
+        <b> score</b> (and <b>result</b> only for <i>absent</i>, or to override), then upload it. Blank result = from the
+        1st-choice program&apos;s passing grade, same as typing it in. Nothing is saved until you review the preview.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className="cm-btn cm-btn-secondary" onClick={downloadSheet} disabled={sheetRows.length === 0}>
+          Download score sheet ({sheetRows.length})
+        </button>
+        <label className="cm-btn cm-btn-secondary" style={{ cursor: working ? 'wait' : 'pointer' }}>
+          {working && !preview ? 'Reading…' : 'Upload filled sheet (.csv)'}
+          <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" disabled={working} onChange={(e) => onFile(e.target.files?.[0])} />
+        </label>
+        {fileName && <span className="text-xs text-ccc-muted">{fileName}</span>}
+      </div>
+      {error && <div className="text-xs text-ccc-red mt-2">{error}</div>}
+      {preview && (
+        <div className="mt-3">
+          <p className="text-xs text-ccc-navy mb-2">
+            <b>{okCount}</b> row{okCount === 1 ? '' : 's'} ready to save, <b>{preview.length - okCount}</b> skipped.
+          </p>
+          <div className="overflow-x-auto max-h-80 overflow-y-auto border border-ccc-border rounded-lg">
+            <table className="w-full text-xs">
+              <thead className="bg-ccc-off sticky top-0">
+                <tr>
+                  <th className="text-left p-2">Line</th>
+                  <th className="text-left p-2">Applicant</th>
+                  <th className="text-left p-2">Score</th>
+                  <th className="text-left p-2">Result</th>
+                  <th className="text-left p-2">Becomes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.map((r) => (
+                  <tr key={r.line} className="border-t border-ccc-border">
+                    <td className="p-2">{r.line}</td>
+                    <td className="p-2">{r.name || r.number || '—'}{r.number && r.name ? <span className="text-ccc-muted"> · {r.number}</span> : null}</td>
+                    {r.ok ? (
+                      <>
+                        <td className="p-2">{r.score ?? '—'}</td>
+                        <td className="p-2">{r.result}{r.replaces ? <span className="text-ccc-muted"> (was {r.replaces})</span> : null}</td>
+                        <td className="p-2">{SCHOLAR_STATUS_META[r.status]?.label || r.status}</td>
+                      </>
+                    ) : (
+                      <td className="p-2 text-ccc-red" colSpan={3}>Skipped: {r.reason}</td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button type="button" className="cm-btn cm-btn-primary" disabled={working || okCount === 0} onClick={() => send(csv, true)}>
+              {working ? 'Saving…' : `Save these ${okCount} result${okCount === 1 ? '' : 's'}`}
+            </button>
+            <button type="button" className="cm-btn cm-btn-secondary" disabled={working} onClick={() => { setPreview(null); setCsv(''); setFileName(''); if (fileRef.current) fileRef.current.value = '' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ResultsPanel() {
   const locks = useApplicantLocks()
   const [rows, setRows] = useState(() => peek('results') ?? [])
@@ -3762,6 +3905,8 @@ function ResultsPanel() {
           </p>
         </div>
       </div>
+
+      <ExamCsvCard rows={rows} onSaved={() => load(true)} />
 
       {/* Oct 1 2026 reskin: same card + filter bar as the Dashboard's All
           Applicants card, so the two lists look and behave alike. Rows and
