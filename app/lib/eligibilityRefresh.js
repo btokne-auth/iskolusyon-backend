@@ -26,7 +26,7 @@ export async function refreshEligibilityForUser(applicantUserId) {
       if (docsError) throw new Error(docsError.message)
       for (const d of data || []) for (const t of documentTypeTokens(d)) types.add(t)
     }
-    const cols = 'document_type, needs_review, review_status'
+    const cols = 'document_type, needs_review, review_status, staff_confirmed_at'
     await add(supabase.from('documents').select(cols).eq('applicant_user_id', applicantUserId))
     const email = rows[0].applicant_email
     const name = rows[0].applicant_name

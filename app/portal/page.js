@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, createContext, useContext } from 'react'
+import { docState } from '../lib/documentState'
 import { useRouter } from 'next/navigation'
 import '../portal-theme.css'
 import SiteHeader from '../components/SiteHeader'
@@ -375,7 +376,9 @@ function buildActivityLog({ myDocs, personalSubmittedAt, academicSubmittedAt, he
         ? { date: doc.created_at, dot: 'warn', title: `${label} needs review`, body: 'Needs your attention. See Document Verification Status above.', status: 'review' }
         : doc.review_status === 'processing'
           ? { date: doc.created_at, dot: 'info', title: `${label} uploaded`, body: 'We are reading it now. This updates by itself.', status: 'processing' }
-          : { date: doc.created_at, dot: 'done', title: `${label} uploaded`, body: 'Received and on file.', status: 'verified' }
+          : docState(doc) === 'checked'
+            ? { date: doc.created_at, dot: 'done', title: `${label} uploaded`, body: 'Passed the system check. Waiting for the Guidance Office to confirm it.', status: 'checked' }
+            : { date: doc.created_at, dot: 'done', title: `${label} verified`, body: 'Confirmed by the Guidance Office.', status: 'verified' }
     )
   })
 
@@ -425,6 +428,7 @@ function buildActivityLog({ myDocs, personalSubmittedAt, academicSubmittedAt, he
 const LOG_ICON = { done: '\u2713', warn: '!', info: '\u2026', section: '\u2713', submit: '\u2605' }
 const LOG_STATUS = {
   verified: { label: 'Verified', cls: 'is-good' },
+  checked: { label: 'System check passed', cls: 'is-info' },
   processing: { label: 'Processing', cls: 'is-info' },
   review: { label: 'Needs review', cls: 'is-warn' },
 }
@@ -1717,7 +1721,9 @@ function FilePreviewModal({ preview, onClose }) {
       ? { label: 'Processing', cls: 'is-wait' }
       : doc.needs_review
         ? { label: 'Needs review', cls: 'is-warn' }
-        : { label: 'Verified', cls: 'is-ok' }
+        : docState(doc) === 'checked'
+          ? { label: 'System check passed', cls: 'is-wait' }
+          : { label: 'Verified', cls: 'is-ok' }
   return (
     <div
       className="fp-overlay"

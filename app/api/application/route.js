@@ -187,12 +187,12 @@ async function fetchUploadedDocumentTypes({ userId, email, name }) {
     if (error) throw new Error(error.message)
     for (const d of data || []) for (const t of documentTypeTokens(d)) uploadedTypes.add(t)
   }
-  if (userId) await addTypes(supabase.from('documents').select('document_type, needs_review, review_status').eq('applicant_user_id', userId))
+  if (userId) await addTypes(supabase.from('documents').select('document_type, needs_review, review_status, staff_confirmed_at').eq('applicant_user_id', userId))
   // Sept 30 2026: email/name matches only count older documents that were
   // never linked to an account, so another applicant's upload with the same
   // name can never count toward this applicant's requirements.
-  if (email) await addTypes(supabase.from('documents').select('document_type, needs_review, review_status').is('applicant_user_id', null).ilike('applicant_email', email))
-  if (name) await addTypes(supabase.from('documents').select('document_type, needs_review, review_status').is('applicant_user_id', null).ilike('applicant_name', name))
+  if (email) await addTypes(supabase.from('documents').select('document_type, needs_review, review_status, staff_confirmed_at').is('applicant_user_id', null).ilike('applicant_email', email))
+  if (name) await addTypes(supabase.from('documents').select('document_type, needs_review, review_status, staff_confirmed_at').is('applicant_user_id', null).ilike('applicant_name', name))
   return uploadedTypes
 }
 

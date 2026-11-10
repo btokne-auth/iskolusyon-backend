@@ -1,5 +1,7 @@
 'use client'
 
+import { docState } from '../lib/documentState'
+
 // The applicant-side "Documents & Status" checklist.
 // Purely a display feature — reads from documents already fetched by the
 // parent page (docHistory via GET /api/upload). No new OCR/upload logic,
@@ -76,6 +78,15 @@ function StatusBadge({ state, label }) {
       <span className="badge badge-progress">
         <IconClock className="w-3 h-3" />
         Processing
+      </span>
+    )
+  }
+  // Nov 2026 (panel revisions S2): passed the OCR check, waiting for staff.
+  if (state === 'checked') {
+    return (
+      <span className="badge badge-progress">
+        <IconCheck className="w-3 h-3" />
+        System check passed
       </span>
     )
   }
@@ -183,7 +194,7 @@ export default function DocumentStatusTable({ groups, docs, applicantName, onReu
                   ? (rule?.badge ? 'not_needed' : 'not_uploaded')
                   : doc.review_status === 'processing'
                     ? 'processing'
-                    : (doc.needs_review ? 'needs_review' : 'verified')
+                    : (doc.needs_review ? 'needs_review' : docState(doc) === 'checked' ? 'checked' : 'verified')
                 const submittedNote = doc && doc.created_at
                   ? `Submitted ${new Date(doc.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}`
                   : null

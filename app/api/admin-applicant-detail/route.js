@@ -113,10 +113,10 @@ export async function PATCH(request) {
       for (const d of data || []) for (const t of documentTypeTokens(d)) uploadedTypes.add(t)
     }
     if (current.applicant_user_id) {
-      await addTypes(supabase.from('documents').select('document_type, needs_review, review_status').eq('applicant_user_id', current.applicant_user_id))
+      await addTypes(supabase.from('documents').select('document_type, needs_review, review_status, staff_confirmed_at').eq('applicant_user_id', current.applicant_user_id))
     }
     if (current.applicant_email) {
-      await addTypes(supabase.from('documents').select('document_type, needs_review, review_status').is('applicant_user_id', null).ilike('applicant_email', current.applicant_email))
+      await addTypes(supabase.from('documents').select('document_type, needs_review, review_status, staff_confirmed_at').is('applicant_user_id', null).ilike('applicant_email', current.applicant_email))
     }
     const merged = { ...current, ...patch }
     const { status, reasons } = computeEligibility(merged, uploadedTypes)

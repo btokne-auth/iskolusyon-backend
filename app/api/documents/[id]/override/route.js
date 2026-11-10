@@ -16,8 +16,11 @@ import { refreshEligibilityForUser, ELIGIBILITY_DOC_TYPES } from '@/app/lib/elig
 // see that file for why this is a placeholder, not real per-user
 // permissions. Whoever is signed in with the shared passcode can override
 // any document; there's no per-role restriction yet.
+// Nov 2026 (panel revisions S2): 'verify' is the staff Confirm. It is the
+// ONLY way a document becomes Verified; the OCR worker can only say it
+// passed the system check (app/lib/documentState.js).
 const VALID_ACTIONS = {
-  verify: { needs_review: false, review_status: 'verified', label: 'manually marked Verified', kind: 'done' },
+  verify: { needs_review: false, review_status: 'verified', label: 'confirmed and marked Verified', kind: 'done' },
   flag: { needs_review: true, review_status: 'flagged', label: 'manually flagged for review', kind: 'warn' },
 }
 
@@ -52,6 +55,8 @@ export async function PATCH(request, { params }) {
       .update({
         needs_review: change.needs_review,
         review_status: change.review_status,
+        staff_confirmed_at: action === 'verify' ? new Date().toISOString() : null,
+        staff_confirmed_by: action === 'verify' ? adminName : null,
       })
       .eq('file_path', id)
 

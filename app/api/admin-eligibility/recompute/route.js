@@ -40,7 +40,7 @@ export async function POST(request) {
     // so an applicant matches this exactly the way their own saves do.
     const { data: docs, error: docsError } = await supabase
       .from('documents')
-      .select('applicant_user_id, applicant_email, applicant_name, document_type, needs_review, review_status')
+      .select('applicant_user_id, applicant_email, applicant_name, document_type, needs_review, review_status, staff_confirmed_at')
     if (docsError) return serverError(docsError, 'api/admin-eligibility/recompute')
 
     const byUserId = new Map()

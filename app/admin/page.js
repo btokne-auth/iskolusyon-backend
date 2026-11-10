@@ -7,6 +7,7 @@ import AdminSidebar from '../components/AdminSidebar'
 import LoadingScreen from '../components/LoadingScreen'
 import { Skeleton, SkeletonRows, SkeletonList, SkeletonForm, SkeletonText, SkeletonStatGrid } from '../components/Skeleton'
 import { getDocTypeLabel } from '../lib/documentTypes'
+import { docState, DOC_STATE_LABEL } from '../lib/documentState'
 import { peek, keep, forgetAll } from '../lib/panelCache'
 import { onConnectivityChange, isNetworkError } from '../lib/offlineSync'
 import { suggestExamResult, eligibleProgramsForScore, admittedProgramOf, reachedFirstChoice, bsedGradeBelow, BSED_MATH_SCIENCE_PROGRAMS } from '../lib/matching'
@@ -355,7 +356,19 @@ function RetryableImage({ src, alt, className }) {
 // Sept 29: same fix as the applicant portal. A new upload sits in
 // review_status 'processing' until the OCR worker on Render reads it, and
 // used to show as Verified here during that time.
-function ReviewStatusBadge({ needsReview, reviewStatus }) {
+// Nov 2026 (panel revisions S2): a fourth state, "System check passed",
+// for documents the OCR accepted but no staff member has confirmed yet.
+// Only a staff Confirm makes a document Verified (app/lib/documentState.js).
+function ReviewStatusBadge({ needsReview, reviewStatus, doc }) {
+  const state = doc ? docState(doc) : null
+  if (state === 'checked') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-ccc-navy/30 bg-ccc-off px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-navy shrink-0 whitespace-nowrap">
+        <IconClock className="w-3 h-3" />
+        System check passed
+      </span>
+    )
+  }
   if (reviewStatus === 'processing') {
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-ccc-blue/40 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-blue shrink-0 whitespace-nowrap">
@@ -375,7 +388,7 @@ function ReviewStatusBadge({ needsReview, reviewStatus }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-ccc-green/40 bg-green-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ccc-green shrink-0 whitespace-nowrap">
       <IconCheck className="w-3 h-3" />
-      Verified
+      {doc ? 'Verified by staff' : 'Verified'}
     </span>
   )
 }
@@ -530,6 +543,7 @@ function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
   const pdf = isPdfFile(doc.file_path)
   const isBusy = overriding === doc.file_path
   const isProcessing = doc.review_status === 'processing'
+  const state = docState(doc)
 
   return (
     <div
@@ -569,8 +583,23 @@ function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
               </p>
               <p className="text-[11px] text-ccc-muted truncate">{getCleanFileName(doc.file_path)}</p>
             </div>
-            <ReviewStatusBadge needsReview={doc.needs_review} reviewStatus={doc.review_status} />
+            <ReviewStatusBadge needsReview={doc.needs_review} reviewStatus={doc.review_status} doc={doc} />
           </div>
+
+          {state === 'checked' && (
+            <p className="text-[11px] leading-snug text-ccc-navy bg-ccc-off rounded-md px-2 py-1.5">
+              <span className="font-bold">Passed the system check.</span> Compare the file with the text read from it,
+              then Confirm. It counts as Verified only after a staff member confirms it.
+            </p>
+          )}
+          {state === 'verified' && doc.staff_confirmed_by && (
+            <p className="text-[11px] leading-snug text-ccc-green">
+              Confirmed by {doc.staff_confirmed_by}
+              {doc.staff_confirmed_at && !String(doc.staff_confirmed_by).startsWith('Accepted before')
+                ? ` · ${new Date(doc.staff_confirmed_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+                : ''}
+            </p>
+          )}
 
           {doc.content_issue && (
             <p className="text-[11px] leading-snug text-ccc-orange bg-ccc-orange/10 rounded-md px-2 py-1.5">
@@ -618,15 +647,15 @@ function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
           {onOverride && (
             <div className="flex items-center gap-2 pt-1 border-t border-ccc-border mt-1">
               <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest mr-auto">
-                Manual override
+                Staff decision
               </span>
               <button
                 type="button"
-                disabled={isBusy || isProcessing || !doc.needs_review}
+                disabled={isBusy || isProcessing || state === 'verified'}
                 onClick={() => onOverride(doc, 'verify')}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-ccc-green/50 text-ccc-green bg-green-50 hover:bg-green-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                {isBusy ? 'Saving...' : 'Mark Verified'}
+                {isBusy ? 'Saving...' : state === 'flagged' ? 'Mark Verified' : 'Confirm'}
               </button>
               <button
                 type="button"
@@ -735,8 +764,7 @@ function AdminFilePreview({ doc, onClose }) {
   const name = getCleanFileName(doc.file_path)
   const image = isImageFile(doc.file_path)
   const pdf = isPdfFile(doc.file_path)
-  const status =
-    doc.review_status === 'processing' && !doc.needs_review ? 'Processing' : doc.needs_review ? 'Needs review' : 'Verified'
+  const status = DOC_STATE_LABEL[docState(doc)] || 'Processing'
   return (
     <div
       className="dpv-overlay"
@@ -1381,7 +1409,8 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
   const flaggedCount = docs.filter((d) => d.needs_review).length
   // Sept 29: documents still waiting on the OCR worker are neither.
   const processingCount = docs.filter((d) => d.review_status === 'processing' && !d.needs_review).length
-  const verifiedCount = docs.filter((d) => !d.needs_review && d.review_status !== 'processing').length
+  const verifiedCount = docs.filter((d) => docState(d) === 'verified').length
+  const toConfirmCount = docs.filter((d) => docState(d) === 'checked').length
   const sectionsDone = PROFILE_SECTIONS.filter((s) => !!eligibilityRow?.[s.key]).length
   const openConflicts = (conflicts || []).filter((c) => !c.checked).length
   const profilePct = Math.round((sectionsDone / PROFILE_SECTIONS.length) * 100)
@@ -1498,6 +1527,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               </span>
             )}
             {processingCount > 0 && <span className="apl-chip apl-chip-proc">{processingCount} processing</span>}
+            {toConfirmCount > 0 && <span className="apl-chip apl-chip-proc">{toConfirmCount} to confirm</span>}
             {openConflicts > 0 && (
               <span className="apl-chip apl-chip-conflict" title="What the applicant typed doesn't match a document. Open to check.">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1507,7 +1537,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                 {openConflicts} conflict{openConflicts === 1 ? '' : 's'}
               </span>
             )}
-            {flaggedCount === 0 && processingCount === 0 && openConflicts === 0 && docs.length > 0 && (
+            {flaggedCount === 0 && processingCount === 0 && toConfirmCount === 0 && openConflicts === 0 && docs.length > 0 && (
               <span className="apl-chip apl-chip-ok">All verified</span>
             )}
           </span>
@@ -1589,7 +1619,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               <div className="mini-summary ms-docs">
                 <div className="ms-label">Documents</div>
                 <div className="ms-value">
-                  {verifiedCount} Verified{processingCount > 0 ? ` · ${processingCount} Processing` : ''} · {flaggedCount} Pending Review
+                  {verifiedCount} Verified{toConfirmCount > 0 ? ` · ${toConfirmCount} To confirm` : ''}{processingCount > 0 ? ` · ${processingCount} Processing` : ''} · {flaggedCount} Pending Review
                   {integrityProblems > 0 && (
                     <span style={{ color: '#B71C1C', fontWeight: 700 }}>{` · ✗ ${integrityProblems} changed since upload`}</span>
                   )}
@@ -1988,7 +2018,7 @@ function useVerifyAllDocuments(docs) {
 // "Document integrity" shows how many files still match the SHA-256
 // fingerprint saved at upload, turns red when one doesn't, and holds the
 // "Verify all documents" action.
-function DocumentStatCards({ check, flaggedCount, docsLoading, onShowFlagged }) {
+function DocumentStatCards({ check, flaggedCount, toConfirmCount = 0, docsLoading, onShowFlagged }) {
   const { running, progress, total, problems, runError, verifyAll, verified, lastChecked } = check
   const changed = problems.length
   const when = lastChecked
@@ -2045,7 +2075,10 @@ function DocumentStatCards({ check, flaggedCount, docsLoading, onShowFlagged }) 
         ) : (
           <p className="stat-value">{flaggedCount}</p>
         )}
-        <p className="stat-note">Flagged by OCR or an admin and waiting for a decision.</p>
+        <p className="stat-note">
+          Flagged by OCR or an admin and waiting for a decision.
+          {toConfirmCount > 0 ? ` Plus ${toConfirmCount} that passed the system check and wait for staff to confirm.` : ''}
+        </p>
         <p className="stat-card-hint">
           <IconSearch className="w-3 h-3" /> Show applicants
         </p>
@@ -2323,6 +2356,7 @@ function DashboardPanel({
         <DocumentStatCards
           check={integrityCheck}
           flaggedCount={totalFlagged}
+          toConfirmCount={docs.filter((d) => docState(d) === 'checked').length}
           docsLoading={loading}
           onShowFlagged={() => {
             setStatusFilter('action')
