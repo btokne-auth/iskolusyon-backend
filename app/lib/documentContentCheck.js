@@ -71,6 +71,14 @@ const RULES = {
 
 export const CONTENT_CHECKED_TYPES = Object.keys(RULES)
 
+// Other Laguna cities and municipalities (normalized, so "Biñan" is "binan").
+const OTHER_PLACES = [
+  'cabuyao', 'santa rosa', 'sta rosa', 'binan', 'san pedro', 'los banos', 'bay', 'san pablo', 'santa cruz', 'sta cruz',
+  'alaminos', 'calauan', 'victoria', 'pila', 'nagcarlan', 'liliw', 'rizal', 'pagsanjan', 'lumban', 'kalayaan', 'paete',
+  'pakil', 'pangil', 'siniloan', 'famy', 'mabitac', 'santa maria', 'cavinti', 'luisiana', 'majayjay', 'magdalena',
+  'tanauan', 'silang', 'carmona', 'gma', 'dasmarinas', 'muntinlupa',
+]
+
 // Last name from "First Middle Last" (or "Last, First"). Skips suffixes.
 export function lastNameOf(fullName) {
   const raw = String(fullName || '').trim()
@@ -98,8 +106,19 @@ export function checkDocumentContent({ documentType, extractedText, applicantNam
     return { passed: false, reason: `No words expected on a ${rule.label} were found (for example: ${rule.mustHave.slice(0, 2).join(', ')}).` }
   }
 
-  if (rule.needsCalamba && !text.includes('calamba')) {
-    return { passed: false, reason: 'The address on this document does not mention Calamba.' }
+  // Nov 2026 (panel revisions S2, OCR accuracy test): the word "calamba"
+  // anywhere was not enough. A Cabuyao voter living on "Calamba Road"
+  // passed. Now the document must name the CITY of Calamba, and a document
+  // that names another city or municipality (the issuing COMELEC office or
+  // the voter's address) is refused.
+  if (rule.needsCalamba) {
+    const other = OTHER_PLACES.find((p) => new RegExp(`\\b(city of|municipality of) ${p}\\b|\\b${p} (city|laguna)\\b`).test(text))
+    if (other) {
+      return { passed: false, reason: `This document is from ${other.replace(/\b\w/g, (c) => c.toUpperCase())}, not the City of Calamba.` }
+    }
+    if (!/\b(city of calamba|calamba city|calamba laguna)\b/.test(text)) {
+      return { passed: false, reason: 'The address on this document does not show the City of Calamba.' }
+    }
   }
 
   if (rule.nameCheck) {

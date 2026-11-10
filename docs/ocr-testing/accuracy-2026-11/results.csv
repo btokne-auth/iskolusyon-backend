@@ -1,0 +1,276 @@
+file,kind,condition,expected,system_result,outcome,reason
+00_calamba_voter_clean.jpg,calamba_voter,clean,pass,passed,correct_accept,
+00_calamba_voter_dim.jpg,calamba_voter,dim,pass,passed,correct_accept,
+00_calamba_voter_blurry.jpg,calamba_voter,blurry,pass,passed,correct_accept,
+00_calamba_voter_tilted.jpg,calamba_voter,tilted,pass,passed,correct_accept,
+00_calamba_voter_angled.jpg,calamba_voter,angled,pass,passed,correct_accept,
+00_calamba_voter_low_res.jpg,calamba_voter,low_res,pass,passed,correct_accept,
+00_calamba_voter_compressed.jpg,calamba_voter,compressed,pass,passed,correct_accept,
+00_calamba_voter_shadow.jpg,calamba_voter,shadow,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+00_calamba_voter_very_blurry.jpg,calamba_voter,very_blurry,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+00_calamba_voter_very_dark.jpg,calamba_voter,very_dark,pass,passed,correct_accept,
+00_calamba_voter_very_low_res.jpg,calamba_voter,very_low_res,pass,flagged,false_flag,The address on this document does not show the City of Calamba.
+01_calamba_voter_clean.jpg,calamba_voter,clean,pass,passed,correct_accept,
+01_calamba_voter_dim.jpg,calamba_voter,dim,pass,passed,correct_accept,
+01_calamba_voter_blurry.jpg,calamba_voter,blurry,pass,passed,correct_accept,
+01_calamba_voter_tilted.jpg,calamba_voter,tilted,pass,passed,correct_accept,
+01_calamba_voter_angled.jpg,calamba_voter,angled,pass,passed,correct_accept,
+01_calamba_voter_low_res.jpg,calamba_voter,low_res,pass,passed,correct_accept,
+01_calamba_voter_compressed.jpg,calamba_voter,compressed,pass,passed,correct_accept,
+01_calamba_voter_shadow.jpg,calamba_voter,shadow,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+01_calamba_voter_very_blurry.jpg,calamba_voter,very_blurry,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+01_calamba_voter_very_dark.jpg,calamba_voter,very_dark,pass,passed,correct_accept,
+01_calamba_voter_very_low_res.jpg,calamba_voter,very_low_res,pass,flagged,false_flag,The address on this document does not show the City of Calamba.
+02_calamba_voter_clean.jpg,calamba_voter,clean,pass,passed,correct_accept,
+02_calamba_voter_dim.jpg,calamba_voter,dim,pass,passed,correct_accept,
+02_calamba_voter_blurry.jpg,calamba_voter,blurry,pass,passed,correct_accept,
+02_calamba_voter_tilted.jpg,calamba_voter,tilted,pass,passed,correct_accept,
+02_calamba_voter_angled.jpg,calamba_voter,angled,pass,passed,correct_accept,
+02_calamba_voter_low_res.jpg,calamba_voter,low_res,pass,passed,correct_accept,
+02_calamba_voter_compressed.jpg,calamba_voter,compressed,pass,passed,correct_accept,
+02_calamba_voter_shadow.jpg,calamba_voter,shadow,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+02_calamba_voter_very_blurry.jpg,calamba_voter,very_blurry,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+02_calamba_voter_very_dark.jpg,calamba_voter,very_dark,pass,passed,correct_accept,
+02_calamba_voter_very_low_res.jpg,calamba_voter,very_low_res,pass,passed,correct_accept,
+03_calamba_voter_clean.jpg,calamba_voter,clean,pass,passed,correct_accept,
+03_calamba_voter_dim.jpg,calamba_voter,dim,pass,passed,correct_accept,
+03_calamba_voter_blurry.jpg,calamba_voter,blurry,pass,passed,correct_accept,
+03_calamba_voter_tilted.jpg,calamba_voter,tilted,pass,passed,correct_accept,
+03_calamba_voter_angled.jpg,calamba_voter,angled,pass,passed,correct_accept,
+03_calamba_voter_low_res.jpg,calamba_voter,low_res,pass,passed,correct_accept,
+03_calamba_voter_compressed.jpg,calamba_voter,compressed,pass,passed,correct_accept,
+03_calamba_voter_shadow.jpg,calamba_voter,shadow,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+03_calamba_voter_very_blurry.jpg,calamba_voter,very_blurry,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+03_calamba_voter_very_dark.jpg,calamba_voter,very_dark,pass,passed,correct_accept,
+03_calamba_voter_very_low_res.jpg,calamba_voter,very_low_res,pass,flagged,false_flag,The address on this document does not show the City of Calamba.
+04_calamba_voter_clean.jpg,calamba_voter,clean,pass,passed,correct_accept,
+04_calamba_voter_dim.jpg,calamba_voter,dim,pass,passed,correct_accept,
+04_calamba_voter_blurry.jpg,calamba_voter,blurry,pass,passed,correct_accept,
+04_calamba_voter_tilted.jpg,calamba_voter,tilted,pass,passed,correct_accept,
+04_calamba_voter_angled.jpg,calamba_voter,angled,pass,passed,correct_accept,
+04_calamba_voter_low_res.jpg,calamba_voter,low_res,pass,passed,correct_accept,
+04_calamba_voter_compressed.jpg,calamba_voter,compressed,pass,passed,correct_accept,
+04_calamba_voter_shadow.jpg,calamba_voter,shadow,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+04_calamba_voter_very_blurry.jpg,calamba_voter,very_blurry,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+04_calamba_voter_very_dark.jpg,calamba_voter,very_dark,pass,passed,correct_accept,
+04_calamba_voter_very_low_res.jpg,calamba_voter,very_low_res,pass,flagged,false_flag,The address on this document does not show the City of Calamba.
+05_calamba_voter_clean.jpg,calamba_voter,clean,pass,passed,correct_accept,
+05_calamba_voter_dim.jpg,calamba_voter,dim,pass,passed,correct_accept,
+05_calamba_voter_blurry.jpg,calamba_voter,blurry,pass,passed,correct_accept,
+05_calamba_voter_tilted.jpg,calamba_voter,tilted,pass,passed,correct_accept,
+05_calamba_voter_angled.jpg,calamba_voter,angled,pass,passed,correct_accept,
+05_calamba_voter_low_res.jpg,calamba_voter,low_res,pass,passed,correct_accept,
+05_calamba_voter_compressed.jpg,calamba_voter,compressed,pass,passed,correct_accept,
+05_calamba_voter_shadow.jpg,calamba_voter,shadow,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+05_calamba_voter_very_blurry.jpg,calamba_voter,very_blurry,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+05_calamba_voter_very_dark.jpg,calamba_voter,very_dark,pass,passed,correct_accept,
+05_calamba_voter_very_low_res.jpg,calamba_voter,very_low_res,pass,flagged,false_flag,The address on this document does not show the City of Calamba.
+06_calamba_voter_clean.jpg,calamba_voter,clean,pass,passed,correct_accept,
+06_calamba_voter_dim.jpg,calamba_voter,dim,pass,passed,correct_accept,
+06_calamba_voter_blurry.jpg,calamba_voter,blurry,pass,passed,correct_accept,
+06_calamba_voter_tilted.jpg,calamba_voter,tilted,pass,passed,correct_accept,
+06_calamba_voter_angled.jpg,calamba_voter,angled,pass,passed,correct_accept,
+06_calamba_voter_low_res.jpg,calamba_voter,low_res,pass,passed,correct_accept,
+06_calamba_voter_compressed.jpg,calamba_voter,compressed,pass,passed,correct_accept,
+06_calamba_voter_shadow.jpg,calamba_voter,shadow,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+06_calamba_voter_very_blurry.jpg,calamba_voter,very_blurry,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+06_calamba_voter_very_dark.jpg,calamba_voter,very_dark,pass,passed,correct_accept,
+06_calamba_voter_very_low_res.jpg,calamba_voter,very_low_res,pass,flagged,false_flag,The address on this document does not show the City of Calamba.
+07_calamba_voter_clean.jpg,calamba_voter,clean,pass,passed,correct_accept,
+07_calamba_voter_dim.jpg,calamba_voter,dim,pass,passed,correct_accept,
+07_calamba_voter_blurry.jpg,calamba_voter,blurry,pass,passed,correct_accept,
+07_calamba_voter_tilted.jpg,calamba_voter,tilted,pass,passed,correct_accept,
+07_calamba_voter_angled.jpg,calamba_voter,angled,pass,passed,correct_accept,
+07_calamba_voter_low_res.jpg,calamba_voter,low_res,pass,passed,correct_accept,
+07_calamba_voter_compressed.jpg,calamba_voter,compressed,pass,passed,correct_accept,
+07_calamba_voter_shadow.jpg,calamba_voter,shadow,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+07_calamba_voter_very_blurry.jpg,calamba_voter,very_blurry,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+07_calamba_voter_very_dark.jpg,calamba_voter,very_dark,pass,passed,correct_accept,
+07_calamba_voter_very_low_res.jpg,calamba_voter,very_low_res,pass,flagged,false_flag,The address on this document does not show the City of Calamba.
+08_calamba_voter_clean.jpg,calamba_voter,clean,pass,passed,correct_accept,
+08_calamba_voter_dim.jpg,calamba_voter,dim,pass,passed,correct_accept,
+08_calamba_voter_blurry.jpg,calamba_voter,blurry,pass,passed,correct_accept,
+08_calamba_voter_tilted.jpg,calamba_voter,tilted,pass,passed,correct_accept,
+08_calamba_voter_angled.jpg,calamba_voter,angled,pass,passed,correct_accept,
+08_calamba_voter_low_res.jpg,calamba_voter,low_res,pass,passed,correct_accept,
+08_calamba_voter_compressed.jpg,calamba_voter,compressed,pass,passed,correct_accept,
+08_calamba_voter_shadow.jpg,calamba_voter,shadow,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+08_calamba_voter_very_blurry.jpg,calamba_voter,very_blurry,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+08_calamba_voter_very_dark.jpg,calamba_voter,very_dark,pass,passed,correct_accept,
+08_calamba_voter_very_low_res.jpg,calamba_voter,very_low_res,pass,flagged,false_flag,The address on this document does not show the City of Calamba.
+09_calamba_voter_clean.jpg,calamba_voter,clean,pass,passed,correct_accept,
+09_calamba_voter_dim.jpg,calamba_voter,dim,pass,passed,correct_accept,
+09_calamba_voter_blurry.jpg,calamba_voter,blurry,pass,passed,correct_accept,
+09_calamba_voter_tilted.jpg,calamba_voter,tilted,pass,passed,correct_accept,
+09_calamba_voter_angled.jpg,calamba_voter,angled,pass,passed,correct_accept,
+09_calamba_voter_low_res.jpg,calamba_voter,low_res,pass,passed,correct_accept,
+09_calamba_voter_compressed.jpg,calamba_voter,compressed,pass,passed,correct_accept,
+09_calamba_voter_shadow.jpg,calamba_voter,shadow,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+09_calamba_voter_very_blurry.jpg,calamba_voter,very_blurry,pass,flagged,false_flag,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+09_calamba_voter_very_dark.jpg,calamba_voter,very_dark,pass,passed,correct_accept,
+09_calamba_voter_very_low_res.jpg,calamba_voter,very_low_res,pass,flagged,false_flag,The address on this document does not show the City of Calamba.
+10_other_city_voter_clean.jpg,other_city_voter,clean,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+10_other_city_voter_dim.jpg,other_city_voter,dim,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+10_other_city_voter_blurry.jpg,other_city_voter,blurry,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+10_other_city_voter_tilted.jpg,other_city_voter,tilted,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+10_other_city_voter_angled.jpg,other_city_voter,angled,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+10_other_city_voter_low_res.jpg,other_city_voter,low_res,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+10_other_city_voter_compressed.jpg,other_city_voter,compressed,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+10_other_city_voter_shadow.jpg,other_city_voter,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+10_other_city_voter_very_blurry.jpg,other_city_voter,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+10_other_city_voter_very_dark.jpg,other_city_voter,very_dark,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+10_other_city_voter_very_low_res.jpg,other_city_voter,very_low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+11_other_city_voter_clean.jpg,other_city_voter,clean,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+11_other_city_voter_dim.jpg,other_city_voter,dim,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+11_other_city_voter_blurry.jpg,other_city_voter,blurry,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+11_other_city_voter_tilted.jpg,other_city_voter,tilted,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+11_other_city_voter_angled.jpg,other_city_voter,angled,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+11_other_city_voter_low_res.jpg,other_city_voter,low_res,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+11_other_city_voter_compressed.jpg,other_city_voter,compressed,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+11_other_city_voter_shadow.jpg,other_city_voter,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+11_other_city_voter_very_blurry.jpg,other_city_voter,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+11_other_city_voter_very_dark.jpg,other_city_voter,very_dark,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+11_other_city_voter_very_low_res.jpg,other_city_voter,very_low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+12_other_city_voter_clean.jpg,other_city_voter,clean,refuse,flagged,correct_reject,"This document is from Binan, not the City of Calamba."
+12_other_city_voter_dim.jpg,other_city_voter,dim,refuse,flagged,correct_reject,"This document is from Binan, not the City of Calamba."
+12_other_city_voter_blurry.jpg,other_city_voter,blurry,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+12_other_city_voter_tilted.jpg,other_city_voter,tilted,refuse,flagged,correct_reject,"This document is from Binan, not the City of Calamba."
+12_other_city_voter_angled.jpg,other_city_voter,angled,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+12_other_city_voter_low_res.jpg,other_city_voter,low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+12_other_city_voter_compressed.jpg,other_city_voter,compressed,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+12_other_city_voter_shadow.jpg,other_city_voter,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+12_other_city_voter_very_blurry.jpg,other_city_voter,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+12_other_city_voter_very_dark.jpg,other_city_voter,very_dark,refuse,flagged,correct_reject,"This document is from Binan, not the City of Calamba."
+12_other_city_voter_very_low_res.jpg,other_city_voter,very_low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+13_other_city_voter_clean.jpg,other_city_voter,clean,refuse,flagged,correct_reject,"This document is from Los Banos, not the City of Calamba."
+13_other_city_voter_dim.jpg,other_city_voter,dim,refuse,flagged,correct_reject,"This document is from Los Banos, not the City of Calamba."
+13_other_city_voter_blurry.jpg,other_city_voter,blurry,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+13_other_city_voter_tilted.jpg,other_city_voter,tilted,refuse,flagged,correct_reject,"This document is from Los Banos, not the City of Calamba."
+13_other_city_voter_angled.jpg,other_city_voter,angled,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+13_other_city_voter_low_res.jpg,other_city_voter,low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+13_other_city_voter_compressed.jpg,other_city_voter,compressed,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+13_other_city_voter_shadow.jpg,other_city_voter,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+13_other_city_voter_very_blurry.jpg,other_city_voter,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+13_other_city_voter_very_dark.jpg,other_city_voter,very_dark,refuse,flagged,correct_reject,"This document is from Los Banos, not the City of Calamba."
+13_other_city_voter_very_low_res.jpg,other_city_voter,very_low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+14_other_city_voter_clean.jpg,other_city_voter,clean,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+14_other_city_voter_dim.jpg,other_city_voter,dim,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+14_other_city_voter_blurry.jpg,other_city_voter,blurry,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+14_other_city_voter_tilted.jpg,other_city_voter,tilted,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+14_other_city_voter_angled.jpg,other_city_voter,angled,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+14_other_city_voter_low_res.jpg,other_city_voter,low_res,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+14_other_city_voter_compressed.jpg,other_city_voter,compressed,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+14_other_city_voter_shadow.jpg,other_city_voter,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+14_other_city_voter_very_blurry.jpg,other_city_voter,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+14_other_city_voter_very_dark.jpg,other_city_voter,very_dark,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+14_other_city_voter_very_low_res.jpg,other_city_voter,very_low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+15_other_city_voter_clean.jpg,other_city_voter,clean,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+15_other_city_voter_dim.jpg,other_city_voter,dim,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+15_other_city_voter_blurry.jpg,other_city_voter,blurry,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+15_other_city_voter_tilted.jpg,other_city_voter,tilted,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+15_other_city_voter_angled.jpg,other_city_voter,angled,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+15_other_city_voter_low_res.jpg,other_city_voter,low_res,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+15_other_city_voter_compressed.jpg,other_city_voter,compressed,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+15_other_city_voter_shadow.jpg,other_city_voter,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+15_other_city_voter_very_blurry.jpg,other_city_voter,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+15_other_city_voter_very_dark.jpg,other_city_voter,very_dark,refuse,flagged,correct_reject,"This document is from Cabuyao, not the City of Calamba."
+15_other_city_voter_very_low_res.jpg,other_city_voter,very_low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+16_other_city_voter_clean.jpg,other_city_voter,clean,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+16_other_city_voter_dim.jpg,other_city_voter,dim,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+16_other_city_voter_blurry.jpg,other_city_voter,blurry,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+16_other_city_voter_tilted.jpg,other_city_voter,tilted,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+16_other_city_voter_angled.jpg,other_city_voter,angled,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+16_other_city_voter_low_res.jpg,other_city_voter,low_res,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+16_other_city_voter_compressed.jpg,other_city_voter,compressed,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+16_other_city_voter_shadow.jpg,other_city_voter,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+16_other_city_voter_very_blurry.jpg,other_city_voter,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+16_other_city_voter_very_dark.jpg,other_city_voter,very_dark,refuse,flagged,correct_reject,"This document is from Santa Rosa, not the City of Calamba."
+16_other_city_voter_very_low_res.jpg,other_city_voter,very_low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+17_other_city_voter_clean.jpg,other_city_voter,clean,refuse,flagged,correct_reject,"This document is from Binan, not the City of Calamba."
+17_other_city_voter_dim.jpg,other_city_voter,dim,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+17_other_city_voter_blurry.jpg,other_city_voter,blurry,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+17_other_city_voter_tilted.jpg,other_city_voter,tilted,refuse,flagged,correct_reject,"This document is from Binan, not the City of Calamba."
+17_other_city_voter_angled.jpg,other_city_voter,angled,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+17_other_city_voter_low_res.jpg,other_city_voter,low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+17_other_city_voter_compressed.jpg,other_city_voter,compressed,refuse,flagged,correct_reject,"This document is from Binan, not the City of Calamba."
+17_other_city_voter_shadow.jpg,other_city_voter,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+17_other_city_voter_very_blurry.jpg,other_city_voter,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+17_other_city_voter_very_dark.jpg,other_city_voter,very_dark,refuse,flagged,correct_reject,"This document is from Binan, not the City of Calamba."
+17_other_city_voter_very_low_res.jpg,other_city_voter,very_low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+18_other_city_voter_clean.jpg,other_city_voter,clean,refuse,flagged,correct_reject,"This document is from Los Banos, not the City of Calamba."
+18_other_city_voter_dim.jpg,other_city_voter,dim,refuse,flagged,correct_reject,"This document is from Los Banos, not the City of Calamba."
+18_other_city_voter_blurry.jpg,other_city_voter,blurry,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+18_other_city_voter_tilted.jpg,other_city_voter,tilted,refuse,flagged,correct_reject,"This document is from Los Banos, not the City of Calamba."
+18_other_city_voter_angled.jpg,other_city_voter,angled,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+18_other_city_voter_low_res.jpg,other_city_voter,low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+18_other_city_voter_compressed.jpg,other_city_voter,compressed,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+18_other_city_voter_shadow.jpg,other_city_voter,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+18_other_city_voter_very_blurry.jpg,other_city_voter,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+18_other_city_voter_very_dark.jpg,other_city_voter,very_dark,refuse,flagged,correct_reject,"This document is from Los Banos, not the City of Calamba."
+18_other_city_voter_very_low_res.jpg,other_city_voter,very_low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+19_other_city_voter_clean.jpg,other_city_voter,clean,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+19_other_city_voter_dim.jpg,other_city_voter,dim,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+19_other_city_voter_blurry.jpg,other_city_voter,blurry,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+19_other_city_voter_tilted.jpg,other_city_voter,tilted,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+19_other_city_voter_angled.jpg,other_city_voter,angled,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+19_other_city_voter_low_res.jpg,other_city_voter,low_res,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+19_other_city_voter_compressed.jpg,other_city_voter,compressed,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+19_other_city_voter_shadow.jpg,other_city_voter,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+19_other_city_voter_very_blurry.jpg,other_city_voter,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+19_other_city_voter_very_dark.jpg,other_city_voter,very_dark,refuse,flagged,correct_reject,"This document is from San Pedro, not the City of Calamba."
+19_other_city_voter_very_low_res.jpg,other_city_voter,very_low_res,refuse,flagged,correct_reject,The address on this document does not show the City of Calamba.
+20_not_voter_doc_clean.jpg,not_voter_doc,clean,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+20_not_voter_doc_dim.jpg,not_voter_doc,dim,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+20_not_voter_doc_blurry.jpg,not_voter_doc,blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+20_not_voter_doc_tilted.jpg,not_voter_doc,tilted,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+20_not_voter_doc_angled.jpg,not_voter_doc,angled,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+20_not_voter_doc_low_res.jpg,not_voter_doc,low_res,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+20_not_voter_doc_compressed.jpg,not_voter_doc,compressed,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+20_not_voter_doc_shadow.jpg,not_voter_doc,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+20_not_voter_doc_very_blurry.jpg,not_voter_doc,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+20_not_voter_doc_very_dark.jpg,not_voter_doc,very_dark,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+20_not_voter_doc_very_low_res.jpg,not_voter_doc,very_low_res,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+21_not_voter_doc_clean.jpg,not_voter_doc,clean,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+21_not_voter_doc_dim.jpg,not_voter_doc,dim,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+21_not_voter_doc_blurry.jpg,not_voter_doc,blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+21_not_voter_doc_tilted.jpg,not_voter_doc,tilted,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+21_not_voter_doc_angled.jpg,not_voter_doc,angled,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+21_not_voter_doc_low_res.jpg,not_voter_doc,low_res,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+21_not_voter_doc_compressed.jpg,not_voter_doc,compressed,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+21_not_voter_doc_shadow.jpg,not_voter_doc,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+21_not_voter_doc_very_blurry.jpg,not_voter_doc,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+21_not_voter_doc_very_dark.jpg,not_voter_doc,very_dark,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+21_not_voter_doc_very_low_res.jpg,not_voter_doc,very_low_res,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+22_not_voter_doc_clean.jpg,not_voter_doc,clean,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+22_not_voter_doc_dim.jpg,not_voter_doc,dim,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+22_not_voter_doc_blurry.jpg,not_voter_doc,blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+22_not_voter_doc_tilted.jpg,not_voter_doc,tilted,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+22_not_voter_doc_angled.jpg,not_voter_doc,angled,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+22_not_voter_doc_low_res.jpg,not_voter_doc,low_res,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+22_not_voter_doc_compressed.jpg,not_voter_doc,compressed,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+22_not_voter_doc_shadow.jpg,not_voter_doc,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+22_not_voter_doc_very_blurry.jpg,not_voter_doc,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+22_not_voter_doc_very_dark.jpg,not_voter_doc,very_dark,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+22_not_voter_doc_very_low_res.jpg,not_voter_doc,very_low_res,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+23_not_voter_doc_clean.jpg,not_voter_doc,clean,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+23_not_voter_doc_dim.jpg,not_voter_doc,dim,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+23_not_voter_doc_blurry.jpg,not_voter_doc,blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+23_not_voter_doc_tilted.jpg,not_voter_doc,tilted,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+23_not_voter_doc_angled.jpg,not_voter_doc,angled,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+23_not_voter_doc_low_res.jpg,not_voter_doc,low_res,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+23_not_voter_doc_compressed.jpg,not_voter_doc,compressed,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+23_not_voter_doc_shadow.jpg,not_voter_doc,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+23_not_voter_doc_very_blurry.jpg,not_voter_doc,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+23_not_voter_doc_very_dark.jpg,not_voter_doc,very_dark,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+23_not_voter_doc_very_low_res.jpg,not_voter_doc,very_low_res,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+24_not_voter_doc_clean.jpg,not_voter_doc,clean,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+24_not_voter_doc_dim.jpg,not_voter_doc,dim,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+24_not_voter_doc_blurry.jpg,not_voter_doc,blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+24_not_voter_doc_tilted.jpg,not_voter_doc,tilted,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+24_not_voter_doc_angled.jpg,not_voter_doc,angled,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+24_not_voter_doc_low_res.jpg,not_voter_doc,low_res,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+24_not_voter_doc_compressed.jpg,not_voter_doc,compressed,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+24_not_voter_doc_shadow.jpg,not_voter_doc,shadow,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+24_not_voter_doc_very_blurry.jpg,not_voter_doc,very_blurry,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+24_not_voter_doc_very_dark.jpg,not_voter_doc,very_dark,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
+24_not_voter_doc_very_low_res.jpg,not_voter_doc,very_low_res,refuse,flagged,correct_reject,"No words expected on a Voter's ID / Certification were found (for example: comelec, commission on elections)."
