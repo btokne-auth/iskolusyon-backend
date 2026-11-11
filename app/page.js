@@ -213,7 +213,7 @@ const TERMS = [
 function TermsStrip() {
   return (
     <div className="terms rise" style={{ '--d': '.7s' }}>
-      <p className="terms-kick">Applicant, student, scholar: what the words mean here</p>
+      <p className="terms-kick">From applicant to scholar</p>
       <div className="terms-row">
         {TERMS.map((t, i) => (
           <div className="term" key={t.term}>
