@@ -24,7 +24,10 @@ import {
   checkFolder,
   getCheckStatus,
   cleanUpOldChecks,
+  discardCheck,
+  SIGNUP_CHECK_TYPES,
 } from '@/app/lib/signupResidencyCheck'
+import { signupScreening } from '@/app/lib/screening'
 
 // Nov 2026 (panel revisions S3/S4): the residency check at the very start of
 // sign-up, before any account exists. See app/lib/signupResidencyCheck.js.
@@ -62,6 +65,8 @@ export async function POST(request) {
     }
     const file = formData.get('file')
     const sentToken = formData.get('token')?.toString() || ''
+    // Nov 2026: 'form138' = the report card check of the academic screening.
+    const docType = SIGNUP_CHECK_TYPES.includes(formData.get('type')?.toString()) ? formData.get('type').toString() : 'voterid'
     const token = isValidTokenShape(sentToken) ? sentToken : newCheckToken()
 
     if (!file || typeof file === 'string') return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
@@ -89,7 +94,7 @@ export async function POST(request) {
     if (realType.startsWith('image/')) {
       let quality
       try {
-        quality = await checkImageQuality(buffer, 'voterid')
+        quality = await checkImageQuality(buffer, docType)
       } catch {
         return NextResponse.json({ error: 'This image could not be opened. It may be damaged. Please upload it again.' }, { status: 400 })
       }
@@ -123,7 +128,7 @@ export async function POST(request) {
       applicant_name: null,
       applicant_email: null,
       applicant_user_id: null,
-      document_type: 'voterid',
+      document_type: docType,
     }])
     if (dbError) {
       await supabase.storage.from('scholarship-documents').remove([filePath])
@@ -136,6 +141,28 @@ export async function POST(request) {
     })
 
     return NextResponse.json({ success: true, token })
+  } catch (err) {
+    return serverError(err, 'api/signup-residency-check')
+  }
+}
+
+// DELETE { token, screening } -> the academic screening at sign-up was not
+// passed; the checked Voter's ID is deleted now instead of after 24 hours.
+// The answers are re-checked here so a passing applicant's file can't be
+// deleted by mistake.
+export async function DELETE(request) {
+  try {
+    const body = await request.json().catch(() => ({}))
+    const token = String(body.token || '')
+    if (!isValidTokenShape(token)) return NextResponse.json({ error: 'Missing or invalid token' }, { status: 400 })
+    const result = signupScreening(body.screening || {})
+    const failingCard = body.reason === 'failing_grade'
+    if (!failingCard && (!result.complete || result.passed)) return NextResponse.json({ success: true, kept: true })
+    const reason = failingCard ? 'the grades read on the report card / transcript do not meet the rule' : result.reasons.join(' ')
+    await discardCheck(token, reason)
+    const gradeToken = String(body.gradeToken || '')
+    if (isValidTokenShape(gradeToken)) await discardCheck(gradeToken, reason)
+    return NextResponse.json({ success: true })
   } catch (err) {
     return serverError(err, 'api/signup-residency-check')
   }

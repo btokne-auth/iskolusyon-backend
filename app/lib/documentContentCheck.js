@@ -59,6 +59,7 @@ const RULES = {
   },
   form138: {
     label: 'Grades / Form 138',
+    failingGradeCheck: true,
     mustHave: ['report card', 'form 138', 'sf9', 'sf 9', 'progress report', 'general average', 'final grade', 'final rating', 'grades', 'gwa', 'weighted average', 'transcript of records', 'certificate of grades', 'semester', 'quarter'],
     nameCheck: true,
   },
@@ -128,5 +129,43 @@ export function checkDocumentContent({ documentType, extractedText, applicantNam
     }
   }
 
+  // Nov 2026 (panel revisions S2): a grade below 75 read on the report card
+  // flags it for the Guidance Office, so a "No" to the First Year grade
+  // question can't slip through. It only flags; staff decide.
+  if (rule.failingGradeCheck) {
+    const low = failingGradesOn(extractedText)
+    if (low.length) {
+      return { passed: false, reason: `A grade below 75 appears on this report card (${low.slice(0, 3).join(', ')}). The Guidance Office will check it.` }
+    }
+  }
+
   return { passed: true }
+}
+
+// Lines that read like "General Mathematics 72" (a subject followed only by
+// grades from 60 to 100) and contain a grade below 75. Lines with an LRN,
+// year, section or similar are skipped so other numbers aren't misread.
+export function failingGradesOn(extractedText) {
+  const hits = []
+  for (const raw of String(extractedText || '').split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!/^[A-Za-z]/.test(line)) continue
+    if (/\b(lrn|grade\s*\d|year|section|school|age|page|units?|no\.?)\b/i.test(line)) continue
+    // Whole numbers only: the "62" in a college grade of 1.62 is not a grade.
+    const nums = (line.match(/(?<![\d.])\d{2,3}(?:\.\d+)?(?![\d.])/g) || []).map(Number)
+    if (!nums.length || nums.some((n) => n < 60 || n > 100)) continue
+    const subject = line.replace(/[\d.]+/g, '').replace(/[^A-Za-z&() -]/g, ' ').replace(/\s+/g, ' ').trim()
+    for (const n of nums) if (n < 75) hits.push(`${subject || 'a subject'}: ${n}`)
+  }
+  return hits
+}
+
+// Nov 2026 (panel revisions S2): true when the text reads like a college
+// transcript / certificate of grades and not a Senior High report card, so a
+// First Year applicant can't pass the sign-up report card check with one.
+export function isCollegeGradeRecord(extractedText) {
+  const text = normalize(extractedText)
+  const shs = ['form 138', 'sf9', 'sf 9', 'report card', 'lrn', 'learner reference', 'department of education', 'deped', 'senior high']
+  const college = ['transcript of records', 'certificate of grades', 'units', 'weighted average', 'gwa', 'college', 'university', 'semester']
+  return hasAny(text, college) && !hasAny(text, shs)
 }

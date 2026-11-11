@@ -11,6 +11,12 @@ import { MINUTE, getClientIp, limitRequest } from '@/app/lib/rateLimit'
 import { logApplicantActivity, applicantLabel } from '@/app/lib/activityLog'
 import { validatePersonalInfo, errorSummary } from '@/app/lib/fieldValidation'
 import { claimPassedCheck, getCheckStatus, isValidTokenShape } from '@/app/lib/signupResidencyCheck'
+import { signupScreening, SCREENING_ANSWER_KEYS } from '@/app/lib/screening'
+
+function screeningAnswers(source) {
+  const s = source && typeof source === 'object' ? source : {}
+  return Object.fromEntries(SCREENING_ANSWER_KEYS.map((k) => [k, s[k] ?? '']))
+}
 
 // One endpoint, four actions — mirrors the action-in-body pattern already
 // used by /api/application (save vs submit) rather than spawning four
@@ -36,13 +42,43 @@ export async function POST(request) {
       // record with a Calamba address). Checked here on the server too.
       const token = String(body.residencyToken || '')
       const check = isValidTokenShape(token) ? await getCheckStatus(token) : { status: 'none' }
-      if (check.status !== 'passed') {
+      if (check.status !== 'passed' || check.type !== 'voterid') {
         return NextResponse.json({ error: 'Please complete the residency check (Voter\'s ID) first.', residency: true }, { status: 400 })
+      }
+      // Nov 2026 (panel revisions S3/S4/S2): the academic screening too,
+      // before any account exists (app/lib/screening.js).
+      const answers = screeningAnswers(body.screening)
+      const screen = signupScreening(answers)
+      if (!screen.complete) {
+        return NextResponse.json({ error: screen.invalid || 'Please answer the academic standing questions first.', screening: true }, { status: 400 })
+      }
+      if (!screen.passed) {
+        return NextResponse.json({ error: screen.reasons.join(' '), screening: true, reasons: screen.reasons }, { status: 400 })
+      }
+      // The report card (Form 138) read at sign-up: a report card with no
+      // grade below 75. First Year only (the document CCC lists for them);
+      // transferees and Old Curriculum / ALS upload proof of grades in the
+      // portal, where staff confirm it.
+      const needsCard = answers.applyingAs === 'First Year'
+      const gradeToken = String(body.gradeToken || '')
+      if (needsCard) {
+        const card = isValidTokenShape(gradeToken) ? await getCheckStatus(gradeToken) : { status: 'none' }
+        if (card.status !== 'passed' || card.type !== 'form138') {
+          return NextResponse.json({ error: 'Please upload your report card (Form 138) and wait for it to be checked.', grades: true }, { status: 400 })
+        }
       }
       const result = await startSignup(body.email, body.password)
       if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
-      const claimed = await claimPassedCheck(token, { accountId: result.accountId, email: String(body.email || '').trim().toLowerCase() })
+      const accountEmail = String(body.email || '').trim().toLowerCase()
+      const claimed = await claimPassedCheck(token, { accountId: result.accountId, email: accountEmail })
       if (claimed.error) return NextResponse.json({ error: claimed.error, residency: true }, { status: 400 })
+      if (needsCard) {
+        const claimedCard = await claimPassedCheck(gradeToken, { accountId: result.accountId, email: accountEmail, type: 'form138' })
+        if (claimedCard.error) return NextResponse.json({ error: claimedCard.error, grades: true }, { status: 400 })
+      }
+      // The screening answers are kept with the sign-up and can't be changed
+      // later in sign-up (see 'save') or in the portal.
+      await saveSignupProgress(result.accountId, { academicInfo: answers })
       return NextResponse.json({ success: true, accountId: result.accountId })
     }
 
@@ -58,8 +94,19 @@ export async function POST(request) {
           return NextResponse.json({ error: errorSummary(problems), fieldErrors }, { status: 400 })
         }
       }
+      // Nov 2026: the screening answers given before the account was made
+      // always win over anything sent later.
+      let academicInfo = body.academicInfo
+      if (academicInfo && typeof academicInfo === 'object') {
+        const { data: pending } = await supabase
+          .from('applicant_accounts')
+          .select('pending_academic_info')
+          .eq('id', body.accountId)
+          .maybeSingle()
+        academicInfo = { ...academicInfo, ...screeningAnswers(pending?.pending_academic_info) }
+      }
       const result = await saveSignupProgress(body.accountId, {
-        academicInfo: body.academicInfo,
+        academicInfo,
         personalInfo: body.personalInfo,
       })
       if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })

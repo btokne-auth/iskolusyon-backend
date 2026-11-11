@@ -1,6 +1,12 @@
 import crypto from 'crypto'
 import { supabase } from '@/app/supabaseClient'
-import { checkDocumentContent, CONTENT_CHECK_FIELD } from '@/app/lib/documentContentCheck'
+import { checkDocumentContent, CONTENT_CHECK_FIELD, failingGradesOn, isCollegeGradeRecord } from '@/app/lib/documentContentCheck'
+
+// Nov 2026: the same check also reads the report card (Form 138) at sign-up,
+// with its own token, for the academic screening (app/lib/screening.js):
+// it must read as a report card and show no grade below 75. The name is
+// checked later in the portal (it isn't known yet at sign-up step 1).
+export const SIGNUP_CHECK_TYPES = ['voterid', 'form138']
 import { CALAMBA_BARANGAYS } from '@/app/lib/fieldValidation'
 
 // Nov 2026 (panel revisions S3/S4, final defense Oct 20-23): residency is
@@ -126,6 +132,26 @@ async function logAnonymous(action, kind) {
   }
 }
 
+// The content check, plus the grade rule for a First Year's report card
+// (Form 138, the document CCC lists for First Year applicants).
+// Returns { passed } or { passed: false, reason, kind: 'failing_grade' | 'unreadable' }.
+// Transferees don't upload at sign-up: CCC's transferee list names no grade
+// document, and the Program Director decides exceptional cases (Appendix J),
+// so their proof of grades is uploaded in the portal and confirmed by staff.
+export function gradeAwareCheck(type, extractedText) {
+  const result = checkDocumentContent({ documentType: type, extractedText, applicantName: '' })
+  if (type !== 'form138') return result.passed ? result : { ...result, kind: 'unreadable' }
+  if (isCollegeGradeRecord(extractedText)) {
+    return { passed: false, kind: 'unreadable', reason: 'This looks like a college transcript. First Year applicants upload their latest Senior High report card (Form 138).' }
+  }
+  if (result.passed) return result
+  const low = failingGradesOn(extractedText)
+  if (low.length) {
+    return { passed: false, kind: 'failing_grade', reason: `A grade below 75 appears on your report card (${low.slice(0, 3).join(', ')}). Applicants with a failing grade are not accepted.` }
+  }
+  return { ...result, kind: 'unreadable' }
+}
+
 // Status of a check, for the sign-up page to poll.
 //   { status: 'none' }        no upload for this token
 //   { status: 'processing' }  still being read
@@ -141,18 +167,24 @@ export async function getCheckStatus(token) {
   }
   if (doc.review_status === 'processing') return { status: 'processing' }
 
-  const result = checkDocumentContent({ documentType: 'voterid', extractedText: doc.extracted_text, applicantName: '' })
+  const type = SIGNUP_CHECK_TYPES.includes(doc.document_type) ? doc.document_type : 'voterid'
+  const result = gradeAwareCheck(type, doc.extracted_text)
   if (!result.passed) {
+    // A failing grade (or a GWA below the rule) means not eligible at all;
+    // anything else (not a report card, unreadable) can be retried with a
+    // clearer copy.
     await removeDoc(doc)
-    await logAnonymous(`Sign-up stopped at the residency check: ${result.reason}`, 'warn')
-    return { status: 'failed', reason: result.reason }
+    await logAnonymous(`Sign-up stopped at the ${type === 'form138' ? 'report card' : 'residency'} check: ${result.reason}`, 'warn')
+    return { status: 'failed', reason: result.reason, kind: result.kind || 'unreadable' }
   }
+  if (type === 'form138') return { status: 'passed', type, prefill: {} }
 
   const fields = await readFields(doc.file_path)
   const address = fields.address || addressFromText(doc.extracted_text)
   const sourceText = address || doc.extracted_text
   return {
     status: 'passed',
+    type,
     prefill: {
       street: streetPart(address),
       barangay: findBarangay(sourceText),
@@ -164,10 +196,12 @@ export async function getCheckStatus(token) {
 // Called by sign-up 'start'. Re-checks the token on the server (never
 // trusts the browser), then links the upload to the new account so it
 // becomes the applicant's Voter's ID in the portal.
-export async function claimPassedCheck(token, { accountId, email }) {
+export async function claimPassedCheck(token, { accountId, email, type = 'voterid' }) {
   if (!isValidTokenShape(token)) return { error: 'Please complete the residency check first.' }
   const status = await getCheckStatus(token)
-  if (status.status !== 'passed') return { error: 'Please complete the residency check first.' }
+  // The type must match, so a passed report card can't stand in for the
+  // Voter's ID (or the other way around).
+  if (status.status !== 'passed' || status.type !== type) return { error: 'Please complete the residency check first.' }
   const doc = await latestCheckDoc(token)
   const { error } = await supabase
     .from('documents')
@@ -175,12 +209,27 @@ export async function claimPassedCheck(token, { accountId, email }) {
     .eq('file_path', doc.file_path)
     .is('applicant_user_id', null)
   if (error) return { error: 'Could not save your residency check. Please try again.' }
+  // An abandoned sign-up with the same email reuses the same (unverified)
+  // account, so a check claimed by that earlier attempt would show up as a
+  // second Voter's ID / report card. Only the newest one is kept.
+  try {
+    const { data: older } = await supabase
+      .from('documents')
+      .select('file_path')
+      .eq('applicant_user_id', accountId)
+      .eq('document_type', doc.document_type || type)
+      .like('file_path', `${SIGNUP_CHECK_PREFIX}%`)
+      .neq('file_path', doc.file_path)
+    for (const d of older || []) await removeDoc(d)
+  } catch (err) {
+    console.error('Clean-up of an earlier sign-up check failed (non-blocking):', err)
+  }
   // Marks it as already checked, so the portal's content check doesn't run
   // on it again (app/api/upload GET).
   try {
     await supabase.from('extracted_fields').insert({
       file_path: doc.file_path,
-      document_type: 'voterid',
+      document_type: doc.document_type || 'voterid',
       field_name: CONTENT_CHECK_FIELD,
       extracted_value: 'passed at sign-up',
       needs_review: false,
@@ -188,8 +237,24 @@ export async function claimPassedCheck(token, { accountId, email }) {
   } catch (err) {
     console.error('Content check marker failed (non-blocking):', err)
   }
-  await logAnonymous('Sign-up residency check passed (COMELEC record with a Calamba address)', 'done')
+  await logAnonymous(
+    doc.document_type === 'form138'
+      ? 'Sign-up report card check passed (report card, no grade below 75)'
+      : 'Sign-up residency check passed (COMELEC record with a Calamba address)',
+    'done'
+  )
   return { success: true, prefill: status.prefill }
+}
+
+// Nov 2026: the applicant passed the residency check but not the academic
+// screening, so no account will be made. The Voter's ID is deleted right
+// away and only an anonymous count is kept.
+export async function discardCheck(token, reason) {
+  if (!isValidTokenShape(token)) return
+  const doc = await latestCheckDoc(token)
+  if (!doc || doc.applicant_user_id) return
+  await removeDoc(doc)
+  await logAnonymous(`Sign-up stopped at the academic screening: ${reason}`, 'warn')
 }
 
 // Deletes checks nobody finished (older than a day, never linked).

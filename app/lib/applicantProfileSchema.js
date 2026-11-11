@@ -161,6 +161,7 @@ export const PROFILE_CATEGORIES = [
           { key: 'transferee_gwa', label: 'General Weighted Average (GWA)' },
           { key: 'transferee_units_passed', label: 'Units Passed' },
           { key: 'transferee_failing_grade', label: 'Failing Grade in a Previous Semester?' },
+          { key: 'shs_failing_grade', label: 'First Year: Any Grade Below 75 in SHS Report Card?' },
         ],
         docTypes: [],
       },

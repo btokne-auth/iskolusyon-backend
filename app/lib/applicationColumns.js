@@ -104,6 +104,8 @@ export function academicInfoToColumns(academicInfo) {
         ? Number(ai.transfereeUnitsPassed)
         : null,
     transferee_failing_grade: text(ai.transfereeFailingGrade),
+    // Nov 2026 (panel revisions S2): First Year grade question.
+    shs_failing_grade: text(ai.shsFailingGrade),
     // Oct 6 2026: Appendix J p. 96 rule a (BSEd Mathematics / Science need
     // 85 or higher in every SHS Mathematics and Science subject). Kept only
     // when a choice is one of those two programs; a grade from 60 to 100.

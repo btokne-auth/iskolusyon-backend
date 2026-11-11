@@ -45,6 +45,7 @@ export const SELECT_OPTIONS = {
   program_choice_2: [...PROGRAM_OPTIONS, 'None of the above'],
   tech_voc: YES_NO,
   transferee_failing_grade: YES_NO,
+  shs_failing_grade: YES_NO,
   fam_only_child: YES_NO,
   fam_sibling_currentstudent: YES_NO,
   fam_sibling_graduate: YES_NO,

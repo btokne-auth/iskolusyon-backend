@@ -8,6 +8,7 @@ import { getSystemSettings, submitBlockedReason } from '@/app/lib/systemSettings
 import { resultsVisible, applicantSafeRow } from '@/app/lib/resultVisibility'
 import { isApplicantArchived, ARCHIVED_MESSAGE } from '@/app/lib/archive'
 import { serverError } from '@/app/lib/safeError'
+import { screeningResult, SCREENING_LOCKED_COLUMNS, SCREENING_STAGE2_MESSAGE } from '@/app/lib/screening'
 import { MINUTE, limitRequest } from '@/app/lib/rateLimit'
 import { encryptApplicationFields, decryptApplicationFields } from '@/app/lib/fieldCrypto'
 import { logApplicantActivity, applicantLabel } from '@/app/lib/activityLog'
@@ -610,6 +611,39 @@ export async function POST(request) {
       existing = rows[0] || null
     } catch (findError) {
       return serverError(findError, 'api/application')
+    }
+
+    // Nov 2026 (panel revisions, priority 4 / S4): two-stage application
+    // (app/lib/screening.js). Until the eligibility screening is passed,
+    // Personal Information / Family & Financial / Health can't be submitted
+    // and no family or financial details are stored. Sign-up's basic
+    // details (name, contact, address) still save as before.
+    if (!profileLocked) {
+      let screening = { stage2Open: true }
+      try {
+        const { data: docs } = await supabase
+          .from('documents')
+          .select('document_type, created_at, needs_review, review_status, staff_confirmed_at')
+          .eq('applicant_user_id', session.id)
+        screening = screeningResult(existing || {}, docs || [])
+      } catch (screenErr) {
+        return serverError(screenErr, 'api/application')
+      }
+      if (!screening.stage2Open) {
+        if (action === 'submit-section' && ['personal', 'financial', 'health'].includes(section)) {
+          return NextResponse.json({ error: SCREENING_STAGE2_MESSAGE, screening: screening.state }, { status: 403 })
+        }
+        for (const key of Object.keys(familyInfoColumns)) delete familyInfoColumns[key]
+      }
+      // The screening answers given at sign-up can't be changed here
+      // (corrections go through the Guidance Office). An answer that was
+      // never given (e.g. the First Year grade question on an older
+      // application) can still be filled in once.
+      if (existing) {
+        for (const col of SCREENING_LOCKED_COLUMNS) {
+          if (col in academicInfoColumns && existing[col] != null && existing[col] !== '') academicInfoColumns[col] = existing[col]
+        }
+      }
     }
 
     const now = new Date().toISOString()

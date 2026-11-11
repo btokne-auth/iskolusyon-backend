@@ -845,10 +845,23 @@ function formatAplDate(iso) {
 // silently added). `key` matches VALID_OVERRIDES in
 // app/api/admin-eligibility/route.js; `cls` is only the CSS modifier name
 // (status-btn.not-qualified, hyphenated) so it doesn't have to match.
+// Nov 2026: simple line icons instead of the ✓ / ⏳ / ✕ characters.
+const STATUS_ICON_PATHS = {
+  qualified: 'M5 12.5l4.5 4.5L19 7.5',
+  waitlisted: 'M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  not_qualified: 'M7 7l10 10M17 7L7 17',
+}
+function StatusIcon({ name }) {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={STATUS_ICON_PATHS[name]} />
+    </svg>
+  )
+}
 const STATUS_OPTIONS = [
-  { key: 'qualified', cls: 'qualified', icon: '✓', label: 'Qualified' },
-  { key: 'waitlisted', cls: 'waitlisted', icon: '⏳', label: 'Waitlisted' },
-  { key: 'not_qualified', cls: 'not-qualified', icon: '✕', label: 'Not Qualified' },
+  { key: 'qualified', cls: 'qualified', icon: <StatusIcon name="qualified" />, label: 'Qualified' },
+  { key: 'waitlisted', cls: 'waitlisted', icon: <StatusIcon name="waitlisted" />, label: 'Waitlisted' },
+  { key: 'not_qualified', cls: 'not-qualified', icon: <StatusIcon name="not_qualified" />, label: 'Not Qualified' },
 ]
 
 // The expandable detail: computed status + why, plus the manual override
@@ -898,17 +911,22 @@ function EligibilitySection({ row, onOverride, overriding }) {
             onClick={() => onOverride(row.id, opt.key)}
             className={`status-btn ${opt.cls}${effectiveStatus === opt.key ? ' current' : ''}`}
           >
-            <div className="sb-icon">{opt.icon}</div>
-            <div className="sb-label">{opt.label}</div>
+            <span className="sb-icon">{opt.icon}</span>
+            <span className="sb-label">{opt.label}</span>
+            {effectiveStatus === opt.key && <span className="sb-current">Current</span>}
           </button>
         ))}
       </div>
+      {/* Nov 2026: bigger and boxed, so the reasons behind a status aren't overlooked. */}
       {reasons.length > 0 && (
-        <ul className="text-[11px] text-ccc-muted space-y-1 list-disc pl-4">
-          {reasons.map((r, i) => (
-            <li key={i}>{r}</li>
-          ))}
-        </ul>
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-amber-900 mb-1">Why this status</div>
+          <ul className="text-[13px] text-amber-950 leading-relaxed space-y-1 list-disc pl-5">
+            {reasons.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   )
@@ -5739,93 +5757,76 @@ function CycleSettingsCard() {
         </div>
       )}
 
-      <div className="toggle-row">
-        <div className="toggle-row-info">
-          <h4>Applications Open</h4>
-          <p>
-            When off, applicants can no longer submit new applications. When on, applicants can only submit between the
-            acceptance dates below, and only until the applicant slots are filled. Leave a field blank for no limit.
-          </p>
-        </div>
-        <label className="switch">
-          <input
-            type="checkbox"
-            checked={!!draft.applications_open}
-            onChange={(e) => setDraft((d) => ({ ...d, applications_open: e.target.checked }))}
-          />
-          <span className="slider" />
-        </label>
-      </div>
-      <div className={`toggle-detail-panel${draft.applications_open ? '' : ' collapsed'}`}>
-        <div className="efield">
-          <label>Total Applicant Slots (whole cycle)</label>
-          <input
-            type="number"
-            min="0"
-            placeholder="Blank = no limit (e.g. 3000)"
-            value={draft.applicant_slots ?? ''}
-            onChange={(e) =>
-              setDraft((d) => ({ ...d, applicant_slots: e.target.value === '' ? null : Number(e.target.value) }))
-            }
-          />
-          {/* Nov 2026 (panel revisions S8): the panel read the demo's "100"
-              as a yearly cap. 100 is the size of one exam batch (Exam
-              Schedules); this field is the whole cycle's total. */}
-          <span className="text-[11px] text-ccc-muted leading-snug block mt-1">
-            CCC receives about 1,500&ndash;3,000 applicants a year, so leave this blank or set the cycle&apos;s total.
-            This is not the exam batch size: each exam batch holds up to 100 applicants and is set up in Exam Schedules.
-          </span>
-        </div>
-        <div className="efield">
-          <label>Acceptance Start Date</label>
-          <input
-            type="date"
-            value={draft.acceptance_start_date || ''}
-            onChange={(e) => setDraft((d) => ({ ...d, acceptance_start_date: e.target.value || null }))}
-          />
-        </div>
-        <div className="efield">
-          <label>Acceptance End Date</label>
-          <input
-            type="date"
-            value={draft.acceptance_end_date || ''}
-            onChange={(e) => setDraft((d) => ({ ...d, acceptance_end_date: e.target.value || null }))}
-          />
-        </div>
+      {/* Nov 2026 redesign (Pau's request): each setting is its own tile with
+          a clear On / Off tag, larger switch and roomier text, so a setting
+          that is off isn't overlooked. Same settings and saving as before. */}
+      <div className="cycle-settings">
+        <CycleToggle
+          title="Applications Open"
+          on={!!draft.applications_open}
+          onChange={(v) => setDraft((d) => ({ ...d, applications_open: v }))}
+          description="When off, applicants can no longer submit new applications. When on, applicants can only submit between the acceptance dates below, and only until the applicant slots are filled. Leave a field blank for no limit."
+        >
+          {draft.applications_open && (
+            <div className="cycle-fields">
+              <div className="cycle-field">
+                <label htmlFor="cycle-slots">Total applicant slots (whole cycle)</label>
+                <input
+                  id="cycle-slots"
+                  type="number"
+                  min="0"
+                  placeholder="Blank = no limit (e.g. 3000)"
+                  value={draft.applicant_slots ?? ''}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, applicant_slots: e.target.value === '' ? null : Number(e.target.value) }))
+                  }
+                />
+                {/* Nov 2026 (panel revisions S8): the panel read the demo's "100"
+                    as a yearly cap. 100 is the size of one exam batch (Exam
+                    Schedules); this field is the whole cycle's total. */}
+                <span className="cycle-hint">
+                  CCC receives about 1,500&ndash;3,000 applicants a year, so leave this blank or set the cycle&apos;s total.
+                  This is not the exam batch size: each exam batch holds up to 100 applicants and is set up in Exam Schedules.
+                </span>
+              </div>
+              <div className="cycle-field">
+                <label htmlFor="cycle-start">Acceptance start date</label>
+                <input
+                  id="cycle-start"
+                  type="date"
+                  value={draft.acceptance_start_date || ''}
+                  onChange={(e) => setDraft((d) => ({ ...d, acceptance_start_date: e.target.value || null }))}
+                />
+              </div>
+              <div className="cycle-field">
+                <label htmlFor="cycle-end">Acceptance end date</label>
+                <input
+                  id="cycle-end"
+                  type="date"
+                  value={draft.acceptance_end_date || ''}
+                  onChange={(e) => setDraft((d) => ({ ...d, acceptance_end_date: e.target.value || null }))}
+                />
+              </div>
+            </div>
+          )}
+        </CycleToggle>
+
+        <CycleToggle
+          title="Document Uploads Enabled"
+          on={!!draft.document_uploads_enabled}
+          onChange={(v) => setDraft((d) => ({ ...d, document_uploads_enabled: v }))}
+          description="When off, applicants cannot upload or re-upload documents."
+        />
+
+        <CycleToggle
+          title="Exam Results Visible to Applicants"
+          on={!!draft.exam_results_visible}
+          onChange={(v) => setDraft((d) => ({ ...d, exam_results_visible: v }))}
+          description="When on, an applicant sees their result on their dashboard and in Messages once an admin has sent it to them from Applicant Results. When off, all results are hidden from applicants and results cannot be sent."
+        />
       </div>
 
-      <div className="toggle-row">
-        <div className="toggle-row-info">
-          <h4>Document Uploads Enabled</h4>
-          <p>When off, applicants cannot upload or re-upload documents.</p>
-        </div>
-        <label className="switch">
-          <input
-            type="checkbox"
-            checked={!!draft.document_uploads_enabled}
-            onChange={(e) => setDraft((d) => ({ ...d, document_uploads_enabled: e.target.checked }))}
-          />
-          <span className="slider" />
-        </label>
-      </div>
-
-      <div className="toggle-row">
-        <div className="toggle-row-info">
-          <h4>Exam Results Visible to Applicants</h4>
-          <p>
-            When on, an applicant sees their result on their dashboard and in Messages once an admin has sent it to
-            them from Applicant Results. When off, all results are hidden from applicants and results cannot be sent.
-          </p>
-        </div>
-        <label className="switch">
-          <input
-            type="checkbox"
-            checked={!!draft.exam_results_visible}
-            onChange={(e) => setDraft((d) => ({ ...d, exam_results_visible: e.target.checked }))}
-          />
-          <span className="slider" />
-        </label>
-      </div>
+      {dirty && <div className="cycle-unsaved">You have unsaved changes. Click Save Changes to apply them.</div>}
 
       <div className="flex items-center justify-end gap-3 mt-4">
         <AdminToast message={savedNote ? 'Settings saved. The applicant pages follow the new settings right away.' : ''} onDone={() => setSavedNote(false)} />
@@ -5841,6 +5842,35 @@ function CycleSettingsCard() {
           {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
+    </div>
+  )
+}
+
+// Nov 2026: one setting tile for Application Cycle Settings.
+function CycleToggle({ title, description, on, onChange, children }) {
+  const id = `cycle-${title.toLowerCase().replace(/[^a-z]+/g, '-')}`
+  return (
+    <div className={`cycle-tile${on ? ' is-on' : ''}`}>
+      <div className="cycle-tile-head">
+        <div className="cycle-tile-info">
+          <div className="cycle-tile-title">
+            <h4 id={`${id}-label`}>{title}</h4>
+            <span className={`cycle-state ${on ? 'on' : 'off'}`}>{on ? 'On' : 'Off'}</span>
+          </div>
+          <p>{description}</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-labelledby={`${id}-label`}
+          className={`cycle-switch${on ? ' on' : ''}`}
+          onClick={() => onChange(!on)}
+        >
+          <span className="cycle-switch-knob" />
+        </button>
+      </div>
+      {children}
     </div>
   )
 }
