@@ -1513,10 +1513,11 @@ function SignupPanel({ onSwitch, onCreated }) {
                     a number input can't render an object as its value, so
                     typing looked like it did nothing at all. */}
                 <input
-                  type="number"
-                  min="0"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={2}
                   value={residencyYears}
-                  onChange={(e) => clearFieldError('residencyYears', setResidencyYears)(e.target.value)}
+                  onChange={(e) => clearFieldError('residencyYears', setResidencyYears)(e.target.value.replace(/\D/g, '').slice(0, 2))}
                   placeholder="e.g. 12"
                   className={`w-full px-3 py-2 border rounded-md text-sm outline-none focus:ring-2 focus:ring-ccc-blue/20 focus:border-ccc-blue bg-white ${
                     fieldErrors.residencyYears ? 'border-red-500' : 'border-ccc-border'

@@ -1017,7 +1017,7 @@ function EduTable({ edu, onChangeCell, disabled: disabledProp, transferee }) {
                     value={edu[level][row.field]}
                     // Oct 25 2026: the year cells take digits only, 4 at most.
                     inputMode={row.field === 'year' ? 'numeric' : undefined}
-                    maxLength={row.field === 'year' ? 4 : undefined}
+                    maxLength={row.field === 'year' ? 4 : row.field === 'honors' ? 100 : 150}
                     onChange={(e) => onChangeCell(level, row.field, row.field === 'year' ? e.target.value.replace(/\D/g, '').slice(0, 4) : e.target.value)}
                     placeholder={level === 'tert' && !collegeOn ? 'Not applicable' : row.placeholders[i]}
                     required={(level === 'prim' || (level === 'tert' && collegeOn)) && row.field !== 'honors'}
@@ -2775,8 +2775,8 @@ function PortalApp({ accountSession, onLogout }) {
     // the server checks when the section is submitted.
     const formatProblems =
       section === 'personal' ? validatePersonalInfo(personalInfo)
-      : section === 'academic' ? validateAcademicInfo(academicInfo)
-      : section === 'financial' ? validateFamilyInfo(familyInfo)
+      : section === 'academic' ? validateAcademicInfo(academicInfo, { dateOfBirth: personalInfo.dateOfBirth })
+      : section === 'financial' ? validateFamilyInfo(familyInfo, { dateOfBirth: personalInfo.dateOfBirth })
       : []
     if (formatProblems.length) {
       setSectionErrors((e) => ({ ...e, [section]: `Please fix the following before submitting: ${errorSummary(formatProblems)}` }))
@@ -4516,7 +4516,7 @@ function PortalApp({ accountSession, onLogout }) {
                       required
                       type="number"
                       value={familyInfo.numSiblings}
-                      onChange={(v) => updateFI('numSiblings', v)}
+                      onChange={(v) => updateFI('numSiblings', String(v).replace(/\D/g, '').slice(0, 2))}
                       placeholder="e.g. 2"
                     />
                   )}
@@ -4535,6 +4535,17 @@ function PortalApp({ accountSession, onLogout }) {
                       onAddColumn={addSiblingColumn}
                       onRemoveColumn={removeSiblingColumn}
                     />
+                    {/* Nov 2026 (panel revisions S6): the count and the list should agree. */}
+                    {(() => {
+                      const said = Number(String(familyInfo.numSiblings || '').trim())
+                      const listed = (familyInfo.siblings || []).filter((s) => String(s?.name || '').trim()).length
+                      if (!String(familyInfo.numSiblings || '').trim() || !listed || said === listed) return null
+                      return (
+                        <p style={{ margin: '8px 0 0', fontSize: 12.5, color: '#8a5a00' }}>
+                          You said you have {said} sibling{said === 1 ? '' : 's'}, but {listed} {listed === 1 ? 'is' : 'are'} listed. Please check the number or the list.
+                        </p>
+                      )
+                    })()}
                   </>
                 )}
                 {familyInfo.onlyChild === 'No' && (

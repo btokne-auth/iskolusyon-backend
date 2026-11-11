@@ -569,8 +569,8 @@ export async function POST(request) {
     if (action === 'submit-section' && !(profileLocked && PROFILE_LOCKED_SECTIONS.includes(section))) {
       const problems =
         section === 'personal' ? validatePersonalInfo(body.personalInfo)
-        : section === 'academic' ? validateAcademicInfo(body.academicInfo)
-        : section === 'financial' ? validateFamilyInfo(body.familyInfo)
+        : section === 'academic' ? validateAcademicInfo(body.academicInfo, { dateOfBirth: body.personalInfo?.dateOfBirth })
+        : section === 'financial' ? validateFamilyInfo(body.familyInfo, { dateOfBirth: body.personalInfo?.dateOfBirth })
         : []
       if (problems.length) {
         return NextResponse.json({ error: errorSummary(problems), problems }, { status: 400 })
