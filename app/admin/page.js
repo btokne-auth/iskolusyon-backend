@@ -845,10 +845,23 @@ function formatAplDate(iso) {
 // silently added). `key` matches VALID_OVERRIDES in
 // app/api/admin-eligibility/route.js; `cls` is only the CSS modifier name
 // (status-btn.not-qualified, hyphenated) so it doesn't have to match.
+// Nov 2026: simple line icons instead of the ✓ / ⏳ / ✕ characters.
+const STATUS_ICON_PATHS = {
+  qualified: 'M5 12.5l4.5 4.5L19 7.5',
+  waitlisted: 'M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  not_qualified: 'M7 7l10 10M17 7L7 17',
+}
+function StatusIcon({ name }) {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={STATUS_ICON_PATHS[name]} />
+    </svg>
+  )
+}
 const STATUS_OPTIONS = [
-  { key: 'qualified', cls: 'qualified', icon: '✓', label: 'Qualified' },
-  { key: 'waitlisted', cls: 'waitlisted', icon: '⏳', label: 'Waitlisted' },
-  { key: 'not_qualified', cls: 'not-qualified', icon: '✕', label: 'Not Qualified' },
+  { key: 'qualified', cls: 'qualified', icon: <StatusIcon name="qualified" />, label: 'Qualified' },
+  { key: 'waitlisted', cls: 'waitlisted', icon: <StatusIcon name="waitlisted" />, label: 'Waitlisted' },
+  { key: 'not_qualified', cls: 'not-qualified', icon: <StatusIcon name="not_qualified" />, label: 'Not Qualified' },
 ]
 
 // The expandable detail: computed status + why, plus the manual override
@@ -898,8 +911,9 @@ function EligibilitySection({ row, onOverride, overriding }) {
             onClick={() => onOverride(row.id, opt.key)}
             className={`status-btn ${opt.cls}${effectiveStatus === opt.key ? ' current' : ''}`}
           >
-            <div className="sb-icon">{opt.icon}</div>
-            <div className="sb-label">{opt.label}</div>
+            <span className="sb-icon">{opt.icon}</span>
+            <span className="sb-label">{opt.label}</span>
+            {effectiveStatus === opt.key && <span className="sb-current">Current</span>}
           </button>
         ))}
       </div>

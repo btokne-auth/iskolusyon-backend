@@ -2197,54 +2197,72 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 10.5px;
 }
+/* Nov 2026: status buttons redone as compact rows (icon chip + label),
+   each in its own colour, with a solid fill for the current status. */
 .admin-portal .status-btn {
-  border: 1.5px solid var(--border);
+  --sb: #4a5568;
+  --sb-soft: #f1f3f6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
   background: #fff;
-  border-radius: 9px;
-  padding: 13.5px 9px;
+  border-radius: 8px;
+  padding: 10px 12px;
   cursor: pointer;
-  text-align: center;
-  transition: all 0.18s;
+  text-align: left;
+  color: var(--sb);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
   font-family: "Montserrat", sans-serif;
 }
+.admin-portal .status-btn.qualified { --sb: #1d7a46; --sb-soft: #e8f5ee; }
+.admin-portal .status-btn.waitlisted { --sb: #a35f0b; --sb-soft: #fdf1e1; }
+.admin-portal .status-btn.not-qualified { --sb: #b42323; --sb-soft: #fcebeb; }
 .admin-portal .status-btn .sb-icon {
-  font-size: 17.25px;
-  margin-bottom: 5.25px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--sb-soft);
+  color: var(--sb);
 }
 .admin-portal .status-btn .sb-label {
   font-weight: 700;
-  font-size: 11.1px;
-  letter-spacing: 0.2px;
+  font-size: 13px;
+  letter-spacing: 0.1px;
 }
-.admin-portal .status-btn.qualified:hover {
-  border-color: var(--green);
-  background: #f3faf6;
+.admin-portal .status-btn .sb-current {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  opacity: 0.9;
 }
-.admin-portal .status-btn.waitlisted:hover {
-  border-color: var(--orange);
-  background: #fdf6ee;
+.admin-portal .status-btn:hover:not(:disabled):not(.current) {
+  border-color: var(--sb);
+  background: var(--sb-soft);
 }
-.admin-portal .status-btn.not-qualified:hover {
-  border-color: var(--red);
-  background: #fdf2f1;
+.admin-portal .status-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--sb-soft), 0 0 0 4px var(--sb);
+}
+.admin-portal .status-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 .admin-portal .status-btn.current {
   cursor: default;
+  border-color: var(--sb);
+  background: var(--sb);
+  color: #fff;
 }
-.admin-portal .status-btn.qualified.current {
-  border-color: var(--green);
-  background: #e6f4ec;
-  color: var(--green-dark);
-}
-.admin-portal .status-btn.waitlisted.current {
-  border-color: var(--orange);
-  background: #fdf0dc;
-  color: #8a5a10;
-}
-.admin-portal .status-btn.not-qualified.current {
-  border-color: var(--red);
-  background: #fbe7e7;
-  color: #902020;
+.admin-portal .status-btn.current .sb-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
 } /* ── Application-status readiness gating (requires all required fields,
    dropdowns & documents to be filled in before a status can be chosen) ── */
 .admin-portal .status-action-wrap {
