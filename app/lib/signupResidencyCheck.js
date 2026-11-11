@@ -1,6 +1,7 @@
 import crypto from 'crypto'
 import { supabase } from '@/app/supabaseClient'
-import { checkDocumentContent, CONTENT_CHECK_FIELD, failingGradesOn } from '@/app/lib/documentContentCheck'
+import { checkDocumentContent, CONTENT_CHECK_FIELD, failingGradesOn, isCollegeGradeRecord, collegeFailingGradesOn, collegeGwaOn } from '@/app/lib/documentContentCheck'
+import { TRANSFEREE_MAX_GWA } from '@/app/lib/matching'
 
 // Nov 2026: the same check also reads the report card (Form 138) at sign-up,
 // with its own token, for the academic screening (app/lib/screening.js):
@@ -132,6 +133,44 @@ async function logAnonymous(action, kind) {
   }
 }
 
+// Nov 2026: a transferee's grade record is uploaded into a college/ sub-folder
+// of the check, so it is read on the college scale (1.00 to 5.00).
+export const COLLEGE_SUBFOLDER = 'college/'
+function levelOfCheck(doc) {
+  return String(doc.file_path || '').includes(`/${COLLEGE_SUBFOLDER}`) ? 'college' : 'shs'
+}
+
+// The content check, plus the grade rules for a report card / transcript.
+// Returns { passed } or { passed: false, reason, kind: 'failing_grade' | 'unreadable' }.
+export function gradeAwareCheck(type, level, extractedText) {
+  const result = checkDocumentContent({ documentType: type, extractedText, applicantName: '' })
+  if (type !== 'form138') return result.passed ? result : { ...result, kind: 'unreadable' }
+  if (level === 'college') {
+    if (!result.passed && !/grade below 75/.test(result.reason || '')) return { ...result, kind: 'unreadable' }
+    if (!isCollegeGradeRecord(extractedText)) {
+      return { passed: false, kind: 'unreadable', reason: 'This looks like a Senior High report card. Transferees upload the transcript of records or certificate of grades from their previous school.' }
+    }
+    const fails = collegeFailingGradesOn(extractedText)
+    if (fails.length) {
+      return { passed: false, kind: 'failing_grade', reason: `A failing grade appears on your transcript (${fails.slice(0, 3).join(', ')}). Transferees with a failing grade are not accepted (Appendix J, Transferees).` }
+    }
+    const gwa = collegeGwaOn(extractedText)
+    if (gwa != null && gwa > TRANSFEREE_MAX_GWA) {
+      return { passed: false, kind: 'failing_grade', reason: `The GWA on your transcript is ${gwa.toFixed(2)}; 2.25 or better is required (Appendix J, Transferees).` }
+    }
+    return { passed: true }
+  }
+  if (isCollegeGradeRecord(extractedText)) {
+    return { passed: false, kind: 'unreadable', reason: 'This looks like a college transcript. First Year applicants upload their latest Senior High report card (Form 138).' }
+  }
+  if (result.passed) return result
+  const low = failingGradesOn(extractedText)
+  if (low.length) {
+    return { passed: false, kind: 'failing_grade', reason: `A grade below 75 appears on your report card (${low.slice(0, 3).join(', ')}). Applicants with a failing grade are not accepted.` }
+  }
+  return { ...result, kind: 'unreadable' }
+}
+
 // Status of a check, for the sign-up page to poll.
 //   { status: 'none' }        no upload for this token
 //   { status: 'processing' }  still being read
@@ -148,22 +187,24 @@ export async function getCheckStatus(token) {
   if (doc.review_status === 'processing') return { status: 'processing' }
 
   const type = SIGNUP_CHECK_TYPES.includes(doc.document_type) ? doc.document_type : 'voterid'
-  const result = checkDocumentContent({ documentType: type, extractedText: doc.extracted_text, applicantName: '' })
+  const level = levelOfCheck(doc)
+  const result = gradeAwareCheck(type, level, doc.extracted_text)
   if (!result.passed) {
-    // A grade below 75 means not eligible at all; anything else (not a
-    // report card, unreadable) can be retried with a clearer copy.
-    const kind = type === 'form138' && failingGradesOn(doc.extracted_text).length ? 'failing_grade' : 'unreadable'
+    // A failing grade (or a GWA below the rule) means not eligible at all;
+    // anything else (not a report card, unreadable) can be retried with a
+    // clearer copy.
     await removeDoc(doc)
     await logAnonymous(`Sign-up stopped at the ${type === 'form138' ? 'report card' : 'residency'} check: ${result.reason}`, 'warn')
-    return { status: 'failed', reason: result.reason, kind }
+    return { status: 'failed', reason: result.reason, kind: result.kind || 'unreadable' }
   }
-  if (type === 'form138') return { status: 'passed', prefill: {} }
+  if (type === 'form138') return { status: 'passed', type, level, prefill: {} }
 
   const fields = await readFields(doc.file_path)
   const address = fields.address || addressFromText(doc.extracted_text)
   const sourceText = address || doc.extracted_text
   return {
     status: 'passed',
+    type,
     prefill: {
       street: streetPart(address),
       barangay: findBarangay(sourceText),
@@ -175,10 +216,12 @@ export async function getCheckStatus(token) {
 // Called by sign-up 'start'. Re-checks the token on the server (never
 // trusts the browser), then links the upload to the new account so it
 // becomes the applicant's Voter's ID in the portal.
-export async function claimPassedCheck(token, { accountId, email }) {
+export async function claimPassedCheck(token, { accountId, email, type = 'voterid' }) {
   if (!isValidTokenShape(token)) return { error: 'Please complete the residency check first.' }
   const status = await getCheckStatus(token)
-  if (status.status !== 'passed') return { error: 'Please complete the residency check first.' }
+  // The type must match, so a passed report card can't stand in for the
+  // Voter's ID (or the other way around).
+  if (status.status !== 'passed' || status.type !== type) return { error: 'Please complete the residency check first.' }
   const doc = await latestCheckDoc(token)
   const { error } = await supabase
     .from('documents')

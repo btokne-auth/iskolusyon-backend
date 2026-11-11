@@ -118,8 +118,8 @@ function AcademicScreeningBox({ answers, set, result, needsCard, error, onRefuse
     <div className="rounded-md border border-ccc-border bg-ccc-off px-4 py-4 mt-3 mb-3">
       <div className="text-sm font-bold text-ccc-navy mb-1">Academic standing</div>
       <p className="text-[12px] text-ccc-muted leading-relaxed mb-3">
-        A few questions from the CCC Scholar Guidelines. Answer honestly: your report card is checked later, and false
-        information disqualifies your application.
+        A few questions from the CCC Scholar Guidelines. Answer honestly: your grades are checked in the next step and again
+        by the Guidance Office, and false information disqualifies your application.
       </p>
       <SelectField label="Applying as" value={a.applyingAs} onChange={set.applyingAs} options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} />
       {a.applyingAs === 'First Year' && (
@@ -171,18 +171,20 @@ function AcademicScreeningBox({ answers, set, result, needsCard, error, onRefuse
 // Nov 2026 (panel revisions S2): the report card read at sign-up. It must
 // read as a report card and show no grade below 75; staff still confirm it
 // later, and the original card is checked at enrollment.
-function GradeCheckBox({ state, message, failCount, error, onFile, onRetryPoll }) {
+function GradeCheckBox({ transferee, state, message, failCount, error, onFile, onRetryPoll }) {
   const busy = state === 'uploading' || state === 'processing'
+  const what = transferee ? 'transcript' : 'report card'
   return (
     <div className="rounded-md border border-ccc-border bg-ccc-off px-4 py-4 mb-3">
-      <div className="text-sm font-bold text-ccc-navy mb-1">Report card check</div>
+      <div className="text-sm font-bold text-ccc-navy mb-1">{transferee ? 'Transcript check' : 'Report card check'}</div>
       <p className="text-[12px] text-ccc-muted leading-relaxed mb-3">
-        Upload a clear photo or scan of your latest report card (Form 138), or your transcript / certificate of grades if
-        you are a transferee. It is read to confirm your answers before your account is created.
+        {transferee
+          ? 'Upload a clear photo or scan of your transcript of records or certificate of grades from your previous school. It is read to confirm your answers before your account is created.'
+          : 'Upload a clear photo or scan of your latest Senior High report card (Form 138). It is read to confirm your answers before your account is created.'}
       </p>
       {state !== 'passed' && (
         <label className={`block w-full text-center py-2.5 rounded-md border border-dashed border-ccc-blue text-ccc-blue font-bold text-sm ${busy ? 'opacity-60 cursor-wait' : 'cursor-pointer hover:bg-white'}`}>
-          {state === 'uploading' ? 'Uploading…' : state === 'processing' ? 'Reading your report card…' : state === 'failed' ? 'Upload a different file' : 'Upload report card'}
+          {state === 'uploading' ? 'Uploading…' : state === 'processing' ? `Reading your ${what}…` : state === 'failed' ? 'Upload a different file' : `Upload ${what}`}
           <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" className="hidden" disabled={busy} onChange={(e) => onFile(e.target.files?.[0])} />
         </label>
       )}
@@ -194,7 +196,8 @@ function GradeCheckBox({ state, message, failCount, error, onFile, onRetryPoll }
       )}
       {state === 'passed' && (
         <div className="text-[13px] text-green-800 bg-green-50 border border-green-200 rounded-md px-3 py-2">
-          <span className="font-bold">Report card checked.</span> No grade below 75 was found. You can now create your account.
+          <span className="font-bold">{transferee ? 'Transcript checked.' : 'Report card checked.'}</span>{' '}
+          {transferee ? 'No failing grade was found.' : 'No grade below 75 was found.'} You can now create your account.
           The Guidance Office still confirms it later.
         </div>
       )}
@@ -205,7 +208,7 @@ function GradeCheckBox({ state, message, failCount, error, onFile, onRetryPoll }
       )}
       {state === 'failed' && failCount >= 2 && (
         <div className="text-[13px] text-ccc-navy bg-white border border-ccc-border rounded-md px-3 py-2 mt-2">
-          <span className="font-bold">Still not passing?</span> Bring your report card to the GCTCDO, 1st Floor, Admin
+          <span className="font-bold">Still not passing?</span> Bring your {what} to the GCTCDO, 1st Floor, Admin
           Building, City College of Calamba, and the Guidance Office will check it for you.
         </div>
       )}
@@ -808,6 +811,17 @@ function SignupPanel({ onSwitch, onCreated }) {
   const screeningAnswers = { applyingAs, shsFailingGrade, transfereeGwa, transfereeUnitsPassed, transfereeFailingGrade }
   const academic = signupScreening(screeningAnswers)
   const needsCard = applyingAs !== 'Old Curriculum and ALS Completer'
+  // Changing "Applying as" after the grades were checked means checking
+  // again (a transcript and a report card are read differently).
+  function changeApplyingAs(v) {
+    if (v !== applyingAs) {
+      clearTimeout(gradePollRef.current)
+      setGradeState('idle')
+      setGradeMessage('')
+      setGradeFailCount(0)
+    }
+    setApplyingAs(v)
+  }
   const readyForAccount = checkState === 'passed' && !academicFailed && academic.passed && (!needsCard || gradeState === 'passed')
 
   async function refuseSignup(reasons, reason) {
@@ -836,8 +850,7 @@ function SignupPanel({ onSwitch, onCreated }) {
         }
         if (res.ok && data.status === 'failed') {
           if (data.kind === 'failing_grade') {
-            const found = String(data.reason || '').replace(' The Guidance Office will check it.', '').replace('this report card', 'your report card')
-            refuseSignup([`${found || 'A grade below 75 appears on your report card.'} Applicants with a failing grade are not accepted.`], 'failing_grade')
+            refuseSignup([data.reason || 'Your grades do not meet the CCC Scholar Guidelines.'], 'failing_grade')
             return
           }
           setGradeFailCount((n) => n + 1)
@@ -865,6 +878,7 @@ function SignupPanel({ onSwitch, onCreated }) {
       const form = new FormData()
       form.append('file', file)
       form.append('type', 'form138')
+      if (applyingAs === 'Transferee') form.append('level', 'college')
       if (gradeToken) form.append('token', gradeToken)
       const res = await fetch('/api/signup-residency-check', { method: 'POST', body: form })
       const data = await res.json()
@@ -1337,7 +1351,7 @@ function SignupPanel({ onSwitch, onCreated }) {
                 {checkState === 'passed' && !academicFailed && (
                   <AcademicScreeningBox
                     answers={screeningAnswers}
-                    set={{ applyingAs: setApplyingAs, shsFailingGrade: setShsFailingGrade, transfereeGwa: setTransfereeGwa, transfereeUnitsPassed: setTransfereeUnitsPassed, transfereeFailingGrade: setTransfereeFailingGrade }}
+                    set={{ applyingAs: changeApplyingAs, shsFailingGrade: setShsFailingGrade, transfereeGwa: setTransfereeGwa, transfereeUnitsPassed: setTransfereeUnitsPassed, transfereeFailingGrade: setTransfereeFailingGrade }}
                     result={academic}
                     needsCard={needsCard}
                     error={fieldErrors.screening}
@@ -1346,6 +1360,7 @@ function SignupPanel({ onSwitch, onCreated }) {
                 )}
                 {checkState === 'passed' && !academicFailed && academic.passed && needsCard && (
                   <GradeCheckBox
+                    transferee={applyingAs === 'Transferee'}
                     state={gradeState}
                     message={gradeMessage}
                     failCount={gradeFailCount}
@@ -1364,7 +1379,7 @@ function SignupPanel({ onSwitch, onCreated }) {
                       {academicFailed.map((r) => <li key={r}>{r}</li>)}
                     </ul>
                     <p className="text-[13px] text-ccc-text leading-relaxed mb-3">
-                      No account was created and your Voter&apos;s ID was not kept. If you think this is a mistake, visit the GCTCDO,
+                      No account was created and your uploaded documents were not kept. If you think this is a mistake, visit the GCTCDO,
                       1st Floor, Admin Building, City College of Calamba.
                     </p>
                     <button type="button" onClick={() => { window.location.href = '/' }} className="inline-block w-full text-center py-2.5 rounded-md border border-ccc-border bg-white text-ccc-navy font-bold text-sm uppercase tracking-wide hover:bg-ccc-off">

@@ -42,7 +42,7 @@ export async function POST(request) {
       // record with a Calamba address). Checked here on the server too.
       const token = String(body.residencyToken || '')
       const check = isValidTokenShape(token) ? await getCheckStatus(token) : { status: 'none' }
-      if (check.status !== 'passed') {
+      if (check.status !== 'passed' || check.type !== 'voterid') {
         return NextResponse.json({ error: 'Please complete the residency check (Voter\'s ID) first.', residency: true }, { status: 400 })
       }
       // Nov 2026 (panel revisions S3/S4/S2): the academic screening too,
@@ -61,8 +61,15 @@ export async function POST(request) {
       const gradeToken = String(body.gradeToken || '')
       if (needsCard) {
         const card = isValidTokenShape(gradeToken) ? await getCheckStatus(gradeToken) : { status: 'none' }
-        if (card.status !== 'passed') {
+        if (card.status !== 'passed' || card.type !== 'form138') {
           return NextResponse.json({ error: 'Please upload your report card (Form 138) and wait for it to be checked.', grades: true }, { status: 400 })
+        }
+        // A transferee's transcript is read on the college scale; a First
+        // Year's report card on the 60-100 scale. Changing "Applying as"
+        // after the check means checking again.
+        const wantLevel = answers.applyingAs === 'Transferee' ? 'college' : 'shs'
+        if (card.level !== wantLevel) {
+          return NextResponse.json({ error: 'Your grades were checked for a different "Applying as". Please upload them again.', grades: true }, { status: 400 })
         }
       }
       const result = await startSignup(body.email, body.password)
@@ -71,7 +78,7 @@ export async function POST(request) {
       const claimed = await claimPassedCheck(token, { accountId: result.accountId, email: accountEmail })
       if (claimed.error) return NextResponse.json({ error: claimed.error, residency: true }, { status: 400 })
       if (needsCard) {
-        const claimedCard = await claimPassedCheck(gradeToken, { accountId: result.accountId, email: accountEmail })
+        const claimedCard = await claimPassedCheck(gradeToken, { accountId: result.accountId, email: accountEmail, type: 'form138' })
         if (claimedCard.error) return NextResponse.json({ error: claimedCard.error, grades: true }, { status: 400 })
       }
       // The screening answers are kept with the sign-up and can't be changed

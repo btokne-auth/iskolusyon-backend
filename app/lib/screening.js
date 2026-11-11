@@ -1,6 +1,10 @@
 import { docState } from './documentState'
 import { TRANSFEREE_MAX_GWA, TRANSFEREE_MIN_UNITS } from './matching'
 
+// The most units a transferee can realistically have passed (a full
+// bachelor's program is usually 150 to 200 units). Stops typos like 999.
+export const TRANSFEREE_MAX_UNITS = 250
+
 // Nov 2026 (panel revisions, priority 4 / S4 / S2 / S3): a two-stage
 // application. Eligibility is screened FIRST, and the lengthy personal,
 // family and financial details are only asked for once it is passed:
@@ -61,7 +65,7 @@ export function signupScreening(a = {}) {
     const units = Number(unitsText)
     if (!gwaText || !unitsText || !['Yes', 'No'].includes(a.transfereeFailingGrade)) return { complete: false, passed: false, reasons: [] }
     if (!/^\d(\.\d{1,2})?$/.test(gwaText) || gwa < 1 || gwa > 5) return { complete: false, passed: false, reasons: [], invalid: 'GWA must be between 1.00 and 5.00 (e.g. 1.75).' }
-    if (!/^\d{1,3}$/.test(unitsText)) return { complete: false, passed: false, reasons: [], invalid: 'Units passed must be a whole number.' }
+    if (!/^\d{1,3}$/.test(unitsText) || units > TRANSFEREE_MAX_UNITS) return { complete: false, passed: false, reasons: [], invalid: `Units passed must be a whole number from 0 to ${TRANSFEREE_MAX_UNITS}.` }
     if (gwa > TRANSFEREE_MAX_GWA) reasons.push(`A GWA of ${gwaText} does not meet the required 2.25 or better (Appendix J, Transferees).`)
     if (units < TRANSFEREE_MIN_UNITS) reasons.push(`${units} units passed; at least 26 are required (Appendix J, Transferees).`)
     if (a.transfereeFailingGrade === 'Yes') reasons.push('Transferees with a failing grade in a previous semester are not accepted (Appendix J, Transferees).')

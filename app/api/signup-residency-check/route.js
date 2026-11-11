@@ -22,6 +22,7 @@ import {
   newCheckToken,
   isValidTokenShape,
   checkFolder,
+  COLLEGE_SUBFOLDER,
   getCheckStatus,
   cleanUpOldChecks,
   discardCheck,
@@ -68,6 +69,8 @@ export async function POST(request) {
     // Nov 2026: 'form138' = the report card check of the academic screening.
     const docType = SIGNUP_CHECK_TYPES.includes(formData.get('type')?.toString()) ? formData.get('type').toString() : 'voterid'
     const token = isValidTokenShape(sentToken) ? sentToken : newCheckToken()
+    // 'college' = a transferee's transcript / certificate of grades.
+    const college = docType === 'form138' && formData.get('level')?.toString() === 'college'
 
     if (!file || typeof file === 'string') return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -112,7 +115,7 @@ export async function POST(request) {
       await supabase.storage.from('scholarship-documents').remove([doc.file_path])
     }
 
-    const filePath = `${folder}${Date.now()}-${safeStorageName(file.name, realType)}`
+    const filePath = `${folder}${college ? COLLEGE_SUBFOLDER : ''}${Date.now()}-${safeStorageName(file.name, realType)}`
     const { error: storageError } = await supabase.storage
       .from('scholarship-documents')
       .upload(filePath, buffer, { contentType: realType, upsert: false })
@@ -158,7 +161,7 @@ export async function DELETE(request) {
     const result = signupScreening(body.screening || {})
     const failingCard = body.reason === 'failing_grade'
     if (!failingCard && (!result.complete || result.passed)) return NextResponse.json({ success: true, kept: true })
-    const reason = failingCard ? 'a grade below 75 was found on the report card' : result.reasons.join(' ')
+    const reason = failingCard ? 'the grades read on the report card / transcript do not meet the rule' : result.reasons.join(' ')
     await discardCheck(token, reason)
     const gradeToken = String(body.gradeToken || '')
     if (isValidTokenShape(gradeToken)) await discardCheck(gradeToken, reason)
