@@ -6120,3 +6120,8 @@
     gap: 14px;
   }
 }
+
+/* Nov 2026 (panel revisions S4): data retention actions in Archived cycles */
+.admin-portal .aa-act.ac-remove { margin-left: 8px; color: #b42323; border-color: #f1c6c6; }
+.admin-portal .aa-act.ac-remove:hover { background: #fcebeb; }
+.admin-portal .ac-cleaned { margin-left: 10px; font-size: 12px; font-weight: 600; color: #17683b; }

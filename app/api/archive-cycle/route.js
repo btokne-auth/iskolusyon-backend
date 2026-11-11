@@ -5,6 +5,7 @@ import { confirmOwnPassword } from '@/app/lib/adminAccounts'
 import { getSystemSettings } from '@/app/lib/systemSettings'
 import { serverError } from '@/app/lib/safeError'
 import { FORM3_DOWNLOAD_PREFIX } from '@/app/lib/chedForm3'
+import { isKept, removeNonAccepted, removableInCycle, RETENTION_CONFIRM_PREFIX } from '@/app/lib/dataRetention'
 
 // Oct 5 2026: end-of-cycle archive (Progress Table row 74, archive part;
 // Ivy's cell comment: a Super Admin option to archive all applicants once
@@ -19,6 +20,9 @@ import { FORM3_DOWNLOAD_PREFIX } from '@/app/lib/chedForm3'
 // GET              -> readiness checklist, cycle label, archived cycles
 // GET ?cycle=<x>   -> that archived cycle's applicants (read-only list)
 // POST { confirmText, confirmPassword }
+// POST { action: 'remove-non-accepted', cycle, confirmText, confirmPassword }
+//   Nov 2026 (panel revisions S4): removes the data of an archived cycle's
+//   applicants who were not accepted; accepted ones stay (app/lib/dataRetention.js).
 
 const CONFIRM_PREFIX = 'ARCHIVE'
 
@@ -92,14 +96,16 @@ async function readiness() {
 async function archivedCycles() {
   const { data, error } = await supabase
     .from('applications')
-    .select('archive_cycle, archived_at, archived_by')
+    .select('archive_cycle, archived_at, archived_by, scholar_status')
     .not('archived_at', 'is', null)
   if (error) throw new Error(error.message)
   const byCycle = new Map()
   for (const row of data || []) {
     const key = row.archive_cycle || 'Archived'
-    const entry = byCycle.get(key) || { cycle: key, count: 0, archivedAt: row.archived_at, archivedBy: row.archived_by }
+    const entry = byCycle.get(key) || { cycle: key, count: 0, kept: 0, removable: 0, archivedAt: row.archived_at, archivedBy: row.archived_by }
     entry.count += 1
+    if (isKept(row)) entry.kept += 1
+    else entry.removable += 1
     if (row.archived_at > entry.archivedAt) {
       entry.archivedAt = row.archived_at
       entry.archivedBy = row.archived_by
@@ -139,6 +145,7 @@ export async function POST(request) {
     if (!session) return response
 
     const body = await request.json().catch(() => ({}))
+    if (body.action === 'remove-non-accepted') return removeNonAcceptedResponse(session, body)
     const passwordOk = await confirmOwnPassword(session.email, body.confirmPassword || '')
     if (!passwordOk) {
       await logAudit(session.name, 'Incorrect password when confirming: archive all applicants', 'warn')
@@ -178,4 +185,42 @@ export async function POST(request) {
   } catch (err) {
     return serverError(err, 'api/archive-cycle')
   }
+}
+
+// Nov 2026 (panel revisions S4): remove non-accepted applicants' data from
+// an archived cycle. Only an archived cycle can be cleaned, so the archive's
+// own checks (Applications Open off, CHED Form 3 exported) already passed.
+async function removeNonAcceptedResponse(session, body) {
+  const cycle = String(body.cycle || '').trim()
+  if (!cycle) return NextResponse.json({ error: 'Choose an archived cycle.' }, { status: 400 })
+
+  const passwordOk = await confirmOwnPassword(session.email, body.confirmPassword || '')
+  if (!passwordOk) {
+    await logAudit(session.name, `Incorrect password when confirming: remove non-accepted applicants' data (${cycle})`, 'warn')
+    return NextResponse.json({ error: 'Incorrect password. Please try again.' }, { status: 403 })
+  }
+
+  const phrase = `${RETENTION_CONFIRM_PREFIX} ${cycle}`
+  if (String(body.confirmText || '').trim().toUpperCase() !== phrase.toUpperCase()) {
+    return NextResponse.json({ error: `Please type ${phrase} exactly to confirm.`, wrongPhrase: true }, { status: 400 })
+  }
+
+  const pending = await removableInCycle(cycle)
+  if (pending.length === 0) {
+    return NextResponse.json({ error: 'There is no data to remove in this cycle.' }, { status: 409 })
+  }
+
+  let removed = 0
+  try {
+    removed = await removeNonAccepted(cycle)
+  } catch (err) {
+    await logAudit(session.name, `Removing non-accepted applicants' data of cycle ${cycle} stopped with an error.`, 'warn')
+    return serverError(err, 'api/archive-cycle')
+  }
+  await logAudit(
+    session.name,
+    `Removed the data of ${removed} non-accepted applicant${removed === 1 ? '' : 's'} from archived cycle ${cycle}. Accepted applicants (Passer, Qualified Probationary) were kept.`,
+    'warn'
+  )
+  return NextResponse.json({ success: true, removed, cycle })
 }

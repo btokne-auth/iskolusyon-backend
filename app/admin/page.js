@@ -6047,6 +6047,39 @@ function ArchiveCycleCard() {
   const [busy, setBusy] = useState(false)
   const [viewCycle, setViewCycle] = useState(null)
   const [viewList, setViewList] = useState(null)
+  // Nov 2026 (panel revisions S4): remove non-accepted applicants' data.
+  const [purge, setPurge] = useState(null)
+  const [purgeText, setPurgeText] = useState('')
+  const [purgePassword, setPurgePassword] = useState('')
+  const [purgeError, setPurgeError] = useState('')
+  const [purgeBusy, setPurgeBusy] = useState(false)
+
+  const submitPurge = async (e) => {
+    e.preventDefault()
+    if (!purgePassword) return setPurgeError('Please enter your password.')
+    setPurgeBusy(true)
+    setPurgeError('')
+    try {
+      const res = await fetch('/api/archive-cycle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'remove-non-accepted', cycle: purge.cycle, confirmText: purgeText, confirmPassword: purgePassword }),
+      })
+      const result = await res.json()
+      if (!res.ok || !result.success) {
+        setPurgeError(result.error || 'Could not remove the data.')
+        return
+      }
+      setPurge(null)
+      showAdminNotice(
+        `The data of ${result.removed} non-accepted applicant${result.removed === 1 ? ' was' : 's were'} removed from cycle ${result.cycle}. Accepted applicants were kept.`
+      )
+    } catch (err) {
+      setPurgeError(err.message)
+    } finally {
+      setPurgeBusy(false)
+    }
+  }
 
   const load = async () => {
     if (peek('archive') === undefined) setLoading(true)
@@ -6157,6 +6190,11 @@ function ArchiveCycleCard() {
               &amp; Reschedules or the Registrar&apos;s scholar list. Applicants can still sign in and see their application,
               read-only.
             </p>
+            <p>
+              Applicant data is temporary. Once a cycle is archived, you can remove the data of applicants who were{' '}
+              <b>not accepted</b> from Archived cycles below. Accepted applicants (Passer, Qualified Probationary) stay as a
+              permanent record.
+            </p>
           </div>
           <div className="ac-checks">
             <span className="cm-label">Before you can archive</span>
@@ -6202,7 +6240,7 @@ function ArchiveCycleCard() {
             <table className="st-table ac-table">
               <thead>
                 <tr>
-                  <th>Cycle</th><th>Applicants</th><th>Archived by</th><th className="r">Actions</th>
+                  <th>Cycle</th><th>Applicants</th><th>Accepted (kept)</th><th>Archived by</th><th className="r">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -6210,11 +6248,28 @@ function ArchiveCycleCard() {
                   <tr key={c.cycle}>
                     <td className="cf-strong">Applications {c.cycle}</td>
                     <td>{c.count}</td>
+                    <td>{c.kept}</td>
                     <td>
                       {c.archivedBy || 'Unknown'}, {new Date(c.archivedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </td>
                     <td className="r">
                       <button type="button" className="aa-act" onClick={() => openList(c.cycle)}>View list</button>
+                      {c.removable > 0 ? (
+                        <button
+                          type="button"
+                          className="aa-act ac-remove"
+                          onClick={() => {
+                            setPurge(c)
+                            setPurgeText('')
+                            setPurgePassword('')
+                            setPurgeError('')
+                          }}
+                        >
+                          Remove non-accepted data ({c.removable})
+                        </button>
+                      ) : (
+                        <span className="ac-cleaned">Only accepted kept</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -6249,6 +6304,39 @@ function ArchiveCycleCard() {
                 disabled={busy || confirmText.trim().toUpperCase() !== data.confirmPhrase.toUpperCase()}
               >
                 {busy ? 'Archiving...' : 'Archive applicants'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {purge && (
+        <div className="confirm-overlay open" onClick={(e) => e.target === e.currentTarget && !purgeBusy && setPurge(null)}>
+          <form className="aa-confirm" role="dialog" aria-modal="true" aria-label="Remove non-accepted applicants' data" onSubmit={submitPurge}>
+            <div className="aa-confirm-body">
+              <h3 className="aa-confirm-title">Remove the data of {purge.removable} non-accepted applicant{purge.removable === 1 ? '' : 's'}?</h3>
+              <p className="aa-confirm-desc">
+                From cycle {purge.cycle}, this permanently deletes the applications, uploaded documents, requests, private messages
+                and sign-in accounts of applicants who were not accepted (Waitlisted, Not Qualified, Disqualified, Forfeited, or
+                never finished). The {purge.kept} accepted applicant{purge.kept === 1 ? '' : 's'} (Passer, Qualified Probationary)
+                stay. <b>This can&apos;t be undone.</b> CHED Form 3 was already exported before this cycle was archived.
+              </p>
+              <label className="cm-label" htmlFor="rmType">Type REMOVE {purge.cycle} to confirm</label>
+              <input id="rmType" className="cm-input" type="text" value={purgeText} onChange={(e) => setPurgeText(e.target.value)}
+                placeholder={`REMOVE ${purge.cycle}`} autoComplete="off" autoFocus />
+              <label className="cm-label" htmlFor="rmPw">Your password</label>
+              <input id="rmPw" className="cm-input" type="password" value={purgePassword} onChange={(e) => setPurgePassword(e.target.value)}
+                placeholder="Your password" autoComplete="current-password" />
+              {purgeError && <p className="aa-confirm-error">{purgeError}</p>}
+            </div>
+            <div className="aa-confirm-foot">
+              <button type="button" className="cm-btn cm-btn-secondary" disabled={purgeBusy} onClick={() => setPurge(null)}>Cancel</button>
+              <button
+                type="submit"
+                className="cm-btn cm-btn-danger"
+                disabled={purgeBusy || purgeText.trim().toUpperCase() !== `REMOVE ${purge.cycle}`.toUpperCase()}
+              >
+                {purgeBusy ? 'Removing...' : 'Remove data'}
               </button>
             </div>
           </form>
