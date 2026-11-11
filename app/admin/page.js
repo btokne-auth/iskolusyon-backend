@@ -540,6 +540,29 @@ function groupUploadsByType(docs) {
   return [...groups.values()]
 }
 
+// Nov 2026 (panel revisions S2): the system check sorts documents so staff
+// confirm the clean ones in one step and look closely only at flagged ones.
+function ConfirmPassedBar({ docs, onOverride, overriding }) {
+  const current = groupUploadsByType(docs).map((g) => g[0])
+  const passed = current.filter((d) => docState(d) === 'checked')
+  const flagged = current.filter((d) => docState(d) === 'flagged').length
+  if (!passed.length && !flagged) return null
+  const busy = overriding === '__all__'
+  return (
+    <div className="confirm-passed">
+      <div className="cp-text">
+        <b>{passed.length}</b> passed the system check and wait for your confirmation
+        {flagged > 0 && <> &middot; <b className="cp-flag">{flagged}</b> flagged: open and check {flagged === 1 ? 'it' : 'them'} one by one</>}
+      </div>
+      {passed.length > 0 && (
+        <button type="button" className="cm-btn cm-btn-primary" disabled={busy} onClick={() => onOverride(passed, 'verify')}>
+          {busy ? 'Confirming...' : `Confirm all that passed (${passed.length})`}
+        </button>
+      )}
+    </div>
+  )
+}
+
 // Nov 2026 (panel revisions S2): what the system checked on this document.
 function DocFindings({ doc }) {
   if (doc.review_status === 'processing') return null
@@ -1821,6 +1844,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                   controls rather than a read-only copy of them. */}
               <div>
                 <div className="modal-section-label" id={`docCats-${eligibilityRow?.id}`}>Submitted Documents &amp; Profile Data</div>
+                <ConfirmPassedBar docs={docs} onOverride={onOverride} overriding={overriding} />
                 <div className="doc-cat-tabs">
                   {PROFILE_CATEGORIES.map((cat) => {
                     const visibleStacks = cat.stacks.filter((s) => !s.showIf || s.showIf(detail))
@@ -8415,6 +8439,34 @@ function AdminPageInner() {
   }
 
   const handleOverride = async (doc, action) => {
+    // Nov 2026 (panel revisions S2): "Confirm all that passed the system
+    // check" sends a list; each document is still confirmed (and logged) one
+    // by one, and flagged documents are never in the list.
+    if (Array.isArray(doc)) {
+      const list = doc.filter((d) => d.file_path && docState(d) === 'checked')
+      if (!list.length) return
+      setOverriding('__all__')
+      setOverrideError('')
+      let done = 0
+      try {
+        for (const d of list) {
+          const res = await fetch(`/api/documents/${encodeURIComponent(d.file_path)}/override`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'verify', note: 'confirmed with "Confirm all that passed the system check"' }),
+          })
+          if (res.ok) done += 1
+        }
+        await fetchDocs()
+        showAdminNotice(`${done} document${done === 1 ? '' : 's'} that passed the system check ${done === 1 ? 'was' : 'were'} confirmed.`)
+        if (done < list.length) setOverrideError(`${list.length - done} document(s) could not be confirmed. Try them one by one.`)
+      } catch (err) {
+        setOverrideError(isNetworkError(err) ? 'No connection right now. Try again once you\u2019re back online.' : err.message)
+      } finally {
+        setOverriding(null)
+      }
+      return
+    }
     if (!doc.file_path) return
     setOverriding(doc.file_path)
     setOverrideError('')

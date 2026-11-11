@@ -6162,3 +6162,7 @@
 .admin-portal .doc-findings li.no { color: #b42323; font-weight: 600; }
 .admin-portal .doc-findings li span { display: inline-block; width: 14px; font-weight: 800; }
 .admin-portal .aa-act.ac-zip { margin-left: 8px; text-decoration: none; display: inline-flex; align-items: center; }
+
+/* Nov 2026 (panel revisions S2): confirm documents that passed the system check */
+.admin-portal .confirm-passed { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin: 8px 0 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: #f6f8fb; font-size: 13px; color: var(--text); }
+.admin-portal .confirm-passed .cp-flag { color: #b45309; }
