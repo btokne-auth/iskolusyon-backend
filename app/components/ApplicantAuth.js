@@ -372,6 +372,7 @@ export default function ApplicantAuth({ onAuthenticated, initialMode = 'login', 
   // with email, password and a login code, instead of being signed in
   // straight after the email code.
   const [createdEmail, setCreatedEmail] = useState('')
+  const [createdRef, setCreatedRef] = useState('')
 
   // Sept 23, 2026: was just a bare SiteHeader + centered card on a plain
   // ccc-off background. Pau asked for /login and signup to carry the same
@@ -392,6 +393,7 @@ export default function ApplicantAuth({ onAuthenticated, initialMode = 'login', 
             <LoginPanel
               expired={expired}
               createdEmail={createdEmail}
+              createdRef={createdRef}
               onSwitch={() => setMode('signup')}
               onForgot={() => setMode('forgot')}
               onAuthenticated={onAuthenticated}
@@ -400,8 +402,9 @@ export default function ApplicantAuth({ onAuthenticated, initialMode = 'login', 
           {mode === 'signup' && (
             <SignupPanel
               onSwitch={() => setMode('login')}
-              onCreated={(createdAs) => {
+              onCreated={(createdAs, ref) => {
                 setCreatedEmail(createdAs)
+                setCreatedRef(ref || '')
                 setMode('login')
               }}
             />
@@ -416,7 +419,7 @@ export default function ApplicantAuth({ onAuthenticated, initialMode = 'login', 
 
 const LOGIN_OTP_TTL_SECONDS = 10 * 60
 
-function LoginPanel({ expired, createdEmail, onSwitch, onForgot, onAuthenticated }) {
+function LoginPanel({ expired, createdEmail, createdRef, onSwitch, onForgot, onAuthenticated }) {
   // stage: 'credentials' -> 'otp' — login-time MFA, added Sept 19. The
   // credentials step no longer sets the session cookie itself; it sends a
   // login code and hands off to the OTP step, same shape as
@@ -552,7 +555,15 @@ function LoginPanel({ expired, createdEmail, onSwitch, onForgot, onAuthenticated
             <p className="text-sm text-ccc-muted mb-3">Enter your credentials to access your account.</p>
             {/* Oct 7 2026: shown after the 60-minute inactivity sign-out. */}
             {createdEmail && !error && (
-              <Alert tone="success">Your account was created. Please sign in with your email and password to continue your application.</Alert>
+              <Alert tone="success">
+                Your account was created.
+                {createdRef && (
+                  <>
+                    {' '}Your reference number is <b>{createdRef}</b>. Keep it; you can give it to the Guidance Office when you ask about your application.
+                  </>
+                )}{' '}
+                Please sign in with your email and password to continue your application.
+              </Alert>
             )}
             {expired && !error && (
               <Alert tone="info">You were signed out after 60 minutes without activity, to keep your account safe. Your saved sections are still there. Please sign in again.</Alert>
@@ -1209,7 +1220,7 @@ function SignupPanel({ onSwitch, onCreated }) {
         setError(data.error || 'Verification failed.')
         return
       }
-      onCreated(data.email || email)
+      onCreated(data.email || email, data.referenceNumber)
     } catch {
       setError('Could not reach the server. Check your connection and try again.')
     } finally {

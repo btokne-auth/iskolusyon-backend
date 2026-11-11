@@ -1607,6 +1607,11 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                         {eligibilityRow.application_number}
                       </span>
                     )}
+                    {eligibilityRow?.reference_number && (
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-muted bg-white/70 border border-ccc-border rounded-full px-2 py-0.5 shrink-0" title="Reference number given at sign-up">
+                        {eligibilityRow.reference_number}
+                      </span>
+                    )}
                     <span className="text-[11px] text-ccc-muted truncate">{email || 'No email on file'}</span>
                   </div>
                 </div>
@@ -2241,7 +2246,7 @@ function DashboardPanel({
 
       if (programFilter !== 'all' && eligRow?.program_choice_1 !== programFilter) return false
       if (!term) return true
-      const haystack = `${d.applicant_name || ''} ${d.applicant_email || ''} ${getDocTypeLabel(d.document_type)}`.toLowerCase()
+      const haystack = `${d.applicant_name || ''} ${d.applicant_email || ''} ${getDocTypeLabel(d.document_type)} ${eligRow?.application_number || ''} ${eligRow?.reference_number || ''}`.toLowerCase()
       return haystack.includes(term)
     })
 

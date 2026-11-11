@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { referenceNumber } from '@/app/lib/referenceNumber'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { checkLock } from '@/app/lib/applicantLocks'
@@ -50,7 +51,8 @@ export async function GET(request) {
       return serverError(error, 'api/admin-eligibility')
     }
 
-    return NextResponse.json({ success: true, applications: data || [] })
+    const applications = (data || []).map((row) => ({ ...row, reference_number: referenceNumber(row) }))
+    return NextResponse.json({ success: true, applications })
   } catch (err) {
     return serverError(err, 'api/admin-eligibility')
   }
