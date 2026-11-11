@@ -903,12 +903,16 @@ function EligibilitySection({ row, onOverride, overriding }) {
           </button>
         ))}
       </div>
+      {/* Nov 2026: bigger and boxed, so the reasons behind a status aren't overlooked. */}
       {reasons.length > 0 && (
-        <ul className="text-[11px] text-ccc-muted space-y-1 list-disc pl-4">
-          {reasons.map((r, i) => (
-            <li key={i}>{r}</li>
-          ))}
-        </ul>
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-amber-900 mb-1">Why this status</div>
+          <ul className="text-[13px] text-amber-950 leading-relaxed space-y-1 list-disc pl-5">
+            {reasons.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   )
