@@ -209,6 +209,21 @@ export async function claimPassedCheck(token, { accountId, email, type = 'voteri
     .eq('file_path', doc.file_path)
     .is('applicant_user_id', null)
   if (error) return { error: 'Could not save your residency check. Please try again.' }
+  // An abandoned sign-up with the same email reuses the same (unverified)
+  // account, so a check claimed by that earlier attempt would show up as a
+  // second Voter's ID / report card. Only the newest one is kept.
+  try {
+    const { data: older } = await supabase
+      .from('documents')
+      .select('file_path')
+      .eq('applicant_user_id', accountId)
+      .eq('document_type', doc.document_type || type)
+      .like('file_path', `${SIGNUP_CHECK_PREFIX}%`)
+      .neq('file_path', doc.file_path)
+    for (const d of older || []) await removeDoc(d)
+  } catch (err) {
+    console.error('Clean-up of an earlier sign-up check failed (non-blocking):', err)
+  }
   // Marks it as already checked, so the portal's content check doesn't run
   // on it again (app/api/upload GET).
   try {
