@@ -2315,7 +2315,10 @@ function PortalApp({ accountSession, onLogout }) {
       (String(academicInfo.transfereeGwa).trim() &&
         String(academicInfo.transfereeUnitsPassed).trim() &&
         academicInfo.transfereeFailingGrade)) &&
-    (academicInfo.applyingAs !== 'First Year' || !!academicInfo.shsFailingGrade) &&
+    // Nov 2026: an Educational Background submitted before the First Year
+    // grade question existed still counts as done (the question can still be
+    // answered once); new applicants answer it at sign-up.
+    (academicInfo.applyingAs !== 'First Year' || !!academicInfo.shsFailingGrade || !!academicSubmittedAt) &&
     (!needsShsGrade || shsGradeValid)
 
   // Inline upload state for the three document types now uploaded directly
