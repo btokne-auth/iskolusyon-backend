@@ -6138,3 +6138,27 @@
 .admin-portal .status-legend-row { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-top: 1px solid #eef1f5; }
 .admin-portal .status-legend dt { font-size: 13px; font-weight: 700; color: var(--navy); }
 .admin-portal .status-legend dd { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+
+/* Nov 2026 (panel revisions S2): eligibility rules checklist */
+.admin-portal .rules-check { margin-top: 12px; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.admin-portal .rules-check-title { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--navy); margin-bottom: 8px; }
+.admin-portal .rules-check ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.admin-portal .rules-check li { display: flex; gap: 10px; align-items: flex-start; }
+.admin-portal .ck-mark { flex: none; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
+.admin-portal .ck-met .ck-mark { background: #e3f3ea; color: #17683b; }
+.admin-portal .ck-no .ck-mark { background: #fcebeb; color: #b42323; }
+.admin-portal .ck-wait .ck-mark { background: #eef0f3; color: #5b6472; }
+.admin-portal .ck-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-portal .ck-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; color: var(--navy); }
+.admin-portal .ck-state { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; padding: 2px 8px; border-radius: 999px; background: #eef0f3; color: #5b6472; }
+.admin-portal .ck-met .ck-state { background: #e3f3ea; color: #17683b; }
+.admin-portal .ck-no .ck-state { background: #fcebeb; color: #b42323; }
+.admin-portal .ck-rule { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.admin-portal .ck-source { font-size: 12.5px; color: var(--text); line-height: 1.45; }
+
+/* Nov 2026 (panel revisions S2): what the system checked on a document */
+.admin-portal .doc-findings { list-style: none; margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.admin-portal .doc-findings li.ok { color: #17683b; }
+.admin-portal .doc-findings li.no { color: #b42323; font-weight: 600; }
+.admin-portal .doc-findings li span { display: inline-block; width: 14px; font-weight: 800; }
+.admin-portal .aa-act.ac-zip { margin-left: 8px; text-decoration: none; display: inline-flex; align-items: center; }

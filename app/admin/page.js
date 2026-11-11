@@ -1,5 +1,7 @@
 'use client'
 import { STATUS_DEFINITIONS } from '@/app/lib/statusDefinitions'
+import { contentFindings } from '@/app/lib/documentContentCheck'
+import { examReasonLine } from '@/app/lib/matching'
 import { Suspense, useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import '../admin-theme.css'
@@ -538,6 +540,25 @@ function groupUploadsByType(docs) {
   return [...groups.values()]
 }
 
+// Nov 2026 (panel revisions S2): what the system checked on this document.
+function DocFindings({ doc }) {
+  if (doc.review_status === 'processing') return null
+  const findings = contentFindings({ documentType: doc.document_type, extractedText: doc.extracted_text, applicantName: doc.applicant_name })
+  if (!findings.length) return null
+  return (
+    <div className="space-y-1">
+      <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">What the system checked</span>
+      <ul className="doc-findings">
+        {findings.map((f) => (
+          <li key={f.label} className={f.ok ? 'ok' : 'no'}>
+            <span aria-hidden="true">{f.ok ? '\u2713' : '\u2715'}</span> {f.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
   const [previewing, setPreviewing] = useState(false)
   const image = isImageFile(doc.file_path)
@@ -607,6 +628,8 @@ function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
               <span className="font-bold">Flagged by content check:</span> {doc.content_issue}
             </p>
           )}
+
+          <DocFindings doc={doc} />
 
           <div className="space-y-1">
             <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
@@ -869,7 +892,41 @@ const STATUS_OPTIONS = [
 // buttons. `row` is one entry from GET /api/admin-eligibility (or undefined
 // if this applicant has no `applications` row yet — e.g. documents were
 // uploaded before any profile section was ever saved).
-function EligibilitySection({ row, onOverride, overriding }) {
+const CHECK_STATE = {
+  met: { mark: '\u2713', text: 'Met', cls: 'ck-met' },
+  not_met: { mark: '\u2715', text: 'Not met', cls: 'ck-no' },
+  waiting: { mark: '\u2026', text: 'Waiting', cls: 'ck-wait' },
+}
+
+// Nov 2026 (panel revisions S2): every eligibility rule, its result and its source.
+function RulesChecklist({ checklist }) {
+  if (!checklist?.items?.length) return null
+  return (
+    <div className="rules-check">
+      <div className="rules-check-title">Eligibility rules checked</div>
+      <ul>
+        {checklist.items.map((it) => {
+          const s = CHECK_STATE[it.state] || CHECK_STATE.waiting
+          return (
+            <li key={it.key} className={s.cls}>
+              <span className="ck-mark" aria-hidden="true">{s.mark}</span>
+              <span className="ck-body">
+                <span className="ck-head">
+                  <b>{it.label}</b>
+                  <span className="ck-state">{s.text}</span>
+                </span>
+                <span className="ck-rule">Rule: {it.rule}</span>
+                <span className="ck-source">{it.source}</span>
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+function EligibilitySection({ row, onOverride, overriding, checklist }) {
   if (!row) {
     return (
       <div className="rounded-xl border border-ccc-border bg-ccc-off px-4 py-3 text-xs text-ccc-muted">
@@ -918,6 +975,12 @@ function EligibilitySection({ row, onOverride, overriding }) {
           </button>
         ))}
       </div>
+      {examReasonLine(row) && (
+        <div className="mt-3 rounded-md border border-ccc-border bg-ccc-off px-3 py-2">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-ccc-navy mb-1">Exam result</div>
+          <p className="text-[13px] text-ccc-text leading-relaxed m-0">{examReasonLine(row)}</p>
+        </div>
+      )}
       {/* Nov 2026: bigger and boxed, so the reasons behind a status aren't overlooked. */}
       {reasons.length > 0 && (
         <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
@@ -929,6 +992,7 @@ function EligibilitySection({ row, onOverride, overriding }) {
           </ul>
         </div>
       )}
+      <RulesChecklist checklist={checklist} />
     </div>
   )
 }
@@ -1415,6 +1479,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
   const { modalOpen, openModal, closeModal, blockedMsg, setBlockedMsg, opening } = useLockedModal(eligibilityRow?.id)
   const lockedByOther = !!lockInfo && !lockInfo.mine && !modalOpen
   const [detail, setDetail] = useState(null)
+  const [checklist, setChecklist] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
   // Oct 5 2026: skeletons in the General Information fields until the
@@ -1463,6 +1528,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
           throw new Error(data?.error || `Could not load applicant profile (HTTP ${res.status}).`)
         }
         setDetail(data.application)
+        setChecklist(data.checklist || null)
       })
       .catch((err) => {
         setDetailError(err?.message || 'Could not load applicant profile.')
@@ -1744,7 +1810,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               </div>
 
               <hr className="modal-divider" style={{ margin: '0 0 4px' }} />
-              <EligibilitySection row={eligibilityRow} onOverride={onEligibilityOverride} overriding={eligibilityOverriding} />
+              <EligibilitySection row={eligibilityRow} onOverride={onEligibilityOverride} overriding={eligibilityOverriding} checklist={checklist} />
 
               {/* Submitted Documents & Profile Data -- Ivy's mockup's 4
                   tabbed categories (CATEGORY_DEFS), remapped onto this app's
@@ -6279,6 +6345,9 @@ function ArchiveCycleCard() {
                     </td>
                     <td className="r">
                       <button type="button" className="aa-act" onClick={() => openList(c.cycle)}>View list</button>
+                      <a className="aa-act ac-zip" href={`/api/archive-cycle?cycle=${encodeURIComponent(c.cycle)}&download=zip`} download>
+                        Download archive (zip)
+                      </a>
                       {c.removable > 0 ? (
                         <button
                           type="button"

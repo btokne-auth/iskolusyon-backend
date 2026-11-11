@@ -6,6 +6,8 @@ import { getSystemSettings } from '@/app/lib/systemSettings'
 import { serverError } from '@/app/lib/safeError'
 import { FORM3_DOWNLOAD_PREFIX } from '@/app/lib/chedForm3'
 import { isKept, removeNonAccepted, removableInCycle, RETENTION_CONFIRM_PREFIX } from '@/app/lib/dataRetention'
+import { zipSync, strToU8 } from 'fflate'
+import { decryptApplicationFields } from '@/app/lib/fieldCrypto'
 
 // Oct 5 2026: end-of-cycle archive (Progress Table row 74, archive part;
 // Ivy's cell comment: a Super Admin option to archive all applicants once
@@ -120,7 +122,9 @@ export async function GET(request) {
     const { session, response } = await requireConsoleRole(request, ['guidance_head'])
     if (!session) return response
 
-    const cycle = new URL(request.url).searchParams.get('cycle')
+    const params = new URL(request.url).searchParams
+    const cycle = params.get('cycle')
+    if (cycle && params.get('download') === 'zip') return archiveZip(session, cycle)
     if (cycle) {
       const { data, error } = await supabase
         .from('applications')
@@ -223,4 +227,66 @@ async function removeNonAcceptedResponse(session, body) {
     'warn'
   )
   return NextResponse.json({ success: true, removed, cycle })
+}
+
+// Nov 2026 (panel revisions S4): "keep temporary application data in a
+// separate table or side storage (archive or zip)". The Guidance Head can
+// download an archived cycle as a zip (applicant records + document list) to
+// keep offline, before the non-accepted applicants' data is removed.
+const ZIP_COLUMNS = [
+  'application_number', 'applicant_name', 'applicant_email', 'applying_as', 'program_choice_1', 'program_choice_2',
+  'date_of_birth', 'sex', 'contact_number', 'address', 'barangay', 'residency_years',
+  'eligibility_status', 'exam_score', 'exam_result', 'scholar_status', 'admitted_program', 'archived_at', 'archived_by',
+]
+function csvCell(v) {
+  const s = v == null ? '' : String(v)
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+function toCsv(rows, columns) {
+  return [columns.join(','), ...rows.map((r) => columns.map((c) => csvCell(r[c])).join(','))].join('\r\n')
+}
+async function archiveZip(session, cycle) {
+  const { data, error } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('archive_cycle', cycle)
+    .not('archived_at', 'is', null)
+    .order('applicant_name', { ascending: true })
+  if (error) return serverError(error, 'api/archive-cycle')
+  const rows = (data || []).map((r) => {
+    const d = decryptApplicationFields(r)
+    return { ...d, kept: isKept(d) ? 'yes' : 'no' }
+  })
+  const userIds = rows.map((r) => r.applicant_user_id).filter(Boolean)
+  let docs = []
+  if (userIds.length) {
+    const { data: docRows } = await supabase
+      .from('documents')
+      .select('applicant_name, document_type, file_path, review_status, staff_confirmed_at, created_at')
+      .in('applicant_user_id', userIds)
+    docs = docRows || []
+  }
+  const readme = [
+    `Iskolusyon archive: Applications ${cycle}`,
+    `Downloaded by ${session.name} on ${new Date().toISOString()}`,
+    '',
+    'applicants.csv  one row per archived applicant. "kept" = yes for applicants qualified as students (kept as permanent records).',
+    'documents.csv   the documents each applicant uploaded (file names and review status only, not the files).',
+    '',
+    'This file contains personal data (Data Privacy Act of 2012). Keep it on a secured office computer only.',
+  ].join('\r\n')
+  const zipped = zipSync({
+    'README.txt': strToU8(readme),
+    'applicants.csv': strToU8(toCsv(rows, [...ZIP_COLUMNS, 'kept'])),
+    'documents.csv': strToU8(toCsv(docs, ['applicant_name', 'document_type', 'file_path', 'review_status', 'staff_confirmed_at', 'created_at'])),
+  })
+  await logAudit(session.name, `Downloaded the archive (zip) of cycle ${cycle} (${rows.length} applicant${rows.length === 1 ? '' : 's'}).`, 'info')
+  const safeName = cycle.replace(/[^A-Za-z0-9_-]/g, '_')
+  return new NextResponse(zipped, {
+    headers: {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="iskolusyon-archive-${safeName}.zip"`,
+      'Cache-Control': 'no-store',
+    },
+  })
 }

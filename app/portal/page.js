@@ -1,5 +1,6 @@
 'use client'
 import { STATUS_DEFINITIONS } from '@/app/lib/statusDefinitions'
+import { examReasonLine } from '@/app/lib/matching'
 import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { docState } from '../lib/documentState'
 import { screeningResult } from '../lib/screening'
@@ -2103,6 +2104,7 @@ function PortalApp({ accountSession, onLogout }) {
   // comes back, same as every other *SubmittedAt state above.
   const [applicationNumber, setApplicationNumber] = useState(null)
   const [referenceNo, setReferenceNo] = useState(null)
+  const [examLine, setExamLine] = useState(null)
   // Sept 30 2026: the applicant's released result, if any. /api/application
   // only includes scholar_status once "Exam Results Visible to Applicants"
   // is on AND an admin has sent this applicant their result.
@@ -2949,6 +2951,7 @@ function PortalApp({ accountSession, onLogout }) {
         setFinancialSubmittedAt(data.application.fam_financial_submitted_at || null)
         setApplicationNumber(data.application.application_number || null)
         setReferenceNo(data.application.reference_number || null)
+        setExamLine(examReasonLine(data.application))
         setReleasedStatus(data.application.scholar_status || null)
         setReleasedDistribution(data.application.distribution_status || null)
         setEligibility(data.application.eligibility || null)
@@ -3748,6 +3751,7 @@ function PortalApp({ accountSession, onLogout }) {
                       <div className="stat-label">Admission</div>
                       <div className="stat-value">{ADMISSION_RESULT_TEXT[releasedStatus].label}</div>
                       <div className="stat-note">{ADMISSION_RESULT_TEXT[releasedStatus].note}</div>
+                      {examLine && <div className="stat-note" style={{ marginTop: 6 }}>{examLine}</div>}
                     </div>
                   ) : (
                     <div className="stat-card locked">

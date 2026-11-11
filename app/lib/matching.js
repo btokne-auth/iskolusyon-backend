@@ -372,6 +372,49 @@ export function applicantEligibility(row, uploadedTypes) {
   return { status, verified, items, note }
 }
 
+// Nov 2026 (panel revisions S2): the full rules checklist for staff, every
+// rule with its result and where it comes from, so it is clear the decision
+// is a set of stated rules and not just text matching.
+//   items: [{ key, label, rule, state: 'met' | 'not_met' | 'waiting' | 'na', source }]
+export function adminEligibilityChecklist(row, uploadedTypes) {
+  const r = checkEligibilityRules(row, uploadedTypes)
+  const st = (v) => (v === true ? 'met' : v === false ? 'not_met' : 'waiting')
+  const items = []
+  const voterWho = (uploadedTypes instanceof Set ? uploadedTypes : new Set(uploadedTypes || [])).has('parentid') ? "parent's or guardian's" : "applicant's or parent's"
+  items.push({
+    key: 'residency', label: 'Calamba City residency', rule: 'Address must be in Calamba City (Appendix J I.b).', state: st(r.residency),
+    source: r.residency === null ? 'Waiting for Personal Information.' : `Address on file (filled from the Voter's ID): ${row.address || 'none'}.`,
+  })
+  items.push({
+    key: 'voter', label: "Voter's ID (proof of residency)", rule: "A Voter's ID or COMELEC Voter's Certification showing the City of Calamba, the applicant's or a parent's/guardian's. The birth certificate is not used for residency.",
+    state: st(r.voter),
+    source: r.voterPending ? `Uploaded (${voterWho}); waiting for staff to Confirm.` : r.voter === null ? 'Waiting for Personal Information.' : r.voter ? `Confirmed by staff (${voterWho}).` : 'Not uploaded.',
+  })
+  if (r.grades.applies || row.applying_as === 'First Year') {
+    items.push({
+      key: 'grades', label: 'No failing grade (First Year)', rule: 'No grade below 75 on the latest Senior High report card (Form 138), read at sign-up.',
+      state: r.grades.applies ? st(r.grades.ok) : 'waiting',
+      source: r.grades.applies ? `Applicant answered "${row.shs_failing_grade}"; the report card was read at sign-up.` : 'Waiting for Educational Background.',
+    })
+  }
+  if (r.transferee.applies) {
+    const t = r.transferee
+    items.push({
+      key: 'transferee', label: 'Transferee academic standing', rule: 'GWA 2.25 or better, at least 26 units passed, no failing grade (Appendix J, Transferees). Exceptional cases: Program Director.',
+      state: st(t.ok),
+      source: t.notSubmitted ? 'Waiting for Educational Background.' : t.missing ? 'GWA, units or failing-grade answer missing.' : `GWA ${t.gwa}, ${t.units} units, failing grade: ${row.transferee_failing_grade}.`,
+    })
+  }
+  if (r.card.applies) {
+    items.push({
+      key: 'card', label: 'Proof of grades confirmed', rule: 'Report card (First Year) or transcript (Transferee) confirmed by staff before the exam.',
+      state: r.card.ok ? 'met' : 'waiting',
+      source: r.card.ok ? 'Confirmed by staff.' : r.card.pending ? 'Uploaded; waiting for staff to Confirm.' : 'Not uploaded yet.',
+    })
+  }
+  return { items, status: r.status }
+}
+
 // ---------------------------------------------------------------------------
 // Applicant Information & Results Module (Sept 21 2026)
 //
@@ -391,6 +434,23 @@ export function getExamThreshold(programChoice) {
   if (!programChoice) return null
   const grade = PROGRAM_PASSING_GRADES[programChoice]
   return typeof grade === 'number' ? grade : null
+}
+
+// Nov 2026 (panel revisions S1): one plain sentence on why an exam result
+// came out the way it did, for staff and (once released) the applicant.
+export function examReasonLine(row) {
+  if (!row) return null
+  const program = row.admitted_program || row.program_choice_1
+  if (row.exam_result === 'absent') return 'Did not attend the scheduled entrance exam.'
+  const score = row.exam_score === '' || row.exam_score == null ? null : Number(row.exam_score)
+  const threshold = getExamThreshold(program)
+  if (score != null && !Number.isNaN(score) && threshold != null) {
+    const met = score >= threshold
+    return `Entrance exam score ${score}%. Passing grade for ${program}: ${threshold}%. ${met ? 'Met the passing grade.' : 'Below the passing grade.'}`
+  }
+  if (row.exam_result === 'passed') return 'Passed the entrance exam.'
+  if (row.exam_result === 'failed') return 'Did not reach the passing grade of the entrance exam.'
+  return null
 }
 
 // A suggestion only, shown alongside the admin's own explicit exam_result
