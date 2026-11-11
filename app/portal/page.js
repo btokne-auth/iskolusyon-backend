@@ -2101,6 +2101,7 @@ function PortalApp({ accountSession, onLogout }) {
   // from both the initial GET on load and whatever save/submit response
   // comes back, same as every other *SubmittedAt state above.
   const [applicationNumber, setApplicationNumber] = useState(null)
+  const [referenceNo, setReferenceNo] = useState(null)
   // Sept 30 2026: the applicant's released result, if any. /api/application
   // only includes scholar_status once "Exam Results Visible to Applicants"
   // is on AND an admin has sent this applicant their result.
@@ -2688,6 +2689,7 @@ function PortalApp({ accountSession, onLogout }) {
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Save failed')
       if (data.application?.application_number) setApplicationNumber(data.application.application_number)
+      if (data.application?.reference_number) setReferenceNo(data.application.reference_number)
       setSaveState('saved')
       // The server copy is now current — the local safety-net copy for
       // this applicant is no longer needed until something changes again
@@ -2945,6 +2947,7 @@ function PortalApp({ accountSession, onLogout }) {
         setHealthSubmittedAt(data.application.health_submitted_at || null)
         setFinancialSubmittedAt(data.application.fam_financial_submitted_at || null)
         setApplicationNumber(data.application.application_number || null)
+        setReferenceNo(data.application.reference_number || null)
         setReleasedStatus(data.application.scholar_status || null)
         setReleasedDistribution(data.application.distribution_status || null)
         setEligibility(data.application.eligibility || null)
@@ -3469,6 +3472,7 @@ function PortalApp({ accountSession, onLogout }) {
           }
           avatarUrl={profilePicPreviewUrl || persistedProfilePicUrl}
           applicationNumber={applicationNumber}
+          referenceNumber={referenceNo}
           messagesCount={messages.length}
           flaggedCount={flaggedCount}
           onLogout={() => setLogoutConfirmOpen(true)}

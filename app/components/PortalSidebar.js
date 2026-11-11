@@ -90,6 +90,7 @@ export default function PortalSidebar({
   flaggedCount = 0,
   onLogout,
   applicationNumber = null,
+  referenceNumber = null,
 }) {
   // Oct 6 2026: on phones and tablets (960px and below) this sidebar becomes
   // a menu that slides in from the left, opened by the Menu button in the
@@ -144,6 +145,13 @@ export default function PortalSidebar({
               same placeholder copy until then. */}
           {applicationNumber || '(Your Application Number is given once you submit your application with complete requirements)'}
         </div>
+        {/* Nov 2026 (panel revisions S4): reference number from sign-up. */}
+        {referenceNumber && (
+          <>
+            <div className="profile-role" style={{ marginTop: 10 }}>Reference No.:</div>
+            <div className="profile-id">{referenceNumber}</div>
+          </>
+        )}
       </div>
 
       {/* ---- Nav groups ---- */}

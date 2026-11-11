@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { referenceNumber } from '@/app/lib/referenceNumber'
 import {
   startSignup,
   saveSignupProgress,
@@ -149,7 +150,12 @@ export async function POST(request) {
       // applicant signs in once with email, password and a login code (the
       // same two-step sign-in as every later visit), which confirms a real
       // person who knows the password and owns the inbox.
-      return NextResponse.json({ success: true, name: result.displayName, email: result.account.email })
+      return NextResponse.json({
+        success: true,
+        name: result.displayName,
+        email: result.account.email,
+        referenceNumber: referenceNumber(result.application),
+      })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

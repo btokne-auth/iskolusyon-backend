@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { referenceNumber } from '@/app/lib/referenceNumber'
 import { supabase } from '@/app/supabaseClient'
 import { Resend } from 'resend'
 import { personalInfoToColumns, academicInfoToColumns, healthInfoToColumns, familyInfoToColumns } from '@/app/lib/applicationColumns'
@@ -335,6 +336,7 @@ function computeEligibilityUpdate(mergedRow, uploadedTypes) {
 async function applicantView(row, session, uploadedTypes) {
   const safe = applicantSafeRow(row, await resultsVisible())
   if (!safe) return safe
+  safe.reference_number = referenceNumber(row)
   try {
     const types = uploadedTypes || (await fetchUploadedDocumentTypes({ userId: session?.id, email: session?.email, name: row.applicant_name }))
     safe.eligibility = applicantEligibility(row, types)
