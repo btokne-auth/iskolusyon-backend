@@ -5980,13 +5980,9 @@
 }
 .admin-portal .cycle-tile {
   border: 1px solid var(--border);
-  border-left: 4px solid #cbd2dc;
   border-radius: 10px;
   background: #fff;
   padding: 18px 20px;
-}
-.admin-portal .cycle-tile.is-on {
-  border-left-color: var(--green);
 }
 .admin-portal .cycle-tile-head {
   display: flex;
