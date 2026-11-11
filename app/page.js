@@ -147,7 +147,6 @@ function Hero({ paused, onHowTo }) {
             <a href="#before-you-apply" className="btn btn-light">Check if I&rsquo;m eligible</a>
             <a href="#how-to-apply" className="btn btn-light" onClick={(e) => { e.preventDefault(); onHowTo() }}>How to Apply</a>
           </div>
-          <TermsStrip />
           <div className="stats rise" style={{ '--d': '.75s' }}>
             <div className="stat"><CountUp to={programCount} delay={900} paused={paused} /><span className="slabel">programs offered</span></div>
             <div className="stat"><CountUp to={PROGRAM_DEPARTMENTS.length} delay={1150} paused={paused} /><span className="slabel">departments</span></div>
@@ -172,6 +171,9 @@ function Hero({ paused, onHowTo }) {
           </div>
           <span className="caption">Illustration of the portal with sample data.</span>
         </div>
+      </div>
+      <div className="wrap terms-wrap">
+        <TermsStrip />
       </div>
     </section>
   )
@@ -210,13 +212,16 @@ const TERMS = [
 ]
 function TermsStrip() {
   return (
-    <div className="terms rise" style={{ '--d': '.7s' }} aria-label="Applicant, student and scholar">
-      {TERMS.map((t, i) => (
-        <div className="term" key={t.term}>
-          <span className="term-no">{i + 1}</span>
-          <span className="term-text"><b>{t.term}</b>{t.meaning}</span>
-        </div>
-      ))}
+    <div className="terms rise" style={{ '--d': '.7s' }}>
+      <p className="terms-kick">Applicant, student, scholar: what the words mean here</p>
+      <div className="terms-row">
+        {TERMS.map((t, i) => (
+          <div className="term" key={t.term}>
+            <span className="term-no">{i + 1}</span>
+            <span className="term-text"><b>{t.term}</b>{t.meaning}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

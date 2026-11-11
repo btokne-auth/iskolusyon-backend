@@ -498,17 +498,18 @@
 
 /* Nov 2026 (panel revisions S3, M1): who can apply in the top third, and
    the applicant -> student -> scholar terms under the buttons. */
-.lp .terms { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; max-width: 560px; }
-.lp .term { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.85); }
-.lp .term-no { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--navy); color: #fff; font-family: var(--mont); font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
-.lp .term-text { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
-.lp .term-text b { font-family: var(--mont); font-size: 13.5px; color: var(--navy); }
+.lp .term { display: flex; gap: 14px; align-items: flex-start; padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.9); }
+.lp .term-no { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--navy); color: #fff; font-family: var(--mont); font-size: 13px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+.lp .term-text { display: flex; flex-direction: column; gap: 4px; font-size: 14.5px; line-height: 1.55; color: var(--muted); }
+.lp .term-text b { font-family: var(--mont); font-size: 16px; color: var(--navy); }
 @media (min-width: 961px) {
-  .lp .hero-grid { padding-top: 34px; padding-bottom: 64px; align-items: start; }
-  .lp .hero h1 { font-size: 46px; }
-  .lp .hero-copy { gap: 16px; }
-  .lp .stage-wrap { margin-top: 40px; }
+  .lp .hero-grid { padding-top: 40px; padding-bottom: 44px; align-items: center; }
+  .lp .hero h1 { font-size: 52px; }
+  .lp .hero-copy { gap: 22px; }
   .lp .hero-btns { flex-wrap: nowrap; gap: 10px; }
   .lp .hero-btns .btn { padding-left: 20px; padding-right: 20px; white-space: nowrap; }
 }
-@media (max-width: 640px) { .lp .terms { grid-template-columns: 1fr; } }
+.lp .terms-wrap { position: relative; padding-bottom: 72px; }
+.lp .terms-kick { margin: 0 0 14px; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--green); }
+.lp .terms-row { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 18px; }
+@media (max-width: 760px) { .lp .terms-row { grid-template-columns: 1fr; } .lp .terms-wrap { padding-bottom: 48px; } }
