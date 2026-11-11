@@ -112,7 +112,7 @@ function TextField({ label, value, onChange, type = 'text', placeholder, require
 // the residency check and before any account exists. Rules in
 // app/lib/screening.js (First Year: no grade below 75, client interview;
 // Transferee: Appendix J; Old Curriculum / ALS: checked by staff later).
-function AcademicScreeningBox({ answers, set, result, error, onRefused }) {
+function AcademicScreeningBox({ answers, set, result, needsCard, error, onRefused }) {
   const a = answers
   return (
     <div className="rounded-md border border-ccc-border bg-ccc-off px-4 py-4 mt-3 mb-3">
@@ -127,8 +127,8 @@ function AcademicScreeningBox({ answers, set, result, error, onRefused }) {
       )}
       {a.applyingAs === 'Transferee' && (
         <>
-          <TextField label="General Weighted Average (GWA) at your previous school" type="number" value={a.transfereeGwa} onChange={set.transfereeGwa} placeholder="e.g. 1.75 (2.25 or better required)" />
-          <TextField label="Total academic units passed" type="number" value={a.transfereeUnitsPassed} onChange={set.transfereeUnitsPassed} placeholder="e.g. 30 (at least 26 required)" />
+          <TextField label="General Weighted Average (GWA) at your previous school" value={a.transfereeGwa} onChange={(v) => { if (/^\d?(\.\d{0,2})?$/.test(v)) set.transfereeGwa(v) }} placeholder="e.g. 1.75 (1.00 to 5.00; 2.25 or better required)" />
+          <TextField label="Total academic units passed" value={a.transfereeUnitsPassed} onChange={(v) => { if (/^\d{0,3}$/.test(v)) set.transfereeUnitsPassed(v) }} placeholder="e.g. 30 (at least 26 required)" />
           <SelectField label="Did you get a failing grade in any semester at your previous school(s)?" value={a.transfereeFailingGrade} onChange={set.transfereeFailingGrade} options={['No', 'Yes']} />
         </>
       )}
@@ -139,7 +139,11 @@ function AcademicScreeningBox({ answers, set, result, error, onRefused }) {
       {error && <div className="text-[11px] text-red-600 mt-1">{error}</div>}
       {result.complete && result.passed && (
         <div className="text-[13px] text-green-800 bg-green-50 border border-green-200 rounded-md px-3 py-2 mt-2">
-          <span className="font-bold">Eligibility check passed.</span> You can now create your account.
+          {needsCard ? (
+            <><span className="font-bold">Answers accepted.</span> Next, upload your report card so it can be checked.</>
+          ) : (
+            <><span className="font-bold">Eligibility check passed.</span> You can now create your account.</>
+          )}
         </div>
       )}
       {result.complete && !result.passed && (
@@ -160,6 +164,52 @@ function AcademicScreeningBox({ answers, set, result, error, onRefused }) {
           Confirm my answers
         </button>
       )}
+    </div>
+  )
+}
+
+// Nov 2026 (panel revisions S2): the report card read at sign-up. It must
+// read as a report card and show no grade below 75; staff still confirm it
+// later, and the original card is checked at enrollment.
+function GradeCheckBox({ state, message, failCount, error, onFile, onRetryPoll }) {
+  const busy = state === 'uploading' || state === 'processing'
+  return (
+    <div className="rounded-md border border-ccc-border bg-ccc-off px-4 py-4 mb-3">
+      <div className="text-sm font-bold text-ccc-navy mb-1">Report card check</div>
+      <p className="text-[12px] text-ccc-muted leading-relaxed mb-3">
+        Upload a clear photo or scan of your latest report card (Form 138), or your transcript / certificate of grades if
+        you are a transferee. It is read to confirm your answers before your account is created.
+      </p>
+      {state !== 'passed' && (
+        <label className={`block w-full text-center py-2.5 rounded-md border border-dashed border-ccc-blue text-ccc-blue font-bold text-sm ${busy ? 'opacity-60 cursor-wait' : 'cursor-pointer hover:bg-white'}`}>
+          {state === 'uploading' ? 'Uploading…' : state === 'processing' ? 'Reading your report card…' : state === 'failed' ? 'Upload a different file' : 'Upload report card'}
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" className="hidden" disabled={busy} onChange={(e) => onFile(e.target.files?.[0])} />
+        </label>
+      )}
+      {state === 'processing' && <p className="text-[12px] text-ccc-muted mt-2">This usually takes under a minute.</p>}
+      {state === 'slow' && (
+        <div className="text-[13px] text-ccc-navy mt-2">
+          Still reading. <button type="button" className="text-ccc-blue font-bold underline" onClick={onRetryPoll}>Check again</button>
+        </div>
+      )}
+      {state === 'passed' && (
+        <div className="text-[13px] text-green-800 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+          <span className="font-bold">Report card checked.</span> No grade below 75 was found. You can now create your account.
+          The Guidance Office still confirms it later.
+        </div>
+      )}
+      {state === 'failed' && (
+        <div className="text-[13px] text-red-800 bg-red-50 border border-red-200 rounded-md px-3 py-2 mt-2">
+          <span className="font-bold">Not confirmed:</span> {message} This file was not kept.
+        </div>
+      )}
+      {state === 'failed' && failCount >= 2 && (
+        <div className="text-[13px] text-ccc-navy bg-white border border-ccc-border rounded-md px-3 py-2 mt-2">
+          <span className="font-bold">Still not passing?</span> Bring your report card to the GCTCDO, 1st Floor, Admin
+          Building, City College of Calamba, and the Guidance Office will check it for you.
+        </div>
+      )}
+      {error && <div className="text-[11px] text-red-600 mt-1">{error}</div>}
     </div>
   )
 }
@@ -749,8 +799,89 @@ function SignupPanel({ onSwitch, onCreated }) {
   const [transfereeUnitsPassed, setTransfereeUnitsPassed] = useState('')
   const [transfereeFailingGrade, setTransfereeFailingGrade] = useState('')
   const [academicFailed, setAcademicFailed] = useState(null) // reasons, once refused
+  // The report card (Form 138) read at sign-up (Lock 1 of the grade rule).
+  const [gradeToken, setGradeToken] = useState('')
+  const [gradeState, setGradeState] = useState('idle') // idle | uploading | processing | passed | failed | slow
+  const [gradeMessage, setGradeMessage] = useState('')
+  const [gradeFailCount, setGradeFailCount] = useState(0)
+  const gradePollRef = useRef(null)
   const screeningAnswers = { applyingAs, shsFailingGrade, transfereeGwa, transfereeUnitsPassed, transfereeFailingGrade }
   const academic = signupScreening(screeningAnswers)
+  const needsCard = applyingAs !== 'Old Curriculum and ALS Completer'
+  const readyForAccount = checkState === 'passed' && !academicFailed && academic.passed && (!needsCard || gradeState === 'passed')
+
+  async function refuseSignup(reasons, reason) {
+    setAcademicFailed(reasons)
+    try {
+      await fetch('/api/signup-residency-check', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: residencyToken, gradeToken, screening: screeningAnswers, reason }),
+      })
+    } catch {
+      // Unfinished checks expire on their own within a day.
+    }
+  }
+
+  function pollGrade(token, startedAt) {
+    clearTimeout(gradePollRef.current)
+    gradePollRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/signup-residency-check?token=${encodeURIComponent(token)}`)
+        const data = await res.json()
+        if (res.ok && data.status === 'passed') {
+          setGradeState('passed')
+          setGradeMessage('')
+          return
+        }
+        if (res.ok && data.status === 'failed') {
+          if (data.kind === 'failing_grade') {
+            const found = String(data.reason || '').replace(' The Guidance Office will check it.', '').replace('this report card', 'your report card')
+            refuseSignup([`${found || 'A grade below 75 appears on your report card.'} Applicants with a failing grade are not accepted.`], 'failing_grade')
+            return
+          }
+          setGradeFailCount((n) => n + 1)
+          setGradeState('failed')
+          setGradeMessage(data.reason || 'This file could not be read as a report card.')
+          return
+        }
+      } catch {
+        // keep trying below
+      }
+      if (Date.now() - startedAt > 150000) {
+        setGradeState('slow')
+        return
+      }
+      pollGrade(token, startedAt)
+    }, 4000)
+  }
+
+  async function uploadReportCard(file) {
+    if (!file) return
+    setFieldErrors((f) => ({ ...f, grades: undefined }))
+    setGradeState('uploading')
+    setGradeMessage('')
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('type', 'form138')
+      if (gradeToken) form.append('token', gradeToken)
+      const res = await fetch('/api/signup-residency-check', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) {
+        if (res.status === 422) setGradeFailCount((n) => n + 1)
+        setGradeState('failed')
+        setGradeMessage(data.message || data.error || 'The file could not be uploaded.')
+        return
+      }
+      setGradeToken(data.token)
+      setGradeState('processing')
+      pollGrade(data.token, Date.now())
+    } catch {
+      setGradeState('failed')
+      setGradeMessage('Could not reach the server. Check your connection and try again.')
+    }
+  }
 
   // Step 3 — Personal Information (subset matching personalInfo shape)
   const [firstName, setFirstName] = useState('')
@@ -862,6 +993,7 @@ function SignupPanel({ onSwitch, onCreated }) {
     else if (checkState !== 'passed') nextFieldErrors.voterId = "Please upload a Voter's ID or Voter's Certification and wait for it to be confirmed."
     else if (!academic.complete) nextFieldErrors.screening = academic.invalid || 'Please answer the academic standing questions.'
     else if (!academic.passed) return // the "not eligible" panel is showing instead
+    else if (needsCard && gradeState !== 'passed') nextFieldErrors.grades = 'Please upload your report card (Form 138) and wait for it to be checked.'
     if (!email.trim()) nextFieldErrors.email = 'Please enter your email address.'
     else if (!isValidEmailFormat(email)) nextFieldErrors.email = 'Please enter a valid email address.'
     const passwordError = passwordStrengthError(password)
@@ -876,7 +1008,7 @@ function SignupPanel({ onSwitch, onCreated }) {
       const res = await fetch('/api/applicant-signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start', email, password, residencyToken, screening: screeningAnswers }),
+        body: JSON.stringify({ action: 'start', email, password, residencyToken, gradeToken, screening: screeningAnswers }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -893,6 +1025,11 @@ function SignupPanel({ onSwitch, onCreated }) {
         }
         if (data.screening) {
           setFieldErrors({ screening: message })
+          return
+        }
+        if (data.grades) {
+          setGradeState('idle')
+          setFieldErrors({ grades: message })
           return
         }
         setFieldErrors({ [/password/i.test(message) ? 'password' : 'email']: message })
@@ -1202,18 +1339,21 @@ function SignupPanel({ onSwitch, onCreated }) {
                     answers={screeningAnswers}
                     set={{ applyingAs: setApplyingAs, shsFailingGrade: setShsFailingGrade, transfereeGwa: setTransfereeGwa, transfereeUnitsPassed: setTransfereeUnitsPassed, transfereeFailingGrade: setTransfereeFailingGrade }}
                     result={academic}
+                    needsCard={needsCard}
                     error={fieldErrors.screening}
-                    onRefused={async (reasons) => {
-                      setAcademicFailed(reasons)
-                      try {
-                        await fetch('/api/signup-residency-check', {
-                          method: 'DELETE',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ token: residencyToken, screening: screeningAnswers }),
-                        })
-                      } catch {
-                        // The check expires on its own within a day.
-                      }
+                    onRefused={(reasons) => refuseSignup(reasons, 'answers')}
+                  />
+                )}
+                {checkState === 'passed' && !academicFailed && academic.passed && needsCard && (
+                  <GradeCheckBox
+                    state={gradeState}
+                    message={gradeMessage}
+                    failCount={gradeFailCount}
+                    error={fieldErrors.grades}
+                    onFile={uploadReportCard}
+                    onRetryPoll={() => {
+                      setGradeState('processing')
+                      pollGrade(gradeToken, Date.now())
                     }}
                   />
                 )}
@@ -1232,7 +1372,7 @@ function SignupPanel({ onSwitch, onCreated }) {
                     </button>
                   </div>
                 )}
-                {checkState === 'passed' && !academicFailed && academic.passed && (
+                {readyForAccount && (
                 <>
                 <Alert tone="info">A verification code will be sent to this email before your account is finalized.</Alert>
                 <TextField label="Email Address" type="email" value={email} onChange={clearFieldError('email', setEmail)} autoComplete="email" placeholder="e.g. yourname@email.com" error={fieldErrors.email} />

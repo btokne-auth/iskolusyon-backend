@@ -189,12 +189,24 @@ function checkEligibilityRules(row, uploadedTypes) {
   const g = { applies: row.applying_as === 'First Year' && !!row.academic_submitted_at && !!row.shs_failing_grade, ok: true }
   if (g.applies) g.ok = row.shs_failing_grade === 'No'
 
+  // ---- Report card confirmed by staff (Nov 2026, panel revisions S2) ----
+  // OCR reads the report card (at sign-up and in the portal); a staff
+  // member confirms it, the same as the Voter's ID, before the applicant can
+  // reach the exam. Old Curriculum / ALS completers are checked by staff
+  // without this rule. Only checked once Educational Background is in.
+  const cardApplies = ['First Year', 'Transferee'].includes(row.applying_as) && !!row.academic_submitted_at
+  const cardUploaded = types.has('form138')
+  const cardVerified = types.has(`${VERIFIED_PREFIX}form138`)
+  const card = !cardApplies ? true : cardVerified ? true : null
+  const cardPending = cardApplies && cardUploaded && !cardVerified
+  const cardMissing = cardApplies && !cardUploaded
+
   let status
   if (residency === false || voter === false || t.ok === false || g.ok === false) status = 'not_qualified'
-  else if (residency === null || voter === null || t.ok === null) status = 'incomplete'
+  else if (residency === null || voter === null || t.ok === null || card === null) status = 'incomplete'
   else status = 'pending_exam'
 
-  return { residency, voter, voterPending, transferee: t, grades: g, status }
+  return { residency, voter, voterPending, transferee: t, grades: g, card: { applies: cardApplies, ok: card, pending: cardPending, missing: cardMissing }, status }
 }
 
 export function computeEligibility(row, uploadedTypes) {
@@ -224,6 +236,12 @@ export function computeEligibility(row, uploadedTypes) {
     if (!t.gwaOk) reasons.push(`Transferee GWA of ${t.gwa} doesn't meet the 2.25-or-better requirement.`)
     if (!t.unitsOk) reasons.push(`Transferee has passed ${t.units} units. Appendix J requires at least 26.`)
     if (!t.noFailOk) reasons.push('Transferee reported a failing grade in a previous semester (Appendix J disqualifies this).')
+  }
+
+  if (rules.card.pending) {
+    reasons.push('Report card (Form 138) uploaded but not yet confirmed by staff. Confirm it in Document Review to continue.')
+  } else if (rules.card.missing) {
+    reasons.push('No report card (Form 138) on file yet.')
   }
 
   if (rules.grades.applies && !rules.grades.ok) {
@@ -303,6 +321,19 @@ export function applicantEligibility(row, uploadedTypes) {
       detail = `Not met: ${parts.join('; ')}.`
     }
     items.push({ key: 'transferee', label: 'Transferee academic standing', state: stateOf(t.ok), detail })
+  }
+
+  if (rules.card.applies) {
+    items.push({
+      key: 'card',
+      label: 'Report card (Form 138) confirmed by the Guidance Office',
+      state: rules.card.ok ? 'met' : 'not_checked',
+      detail: rules.card.ok
+        ? 'Your report card was confirmed.'
+        : rules.card.pending
+        ? 'Your report card is waiting for the Guidance Office to confirm it.'
+        : 'Upload your report card (Form 138) in Educational Background.',
+    })
   }
 
   if (rules.grades.applies) {

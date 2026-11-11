@@ -25,6 +25,7 @@ import {
   getCheckStatus,
   cleanUpOldChecks,
   discardCheck,
+  SIGNUP_CHECK_TYPES,
 } from '@/app/lib/signupResidencyCheck'
 import { signupScreening } from '@/app/lib/screening'
 
@@ -64,6 +65,8 @@ export async function POST(request) {
     }
     const file = formData.get('file')
     const sentToken = formData.get('token')?.toString() || ''
+    // Nov 2026: 'form138' = the report card check of the academic screening.
+    const docType = SIGNUP_CHECK_TYPES.includes(formData.get('type')?.toString()) ? formData.get('type').toString() : 'voterid'
     const token = isValidTokenShape(sentToken) ? sentToken : newCheckToken()
 
     if (!file || typeof file === 'string') return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
@@ -91,7 +94,7 @@ export async function POST(request) {
     if (realType.startsWith('image/')) {
       let quality
       try {
-        quality = await checkImageQuality(buffer, 'voterid')
+        quality = await checkImageQuality(buffer, docType)
       } catch {
         return NextResponse.json({ error: 'This image could not be opened. It may be damaged. Please upload it again.' }, { status: 400 })
       }
@@ -125,7 +128,7 @@ export async function POST(request) {
       applicant_name: null,
       applicant_email: null,
       applicant_user_id: null,
-      document_type: 'voterid',
+      document_type: docType,
     }])
     if (dbError) {
       await supabase.storage.from('scholarship-documents').remove([filePath])
@@ -153,8 +156,12 @@ export async function DELETE(request) {
     const token = String(body.token || '')
     if (!isValidTokenShape(token)) return NextResponse.json({ error: 'Missing or invalid token' }, { status: 400 })
     const result = signupScreening(body.screening || {})
-    if (!result.complete || result.passed) return NextResponse.json({ success: true, kept: true })
-    await discardCheck(token, result.reasons.join(' '))
+    const failingCard = body.reason === 'failing_grade'
+    if (!failingCard && (!result.complete || result.passed)) return NextResponse.json({ success: true, kept: true })
+    const reason = failingCard ? 'a grade below 75 was found on the report card' : result.reasons.join(' ')
+    await discardCheck(token, reason)
+    const gradeToken = String(body.gradeToken || '')
+    if (isValidTokenShape(gradeToken)) await discardCheck(gradeToken, reason)
     return NextResponse.json({ success: true })
   } catch (err) {
     return serverError(err, 'api/signup-residency-check')

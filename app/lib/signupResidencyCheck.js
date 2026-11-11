@@ -1,6 +1,12 @@
 import crypto from 'crypto'
 import { supabase } from '@/app/supabaseClient'
-import { checkDocumentContent, CONTENT_CHECK_FIELD } from '@/app/lib/documentContentCheck'
+import { checkDocumentContent, CONTENT_CHECK_FIELD, failingGradesOn } from '@/app/lib/documentContentCheck'
+
+// Nov 2026: the same check also reads the report card (Form 138) at sign-up,
+// with its own token, for the academic screening (app/lib/screening.js):
+// it must read as a report card and show no grade below 75. The name is
+// checked later in the portal (it isn't known yet at sign-up step 1).
+export const SIGNUP_CHECK_TYPES = ['voterid', 'form138']
 import { CALAMBA_BARANGAYS } from '@/app/lib/fieldValidation'
 
 // Nov 2026 (panel revisions S3/S4, final defense Oct 20-23): residency is
@@ -141,12 +147,17 @@ export async function getCheckStatus(token) {
   }
   if (doc.review_status === 'processing') return { status: 'processing' }
 
-  const result = checkDocumentContent({ documentType: 'voterid', extractedText: doc.extracted_text, applicantName: '' })
+  const type = SIGNUP_CHECK_TYPES.includes(doc.document_type) ? doc.document_type : 'voterid'
+  const result = checkDocumentContent({ documentType: type, extractedText: doc.extracted_text, applicantName: '' })
   if (!result.passed) {
+    // A grade below 75 means not eligible at all; anything else (not a
+    // report card, unreadable) can be retried with a clearer copy.
+    const kind = type === 'form138' && failingGradesOn(doc.extracted_text).length ? 'failing_grade' : 'unreadable'
     await removeDoc(doc)
-    await logAnonymous(`Sign-up stopped at the residency check: ${result.reason}`, 'warn')
-    return { status: 'failed', reason: result.reason }
+    await logAnonymous(`Sign-up stopped at the ${type === 'form138' ? 'report card' : 'residency'} check: ${result.reason}`, 'warn')
+    return { status: 'failed', reason: result.reason, kind }
   }
+  if (type === 'form138') return { status: 'passed', prefill: {} }
 
   const fields = await readFields(doc.file_path)
   const address = fields.address || addressFromText(doc.extracted_text)
@@ -180,7 +191,7 @@ export async function claimPassedCheck(token, { accountId, email }) {
   try {
     await supabase.from('extracted_fields').insert({
       file_path: doc.file_path,
-      document_type: 'voterid',
+      document_type: doc.document_type || 'voterid',
       field_name: CONTENT_CHECK_FIELD,
       extracted_value: 'passed at sign-up',
       needs_review: false,
@@ -188,7 +199,12 @@ export async function claimPassedCheck(token, { accountId, email }) {
   } catch (err) {
     console.error('Content check marker failed (non-blocking):', err)
   }
-  await logAnonymous('Sign-up residency check passed (COMELEC record with a Calamba address)', 'done')
+  await logAnonymous(
+    doc.document_type === 'form138'
+      ? 'Sign-up report card check passed (report card, no grade below 75)'
+      : 'Sign-up residency check passed (COMELEC record with a Calamba address)',
+    'done'
+  )
   return { success: true, prefill: status.prefill }
 }
 

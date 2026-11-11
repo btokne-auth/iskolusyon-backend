@@ -55,10 +55,25 @@ export async function POST(request) {
       if (!screen.passed) {
         return NextResponse.json({ error: screen.reasons.join(' '), screening: true, reasons: screen.reasons }, { status: 400 })
       }
+      // The report card (Form 138) read at sign-up: a report card with no
+      // grade below 75. Not asked of Old Curriculum / ALS completers.
+      const needsCard = answers.applyingAs !== 'Old Curriculum and ALS Completer'
+      const gradeToken = String(body.gradeToken || '')
+      if (needsCard) {
+        const card = isValidTokenShape(gradeToken) ? await getCheckStatus(gradeToken) : { status: 'none' }
+        if (card.status !== 'passed') {
+          return NextResponse.json({ error: 'Please upload your report card (Form 138) and wait for it to be checked.', grades: true }, { status: 400 })
+        }
+      }
       const result = await startSignup(body.email, body.password)
       if (result.error) return NextResponse.json({ error: result.error }, { status: 400 })
-      const claimed = await claimPassedCheck(token, { accountId: result.accountId, email: String(body.email || '').trim().toLowerCase() })
+      const accountEmail = String(body.email || '').trim().toLowerCase()
+      const claimed = await claimPassedCheck(token, { accountId: result.accountId, email: accountEmail })
       if (claimed.error) return NextResponse.json({ error: claimed.error, residency: true }, { status: 400 })
+      if (needsCard) {
+        const claimedCard = await claimPassedCheck(gradeToken, { accountId: result.accountId, email: accountEmail })
+        if (claimedCard.error) return NextResponse.json({ error: claimedCard.error, grades: true }, { status: 400 })
+      }
       // The screening answers are kept with the sign-up and can't be changed
       // later in sign-up (see 'save') or in the portal.
       await saveSignupProgress(result.accountId, { academicInfo: answers })
