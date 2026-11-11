@@ -192,6 +192,17 @@ export async function claimPassedCheck(token, { accountId, email }) {
   return { success: true, prefill: status.prefill }
 }
 
+// Nov 2026: the applicant passed the residency check but not the academic
+// screening, so no account will be made. The Voter's ID is deleted right
+// away and only an anonymous count is kept.
+export async function discardCheck(token, reason) {
+  if (!isValidTokenShape(token)) return
+  const doc = await latestCheckDoc(token)
+  if (!doc || doc.applicant_user_id) return
+  await removeDoc(doc)
+  await logAnonymous(`Sign-up stopped at the academic screening: ${reason}`, 'warn')
+}
+
 // Deletes checks nobody finished (older than a day, never linked).
 export async function cleanUpOldChecks() {
   try {

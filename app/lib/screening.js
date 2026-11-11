@@ -31,12 +31,43 @@ import { TRANSFEREE_MAX_GWA, TRANSFEREE_MIN_UNITS } from './matching'
 // Documents that belong to Stage 2.
 export const STAGE2_DOC_TYPES = ['profilepic', 'birthcert', 'employmentcert', 'indigency', 'supportdoc', 'medcert']
 
-// Screening answers that lock once Educational Background is submitted.
-// Corrections go through the Guidance Office (an admin can edit them).
+// Screening answers, given at sign-up, that can't be changed afterwards
+// (an answer never given, e.g. on an older application, can be filled in
+// once). Corrections go through the Guidance Office (an admin can edit them).
 export const SCREENING_LOCKED_COLUMNS = ['applying_as', 'shs_failing_grade', 'transferee_gwa', 'transferee_units_passed', 'transferee_failing_grade']
 
 export const SCREENING_STAGE2_MESSAGE =
   'Please finish the eligibility screening first: submit your Educational Background and upload your report card (Form 138). The rest of the application opens once you pass it.'
+
+// Nov 2026: the academic screening at SIGN-UP, next to the residency check
+// (panel revisions S3 "a quick eligibility check before sign-up", S4 "do not
+// create a permanent database account just to apply"). Runs in the browser
+// and again on the server before the account is created.
+// a: { applyingAs, shsFailingGrade, transfereeGwa, transfereeUnitsPassed, transfereeFailingGrade }
+// Returns { complete, passed, reasons }.
+export const SCREENING_ANSWER_KEYS = ['applyingAs', 'shsFailingGrade', 'transfereeGwa', 'transfereeUnitsPassed', 'transfereeFailingGrade']
+export function signupScreening(a = {}) {
+  const as = String(a.applyingAs || '')
+  if (!['First Year', 'Transferee', 'Old Curriculum and ALS Completer'].includes(as)) return { complete: false, passed: false, reasons: [] }
+  const reasons = []
+  if (as === 'First Year') {
+    if (!['Yes', 'No'].includes(a.shsFailingGrade)) return { complete: false, passed: false, reasons: [] }
+    if (a.shsFailingGrade === 'Yes') reasons.push('Applicants with a grade below 75 in their Senior High report card are not accepted.')
+  }
+  if (as === 'Transferee') {
+    const gwaText = String(a.transfereeGwa ?? '').trim()
+    const unitsText = String(a.transfereeUnitsPassed ?? '').trim()
+    const gwa = Number(gwaText)
+    const units = Number(unitsText)
+    if (!gwaText || !unitsText || !['Yes', 'No'].includes(a.transfereeFailingGrade)) return { complete: false, passed: false, reasons: [] }
+    if (!/^\d(\.\d{1,2})?$/.test(gwaText) || gwa < 1 || gwa > 5) return { complete: false, passed: false, reasons: [], invalid: 'GWA must be between 1.00 and 5.00 (e.g. 1.75).' }
+    if (!/^\d{1,3}$/.test(unitsText)) return { complete: false, passed: false, reasons: [], invalid: 'Units passed must be a whole number.' }
+    if (gwa > TRANSFEREE_MAX_GWA) reasons.push(`A GWA of ${gwaText} does not meet the required 2.25 or better (Appendix J, Transferees).`)
+    if (units < TRANSFEREE_MIN_UNITS) reasons.push(`${units} units passed; at least 26 are required (Appendix J, Transferees).`)
+    if (a.transfereeFailingGrade === 'Yes') reasons.push('Transferees with a failing grade in a previous semester are not accepted (Appendix J, Transferees).')
+  }
+  return { complete: true, passed: reasons.length === 0, reasons }
+}
 
 export function isGrandfathered(row) {
   return !!(row?.personal_info_submitted_at || row?.fam_financial_submitted_at || row?.status === 'submitted')
@@ -56,7 +87,7 @@ function latestOfType(docs, type) {
 export function screeningResult(row, docs) {
   if (isGrandfathered(row)) return { state: 'passed', stage2Open: true, grandfathered: true, reasons: [] }
   if (!row?.academic_submitted_at) {
-    return { state: 'not_started', stage2Open: false, reasons: ['Submit your Educational Background to take the eligibility screening.'] }
+    return { state: 'not_started', stage2Open: false, reasons: ['Upload your report card (Form 138) and submit your Educational Background to confirm your eligibility.'] }
   }
 
   const reasons = []

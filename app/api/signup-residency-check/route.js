@@ -24,7 +24,9 @@ import {
   checkFolder,
   getCheckStatus,
   cleanUpOldChecks,
+  discardCheck,
 } from '@/app/lib/signupResidencyCheck'
+import { signupScreening } from '@/app/lib/screening'
 
 // Nov 2026 (panel revisions S3/S4): the residency check at the very start of
 // sign-up, before any account exists. See app/lib/signupResidencyCheck.js.
@@ -136,6 +138,24 @@ export async function POST(request) {
     })
 
     return NextResponse.json({ success: true, token })
+  } catch (err) {
+    return serverError(err, 'api/signup-residency-check')
+  }
+}
+
+// DELETE { token, screening } -> the academic screening at sign-up was not
+// passed; the checked Voter's ID is deleted now instead of after 24 hours.
+// The answers are re-checked here so a passing applicant's file can't be
+// deleted by mistake.
+export async function DELETE(request) {
+  try {
+    const body = await request.json().catch(() => ({}))
+    const token = String(body.token || '')
+    if (!isValidTokenShape(token)) return NextResponse.json({ error: 'Missing or invalid token' }, { status: 400 })
+    const result = signupScreening(body.screening || {})
+    if (!result.complete || result.passed) return NextResponse.json({ success: true, kept: true })
+    await discardCheck(token, result.reasons.join(' '))
+    return NextResponse.json({ success: true })
   } catch (err) {
     return serverError(err, 'api/signup-residency-check')
   }

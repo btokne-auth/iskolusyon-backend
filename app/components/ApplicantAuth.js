@@ -6,6 +6,7 @@ import WelcomeFooter from './WelcomeFooter'
 import OtpBoxes from './OtpBoxes'
 import PasswordStrength from './PasswordStrength'
 import { isStrongPassword } from '../lib/passwordRules'
+import { signupScreening } from '../lib/screening'
 import { CALAMBA_BARANGAYS, formatMobileInput, latestBirthdate, earliestBirthdate, MIN_APPLICANT_AGE, MAX_APPLICANT_AGE, validatePersonalInfo, withCalambaCity } from '../lib/fieldValidation'
 
 // Mirrors isValidEmailFormat() in applicantAccounts.js — a real format
@@ -103,6 +104,62 @@ function TextField({ label, value, onChange, type = 'text', placeholder, require
         )}
       </div>
       {error && <div className="text-[11px] text-red-600 mt-1">{error}</div>}
+    </div>
+  )
+}
+
+// Nov 2026 (panel revisions S3/S4/S2): academic standing, asked right after
+// the residency check and before any account exists. Rules in
+// app/lib/screening.js (First Year: no grade below 75, client interview;
+// Transferee: Appendix J; Old Curriculum / ALS: checked by staff later).
+function AcademicScreeningBox({ answers, set, result, error, onRefused }) {
+  const a = answers
+  return (
+    <div className="rounded-md border border-ccc-border bg-ccc-off px-4 py-4 mt-3 mb-3">
+      <div className="text-sm font-bold text-ccc-navy mb-1">Academic standing</div>
+      <p className="text-[12px] text-ccc-muted leading-relaxed mb-3">
+        A few questions from the CCC Scholar Guidelines. Answer honestly: your report card is checked later, and false
+        information disqualifies your application.
+      </p>
+      <SelectField label="Applying as" value={a.applyingAs} onChange={set.applyingAs} options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} />
+      {a.applyingAs === 'First Year' && (
+        <SelectField label="Do you have any grade below 75 in your latest Senior High report card (Form 138)?" value={a.shsFailingGrade} onChange={set.shsFailingGrade} options={['No', 'Yes']} />
+      )}
+      {a.applyingAs === 'Transferee' && (
+        <>
+          <TextField label="General Weighted Average (GWA) at your previous school" type="number" value={a.transfereeGwa} onChange={set.transfereeGwa} placeholder="e.g. 1.75 (2.25 or better required)" />
+          <TextField label="Total academic units passed" type="number" value={a.transfereeUnitsPassed} onChange={set.transfereeUnitsPassed} placeholder="e.g. 30 (at least 26 required)" />
+          <SelectField label="Did you get a failing grade in any semester at your previous school(s)?" value={a.transfereeFailingGrade} onChange={set.transfereeFailingGrade} options={['No', 'Yes']} />
+        </>
+      )}
+      {a.applyingAs === 'Old Curriculum and ALS Completer' && (
+        <p className="text-[12px] text-ccc-muted leading-relaxed">The Guidance Office checks your proof of grades after you sign up.</p>
+      )}
+      {result.invalid && <div className="text-[11px] text-red-600 mt-1">{result.invalid}</div>}
+      {error && <div className="text-[11px] text-red-600 mt-1">{error}</div>}
+      {result.complete && result.passed && (
+        <div className="text-[13px] text-green-800 bg-green-50 border border-green-200 rounded-md px-3 py-2 mt-2">
+          <span className="font-bold">Eligibility check passed.</span> You can now create your account.
+        </div>
+      )}
+      {result.complete && !result.passed && (
+        <div className="text-[13px] text-red-800 bg-red-50 border border-red-200 rounded-md px-3 py-2 mt-2">
+          <span className="font-bold">Based on these answers, you are not eligible:</span>
+          <ul className="list-disc pl-5 mt-1">
+            {result.reasons.map((r) => <li key={r}>{r}</li>)}
+          </ul>
+          <span className="block mt-1">If an answer is wrong, change it above. Otherwise, confirm your answers.</span>
+        </div>
+      )}
+      {result.complete && !result.passed && (
+        <button
+          type="button"
+          onClick={() => onRefused(result.reasons)}
+          className="w-full mt-2 py-2.5 rounded-md border border-red-300 bg-white text-red-700 font-bold text-sm uppercase tracking-wide hover:bg-red-50"
+        >
+          Confirm my answers
+        </button>
+      )}
     </div>
   )
 }
@@ -685,6 +742,15 @@ function SignupPanel({ onSwitch, onCreated }) {
   const [termApplying, setTermApplying] = useState('')
   const [choice1, setChoice1] = useState('')
   const [choice2, setChoice2] = useState('')
+  // Nov 2026 (panel revisions S3/S4/S2): the academic screening at step 1,
+  // next to the residency check, before any account exists.
+  const [shsFailingGrade, setShsFailingGrade] = useState('')
+  const [transfereeGwa, setTransfereeGwa] = useState('')
+  const [transfereeUnitsPassed, setTransfereeUnitsPassed] = useState('')
+  const [transfereeFailingGrade, setTransfereeFailingGrade] = useState('')
+  const [academicFailed, setAcademicFailed] = useState(null) // reasons, once refused
+  const screeningAnswers = { applyingAs, shsFailingGrade, transfereeGwa, transfereeUnitsPassed, transfereeFailingGrade }
+  const academic = signupScreening(screeningAnswers)
 
   // Step 3 — Personal Information (subset matching personalInfo shape)
   const [firstName, setFirstName] = useState('')
@@ -794,6 +860,8 @@ function SignupPanel({ onSwitch, onCreated }) {
     else if (calambaResident !== 'Yes') return // the "not eligible" panel is showing instead of the form
     else if (!residencyCertified) nextFieldErrors.residencyCertified = 'Please confirm that you live in Calamba City.'
     else if (checkState !== 'passed') nextFieldErrors.voterId = "Please upload a Voter's ID or Voter's Certification and wait for it to be confirmed."
+    else if (!academic.complete) nextFieldErrors.screening = academic.invalid || 'Please answer the academic standing questions.'
+    else if (!academic.passed) return // the "not eligible" panel is showing instead
     if (!email.trim()) nextFieldErrors.email = 'Please enter your email address.'
     else if (!isValidEmailFormat(email)) nextFieldErrors.email = 'Please enter a valid email address.'
     const passwordError = passwordStrengthError(password)
@@ -808,7 +876,7 @@ function SignupPanel({ onSwitch, onCreated }) {
       const res = await fetch('/api/applicant-signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start', email, password, residencyToken }),
+        body: JSON.stringify({ action: 'start', email, password, residencyToken, screening: screeningAnswers }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -821,6 +889,10 @@ function SignupPanel({ onSwitch, onCreated }) {
         if (data.residency) {
           setCheckState('idle')
           setFieldErrors({ voterId: message })
+          return
+        }
+        if (data.screening) {
+          setFieldErrors({ screening: message })
           return
         }
         setFieldErrors({ [/password/i.test(message) ? 'password' : 'email']: message })
@@ -866,7 +938,6 @@ function SignupPanel({ onSwitch, onCreated }) {
   function handleStep2(e) {
     e.preventDefault()
     const nextFieldErrors = {}
-    if (!applyingAs) nextFieldErrors.applyingAs = 'Please select how you are applying.'
     if (!termApplying) nextFieldErrors.termApplying = 'Please select the term you are applying in.'
     if (!choice1) nextFieldErrors.choice1 = 'Please select your first choice program.'
     if (!choice2) nextFieldErrors.choice2 = 'Please select your second choice program.'
@@ -874,7 +945,7 @@ function SignupPanel({ onSwitch, onCreated }) {
     if (Object.keys(nextFieldErrors).length > 0) return
 
     saveProgressAndAdvance(3, {
-      academicInfo: { applyingAs, termApplying, choice1, choice2 },
+      academicInfo: { ...screeningAnswers, termApplying, choice1, choice2 },
     })
   }
 
@@ -1126,7 +1197,42 @@ function SignupPanel({ onSwitch, onCreated }) {
                     }}
                   />
                 )}
-                {checkState === 'passed' && (
+                {checkState === 'passed' && !academicFailed && (
+                  <AcademicScreeningBox
+                    answers={screeningAnswers}
+                    set={{ applyingAs: setApplyingAs, shsFailingGrade: setShsFailingGrade, transfereeGwa: setTransfereeGwa, transfereeUnitsPassed: setTransfereeUnitsPassed, transfereeFailingGrade: setTransfereeFailingGrade }}
+                    result={academic}
+                    error={fieldErrors.screening}
+                    onRefused={async (reasons) => {
+                      setAcademicFailed(reasons)
+                      try {
+                        await fetch('/api/signup-residency-check', {
+                          method: 'DELETE',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ token: residencyToken, screening: screeningAnswers }),
+                        })
+                      } catch {
+                        // The check expires on its own within a day.
+                      }
+                    }}
+                  />
+                )}
+                {academicFailed && (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-4 py-4 mt-1">
+                    <div className="text-sm font-bold text-red-800 mb-1">You can&apos;t apply for this scholarship</div>
+                    <ul className="text-[13px] text-red-800 leading-relaxed mb-2 list-disc pl-5">
+                      {academicFailed.map((r) => <li key={r}>{r}</li>)}
+                    </ul>
+                    <p className="text-[13px] text-ccc-text leading-relaxed mb-3">
+                      No account was created and your Voter&apos;s ID was not kept. If you think this is a mistake, visit the GCTCDO,
+                      1st Floor, Admin Building, City College of Calamba.
+                    </p>
+                    <button type="button" onClick={() => { window.location.href = '/' }} className="inline-block w-full text-center py-2.5 rounded-md border border-ccc-border bg-white text-ccc-navy font-bold text-sm uppercase tracking-wide hover:bg-ccc-off">
+                      ← Back to homepage
+                    </button>
+                  </div>
+                )}
+                {checkState === 'passed' && !academicFailed && academic.passed && (
                 <>
                 <Alert tone="info">A verification code will be sent to this email before your account is finalized.</Alert>
                 <TextField label="Email Address" type="email" value={email} onChange={clearFieldError('email', setEmail)} autoComplete="email" placeholder="e.g. yourname@email.com" error={fieldErrors.email} />
@@ -1150,7 +1256,10 @@ function SignupPanel({ onSwitch, onCreated }) {
         {step === 2 && (
           <form onSubmit={handleStep2} noValidate>
             <div className="text-[11px] font-bold text-ccc-gold uppercase tracking-wide mb-2">Program Application</div>
-            <SelectField label="Applying as" value={applyingAs} onChange={clearFieldError('applyingAs', setApplyingAs)} options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} error={fieldErrors.applyingAs} />
+            <div className="mb-3 text-[13px] text-ccc-text">
+              <span className="block text-[11px] font-bold text-ccc-navy uppercase tracking-wide mb-1">Applying as</span>
+              {applyingAs} <span className="text-ccc-muted">(from the eligibility check)</span>
+            </div>
             <SelectField label="Term Applying In" value={termApplying} onChange={clearFieldError('termApplying', setTermApplying)} options={['Term 1', 'Term 2']} error={fieldErrors.termApplying} />
             <div className="text-[11px] font-bold text-ccc-gold uppercase tracking-wide mb-2 mt-4">Preferred Program</div>
             <SelectField label="First Choice" value={choice1} onChange={clearFieldError('choice1', setChoice1)} options={PROGRAMS} error={fieldErrors.choice1} />

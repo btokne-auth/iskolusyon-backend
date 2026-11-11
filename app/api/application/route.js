@@ -635,11 +635,11 @@ export async function POST(request) {
         }
         for (const key of Object.keys(familyInfoColumns)) delete familyInfoColumns[key]
       }
-      // The screening answers lock once Educational Background is submitted
+      // The screening answers given at sign-up can't be changed here
       // (corrections go through the Guidance Office). An answer that was
       // never given (e.g. the First Year grade question on an older
       // application) can still be filled in once.
-      if (existing?.academic_submitted_at) {
+      if (existing) {
         for (const col of SCREENING_LOCKED_COLUMNS) {
           if (col in academicInfoColumns && existing[col] != null && existing[col] !== '') academicInfoColumns[col] = existing[col]
         }

@@ -818,10 +818,11 @@ function ScreeningResultCard({ screening, onNext }) {
     if (screening.grandfathered) return null
     return (
       <div className="card" style={{ borderLeft: '4px solid #003CD0' }}>
-        <div className="card-title">Step 1: Eligibility screening</div>
+        <div className="card-title">Confirm your eligibility</div>
         <p style={{ margin: 0, lineHeight: 1.6 }}>
-          Answer the questions below, upload your report card (Form 138), and submit this section. You will see right away
-          whether you can continue. Your Personal Information and Family &amp; Financial Information open after you pass.
+          You passed the eligibility check at sign-up. To confirm it, upload your report card (Form 138) and submit this
+          section. Your Personal Information and Family &amp; Financial Information open once your report card passes the
+          system check.
         </p>
       </div>
     )
@@ -2091,6 +2092,7 @@ function PortalApp({ accountSession, onLogout }) {
   // editable indefinitely like the rest of the profile.
   const [personalSubmittedAt, setPersonalSubmittedAt] = useState(null)
   const [academicSubmittedAt, setAcademicSubmittedAt] = useState(null)
+  const [savedScreening, setSavedScreening] = useState({})
   const [healthSubmittedAt, setHealthSubmittedAt] = useState(null)
   const [financialSubmittedAt, setFinancialSubmittedAt] = useState(null)
   // Sept 20 2026: the sidebar's "Applicant No." — null until
@@ -2477,7 +2479,9 @@ function PortalApp({ accountSession, onLogout }) {
     },
     docHistory
   )
-  const screeningLocked = !!academicSubmittedAt && !profileLocked
+  // The screening answers saved at sign-up are locked (an empty one can be
+  // filled in once, e.g. on an application from before this change).
+  const screeningLocked = !profileLocked && !!savedScreening.applying_as
 
   // Has this applicant (by name) already uploaded a document of this type?
   // Drives the "Uploaded" state on the three inline Personal Information
@@ -2927,6 +2931,11 @@ function PortalApp({ accountSession, onLogout }) {
         if (cancelled || !data.application) return
         setPersonalInfo(mapDbRowToPersonalInfo(data.application))
         setAcademicInfo(mapDbRowToAcademicInfo(data.application))
+        setSavedScreening({
+          applying_as: data.application.applying_as || '',
+          shs_failing_grade: data.application.shs_failing_grade || '',
+          transferee: data.application.transferee_failing_grade || '',
+        })
         setHealthInfo(mapDbRowToHealthInfo(data.application))
         setFamilyInfo(mapDbRowToFamilyInfo(data.application))
         setPersonalSubmittedAt(data.application.personal_info_submitted_at || null)
@@ -4282,13 +4291,13 @@ function PortalApp({ accountSession, onLogout }) {
                       value={academicInfo.shsFailingGrade}
                       onChange={(v) => updateAI('shsFailingGrade', v)}
                       options={['No', 'Yes']}
-                      disabled={screeningLocked && !!academicInfo.shsFailingGrade}
+                      disabled={screeningLocked && !!savedScreening.shs_failing_grade}
                     />
                   </div>
                 )}
                 {screeningLocked && (
                   <p className="topic-card-intro" style={{ marginTop: '10px' }}>
-                    These screening answers are locked after you submit. To correct one, contact the GCTCDO (1st Floor, Admin Building).
+                    These answers come from your eligibility check at sign-up and can&apos;t be changed here. To correct one, contact the GCTCDO (1st Floor, Admin Building).
                   </p>
                 )}
                 {academicInfo.applyingAs === 'Transferee' && (
@@ -4304,7 +4313,7 @@ function PortalApp({ accountSession, onLogout }) {
                         value={academicInfo.transfereeGwa}
                         onChange={(v) => updateAI('transfereeGwa', v)}
                         placeholder="e.g. 1.75 (2.25 or better required)"
-                        disabled={screeningLocked}
+                        disabled={screeningLocked && !!savedScreening.transferee}
                       />
                       <TextField
                         label="Total Academic Units Passed"
@@ -4313,7 +4322,7 @@ function PortalApp({ accountSession, onLogout }) {
                         value={academicInfo.transfereeUnitsPassed}
                         onChange={(v) => updateAI('transfereeUnitsPassed', v)}
                         placeholder="e.g. 30 (at least 26 required)"
-                        disabled={screeningLocked}
+                        disabled={screeningLocked && !!savedScreening.transferee}
                       />
                       <SelectField
                         label="Did you get a failing grade in any semester at your previous school(s)?"
@@ -4321,7 +4330,7 @@ function PortalApp({ accountSession, onLogout }) {
                         value={academicInfo.transfereeFailingGrade}
                         onChange={(v) => updateAI('transfereeFailingGrade', v)}
                         options={['Yes', 'No']}
-                        disabled={screeningLocked}
+                        disabled={screeningLocked && !!savedScreening.transferee}
                       />
                     </div>
                   </>
