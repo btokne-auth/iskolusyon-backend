@@ -1506,7 +1506,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
           <span className="apl-avatar">{initials}</span>
           <span className="apl-who-text">
             <span className="apl-name">{name || 'Unknown applicant'}</span>
-            <span className="apl-sub">{[eligibilityRow?.application_number, email || 'No email on file'].filter(Boolean).join(' \u00b7 ')}</span>
+            <span className="apl-sub">{[eligibilityRow?.application_number, eligibilityRow?.reference_number, email || 'No email on file'].filter(Boolean).join(' \u00b7 ')}</span>
             {lockedByOther && (
               <span className="apl-lock-tag">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -1603,13 +1603,13 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                   </p>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {eligibilityRow?.application_number && (
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-blue bg-white/70 border border-ccc-blue/30 rounded-full px-2 py-0.5 shrink-0">
-                        {eligibilityRow.application_number}
+                      <span className="text-[11px] font-bold tracking-wide text-ccc-blue bg-white border border-ccc-blue/40 rounded-full px-2.5 py-0.5 shrink-0">
+                        <span className="font-semibold text-ccc-muted mr-1">App. No.</span>{eligibilityRow.application_number}
                       </span>
                     )}
                     {eligibilityRow?.reference_number && (
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-ccc-muted bg-white/70 border border-ccc-border rounded-full px-2 py-0.5 shrink-0" title="Reference number given at sign-up">
-                        {eligibilityRow.reference_number}
+                      <span className="text-[11px] font-bold tracking-wide text-ccc-navy bg-white border border-ccc-navy/30 rounded-full px-2.5 py-0.5 shrink-0" title="Reference number given at sign-up">
+                        <span className="font-semibold text-ccc-muted mr-1">Ref. No.</span>{eligibilityRow.reference_number}
                       </span>
                     )}
                     <span className="text-[11px] text-ccc-muted truncate">{email || 'No email on file'}</span>

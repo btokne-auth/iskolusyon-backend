@@ -2947,6 +2947,7 @@ function PortalApp({ accountSession, onLogout }) {
         setHealthSubmittedAt(data.application.health_submitted_at || null)
         setFinancialSubmittedAt(data.application.fam_financial_submitted_at || null)
         setApplicationNumber(data.application.application_number || null)
+        setReferenceNo(data.application.reference_number || null)
         setReleasedStatus(data.application.scholar_status || null)
         setReleasedDistribution(data.application.distribution_status || null)
         setEligibility(data.application.eligibility || null)
