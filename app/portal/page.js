@@ -3924,12 +3924,15 @@ function PortalApp({ accountSession, onLogout }) {
           )}
 
           {/* ══════════ PERSONAL INFORMATION (built — cards 1-6 ported as-is) ══════════ */}
-          {!appLoaded && PROFILE_PANEL_HEADERS[activePanel] && <ProfilePanelSkeleton panel={activePanel} />}
+          {/* Nov 2026: the screening needs the documents too, so wait for
+              both; otherwise the lock card flashes on reload before the
+              report card has loaded. */}
+          {(!appLoaded || (!historyLoaded && activePanel !== 'academic')) && PROFILE_PANEL_HEADERS[activePanel] && <ProfilePanelSkeleton panel={activePanel} />}
 
-          {['personal', 'financial', 'health'].includes(activePanel) && appLoaded && !screening.stage2Open && (
+          {['personal', 'financial', 'health'].includes(activePanel) && appLoaded && historyLoaded && !screening.stage2Open && (
             <ScreeningLockCard screening={screening} onGo={() => setActivePanel('academic')} />
           )}
-          {activePanel === 'personal' && appLoaded && screening.stage2Open && (
+          {activePanel === 'personal' && appLoaded && historyLoaded && screening.stage2Open && (
             <FieldsLockedContext.Provider value={profileLocked}>
             <div>
               <div className="portal-header">
@@ -4460,7 +4463,7 @@ function PortalApp({ accountSession, onLogout }) {
               Guardian table, only-child branch, emergency contact,
               working-student branch, sibling income table, ported from
               Ivy's panel-financial) ══════════ */}
-          {activePanel === 'financial' && appLoaded && screening.stage2Open && (
+          {activePanel === 'financial' && appLoaded && historyLoaded && screening.stage2Open && (
             <FieldsLockedContext.Provider value={profileLocked}>
             <div>
               <div className="portal-header">
@@ -4736,7 +4739,7 @@ function PortalApp({ accountSession, onLogout }) {
           {/* ══════════ HEALTH & WELLNESS (built — Medical Status + the
               Medical Examination Results/Certificate upload, ported from
               Ivy's health panel) ══════════ */}
-          {activePanel === 'health' && appLoaded && screening.stage2Open && (
+          {activePanel === 'health' && appLoaded && historyLoaded && screening.stage2Open && (
             <div>
               <div className="portal-header">
                 <p className="portal-eyebrow">Scholarship Services &middot; During Enrollment</p>
