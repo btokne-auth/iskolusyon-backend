@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import './welcome-theme.css'
 import './landing/landing.css'
 import WelcomeNavbar, { WELCOME_NAV_LINKS as NAV_LINKS } from './components/WelcomeNavbar'
@@ -35,10 +35,11 @@ const ICON = {
   bell: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" /></svg>,
   up: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6" /></svg>,
 }
+// Nov 2026: step 1 is now the eligibility check (shield), step 2 the account.
 const STEP_ICONS = [
+  <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></>,
   <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" /></>,
   <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h5" /></>,
-  <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m17 8-5-5-5 5M12 3v12" /></>,
   <><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></>,
   <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></>,
   <><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></>,
@@ -50,6 +51,17 @@ function StepIcon({ i, size = 34 }) {
 // "**bold**" in landingData.js -> <strong>. Plain text otherwise (no HTML).
 function Rich({ text }) {
   return text.split('**').map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : part))
+}
+
+// True when the visitor's device asks for reduced motion.
+const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
+function subscribeReducedMotion(onChange) {
+  const mq = window.matchMedia(REDUCED_MOTION)
+  mq.addEventListener('change', onChange)
+  return () => mq.removeEventListener('change', onChange)
+}
+function usePrefersReducedMotion() {
+  return useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(REDUCED_MOTION).matches, () => false)
 }
 
 // A 250 ms clock for the animated previews. `range` makes it loop inside
@@ -111,10 +123,12 @@ function CountUp({ to, delay, paused }) {
   )
 }
 
-function Hero({ paused, onTogglePause, onHowTo }) {
+function Hero({ paused, onHowTo }) {
   const tick = useTicker(paused)
   const { done, phase, f } = phaseOf(tick)
   const shown = done ? 6 : f >= 0.12 ? phase + 1 : phase
+  // Step 1 (eligibility check) has no email: no account exists yet.
+  const notes = STORY.emails.slice(0, shown).filter(Boolean)
   const programCount = PROGRAM_DEPARTMENTS.reduce((n, d) => n + d.programs.length, 0)
   return (
     <section className="hero" id="hero">
@@ -125,7 +139,7 @@ function Hero({ paused, onTogglePause, onHowTo }) {
         <div className="hero-copy">
           <span className="eyebrow rise" style={{ color: 'var(--green)', '--d': '.05s' }}>City College of Calamba</span>
           <h1><span className="rise" style={{ '--d': '.15s' }}>Scholarship</span> <span className="rise" style={{ '--d': '.3s' }}><span className="hl">Portal</span></span></h1>
-          <p className="hero-sub rise" style={{ '--d': '.45s' }}>Your all-in-one platform providing comprehensive application procedures, guidelines, and real-time notifications for aspiring City College of Calamba scholars.</p>
+          <p className="hero-sub rise" style={{ '--d': '.45s' }}>Your all-in-one platform for applying to the City College of Calamba: application steps, guidelines, and real-time notifications. Applicants who qualify as students enroll as CCC scholars.</p>
           <ResidencyNotice />
           <div className="hero-btns rise" style={{ '--d': '.6s' }}>
             <a href="/login?mode=signup" className="btn btn-navy shine">Apply Now {ICON.arrow}</a>
@@ -140,9 +154,9 @@ function Hero({ paused, onTogglePause, onHowTo }) {
         <div className="stage-wrap">
           <div className="mockpos rise" style={{ '--d': '.5s' }}><PortalMock tick={tick} tilt /></div>
           <div className="nstack" aria-hidden="true">
-            <span className={`bell${shown && f < 0.5 ? ' ringing' : ''}`}>{ICON.bell}{shown > 0 && <em>{shown}</em>}</span>
-            {STORY.emails.slice(0, shown).map(([subject, body], i) => {
-              const rank = shown - 1 - i
+            <span className={`bell${notes.length && f < 0.5 ? ' ringing' : ''}`}>{ICON.bell}{notes.length > 0 && <em>{notes.length}</em>}</span>
+            {notes.map(([subject, body], i) => {
+              const rank = notes.length - 1 - i
               return (
                 <div className="ncard" key={subject} style={{ transform: `translateY(${-rank * 14}px) scale(${1 - rank * 0.05})`, opacity: rank > 2 ? 0 : 1 - rank * 0.25, zIndex: 10 - rank }}>
                   <span className="nico">{ICON.mail}</span>
@@ -153,10 +167,7 @@ function Hero({ paused, onTogglePause, onHowTo }) {
               )
             })}
           </div>
-          <span className="caption">
-            Illustration of the portal with sample data.
-            <button type="button" className="pausebtn" onClick={onTogglePause}>{paused ? 'Play animation' : 'Pause animation'}</button>
-          </span>
+          <span className="caption">Illustration of the portal with sample data.</span>
         </div>
       </div>
     </section>
@@ -178,7 +189,7 @@ function ResidencyNotice() {
       <span className="resnote-kick">Who can apply</span>
       <p className="resnote-title">Residents of the City of Calamba only</p>
       <p className="resnote-main">
-        Sign-up starts with your <strong>Voter&rsquo;s ID or COMELEC Voter&rsquo;s Certification (yours, or a parent&rsquo;s or guardian&rsquo;s)</strong>. If it does not show a Calamba address, no account is created and the file is not kept.
+        Sign-up starts with your <strong>Voter&rsquo;s ID or COMELEC Voter&rsquo;s Certification (yours, or a parent&rsquo;s or guardian&rsquo;s)</strong>, then a few academic questions. If it does not show a Calamba address, no account is created and the file is not kept.
       </p>
       <ul className="resnote-facts" aria-label="Who can apply">
         {KEY_FACTS.map((f) => <li key={f}><Check size={13} width={2.8} />{f}</li>)}
@@ -253,7 +264,7 @@ function HowToApply({ paused }) {
       <div className="wrap journey-in">
         <div className="shead center">
           <span className="eyebrow" style={{ color: '#FFD400' }}>How to Apply</span>
-          <h2 className="h2" style={{ color: '#fff', fontSize: 40 }}>Six steps, all in one portal</h2>
+          <h2 className="h2" style={{ color: '#fff' }}>Six steps, all in one portal</h2>
           <p className="lead" style={{ color: 'rgba(255,255,255,.75)' }}>Click a step to see what to do and what your screen will look like.</p>
         </div>
         <div className="track" style={{ '--p': step / 5 }}>
@@ -411,7 +422,7 @@ function CheckBox({ checked, onChange, children }) {
 const ELIGIBILITY = [
   { text: <>I live in the <b>City of Calamba</b></>, missing: 'residency in Calamba' },
   { text: <>I have a <b>Voter&rsquo;s ID or COMELEC Voter&rsquo;s Certificate</b> with a Calamba address, or my parent or guardian does (it is checked when you sign up)</>, missing: 'a voter’s ID or certificate' },
-  { text: <>I have <b>no failing grades</b> on my academic record</>, missing: 'a record with no failing grades' },
+  { text: <>I have <b>no failing grades</b> (First Year: no grade below 75 on my report card; Transferee: GWA 2.25 or better and at least 26 units). This is checked when you sign up</>, missing: 'a record with no failing grades' },
 ]
 function Qualifications() {
   const [ticks, setTicks] = useState([false, false, false])
@@ -656,7 +667,9 @@ function Contact() {
 export default function WelcomePage() {
   const [announcements, setAnnouncements] = useState([])
   const [bya, setBya] = useState(0)
-  const [paused, setPaused] = useState(false)
+  // Nov 2026: the Pause animation button was removed (Pau's request). The
+  // animation still stops for visitors whose device asks for reduced motion.
+  const paused = usePrefersReducedMotion()
   const [showToTop, setShowToTop] = useState(false)
   const [activeNav, setActiveNav] = useState('hero')
   const mainRef = useRef(null)
@@ -704,7 +717,7 @@ export default function WelcomePage() {
   return (
     <main className={`welcome-page lp${paused ? ' stopped' : ''}`} ref={mainRef}>
       <WelcomeNavbar activeId={activeNav} onLinkClick={(id) => (id === 'before-you-apply' ? openBeforeYouApplySection(0) : scrollToId(id))} />
-      <Hero paused={paused} onTogglePause={() => setPaused((p) => !p)} onHowTo={() => scrollToId('how-to-apply')} />
+      <Hero paused={paused} onHowTo={() => scrollToId('how-to-apply')} />
       <Announcements items={announcements} />
       <HowToApply paused={paused} />
       <BeforeYouApply tab={bya} setTab={setBya} />

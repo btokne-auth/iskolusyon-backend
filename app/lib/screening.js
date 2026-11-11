@@ -95,8 +95,13 @@ function latestOfType(docs, type) {
 export function screeningResult(row, docs) {
   if (isGrandfathered(row)) return { state: 'passed', stage2Open: true, grandfathered: true, reasons: [] }
   if (!row?.academic_submitted_at) {
-    const what = row?.applying_as === 'Transferee' ? 'transcript of records or certificate of grades' : 'report card (Form 138)'
-    return { state: 'not_started', stage2Open: false, reasons: [`Upload your ${what} and submit your Educational Background to confirm your eligibility.`] }
+    const what = row?.applying_as === 'Transferee'
+      ? 'transcript of records or certificate of grades'
+      : row?.applying_as === 'Old Curriculum and ALS Completer' ? 'proof of grades' : 'report card (Form 138)'
+    const reason = latestOfType(docs, 'form138')
+      ? `Your ${what} is already uploaded. Fill in and submit your Educational Background to confirm your eligibility.`
+      : `Upload your ${what} and submit your Educational Background to confirm your eligibility.`
+    return { state: 'not_started', stage2Open: false, reasons: [reason] }
   }
 
   const reasons = []

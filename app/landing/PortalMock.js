@@ -37,11 +37,29 @@ function Ok({ children }) {
 }
 
 function Screen({ phase, f }) {
+  // Nov 2026 (panel revisions S3/S4): step 1 is the eligibility check, before
+  // any account exists.
   if (phase === 0) {
+    return (
+      <div className="stage" key="p0">
+        {STORY.eligibility.map(([label, value], i) => {
+          const on = f >= 0.15 + i * 0.22
+          return (
+            <div className="prow" key={label}>
+              <span className="plabel"><small>{label}</small>{on ? <b>{value}</b> : <span className="sk" />}</span>
+              {on ? <Ok /> : <span className="wait">Checking&hellip;</span>}
+            </div>
+          )
+        })}
+        {f >= 0.8 && <span className="badge"><Check size={13} /> Eligible &middot; You can create your account</span>}
+      </div>
+    )
+  }
+  if (phase === 1) {
     const sent = f >= 0.62
     const typed = STORY.email.slice(0, Math.ceil(clamp(f / 0.5) * STORY.email.length))
     return (
-      <div className="stage" key="p0" style={{ gap: 12 }}>
+      <div className="stage" key="p1" style={{ gap: 12 }}>
         <span className="flabel">EMAIL</span>
         <div className="ffield">{typed}{!sent && <span className="caret" />}</div>
         <div className="prow">
@@ -51,31 +69,15 @@ function Screen({ phase, f }) {
       </div>
     )
   }
-  if (phase === 1) {
+  if (phase === 2) {
     return (
-      <div className="stage" key="p1">
+      <div className="stage" key="p2">
         {STORY.profile.map(([label, value], i) => {
           const on = f >= 0.1 + i * 0.2
           return (
             <div className="prow" key={label}>
               <span className="plabel"><small>{label}</small>{on ? <b>{value}</b> : <span className="sk" />}</span>
               {on && <Ok />}
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
-  if (phase === 2) {
-    return (
-      <div className="stage" key="p2">
-        {STORY.docs.map((d, i) => {
-          const pc = Math.round(clamp((f - i * 0.2) / 0.4) * 100)
-          const color = pc >= 100 ? '#1B6B3A' : pc > 0 ? '#003CD0' : '#8C99AE'
-          return (
-            <div className="prow col" key={d}>
-              <span className="between"><span>{d}</span><span style={{ fontWeight: 700, color }}>{pc >= 100 ? 'Uploaded' : pc > 0 ? `Uploading ${pc}%` : 'Waiting'}</span></span>
-              <span className="upbar"><i style={{ width: `${pc}%` }} /></span>
             </div>
           )
         })}
@@ -91,7 +93,7 @@ function Screen({ phase, f }) {
             {f >= 0.18 + i * 0.18 ? <Ok>Verified</Ok> : <span className="wait">Checking&hellip;</span>}
           </div>
         ))}
-        {f >= 0.76 && <span className="badge"><Check size={13} /> Documents complete &middot; Qualified for the exam</span>}
+        {f >= 0.76 && <span className="badge"><Check size={13} /> Documents confirmed &middot; Eligible for the exam</span>}
       </div>
     )
   }
@@ -100,7 +102,7 @@ function Screen({ phase, f }) {
     return (
       <div className="stage" key="p4" style={{ gap: 10 }}>
         <div className="examcard">
-          <small>QUALIFYING EXAM &middot; BATCH 1</small>
+          <small>ENTRANCE EXAM &middot; BATCH 1</small>
           <strong>Your exam is {when}</strong>
           <span>Sample schedule &middot; Room and time in your portal</span>
         </div>
@@ -114,8 +116,8 @@ function Screen({ phase, f }) {
   return (
     <div className="stage passed" key="p5">
       <span className="bigok"><Check size={30} width={3} /></span>
-      <strong>You passed!</strong>
-      <span>Proceed with your medical exam and official enrollment. Welcome, CCC scholar.</span>
+      <strong>Qualified as a student!</strong>
+      <span>Take your medical exam, then enroll to become a CCC scholar.</span>
     </div>
   )
 }
