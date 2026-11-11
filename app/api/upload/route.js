@@ -9,6 +9,7 @@ import { supabase } from '@/app/supabaseClient'
 import crypto from 'crypto'
 import { VALID_DOCUMENT_TYPES, AUTOFILL_SCOPED_TYPES } from '@/app/lib/documentTypes'
 import { APPLICANT_COOKIE_NAME, verifyApplicantCookieValue } from '@/app/lib/applicantAuth'
+import { screeningResult, STAGE2_DOC_TYPES, SCREENING_STAGE2_MESSAGE } from '@/app/lib/screening'
 import { wakeOcrWorker } from '@/app/lib/ocrWorker'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { getSystemSettings } from '@/app/lib/systemSettings'
@@ -106,6 +107,27 @@ export async function POST(request) {
         { error: `Unknown document type. Must be one of: ${VALID_DOCUMENT_TYPES.join(', ')}` },
         { status: 400 }
       )
+    }
+
+    // Nov 2026 (panel revisions, priority 4 / S4): Stage 2 documents
+    // (birth certificate, profile picture, income/employment, medical, ...)
+    // are only accepted after the eligibility screening is passed
+    // (app/lib/screening.js).
+    if (STAGE2_DOC_TYPES.includes(documentType)) {
+      const { data: screenRow } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('applicant_user_id', applicantUserId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const { data: screenDocs } = await supabase
+        .from('documents')
+        .select('document_type, created_at, needs_review, review_status, staff_confirmed_at')
+        .eq('applicant_user_id', applicantUserId)
+      if (!screeningResult(screenRow || {}, screenDocs || []).stage2Open) {
+        return NextResponse.json({ error: SCREENING_STAGE2_MESSAGE, screening: true }, { status: 403 })
+      }
     }
 
     if (!file) {

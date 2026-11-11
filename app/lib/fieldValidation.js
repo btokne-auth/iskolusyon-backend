@@ -358,6 +358,10 @@ export function validateAcademicInfo(ai) {
   push(errors, 'techVocSchool', placeError(a.techVocSchool, 'technical/vocational school name'))
   push(errors, 'techVocCourse', placeError(a.techVocCourse, 'technical/vocational course name'))
   push(errors, 'techVocAddress', placeError(a.techVocAddress, 'technical/vocational school address', { max: 200 }))
+  // Nov 2026 (panel revisions S2): the First Year grade question.
+  if (str(a.applyingAs) === 'First Year' && !['Yes', 'No'].includes(str(a.shsFailingGrade))) {
+    push(errors, 'shsFailingGrade', 'Please answer: do you have any grade below 75 in your latest Senior High report card?')
+  }
   const gwa = str(a.transfereeGwa)
   if (gwa && (!/^\d(\.\d{1,2})?$/.test(gwa) || Number(gwa) < 1 || Number(gwa) > 5)) {
     push(errors, 'transfereeGwa', 'GWA must be between 1.00 and 5.00 (e.g. 1.75).')

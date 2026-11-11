@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { docState } from '../lib/documentState'
+import { screeningResult } from '../lib/screening'
 import { useRouter } from 'next/navigation'
 import '../portal-theme.css'
 import SiteHeader from '../components/SiteHeader'
@@ -311,6 +312,8 @@ function mapDbRowToAcademicInfo(row) {
     transfereeGwa: row.transferee_gwa ?? '',
     transfereeUnitsPassed: row.transferee_units_passed ?? '',
     transfereeFailingGrade: row.transferee_failing_grade || '',
+    // Nov 2026 (panel revisions S2): First Year grade question.
+    shsFailingGrade: row.shs_failing_grade || '',
     // Oct 6 2026: Appendix J p. 96 rule a (BSEd Mathematics / Science).
     shsMathScienceLowest: row.shs_math_science_lowest ?? '',
   }
@@ -777,6 +780,84 @@ function EligibilityCard({ eligibility, resultReleased }) {
         ))}
       </ul>
       {eligibility.note && <p className="elig-note">{eligibility.note}</p>}
+    </div>
+  )
+}
+
+// Nov 2026 (panel revisions, priority 4 / S4): shown in place of Personal
+// Information, Family & Financial and Health until the eligibility
+// screening is passed, so nothing lengthy is asked of someone who doesn't
+// qualify.
+function ScreeningLockCard({ screening, onGo }) {
+  const failed = screening.state === 'failed'
+  return (
+    <div>
+      <div className="portal-header">
+        <p className="portal-eyebrow">Admission &middot; Step 2</p>
+        <h1>{failed ? 'Not eligible to continue' : 'Finish the eligibility screening first'}</h1>
+        <p>
+          {failed
+            ? 'Based on your answers, you do not meet a requirement of the CCC Scholar Guidelines, so the rest of the application is not open.'
+            : 'The rest of the application opens once you pass the eligibility screening in Educational Background. This way, nobody is asked for personal, family and financial details before we know they qualify.'}
+        </p>
+      </div>
+      <div className="card">
+        <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          {screening.reasons.map((r) => <li key={r}>{r}</li>)}
+        </ul>
+        <div style={{ marginTop: 14 }}>
+          <button type="button" className="mbtn mbtn-primary" onClick={onGo}>Go to Educational Background</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ScreeningResultCard({ screening, onNext }) {
+  if (screening.grandfathered || screening.state === 'not_started') {
+    if (screening.grandfathered) return null
+    return (
+      <div className="card" style={{ borderLeft: '4px solid #003CD0' }}>
+        <div className="card-title">Step 1: Eligibility screening</div>
+        <p style={{ margin: 0, lineHeight: 1.6 }}>
+          Answer the questions below, upload your report card (Form 138), and submit this section. You will see right away
+          whether you can continue. Your Personal Information and Family &amp; Financial Information open after you pass.
+        </p>
+      </div>
+    )
+  }
+  if (screening.state === 'passed') {
+    return (
+      <div className="card" style={{ borderLeft: '4px solid #1B6B3A' }}>
+        <div className="card-title">You passed the eligibility screening</div>
+        <p style={{ margin: '0 0 12px', lineHeight: 1.6 }}>
+          You can now fill in your Personal Information and Family &amp; Financial Information. The Guidance Office still
+          checks every document before your application is final.
+        </p>
+        <button type="button" className="mbtn mbtn-primary" onClick={onNext}>Continue to Personal Information</button>
+      </div>
+    )
+  }
+  if (screening.state === 'failed') {
+    return (
+      <div className="card" style={{ borderLeft: '4px solid #C0392B' }}>
+        <div className="card-title">Not eligible to continue</div>
+        <ul style={{ margin: '0 0 10px', paddingLeft: 18, lineHeight: 1.7 }}>
+          {screening.reasons.map((r) => <li key={r}>{r}</li>)}
+        </ul>
+        <p style={{ margin: 0, lineHeight: 1.6 }}>
+          If an answer was a mistake, or you think this is wrong, contact the GCTCDO (1st Floor, Admin Building) or file a
+          request in Appeals &amp; Rescheduling. No further details are collected from you.
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="card" style={{ borderLeft: '4px solid #C8A84B' }}>
+      <div className="card-title">Eligibility screening: almost done</div>
+      <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+        {screening.reasons.map((r) => <li key={r}>{r}</li>)}
+      </ul>
     </div>
   )
 }
@@ -2129,7 +2210,7 @@ function PortalApp({ accountSession, onLogout }) {
       tert: { school: '', address: '', section: '', year: '', honors: '' },
     },
     techVoc: '', techVocSchool: '', techVocCourse: '', techVocAddress: '',
-    transfereeGwa: '', transfereeUnitsPassed: '', transfereeFailingGrade: '',
+    transfereeGwa: '', transfereeUnitsPassed: '', transfereeFailingGrade: '', shsFailingGrade: '',
     shsMathScienceLowest: '',
   })
   // Oct 6 2026: Appendix J p. 96 rule a. BSEd Mathematics / Science need 85
@@ -2232,6 +2313,7 @@ function PortalApp({ accountSession, onLogout }) {
       (String(academicInfo.transfereeGwa).trim() &&
         String(academicInfo.transfereeUnitsPassed).trim() &&
         academicInfo.transfereeFailingGrade)) &&
+    (academicInfo.applyingAs !== 'First Year' || !!academicInfo.shsFailingGrade) &&
     (!needsShsGrade || shsGradeValid)
 
   // Inline upload state for the three document types now uploaded directly
@@ -2377,6 +2459,25 @@ function PortalApp({ accountSession, onLogout }) {
       applicantName.trim() &&
       doc.applicant_name.trim().toLowerCase() === applicantName.trim().toLowerCase()
   )
+
+  // Nov 2026 (panel revisions, priority 4 / S4): the eligibility screening
+  // (app/lib/screening.js). Same rules as the server; GET /api/upload only
+  // returns this applicant's own documents, so docHistory is used as is.
+  const screening = screeningResult(
+    {
+      academic_submitted_at: academicSubmittedAt,
+      personal_info_submitted_at: personalSubmittedAt,
+      fam_financial_submitted_at: financialSubmittedAt,
+      status: profileLocked ? 'submitted' : null,
+      applying_as: academicInfo.applyingAs,
+      shs_failing_grade: academicInfo.shsFailingGrade,
+      transferee_gwa: academicInfo.transfereeGwa,
+      transferee_units_passed: academicInfo.transfereeUnitsPassed,
+      transferee_failing_grade: academicInfo.transfereeFailingGrade,
+    },
+    docHistory
+  )
+  const screeningLocked = !!academicSubmittedAt && !profileLocked
 
   // Has this applicant (by name) already uploaded a document of this type?
   // Drives the "Uploaded" state on the three inline Personal Information
@@ -3441,8 +3542,12 @@ function PortalApp({ accountSession, onLogout }) {
               releasedStatus,
               releasedDistribution,
             })
+            // Nov 2026: Educational Background (the eligibility screening)
+            // comes first; Personal Information opens after it is passed.
             const nextAction = submitted
               ? null
+              : !screening.stage2Open
+              ? { label: screening.state === 'failed' ? 'See your eligibility screening result' : 'Complete the eligibility screening (Educational Background)', panel: 'academic' }
               : !personalSubmittedAt
               ? { label: 'Complete and submit your Personal Information', panel: 'personal' }
               : !academicSubmittedAt
@@ -3809,7 +3914,10 @@ function PortalApp({ accountSession, onLogout }) {
           {/* ══════════ PERSONAL INFORMATION (built — cards 1-6 ported as-is) ══════════ */}
           {!appLoaded && PROFILE_PANEL_HEADERS[activePanel] && <ProfilePanelSkeleton panel={activePanel} />}
 
-          {activePanel === 'personal' && appLoaded && (
+          {['personal', 'financial', 'health'].includes(activePanel) && appLoaded && !screening.stage2Open && (
+            <ScreeningLockCard screening={screening} onGo={() => setActivePanel('academic')} />
+          )}
+          {activePanel === 'personal' && appLoaded && screening.stage2Open && (
             <FieldsLockedContext.Provider value={profileLocked}>
             <div>
               <div className="portal-header">
@@ -3955,7 +4063,7 @@ function PortalApp({ accountSession, onLogout }) {
                     </label>
                   </div>
                   <div className="mfield full">
-                    <TextField label="Contact Number" type="tel" required value={personalInfo.contactNumber} onChange={(v) => updatePI('contactNumber', sanitizePhoneInput(v))} placeholder="e.g. 0917 123 4567" />
+                    <TextField label="Contact Number" type="tel" required value={personalInfo.contactNumber} onChange={(v) => updatePI('contactNumber', sanitizePhoneInput(v))} placeholder="e.g. 0917 123 4567" hint="Used only by the Guidance Office to call you about your application. The system does not send text messages; updates come by email and in Messages." />
                     {/* Oct 7 2026: the "I want to receive SMS updates" checkbox was
                         removed. Nothing ever sent texts, and SMS is not in the
                         manuscript: in interview #2 (Appendix D) the client asked about
@@ -4140,6 +4248,8 @@ function PortalApp({ accountSession, onLogout }) {
                 <p>This information is used for qualification matching and cross-referenced against your submitted documents.</p>
               </div>
 
+              <ScreeningResultCard screening={screening} onNext={() => setActivePanel('personal')} />
+
               {/* ---------- Card 1: Program Application ---------- */}
               <div className="card topic-card">
                 <div className="card-title">
@@ -4149,7 +4259,7 @@ function PortalApp({ accountSession, onLogout }) {
                   <EditableTag />
                 </div>
                 <div className="form-grid">
-                  <SelectField label="Applying As" required value={academicInfo.applyingAs} onChange={(v) => updateAI('applyingAs', v)} options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} />
+                  <SelectField label="Applying As" required value={academicInfo.applyingAs} onChange={(v) => updateAI('applyingAs', v)} options={['First Year', 'Transferee', 'Old Curriculum and ALS Completer']} disabled={screeningLocked} />
                   <SelectField label="Term Applying In" required value={academicInfo.termApplying} onChange={(v) => updateAI('termApplying', v)} options={['Term 1', 'Term 2']} />
                 </div>
 
@@ -4159,6 +4269,28 @@ function PortalApp({ accountSession, onLogout }) {
                     at least 26 units, and (c) have a GWA of 2.25 or better
                     (Appendix J, "Transferees" section). Only shown/required
                     when actually applying as a Transferee. */}
+                {/* Nov 2026 (panel revisions S2): the First Year grade rule
+                    (client interview, Appendix B). Old Curriculum / ALS
+                    completers are not asked; staff check their proof of
+                    grades. Locked once Educational Background is submitted. */}
+                {academicInfo.applyingAs === 'First Year' && (
+                  <div className="form-grid" style={{ marginTop: '15px' }}>
+                    <SelectField
+                      label="Do you have any grade below 75 in your latest Senior High report card (Form 138)?"
+                      required
+                      full
+                      value={academicInfo.shsFailingGrade}
+                      onChange={(v) => updateAI('shsFailingGrade', v)}
+                      options={['No', 'Yes']}
+                      disabled={screeningLocked && !!academicInfo.shsFailingGrade}
+                    />
+                  </div>
+                )}
+                {screeningLocked && (
+                  <p className="topic-card-intro" style={{ marginTop: '10px' }}>
+                    These screening answers are locked after you submit. To correct one, contact the GCTCDO (1st Floor, Admin Building).
+                  </p>
+                )}
                 {academicInfo.applyingAs === 'Transferee' && (
                   <>
                     <p className="topic-card-intro" style={{ marginTop: '15px' }}>
@@ -4172,6 +4304,7 @@ function PortalApp({ accountSession, onLogout }) {
                         value={academicInfo.transfereeGwa}
                         onChange={(v) => updateAI('transfereeGwa', v)}
                         placeholder="e.g. 1.75 (2.25 or better required)"
+                        disabled={screeningLocked}
                       />
                       <TextField
                         label="Total Academic Units Passed"
@@ -4180,6 +4313,7 @@ function PortalApp({ accountSession, onLogout }) {
                         value={academicInfo.transfereeUnitsPassed}
                         onChange={(v) => updateAI('transfereeUnitsPassed', v)}
                         placeholder="e.g. 30 (at least 26 required)"
+                        disabled={screeningLocked}
                       />
                       <SelectField
                         label="Did you get a failing grade in any semester at your previous school(s)?"
@@ -4187,6 +4321,7 @@ function PortalApp({ accountSession, onLogout }) {
                         value={academicInfo.transfereeFailingGrade}
                         onChange={(v) => updateAI('transfereeFailingGrade', v)}
                         options={['Yes', 'No']}
+                        disabled={screeningLocked}
                       />
                     </div>
                   </>
@@ -4313,7 +4448,7 @@ function PortalApp({ accountSession, onLogout }) {
               Guardian table, only-child branch, emergency contact,
               working-student branch, sibling income table, ported from
               Ivy's panel-financial) ══════════ */}
-          {activePanel === 'financial' && appLoaded && (
+          {activePanel === 'financial' && appLoaded && screening.stage2Open && (
             <FieldsLockedContext.Provider value={profileLocked}>
             <div>
               <div className="portal-header">
@@ -4589,7 +4724,7 @@ function PortalApp({ accountSession, onLogout }) {
           {/* ══════════ HEALTH & WELLNESS (built — Medical Status + the
               Medical Examination Results/Certificate upload, ported from
               Ivy's health panel) ══════════ */}
-          {activePanel === 'health' && appLoaded && (
+          {activePanel === 'health' && appLoaded && screening.stage2Open && (
             <div>
               <div className="portal-header">
                 <p className="portal-eyebrow">Scholarship Services &middot; During Enrollment</p>

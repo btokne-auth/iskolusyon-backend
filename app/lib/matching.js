@@ -86,8 +86,8 @@ export const PROGRAM_PASSING_GRADES = {
 // GWA cutoff for transferees: "2.25 or better" — Philippine collegiate
 // grading runs 1.0 (highest) to 5.0 (failing), so "better" means a lower
 // number. A GWA of exactly 2.25 passes.
-const TRANSFEREE_MAX_GWA = 2.25
-const TRANSFEREE_MIN_UNITS = 26
+export const TRANSFEREE_MAX_GWA = 2.25
+export const TRANSFEREE_MIN_UNITS = 26
 
 // Very small, deliberately conservative text check — Personal Information
 // only collects a free-text `address` field, not a dedicated "resident of
@@ -180,12 +180,21 @@ function checkEligibilityRules(row, uploadedTypes) {
     }
   }
 
+  // ---- First Year: no failing grade in the SHS report card (Nov 2026,
+  // panel revisions S2 "reconcile the grade requirement"; client interview,
+  // Appendix B: "dapat walang failing grade", "Hindi natanggap ng bagsak").
+  // Only applications that answered the question are checked, so older
+  // ones are not suddenly changed. Old Curriculum / ALS completers are not
+  // asked; staff check their proof of grades.
+  const g = { applies: row.applying_as === 'First Year' && !!row.academic_submitted_at && !!row.shs_failing_grade, ok: true }
+  if (g.applies) g.ok = row.shs_failing_grade === 'No'
+
   let status
-  if (residency === false || voter === false || t.ok === false) status = 'not_qualified'
+  if (residency === false || voter === false || t.ok === false || g.ok === false) status = 'not_qualified'
   else if (residency === null || voter === null || t.ok === null) status = 'incomplete'
   else status = 'pending_exam'
 
-  return { residency, voter, voterPending, transferee: t, status }
+  return { residency, voter, voterPending, transferee: t, grades: g, status }
 }
 
 export function computeEligibility(row, uploadedTypes) {
@@ -215,6 +224,10 @@ export function computeEligibility(row, uploadedTypes) {
     if (!t.gwaOk) reasons.push(`Transferee GWA of ${t.gwa} doesn't meet the 2.25-or-better requirement.`)
     if (!t.unitsOk) reasons.push(`Transferee has passed ${t.units} units. Appendix J requires at least 26.`)
     if (!t.noFailOk) reasons.push('Transferee reported a failing grade in a previous semester (Appendix J disqualifies this).')
+  }
+
+  if (rules.grades.applies && !rules.grades.ok) {
+    reasons.push('First Year applicant reported a grade below 75 in the Senior High report card (failing grades are not accepted).')
   }
 
   // ---- BSEd Mathematics / Science (Appendix J p. 96, rule a) ----
@@ -290,6 +303,15 @@ export function applicantEligibility(row, uploadedTypes) {
       detail = `Not met: ${parts.join('; ')}.`
     }
     items.push({ key: 'transferee', label: 'Transferee academic standing', state: stateOf(t.ok), detail })
+  }
+
+  if (rules.grades.applies) {
+    items.push({
+      key: 'grades',
+      label: 'No failing grade in your Senior High report card',
+      state: stateOf(rules.grades.ok),
+      detail: rules.grades.ok ? 'You reported no grade below 75.' : 'You reported a grade below 75. Failing grades are not accepted.',
+    })
   }
 
   let status = rules.status === 'not_qualified' ? 'not_met' : rules.status === 'pending_exam' ? 'meets' : 'not_checked'
