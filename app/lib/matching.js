@@ -239,9 +239,9 @@ export function computeEligibility(row, uploadedTypes) {
   }
 
   if (rules.card.pending) {
-    reasons.push('Report card (Form 138) uploaded but not yet confirmed by staff. Confirm it in Document Review to continue.')
+    reasons.push('Proof of grades (report card / transcript) uploaded but not yet confirmed by staff. Confirm it in Document Review to continue.')
   } else if (rules.card.missing) {
-    reasons.push('No report card (Form 138) on file yet.')
+    reasons.push('No proof of grades (report card / transcript) on file yet.')
   }
 
   if (rules.grades.applies && !rules.grades.ok) {
@@ -326,7 +326,7 @@ export function applicantEligibility(row, uploadedTypes) {
   if (rules.card.applies) {
     items.push({
       key: 'card',
-      label: 'Report card (Form 138) confirmed by the Guidance Office',
+      label: 'Proof of grades confirmed by the Guidance Office',
       state: rules.card.ok ? 'met' : 'not_checked',
       detail: rules.card.ok
         ? 'Your report card was confirmed.'

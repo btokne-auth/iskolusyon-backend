@@ -5,6 +5,9 @@ import { TRANSFEREE_MAX_GWA, TRANSFEREE_MIN_UNITS } from './matching'
 // bachelor's program is usually 150 to 200 units). Stops typos like 999.
 export const TRANSFEREE_MAX_UNITS = 250
 
+// Appendix J, Transferees, rule 4.
+export const TRANSFEREE_EXCEPTION_NOTE = 'Exceptional cases (grades of 5.0, dropped, INC) are decided case by case by the Program Director (Appendix J, Transferees). Visit the GCTCDO, 1st Floor, Admin Building.'
+
 // Nov 2026 (panel revisions, priority 4 / S4 / S2 / S3): a two-stage
 // application. Eligibility is screened FIRST, and the lengthy personal,
 // family and financial details are only asked for once it is passed:
@@ -69,6 +72,7 @@ export function signupScreening(a = {}) {
     if (gwa > TRANSFEREE_MAX_GWA) reasons.push(`A GWA of ${gwaText} does not meet the required 2.25 or better (Appendix J, Transferees).`)
     if (units < TRANSFEREE_MIN_UNITS) reasons.push(`${units} units passed; at least 26 are required (Appendix J, Transferees).`)
     if (a.transfereeFailingGrade === 'Yes') reasons.push('Transferees with a failing grade in a previous semester are not accepted (Appendix J, Transferees).')
+    if (reasons.length) reasons.push(TRANSFEREE_EXCEPTION_NOTE)
   }
   return { complete: true, passed: reasons.length === 0, reasons }
 }
@@ -113,7 +117,10 @@ export function screeningResult(row, docs) {
   if (reasons.length) return { state: 'failed', stage2Open: false, reasons }
 
   const card = latestOfType(docs, 'form138')
-  if (!card) return { state: 'pending', stage2Open: false, reasons: ['Upload your report card (Form 138 / proof of grades).'] }
+  if (!card) {
+    const what = row.applying_as === 'Transferee' ? 'transcript of records or certificate of grades' : 'report card (Form 138 / proof of grades)'
+    return { state: 'pending', stage2Open: false, reasons: [`Upload your ${what}.`] }
+  }
   const s = docState(card)
   if (s === 'processing') return { state: 'pending', stage2Open: false, reasons: ['Your report card is still being read. This usually takes a minute.'] }
   if (s === 'flagged') {

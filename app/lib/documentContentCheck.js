@@ -160,40 +160,12 @@ export function failingGradesOn(extractedText) {
   return hits
 }
 
-// Nov 2026 (panel revisions S2): a transferee's grades come from a college
-// transcript or certificate of grades, graded 1.00 (best) to 5.00 (failed),
-// not a Senior High report card graded 60 to 100.
-
-// True when the text reads like a college grade record and not a Senior High
-// report card (so a transferee can't send their SHS card instead).
+// Nov 2026 (panel revisions S2): true when the text reads like a college
+// transcript / certificate of grades and not a Senior High report card, so a
+// First Year applicant can't pass the sign-up report card check with one.
 export function isCollegeGradeRecord(extractedText) {
   const text = normalize(extractedText)
   const shs = ['form 138', 'sf9', 'sf 9', 'report card', 'lrn', 'learner reference', 'department of education', 'deped', 'senior high']
   const college = ['transcript of records', 'certificate of grades', 'units', 'weighted average', 'gwa', 'college', 'university', 'semester']
   return hasAny(text, college) && !hasAny(text, shs)
-}
-
-// Lines that read like a subject with a college grade of 5.00 (or marked
-// FAILED). Average / GWA lines are skipped.
-export function collegeFailingGradesOn(extractedText) {
-  const hits = []
-  for (const raw of String(extractedText || '').split(/\r?\n/)) {
-    const line = raw.trim()
-    if (!/^[A-Za-z]/.test(line)) continue
-    if (/\b(average|gwa|total)\b/i.test(line)) continue
-    const grades = (line.match(/\b[1-5]\.\d{2}\b/g) || []).map(Number)
-    const failed = grades.includes(5) || /\bfailed\b/i.test(line)
-    if (!failed) continue
-    // Drops the grade, then the units column right before it.
-    const subject = line.replace(/\b[1-5]\.\d{2}\b/g, '').replace(/\bfailed\b/ig, '').replace(/[^A-Za-z0-9&() -]/g, ' ').replace(/\s+/g, ' ').trim().replace(/\s+\d+$/, '')
-    hits.push(`${subject || 'a subject'}: 5.00`)
-  }
-  return hits
-}
-
-// The GWA printed on a college grade record (e.g. "General Weighted Average:
-// 1.85"), or null when none is read.
-export function collegeGwaOn(extractedText) {
-  const m = String(extractedText || '').match(/(?:general weighted average|weighted average|\bgwa\b)[^0-9\n]{0,20}([1-5]\.\d{1,2})\b/i)
-  return m ? Number(m[1]) : null
 }

@@ -56,20 +56,15 @@ export async function POST(request) {
         return NextResponse.json({ error: screen.reasons.join(' '), screening: true, reasons: screen.reasons }, { status: 400 })
       }
       // The report card (Form 138) read at sign-up: a report card with no
-      // grade below 75. Not asked of Old Curriculum / ALS completers.
-      const needsCard = answers.applyingAs !== 'Old Curriculum and ALS Completer'
+      // grade below 75. First Year only (the document CCC lists for them);
+      // transferees and Old Curriculum / ALS upload proof of grades in the
+      // portal, where staff confirm it.
+      const needsCard = answers.applyingAs === 'First Year'
       const gradeToken = String(body.gradeToken || '')
       if (needsCard) {
         const card = isValidTokenShape(gradeToken) ? await getCheckStatus(gradeToken) : { status: 'none' }
         if (card.status !== 'passed' || card.type !== 'form138') {
           return NextResponse.json({ error: 'Please upload your report card (Form 138) and wait for it to be checked.', grades: true }, { status: 400 })
-        }
-        // A transferee's transcript is read on the college scale; a First
-        // Year's report card on the 60-100 scale. Changing "Applying as"
-        // after the check means checking again.
-        const wantLevel = answers.applyingAs === 'Transferee' ? 'college' : 'shs'
-        if (card.level !== wantLevel) {
-          return NextResponse.json({ error: 'Your grades were checked for a different "Applying as". Please upload them again.', grades: true }, { status: 400 })
         }
       }
       const result = await startSignup(body.email, body.password)

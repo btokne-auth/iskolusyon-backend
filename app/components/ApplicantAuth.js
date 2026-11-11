@@ -135,6 +135,12 @@ function AcademicScreeningBox({ answers, set, result, needsCard, error, onRefuse
       {a.applyingAs === 'Old Curriculum and ALS Completer' && (
         <p className="text-[12px] text-ccc-muted leading-relaxed">The Guidance Office checks your proof of grades after you sign up.</p>
       )}
+      {a.applyingAs === 'Transferee' && (
+        <p className="text-[12px] text-ccc-muted leading-relaxed">
+          After you sign up, upload your transcript of records or certificate of grades in the portal. The Guidance Office
+          confirms it before you can take the exam.
+        </p>
+      )}
       {result.invalid && <div className="text-[11px] text-red-600 mt-1">{result.invalid}</div>}
       {error && <div className="text-[11px] text-red-600 mt-1">{error}</div>}
       {result.complete && result.passed && (
@@ -171,16 +177,15 @@ function AcademicScreeningBox({ answers, set, result, needsCard, error, onRefuse
 // Nov 2026 (panel revisions S2): the report card read at sign-up. It must
 // read as a report card and show no grade below 75; staff still confirm it
 // later, and the original card is checked at enrollment.
-function GradeCheckBox({ transferee, state, message, failCount, error, onFile, onRetryPoll }) {
+function GradeCheckBox({ state, message, failCount, error, onFile, onRetryPoll }) {
   const busy = state === 'uploading' || state === 'processing'
-  const what = transferee ? 'transcript' : 'report card'
+  const what = 'report card'
   return (
     <div className="rounded-md border border-ccc-border bg-ccc-off px-4 py-4 mb-3">
-      <div className="text-sm font-bold text-ccc-navy mb-1">{transferee ? 'Transcript check' : 'Report card check'}</div>
+      <div className="text-sm font-bold text-ccc-navy mb-1">Report card check</div>
       <p className="text-[12px] text-ccc-muted leading-relaxed mb-3">
-        {transferee
-          ? 'Upload a clear photo or scan of your transcript of records or certificate of grades from your previous school. It is read to confirm your answers before your account is created.'
-          : 'Upload a clear photo or scan of your latest Senior High report card (Form 138). It is read to confirm your answers before your account is created.'}
+        Upload a clear photo or scan of your latest Grade 11 or 12 report card (Form 138). It is read to confirm your
+        answers before your account is created.
       </p>
       {state !== 'passed' && (
         <label className={`block w-full text-center py-2.5 rounded-md border border-dashed border-ccc-blue text-ccc-blue font-bold text-sm ${busy ? 'opacity-60 cursor-wait' : 'cursor-pointer hover:bg-white'}`}>
@@ -196,8 +201,7 @@ function GradeCheckBox({ transferee, state, message, failCount, error, onFile, o
       )}
       {state === 'passed' && (
         <div className="text-[13px] text-green-800 bg-green-50 border border-green-200 rounded-md px-3 py-2">
-          <span className="font-bold">{transferee ? 'Transcript checked.' : 'Report card checked.'}</span>{' '}
-          {transferee ? 'No failing grade was found.' : 'No grade below 75 was found.'} You can now create your account.
+          <span className="font-bold">Report card checked.</span> No grade below 75 was found. You can now create your account.
           The Guidance Office still confirms it later.
         </div>
       )}
@@ -810,7 +814,9 @@ function SignupPanel({ onSwitch, onCreated }) {
   const gradePollRef = useRef(null)
   const screeningAnswers = { applyingAs, shsFailingGrade, transfereeGwa, transfereeUnitsPassed, transfereeFailingGrade }
   const academic = signupScreening(screeningAnswers)
-  const needsCard = applyingAs !== 'Old Curriculum and ALS Completer'
+  // Only First Year uploads the report card at sign-up (Form 138 is on CCC's
+  // First Year list); others upload proof of grades in the portal.
+  const needsCard = applyingAs === 'First Year'
   // Changing "Applying as" after the grades were checked means checking
   // again (a transcript and a report card are read differently).
   function changeApplyingAs(v) {
@@ -878,7 +884,6 @@ function SignupPanel({ onSwitch, onCreated }) {
       const form = new FormData()
       form.append('file', file)
       form.append('type', 'form138')
-      if (applyingAs === 'Transferee') form.append('level', 'college')
       if (gradeToken) form.append('token', gradeToken)
       const res = await fetch('/api/signup-residency-check', { method: 'POST', body: form })
       const data = await res.json()
@@ -1360,7 +1365,6 @@ function SignupPanel({ onSwitch, onCreated }) {
                 )}
                 {checkState === 'passed' && !academicFailed && academic.passed && needsCard && (
                   <GradeCheckBox
-                    transferee={applyingAs === 'Transferee'}
                     state={gradeState}
                     message={gradeMessage}
                     failCount={gradeFailCount}
