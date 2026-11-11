@@ -5971,3 +5971,156 @@
 .admin-portal .cm-ack-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: #4b5563; }
 .admin-portal .cm-ack-row b { color: var(--navy, #0d2f6e); font-weight: 700; }
 .admin-portal .cm-ack-none { font-size: 12.5px; color: #4b5563; line-height: 1.5; }
+
+/* ── Nov 2026: Application Cycle Settings tiles ── */
+.admin-portal .cycle-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.admin-portal .cycle-tile {
+  border: 1px solid var(--border);
+  border-left: 4px solid #cbd2dc;
+  border-radius: 10px;
+  background: #fff;
+  padding: 18px 20px;
+}
+.admin-portal .cycle-tile.is-on {
+  border-left-color: var(--green);
+}
+.admin-portal .cycle-tile-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+.admin-portal .cycle-tile-info {
+  max-width: 680px;
+}
+.admin-portal .cycle-tile-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.admin-portal .cycle-tile-title h4 {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+}
+.admin-portal .cycle-state {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.admin-portal .cycle-state.on {
+  background: #e3f3ea;
+  color: #17683b;
+}
+.admin-portal .cycle-state.off {
+  background: #eef0f3;
+  color: #5b6472;
+}
+.admin-portal .cycle-tile-info p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.admin-portal .cycle-switch {
+  flex: none;
+  position: relative;
+  width: 56px;
+  height: 30px;
+  margin-top: 2px;
+  border: none;
+  border-radius: 999px;
+  background: #c3cad4;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+.admin-portal .cycle-switch.on {
+  background: var(--green);
+}
+.admin-portal .cycle-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.25);
+  transition: transform 0.18s;
+}
+.admin-portal .cycle-switch.on .cycle-switch-knob {
+  transform: translateX(26px);
+}
+.admin-portal .cycle-switch:focus-visible {
+  outline: 3px solid rgba(29, 78, 216, 0.35);
+  outline-offset: 2px;
+}
+.admin-portal .cycle-fields {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f6f8fb;
+}
+.admin-portal .cycle-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--navy);
+}
+.admin-portal .cycle-field input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+  color: var(--text);
+}
+.admin-portal .cycle-field input:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15);
+}
+.admin-portal .cycle-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.admin-portal .cycle-unsaved {
+  margin-top: 16px;
+  padding: 10px 14px;
+  border: 1px solid #f3d38a;
+  border-radius: 8px;
+  background: #fff8e6;
+  color: #7a5200;
+  font-size: 13px;
+  font-weight: 600;
+}
+@media (max-width: 900px) {
+  .admin-portal .cycle-fields {
+    grid-template-columns: 1fr;
+  }
+  .admin-portal .cycle-tile {
+    padding: 16px;
+  }
+  .admin-portal .cycle-tile-head {
+    gap: 14px;
+  }
+}
