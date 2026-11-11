@@ -1,4 +1,5 @@
 'use client'
+import { STATUS_DEFINITIONS } from '@/app/lib/statusDefinitions'
 import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { docState } from '../lib/documentState'
 import { screeningResult } from '../lib/screening'
@@ -748,12 +749,12 @@ function EligibilityCard({ eligibility, resultReleased }) {
   let desc
   if (eligibility.status === 'meets') {
     desc = eligibility.verified
-      ? 'Verified by the Scholarship Office.'
+      ? 'Verified by the Guidance Office.'
       : "Checked automatically against CCC's Scholar Guidelines. The Scholarship Office will verify it."
     desc += resultReleased ? ' Your exam result is in the Admission card below.' : ' Final admission still depends on the entrance exam.'
   } else if (eligibility.status === 'not_met') {
     desc = eligibility.verified
-      ? 'The Scholarship Office reviewed your application. Check Messages, or contact the Guidance Office for details.'
+      ? 'The Guidance Office reviewed your application. Check Messages, or contact the Guidance Office for details.'
       : 'Fix the item marked below. If you think this is wrong, contact the Guidance Office.'
   } else {
     desc = 'Each item is checked once you submit the section it comes from.'
@@ -1934,8 +1935,8 @@ function LogoutConfirmModal({ open, onCancel, onConfirm }) {
 // been released to the applicant. Details are in the result message itself.
 const ADMISSION_RESULT_TEXT = {
   passer: { label: 'Qualified as a Student', note: 'Check Messages for your medical exam and pre-registration steps.' },
-  waitlisted_probationary: { label: 'Waitlisted', note: 'You are on the waiting list. Check Messages for details.' },
-  qualified_probationary: { label: 'Qualified (Probationary)', note: 'Check Messages for how to sign your probationary contract.' },
+  waitlisted_probationary: { label: 'Waitlisted (Probationary)', note: 'You are on the waiting list. Check Messages for details.' },
+  qualified_probationary: { label: 'Qualified as a Student (Probationary)', note: 'Check Messages for how to sign your probationary contract.' },
   forfeited: { label: 'Forfeited', note: 'Check Messages for what to do next.' },
   disqualified: { label: 'Not Qualified', note: 'Check Messages for details.' },
 }
@@ -3580,7 +3581,7 @@ function PortalApp({ accountSession, onLogout }) {
                 <div>
                   <div className="portal-header">
                     <h1>Welcome back{applicantName.trim() ? `, ${applicantName.trim().split(' ')[0]}` : ''}!</h1>
-                    <p>Here&rsquo;s a quick look at your scholarship application progress with the City College of Calamba.</p>
+                    <p>Here&rsquo;s a quick look at your application to the City College of Calamba.</p>
                   </div>
                   <div className="card status-hero" role="status" aria-live="polite">
                     <span className="sk-sr">Loading your application progress...</span>
@@ -3626,7 +3627,7 @@ function PortalApp({ accountSession, onLogout }) {
               <div>
                 <div className="portal-header">
                   <h1>Welcome back{applicantName.trim() ? `, ${applicantName.trim().split(' ')[0]}` : ''}!</h1>
-                  <p>Here&rsquo;s a quick look at your scholarship application progress with the City College of Calamba.</p>
+                  <p>Here&rsquo;s a quick look at your application to the City College of Calamba.</p>
                 </div>
 
                 <div className="card status-hero">
@@ -3653,6 +3654,18 @@ function PortalApp({ accountSession, onLogout }) {
                       </a>
                     </div>
                   )}
+                  {/* Nov 2026 (panel revisions S8): what each status means. */}
+                  <details className="status-legend-portal">
+                    <summary>What do the application statuses mean?</summary>
+                    <dl>
+                      {STATUS_DEFINITIONS.filter((d) => d.label !== 'Disqualified').map((d) => (
+                        <div key={d.label}>
+                          <dt>{d.label}</dt>
+                          <dd>{d.meaning}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </details>
                 </div>
 
                 {eligibility && <EligibilityCard eligibility={eligibility} resultReleased={!!releasedStatus} />}
@@ -3756,7 +3769,7 @@ function PortalApp({ accountSession, onLogout }) {
                   </div>
                   <div>
                     <p style={{ fontSize: '12.45px', color: 'var(--muted)', marginBottom: '15px' }}>
-                      Fill out the sections below so Iskolusyon can automatically match you to scholarship programs you qualify for.
+                      Fill out the sections below so the Guidance Office can check your eligibility and process your application.
                     </p>
                     <div className="timeline">
                       <div className="timeline-item">
@@ -3941,7 +3954,7 @@ function PortalApp({ accountSession, onLogout }) {
               <div className="portal-header">
                 <p className="portal-eyebrow">Admission &middot; My Profile (Softcopy)</p>
                 <h1>Personal Information</h1>
-                <p>This section establishes your legal identity and residency to qualify as CCC&rsquo;s scholar.</p>
+                <p>This section confirms your identity and Calamba residency for your application to CCC.</p>
               </div>
 
               {/* The old top-of-panel "Applicant name"/"Applicant email" block
@@ -4081,7 +4094,7 @@ function PortalApp({ accountSession, onLogout }) {
                     </label>
                   </div>
                   <div className="mfield full">
-                    <TextField label="Contact Number" type="tel" required value={personalInfo.contactNumber} onChange={(v) => updatePI('contactNumber', sanitizePhoneInput(v))} placeholder="e.g. 0917 123 4567" hint="Used only by the Guidance Office to call you about your application. The system does not send text messages; updates come by email and in Messages." />
+                    <TextField label="Contact Number" type="tel" required value={personalInfo.contactNumber} onChange={(v) => updatePI('contactNumber', sanitizePhoneInput(v))} placeholder="e.g. 0917 123 4567" hint="Used by the Guidance Office to call you about your application. The system does not send text messages. If you can&rsquo;t check your email often, the Guidance Office can reach you at this number." />
                     {/* Oct 7 2026: the "I want to receive SMS updates" checkbox was
                         removed. Nothing ever sent texts, and SMS is not in the
                         manuscript: in interview #2 (Appendix D) the client asked about
@@ -4128,7 +4141,7 @@ function PortalApp({ accountSession, onLogout }) {
                   </span>{' '}
                   <EditableTag />
                 </div>
-                <p className="topic-card-intro">Used to help match you to special scholarship categories and accommodations. No document needed here.</p>
+                <p className="topic-card-intro">Used to help match you to special categories and accommodations. No document needed here.</p>
                 <div className="form-grid">
                   <SelectField label="Are you a LGBTQI+ community member?" required value={personalInfo.lgbtqi} onChange={(v) => updatePI('lgbtqi', v)} options={['Yes', 'No']} />
                   <TextField label="Do you have a physical or behavioral condition/disability?" required value={personalInfo.disability} onChange={(v) => updatePI('disability', v)} placeholder="e.g. None" />
@@ -4472,7 +4485,7 @@ function PortalApp({ accountSession, onLogout }) {
               <div className="portal-header">
                 <p className="portal-eyebrow">Admission &middot; My Profile (Softcopy)</p>
                 <h1>Family &amp; Financial Information</h1>
-                <p>Used to assess financial need for scholarship qualification matching.</p>
+                <p>Used by the Guidance Office as part of your application. Your financial details do not affect your eligibility.</p>
               </div>
 
               {/* ---------- Card 1: Family Information ---------- */}

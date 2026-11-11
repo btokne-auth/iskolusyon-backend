@@ -22,7 +22,7 @@ import { dashboardCounts } from '@/app/lib/dashboardCounts'
 // DELETE { id }
 
 const SCHOLAR_STATUSES = ['passer', 'qualified_probationary']
-const STATUS_LABEL = { passer: 'Qualified as a Student', qualified_probationary: 'Qualified (Probationary)' }
+const STATUS_LABEL = { passer: 'Qualified as a Student', qualified_probationary: 'Qualified as a Student (Probationary)' }
 const TYPES = ['Wi-Fi', 'Other']
 
 async function logAudit(actor, action, kind) {

@@ -6125,3 +6125,16 @@
 .admin-portal .aa-act.ac-remove { margin-left: 8px; color: #b42323; border-color: #f1c6c6; }
 .admin-portal .aa-act.ac-remove:hover { background: #fcebeb; }
 .admin-portal .ac-cleaned { margin-left: 10px; font-size: 12px; font-weight: 600; color: #17683b; }
+
+/* Nov 2026 (panel revisions S8): one-line role duty under the profile */
+.admin-portal .sb-duty { margin: -4px 18px 14px; font-size: 11.5px; line-height: 1.5; color: #b8c6e0; }
+
+/* Nov 2026 (panel revisions S8): status legend */
+.admin-portal .status-legend { margin: 10px 0 4px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.admin-portal .status-legend > summary { cursor: pointer; padding: 10px 14px; font-size: 13px; font-weight: 700; color: var(--navy); list-style: none; }
+.admin-portal .status-legend > summary::-webkit-details-marker { display: none; }
+.admin-portal .status-legend > summary::before { content: '?'; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; margin-right: 8px; border-radius: 50%; background: #e8eefb; color: #003CD0; font-size: 11px; }
+.admin-portal .status-legend dl { margin: 0; padding: 4px 14px 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 22px; }
+.admin-portal .status-legend-row { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-top: 1px solid #eef1f5; }
+.admin-portal .status-legend dt { font-size: 13px; font-weight: 700; color: var(--navy); }
+.admin-portal .status-legend dd { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }

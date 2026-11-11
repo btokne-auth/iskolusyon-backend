@@ -68,7 +68,7 @@ function EyeOffIcon(props) {
   )
 }
 
-function TextField({ label, value, onChange, type = 'text', placeholder, required, error, autoComplete, max, min }) {
+function TextField({ label, value, onChange, type = 'text', placeholder, required, error, autoComplete, max, min, hint, maxLength, inputMode }) {
   const [visible, setVisible] = useState(false)
   const isPassword = type === 'password'
   const inputType = isPassword ? (visible ? 'text' : 'password') : type
@@ -88,6 +88,8 @@ function TextField({ label, value, onChange, type = 'text', placeholder, require
           autoComplete={autoComplete}
           max={max}
           min={min}
+          maxLength={maxLength}
+          inputMode={inputMode}
           className={`w-full px-3 py-2 border rounded-md text-sm outline-none focus:ring-2 focus:ring-ccc-blue/20 focus:border-ccc-blue ${
             isPassword ? 'pr-9' : ''
           } ${error ? 'border-red-500' : 'border-ccc-border'}`}
@@ -104,6 +106,7 @@ function TextField({ label, value, onChange, type = 'text', placeholder, require
         )}
       </div>
       {error && <div className="text-[11px] text-red-600 mt-1">{error}</div>}
+      {!error && hint && <div className="text-[11px] text-ccc-muted mt-1 leading-snug">{hint}</div>}
     </div>
   )
 }
@@ -221,6 +224,13 @@ function GradeCheckBox({ state, message, failCount, error, onFile, onRetryPoll }
   )
 }
 
+// Nov 2026 (panel revisions S3): the panel's example of a quick eligibility
+// check had an option like "I do not live in Calamba City" that ends sign-up.
+const CALAMBA_YES = 'Yes, I live in Calamba City'
+const CALAMBA_NO = 'No, I do not live in Calamba City'
+// Nov 2026 (panel revisions S4): what the contact number is for.
+const CONTACT_HINT = 'For calls from the Guidance Office only (no text messages). Also how they reach you if you can\u2019t check email.'
+
 function SelectField({ label, value, onChange, options, required, error, placeholder = 'Select…' }) {
   return (
     <div className="mb-3">
@@ -311,14 +321,14 @@ function AuthSide({ mode, step }) {
     >
       <div className="absolute -right-[60px] -bottom-[60px] w-[200px] h-[200px] rounded-full bg-white/5 pointer-events-none" />
       <h1 className="text-[1.3rem] font-extrabold mb-2.5 leading-snug relative z-10" style={{ fontFamily: 'var(--font-montserrat)' }}>
-        {mode === 'login' ? 'Welcome back, Scholar.' : mode === 'forgot' ? 'Forgot your password?' : 'Start your scholarship journey.'}
+        {mode === 'login' ? 'Welcome back, Applicant.' : mode === 'forgot' ? 'Forgot your password?' : 'Start your application to CCC.'}
       </h1>
       <p className="text-[.8rem] text-white/70 mb-8 leading-relaxed relative z-10">
         {mode === 'login'
-          ? 'Sign in to continue your scholarship application, check your status, and manage your submitted documents.'
+          ? 'Sign in to continue your application, check your status, and manage your submitted documents.'
           : mode === 'forgot'
           ? 'No worries, we’ll help you find your account and get back in.'
-          : 'Create your account to apply, track, and manage your City College of Calamba scholarship application.'}
+          : 'Create your account to apply to the City College of Calamba, then track and manage your application.'}
       </p>
       {(mode === 'signup' || mode === 'login' || mode === 'forgot') && step > 0 && (
         <div className="flex flex-col relative z-10">
@@ -1018,7 +1028,7 @@ function SignupPanel({ onSwitch, onCreated }) {
 
     const nextFieldErrors = {}
     if (!calambaResident) nextFieldErrors.calambaResident = 'Please answer this question.'
-    else if (calambaResident !== 'Yes') return // the "not eligible" panel is showing instead of the form
+    else if (calambaResident !== CALAMBA_YES) return // the "not eligible" panel is showing instead of the form
     else if (!residencyCertified) nextFieldErrors.residencyCertified = 'Please confirm that you live in Calamba City.'
     else if (checkState !== 'passed') nextFieldErrors.voterId = "Please upload a Voter's ID or Voter's Certification and wait for it to be confirmed."
     else if (!academic.complete) nextFieldErrors.screening = academic.invalid || 'Please answer the academic standing questions.'
@@ -1297,7 +1307,8 @@ function SignupPanel({ onSwitch, onCreated }) {
           <form onSubmit={handleStep1} noValidate>
             <Alert tone="info">
               Iskolusyon is for <strong>residents of Calamba City</strong> only. Before creating an account, we check your residency
-              using a Voter&apos;s ID or Voter&apos;s Certification (yours, or a parent&apos;s or guardian&apos;s).
+              using a Voter&apos;s ID or Voter&apos;s Certification (yours, or a parent&apos;s or guardian&apos;s). Only the
+              Voter&apos;s ID proves residency; your birth certificate is not used for this, since it shows the address at birth.
             </Alert>
             <SelectField
               label="Are you a resident of Calamba City?"
@@ -1308,22 +1319,22 @@ function SignupPanel({ onSwitch, onCreated }) {
                 setResidencyCertified(false)
                 clearFieldError('calambaResident', setCalambaResident)(v)
               }}
-              options={['Yes', 'No']}
+              options={[CALAMBA_YES, CALAMBA_NO]}
               error={fieldErrors.calambaResident}
             />
             {/* Oct 21 2026 (panel): answering "No" ends sign-up here. No
                 account, email or address is asked for, so a non-resident is
                 not walked through a form only to be told to type "Calamba". */}
-            {calambaResident === 'No' ? (
+            {calambaResident === CALAMBA_NO ? (
               <div className="rounded-md border border-ccc-border bg-ccc-off px-4 py-4 mt-1">
-                <div className="text-sm font-bold text-ccc-navy mb-1">You can&apos;t apply for this scholarship</div>
+                <div className="text-sm font-bold text-ccc-navy mb-1">You can&apos;t apply through this portal</div>
                 <p className="text-[13px] text-ccc-text leading-relaxed mb-2">
-                  Iskolusyon scholarships are only for residents of Calamba City, as stated in the CCC Scholar Guidelines.
+                  Applying to CCC through this portal is only for residents of Calamba City, as stated in the CCC Scholar Guidelines.
                   Applicants must prove residency with a Voter&apos;s ID or Voter&apos;s Certification showing a Calamba City address
                   (their own, or a parent&apos;s or guardian&apos;s).
                 </p>
                 <p className="text-[13px] text-ccc-muted leading-relaxed mb-3">
-                  If you live in Calamba City and picked &ldquo;No&rdquo; by mistake, change your answer above.
+                  If you live in Calamba City and picked this by mistake, change your answer above.
                 </p>
                 <a href="/" className="inline-block w-full text-center py-2.5 rounded-md border border-ccc-border bg-white text-ccc-navy font-bold text-sm uppercase tracking-wide hover:bg-ccc-off no-underline">
                   ← Back to homepage
@@ -1331,7 +1342,7 @@ function SignupPanel({ onSwitch, onCreated }) {
               </div>
             ) : (
               <>
-                {calambaResident === 'Yes' && (
+                {calambaResident === CALAMBA_YES && (
                   <div className="mb-3">
                     <label className="flex items-start gap-2.5 text-[13px] text-ccc-text cursor-pointer">
                       <input
@@ -1349,7 +1360,7 @@ function SignupPanel({ onSwitch, onCreated }) {
                     {fieldErrors.residencyCertified && <div className="text-[11px] text-red-600 mt-1">{fieldErrors.residencyCertified}</div>}
                   </div>
                 )}
-                {calambaResident === 'Yes' && residencyCertified && (
+                {calambaResident === CALAMBA_YES && residencyCertified && (
                   <ResidencyCheckBox
                     voterOwner={voterOwner}
                     setVoterOwner={setVoterOwner}
@@ -1389,7 +1400,7 @@ function SignupPanel({ onSwitch, onCreated }) {
                 )}
                 {academicFailed && (
                   <div className="rounded-md border border-red-200 bg-red-50 px-4 py-4 mt-1">
-                    <div className="text-sm font-bold text-red-800 mb-1">You can&apos;t apply for this scholarship</div>
+                    <div className="text-sm font-bold text-red-800 mb-1">You can&apos;t apply through this portal</div>
                     <ul className="text-[13px] text-red-800 leading-relaxed mb-2 list-disc pl-5">
                       {academicFailed.map((r) => <li key={r}>{r}</li>)}
                     </ul>
@@ -1454,7 +1465,7 @@ function SignupPanel({ onSwitch, onCreated }) {
               <SelectField label="Sex at birth" value={sex} onChange={clearFieldError('sex', setSex)} options={['Male', 'Female']} error={fieldErrors.sex} />
               <TextField label="Date of Birth" type="date" max={latestBirthdate(MIN_APPLICANT_AGE)} min={earliestBirthdate(MAX_APPLICANT_AGE)} value={dateOfBirth} onChange={clearFieldError('dateOfBirth', setDateOfBirth)} error={fieldErrors.dateOfBirth} />
               <SelectField label="Civil Status" value={civilStatus} onChange={clearFieldError('civilStatus', setCivilStatus)} options={['Single', 'Married', 'Widowed', 'Legally Separated']} error={fieldErrors.civilStatus} />
-              <TextField label="Contact Number" type="tel" value={contactNumber} onChange={(v) => clearFieldError('contactNumber', setContactNumber)(sanitizePhoneInput(v))} placeholder="09XX XXX XXXX" error={fieldErrors.contactNumber} />
+              <TextField label="Contact Number" type="tel" value={contactNumber} onChange={(v) => clearFieldError('contactNumber', setContactNumber)(sanitizePhoneInput(v))} placeholder="09XX XXX XXXX" error={fieldErrors.contactNumber} hint={CONTACT_HINT} />
             </div>
             {/* Oct 21 2026 (panel): the city is fixed, not typed. The
                 applicant types only the house number and street; the barangay
@@ -1486,7 +1497,7 @@ function SignupPanel({ onSwitch, onCreated }) {
                         isn't cut off at the card's right edge. */}
                     {residencyInfoOpen && (
                       <div className="absolute right-0 top-5 z-20 w-60 max-w-[calc(100vw-3rem)] rounded-md border border-ccc-border bg-white shadow-lg p-2.5 text-[11px] font-normal normal-case text-ccc-text leading-snug">
-                        The number of years of residency provided must be supported by a valid proof of residency for the applicant to qualify for a CCC scholarship.
+                        The number of years of residency provided must be supported by a valid proof of residency for the applicant to be admitted to CCC.
                       </div>
                     )}
                   </span>
@@ -1548,7 +1559,7 @@ function SignupPanel({ onSwitch, onCreated }) {
                     onChange={(e) => { setTermsCertified(e.target.checked); if (fieldErrors.terms) setFieldErrors((f) => ({ ...f, terms: undefined })) }}
                     className="mt-0.5 w-4 h-4 accent-ccc-blue shrink-0"
                   />
-                  <span>I certify that the information provided is true and correct, and I consent to its use for scholarship eligibility matching and verification purposes.</span>
+                  <span>I certify that the information provided is true and correct, and I consent to its use for eligibility checking and verification purposes.</span>
                 </label>
                 {fieldErrors.terms && <div className="text-[11px] text-red-600 mb-2">{fieldErrors.terms}</div>}
 

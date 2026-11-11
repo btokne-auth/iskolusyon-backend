@@ -1,4 +1,5 @@
 'use client'
+import { STATUS_DEFINITIONS } from '@/app/lib/statusDefinitions'
 import { Suspense, useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import '../admin-theme.css'
@@ -701,7 +702,7 @@ const APL_STATUS_PILL = {
 // eligibility check, as before. `bucket` is the stat card / tab it counts in.
 const APL_POST_EXAM = {
   passer: { label: 'Qualified as a Student', cls: 'apl-pill-green', bucket: 'qualified' },
-  qualified_probationary: { label: 'Qualified (Probationary)', cls: 'apl-pill-gold', bucket: 'qualified' },
+  qualified_probationary: { label: 'Qualified as a Student (Probationary)', cls: 'apl-pill-gold', bucket: 'qualified' },
   waitlisted_probationary: { label: 'Waitlisted (Probationary)', cls: 'apl-pill-gold', bucket: 'waitlisted' },
   disqualified: { label: 'Disqualified', cls: 'apl-pill-red', bucket: 'not_qualified' },
   forfeited: { label: 'Forfeited', cls: 'apl-pill-red', bucket: 'not_qualified' },
@@ -2441,6 +2442,7 @@ function DashboardPanel({
             </button>
           ))}
         </div>
+        <StatusLegend />
 
         <div className="reviewer-note">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -2549,7 +2551,7 @@ const SCHOLAR_STATUS_META = {
   pending_exam: { label: 'Eligible for Exam', className: 'badge-progress' },
   passer: { label: 'Qualified as a Student', className: 'badge-verified' },
   waitlisted_probationary: { label: 'Waitlisted (Probationary)', className: 'badge-orange' },
-  qualified_probationary: { label: 'Qualified (Probationary)', className: 'badge-orange' },
+  qualified_probationary: { label: 'Qualified as a Student (Probationary)', className: 'badge-orange' },
   disqualified: { label: 'Disqualified', className: 'badge-deficient' },
   forfeited: { label: 'Forfeited', className: 'badge-deficient' },
 }
@@ -2616,7 +2618,7 @@ function ScholarStatusBadge({ status }) {
 // one of them is read alone -- an admin deciding a scholar status wants the
 // score right there, not behind another click.
 const SCHOLAR_STATUS_OVERRIDE_LABELS = {
-  qualified_probationary: 'Qualified (Probationary)',
+  qualified_probationary: 'Qualified as a Student (Probationary)',
   disqualified: 'Disqualified',
   forfeited: 'Forfeited',
 }
@@ -3973,6 +3975,7 @@ function ResultsPanel() {
             </button>
           ))}
         </div>
+        <StatusLegend />
 
         <div className="filter-bar">
           <input
@@ -4079,7 +4082,7 @@ const STAT_ELIGIBILITY = [
 ]
 const STAT_SCHOLAR = [
   { key: 'passer', label: 'Qualified as a Student', color: '#1B6B3A' },
-  { key: 'qualified_probationary', label: 'Qualified (Probationary)', color: '#E07B39' },
+  { key: 'qualified_probationary', label: 'Qualified as a Student (Probationary)', color: '#E07B39' },
   { key: 'waitlisted_probationary', label: 'Waitlisted (Probationary)', color: '#C8A84B' },
   { key: 'disqualified', label: 'Disqualified', color: '#C0392B' },
   { key: 'forfeited', label: 'Forfeited', color: '#5A6B85' },
@@ -5877,6 +5880,23 @@ function CycleToggle({ title, description, on, onChange, children }) {
       </div>
       {children}
     </div>
+  )
+}
+
+// Nov 2026 (panel revisions S8): what each status means, under the tabs.
+function StatusLegend() {
+  return (
+    <details className="status-legend">
+      <summary>What do these statuses mean?</summary>
+      <dl>
+        {STATUS_DEFINITIONS.map((d) => (
+          <div key={d.label} className="status-legend-row">
+            <dt>{d.label}</dt>
+            <dd>{d.meaning}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
   )
 }
 
@@ -7961,7 +7981,7 @@ function ChedForm3Dialog({ onClose }) {
                     <div className="cf-total"><span>Total rows</span><b>{rows.length}</b></div>
                   </div>
                   <span className="ra-hint">
-                    Everyone with a recorded pass or fail exam result, plus Qualified (Probationary) scholars.
+                    Everyone with a recorded pass or fail exam result, plus applicants Qualified as a Student (Probationary).
                     {data?.leftOut ? ` ${data.leftOut} applicant${data.leftOut === 1 ? '' : 's'} marked Absent or with no exam result yet ${data.leftOut === 1 ? 'is' : 'are'} left out.` : ''}
                   </span>
                 </div>

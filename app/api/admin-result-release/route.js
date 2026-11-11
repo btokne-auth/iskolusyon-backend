@@ -24,7 +24,7 @@ import { serverError } from '@/app/lib/safeError'
 const STATUS_LABELS = {
   passer: 'Qualified as a Student',
   waitlisted_probationary: 'Waitlisted (Probationary)',
-  qualified_probationary: 'Qualified (Probationary)',
+  qualified_probationary: 'Qualified as a Student (Probationary)',
   forfeited: 'Forfeited',
   disqualified: 'Disqualified',
 }
