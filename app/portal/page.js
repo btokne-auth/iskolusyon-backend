@@ -817,19 +817,18 @@ function ScreeningResultCard({ screening, onNext }) {
   if (screening.grandfathered || screening.state === 'not_started') {
     if (screening.grandfathered) return null
     return (
-      <div className="card" style={{ borderLeft: '4px solid #003CD0' }}>
+      <div className="card">
         <div className="card-title">Confirm your eligibility</div>
         <p style={{ margin: 0, lineHeight: 1.6 }}>
-          You passed the eligibility check at sign-up. To confirm it, upload your report card (Form 138) and submit this
-          section. Your Personal Information and Family &amp; Financial Information open once your report card passes the
-          system check.
+          You passed the eligibility check at sign-up. {screening.reasons[0]} Your Personal Information and Family &amp;
+          Financial Information open once your grades pass the system check.
         </p>
       </div>
     )
   }
   if (screening.state === 'passed') {
     return (
-      <div className="card" style={{ borderLeft: '4px solid #1B6B3A' }}>
+      <div className="card">
         <div className="card-title">You passed the eligibility screening</div>
         <p style={{ margin: '0 0 12px', lineHeight: 1.6 }}>
           You can now fill in your Personal Information and Family &amp; Financial Information. The Guidance Office still
@@ -841,7 +840,7 @@ function ScreeningResultCard({ screening, onNext }) {
   }
   if (screening.state === 'failed') {
     return (
-      <div className="card" style={{ borderLeft: '4px solid #C0392B' }}>
+      <div className="card">
         <div className="card-title">Not eligible to continue</div>
         <ul style={{ margin: '0 0 10px', paddingLeft: 18, lineHeight: 1.7 }}>
           {screening.reasons.map((r) => <li key={r}>{r}</li>)}
@@ -854,7 +853,7 @@ function ScreeningResultCard({ screening, onNext }) {
     )
   }
   return (
-    <div className="card" style={{ borderLeft: '4px solid #C8A84B' }}>
+    <div className="card">
       <div className="card-title">Eligibility screening: almost done</div>
       <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
         {screening.reasons.map((r) => <li key={r}>{r}</li>)}

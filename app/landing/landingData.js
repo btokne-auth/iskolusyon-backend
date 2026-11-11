@@ -5,36 +5,57 @@
 //    result labels). Step 1 is unchanged.
 //  - Transferee units: 26, as in Appendix J p. 94 and app/lib/matching.js
 //    (the old page said 28, which did not match CCC's guidelines).
+//  - Nov 2026 (panel revisions S3/S4/S2): steps follow the new order:
+//    eligibility check first (Voter's ID, academic questions, First Year
+//    report card), then the account, then the rest of the application.
 // **double asterisks** mark bold words; <Rich> in page.js renders them.
 
 export const STEPS = [
   {
+    "title": "Check Eligibility",
+    "desc": "Upload your Voter’s ID and answer a few academic questions"
+  },
+  {
     "title": "Create Account",
-    "desc": "Confirm you live in Calamba, then sign up with your email"
+    "desc": "Sign up with your email, verify the code, then log in"
   },
   {
-    "title": "Fill Profile",
-    "desc": "Enter your personal, academic, and financial information"
+    "title": "Complete Application",
+    "desc": "Fill in your profile and upload the remaining documents"
   },
   {
-    "title": "Upload Docs",
-    "desc": "Submit required documents securely through the portal"
-  },
-  {
-    "title": "Check Qualification",
-    "desc": "View your scholarship qualification based on submitted documents"
+    "title": "Document Review",
+    "desc": "The Guidance Office confirms your documents and grades"
   },
   {
     "title": "Take Exam",
-    "desc": "Complete the scholarship qualifying exam on schedule"
+    "desc": "Take the entrance exam onsite on your schedule"
   },
   {
     "title": "Result & Medical",
-    "desc": "See your result; passers take a medical exam before enrollment"
+    "desc": "See your result; qualified students take a medical exam before enrollment"
   }
 ]
 
 export const STEP_GUIDES = [
+  {
+    "title": "Check Your Eligibility",
+    "draft": false,
+    "groups": [
+      {
+        "label": "Before your account is created",
+        "items": [
+          "Click **Sign Up** on the navigation bar or homepage. Read the **Data Privacy Consent** and click **I Agree**.",
+          "**Residency:** answer that you live in Calamba City and upload a **Voter’s ID or COMELEC Voter’s Certification** (yours, or your parent’s or guardian’s). It must show the **City of Calamba**. If it is not confirmed, you cannot continue and the file is not kept.",
+          "**Academic standing:** choose how you are applying (**First Year**, **Transferee**, or **Old Curriculum and ALS Completer**) and answer the questions from the CCC Scholar Guidelines.",
+          "**First Year:** upload your latest **Grade 11 or 12 report card (Form 138)**. It is read for any grade below 75; if one is found, sign-up stops.",
+          "**Transferee:** enter your **GWA**, **units passed**, and whether you had a failing grade. You need a GWA of **2.25 or better**, at least **26 units**, and **no failing grade**. You upload your transcript after sign-up.",
+          "**Old Curriculum and ALS Completer:** the Guidance Office checks your proof of grades after you sign up."
+        ]
+      }
+    ],
+    "note": "Refused but think it is a mistake? Visit the GCTCDO, 1st Floor, Admin Building. For transferees, exceptional cases (grades of 5.0, dropped, INC) are decided case by case by the Program Director."
+  },
   {
     "title": "Create Account / Login",
     "draft": false,
@@ -42,11 +63,8 @@ export const STEP_GUIDES = [
       {
         "label": "New to Iskolusyon",
         "items": [
-          "Click the **Sign Up** button on the navigation bar or homepage.",
-          "A **Data Privacy Consent** screen will appear. Read it carefully and click **I Agree** to proceed.",
-          "**Residency check first:** answer that you live in Calamba City and upload a **Voter’s ID or COMELEC Voter’s Certification** (yours, or your parent’s or guardian’s). The system reads it and looks for a Calamba address. If it is not confirmed, you cannot continue and the file is not kept.",
-          "Once confirmed, enter your **email address** and create a secure **password**. Your address and precinct number are filled in from the Voter’s ID; check them.",
-          "Fill in the rest of the registration form with your **personal information**. Ensure all details are accurate, as these will be used for your scholarship application.",
+          "Once your eligibility check passes, enter your **email address** and create a secure **password**.",
+          "Choose your **term** and two **preferred programs**, then fill in your **personal information**. Your address and precinct number are filled in from your Voter’s ID; check them.",
           "Enter the one-time code sent to your email and click **Verify & Create Account**.",
           "You are then asked to **log in** with your new email and password (and another emailed code) before you continue your application."
         ]
@@ -64,59 +82,40 @@ export const STEP_GUIDES = [
     "note": "Make sure to use a valid and accessible email address. Check your spam/junk folder if you don&apos;t receive the code within a few minutes."
   },
   {
-    "title": "Fill Out Your Profile",
+    "title": "Complete Your Application",
     "draft": true,
     "groups": [
       {
         "label": null,
         "items": [
-          "Log in and open **My Profile** from the portal menu.",
-          "Fill in **Personal Information**: your name, date of birth, civil status, contact details and address.",
-          "Fill in **Educational Background**: your school, strand or program, and graduation year.",
-          "Fill in **Family & Financial Information**: your parents or guardian and your household details.",
-          "Each section is saved as you go, so you can come back and finish later.",
-          "Check every entry. The office compares your answers against your documents."
+          "Open **Educational Background** first and fill in your schools. A First Year’s report card from sign-up is already there; transferees upload their **transcript of records or certificate of grades** here.",
+          "Submit Educational Background. **Personal Information** and **Family & Financial Information** open once your grades pass the system check.",
+          "Fill in **Personal Information** (with your PSA birth certificate and 2x2 photo) and **Family & Financial Information**.",
+          "Upload each file in its labeled slot. Accepted files are **PDF, JPG or PNG**, up to **10 MB** each. Each one shows **Processing**, then **System check passed** or **Needs review**; upload a clearer copy with **Change** if needed.",
+          "Each section is saved as you go. When every section is complete, click **Submit your application**."
         ]
       }
     ],
-    "note": "**Health & Wellness** is filled in later, during enrollment, once you pass."
+    "note": "**Health & Wellness** is filled in later, during enrollment. Fake or edited documents are not accepted."
   },
   {
-    "title": "Upload Required Documents",
-    "draft": true,
-    "groups": [
-      {
-        "label": null,
-        "items": [
-          "Prepare the documents for your applicant type: First Year, Transferee, or Old Curriculum and ALS. See **Admission Requirements** below.",
-          "Scan or photograph each one clearly. Accepted files are **PDF, JPG or PNG**, up to **10 MB** each.",
-          "Upload each file in its labeled slot.",
-          "The system reads each document and checks it. Its status shows **Processing**, then **System check passed** or **Needs review**. It becomes **Verified** once the Guidance Office confirms it.",
-          "If a document needs review, upload a clearer copy with **Change**.",
-          "When every section is complete, click **Submit your application**."
-        ]
-      }
-    ],
-    "note": "Fake or edited documents are not accepted. The admissions office checks every submission."
-  },
-  {
-    "title": "Check Your Qualification",
+    "title": "Document Review",
     "draft": true,
     "groups": [
       {
         "label": null,
         "items": [
           "After you submit, your application shows **Awaiting review** while the office checks it.",
-          "Follow each document on **Documents & Status**.",
-          "Once your documents are complete and valid, you receive your official **application number**.",
-          "Qualified applicants are placed in an exam batch. You get an email when your schedule is ready."
+          "The Guidance Office confirms each document, including your report card or transcript. A document becomes **Verified** once they confirm it. Follow it on **Documents & Status**.",
+          "Once your documents are complete and confirmed, you receive your official **application number** and become **eligible for the exam**.",
+          "You are then placed in an exam batch. You get an email when your schedule is ready."
         ]
       }
     ],
     "note": "Schedules go by batch. The first 100 complete submissions form the first batch, and later applicants are scheduled on other days."
   },
   {
-    "title": "Take the Qualifying Exam",
+    "title": "Take the Entrance Exam",
     "draft": true,
     "groups": [
       {
@@ -140,7 +139,7 @@ export const STEP_GUIDES = [
         "items": [
           "Results are announced on this website. Check your **Dashboard** and **Messages**.",
           "Your result shows as **Passed**, **Qualified (Probationary)**, **Waitlisted**, **Not Qualified** or **Forfeited**.",
-          "If you passed, take your **medical exam**. It is required before enrollment; **Messages** tells you when and where.",
+          "If you are qualified as a student, take your **medical exam**. It is required before enrollment; **Messages** tells you when and where.",
           "After the medical exam, proceed with **official enrollment** and bring your **original documents**.",
           "Once enrolled, fill in **Health & Wellness** in the portal and follow your allowance in **Scholar’s Allowance**."
         ]
@@ -216,7 +215,7 @@ export const REQ_TABS = [
       "The applicant will have to complete not less than 50% of the remaining units in his/her program at the college.",
       "The Program Director has the prerogative regarding the admission of transferees with exceptional cases, i.e., the same will be dealt with on a case-to-case basis, grades of 5.0, dropped, and INC."
     ],
-    "note": null
+    "note": "In this portal, transferees also upload their transcript of records or certificate of grades after sign-up, so the Guidance Office can confirm the rules above."
   },
   {
     "label": "Old Curriculum & ALS",
@@ -239,15 +238,19 @@ export const FAQ_DATA = [
           },
           {
             "q": "How do I start my application?",
-            "a": "Applicants must fill out a step-by-step process from this website after account creation and upload scanned copies of their initial documents."
+            "a": "Click Sign Up. You first pass a short eligibility check (your Voter’s ID, a few academic questions, and for First Year applicants, your report card). Only then is your account created, and you continue the rest of the application in the portal."
           },
           {
             "q": "Who is eligible to apply?",
-            "a": "Applicants must be bonafide residents of Calamba and must have a voter’s registration (their own, or a parent’s or guardian’s). This is checked at the very start of sign-up: you upload the Voter’s ID or Voter’s Certification first, and an account is only created if it shows a Calamba address."
+            "a": "Applicants must be bonafide residents of Calamba and must have a voter’s registration (their own, or a parent’s or guardian’s). This is checked at the very start of sign-up: you upload the Voter’s ID or Voter’s Certification first, and an account is only created if it shows a Calamba address and you meet the academic requirements for how you are applying."
           },
           {
             "q": "Are there specific grade requirements?",
-            "a": "There is no minimum grade requirement, but applicants must strictly have no failing grades on their academic record and must pass the entrance exam."
+            "a": "Applicants must have no failing grades and must pass the entrance exam. First Year applicants must have no grade below 75 on their latest report card (Form 138), which is read at sign-up. Transferees need a GWA of 2.25 or better, at least 26 units passed, and no failing grade. Old Curriculum and ALS completers have their proof of grades checked by the Guidance Office."
+          },
+          {
+            "q": "Sign-up said I can’t apply. What now?",
+            "a": "No account was made and your files were not kept. If you think it is a mistake (for example the wrong file, or a blurry photo), try again with a clear copy, or visit the GCTCDO, 1st Floor, Admin Building. For transferees, exceptional cases (grades of 5.0, dropped, INC) are decided case by case by the Program Director."
           },
           {
             "q": "What happens if my submitted requirements are incomplete?",
@@ -339,15 +342,18 @@ export const CONTACT_OFFICES = [
 // the page labels it "Illustration of the portal with sample data."
 export const STORY = {
   email: "juan.delacruz@gmail.com",
-  pills: [["New account", "#E8EEFB", "#003CD0"], ["Profile in progress", "#E8EEFB", "#003CD0"], ["Uploading documents", "#E8EEFB", "#003CD0"], ["Under Review", "#FDF0DC", "#7a4f0c"], ["For Exam", "#EFE8FB", "#5B2BB5"], ["Passed", "#E6F2EA", "#1B6B3A"]],
+  pills: [["Eligibility check", "#E8EEFB", "#003CD0"], ["New account", "#E8EEFB", "#003CD0"], ["Application in progress", "#E8EEFB", "#003CD0"], ["Under Review", "#FDF0DC", "#7a4f0c"], ["For Exam", "#EFE8FB", "#5B2BB5"], ["Qualified", "#E6F2EA", "#1B6B3A"]],
+  // The first step has no email (no account exists yet), so the
+  // notifications start at step 2.
   emails: [
+    null,
     ["Verify your email", "Your Iskolusyon verification code is 482107. It expires in 10 minutes."],
-    ["Profile saved", "Your personal, academic and financial information was saved. Next: upload your documents."],
-    ["Documents received", "We received your 3 documents. The office will check them shortly."],
-    ["Your documents are complete", "Your documents were identified as complete and valid. Your application number is 2027A-0142."],
-    ["Your exam schedule is ready", "Batch 1. Check your portal for the date, time and room of your qualifying exam."],
-    ["Exam results are out", "Congratulations! You passed the scholarship qualifying exam. Log in to see your next steps."],
+    ["Application submitted", "Your profile and documents were received. The Guidance Office will check them shortly."],
+    ["Your documents are confirmed", "Your documents were confirmed by the Guidance Office. Your application number is 2027A-0142."],
+    ["Your exam schedule is ready", "Batch 1. Check your portal for the date, time and room of your entrance exam."],
+    ["Exam results are out", "Congratulations! You are qualified as a student of the City College. Log in to see your next steps."],
   ],
-  profile: [["Full name", "Juan Dela Cruz"], ["Barangay", "Brgy. Real, Calamba City"], ["Senior high school", "Calamba Senior High School"], ["1st choice program", "BS Information Technology"]],
-  docs: ["PSA Birth Certificate", "Voter’s Certification", "Grade 12 Report Card"],
+  eligibility: [["Voter’s Certification", "Calamba City"], ["Applying as", "First Year"], ["Report card (Form 138)", "No grade below 75"]],
+  profile: [["Full name", "Juan Dela Cruz"], ["Barangay", "Brgy. Real, Calamba City"], ["Senior high school", "Calamba Senior High School"], ["PSA Birth Certificate", "Uploaded"]],
+  docs: ["Voter’s Certification", "Grade 12 Report Card", "PSA Birth Certificate"],
 }

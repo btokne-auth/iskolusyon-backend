@@ -70,8 +70,6 @@
 .lp .stage-wrap { position: relative; height: 470px; }
 .lp .mockpos { position: absolute; left: 0; top: 0; right: 70px; }
 .lp .caption { position: absolute; left: 0; bottom: -24px; font-size: 11px; color: var(--muted); display: flex; gap: 10px; align-items: center; }
-.lp .pausebtn { all: unset; cursor: pointer; font-weight: 700; color: var(--blue); }
-.lp .pausebtn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
 /* the portal mock (used in the hero and in How to Apply) */
 .lp .mock { background: #fff; color: var(--text); border-radius: 16px; box-shadow: 0 30px 70px rgba(13,47,110,.18); border: 1px solid var(--line); overflow: hidden; transition: transform .6s cubic-bezier(.2,.7,.2,1); }
@@ -460,4 +458,40 @@
 @media (max-width: 480px) {
   .lp .hero h1 { font-size: 36px; }
   .lp .num { font-size: 44px; }
+}
+
+/* Nov 2026 (Pau's request): on desktop, How to Apply fits one screen, so
+   the steps and the guide can be read without scrolling up and down. */
+@media (min-width: 961px) {
+  .lp .journey-in { padding-top: 32px; padding-bottom: 40px; gap: 24px; }
+  .lp .journey .shead { gap: 8px; }
+  .lp .journey .lead { font-size: 15px; }
+  .lp .rail, .lp .beam { top: 30px; }
+  .lp .sbtn { gap: 10px; }
+  .lp .ring2 { width: 62px; height: 62px; }
+  .lp .ring2 svg.ic { width: 26px; height: 26px; }
+  .lp .ring2 .no { width: 22px; height: 22px; font-size: 10px; top: -5px; right: -5px; }
+  .lp .ring2 .tick svg { width: 26px; height: 26px; }
+  .lp .ring2.now { transform: scale(1.08); box-shadow: 0 0 0 5px rgba(255,212,0,.35), 0 10px 24px rgba(0,0,0,.3); }
+  .lp .scard { padding: 10px 12px; gap: 5px; border-radius: 12px; }
+  .lp .scard.now { transform: translateY(-3px); }
+  .lp .st { font-size: 14px; }
+  .lp .sdsc { font-size: 12px; line-height: 1.45; }
+  .lp .tag { font-size: 9px; padding: 2px 8px; }
+  .lp .gpanel { margin-top: 0; }
+  .lp .gbody { min-height: 0; grid-template-columns: 340px minmax(0,1fr); }
+  .lp .gside { padding: 22px 24px; gap: 8px; }
+  .lp .gbig { font-size: 48px; }
+  .lp .gtitle { font-size: 19px; }
+  .lp .minimock { margin-top: 4px; }
+  .lp .minimock .mock { zoom: .6; }
+  .lp .gmode { display: none; }
+  .lp .gnav { padding-top: 10px; }
+  .lp .gprev, .lp .gnext { height: 38px; }
+  .lp .gprev { width: 38px; }
+  .lp .gmain { padding: 20px 26px 22px; gap: 14px; }
+  .lp .gtl li { font-size: 14px; line-height: 1.55; padding-bottom: 11px; grid-template-columns: 28px minmax(0,1fr); gap: 12px; }
+  .lp .gtl li::before { width: 28px; height: 28px; font-size: 12px; }
+  .lp .gtl li::after { left: 13px; top: 28px; }
+  .lp .gtl li > span { padding-top: 3px; }
 }
