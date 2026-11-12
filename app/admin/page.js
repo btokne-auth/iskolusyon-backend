@@ -1561,6 +1561,26 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
         setDetailLoading(false)
       })
   }
+  // Nov 2026: reload the rules checklist when a document is confirmed or
+  // flagged while the window is open (its status changes with it).
+  const docSignature = docs.map((d) => `${d.file_path}:${d.review_status}:${d.staff_confirmed_at || ''}`).join('|')
+  const lastSignatureRef = useRef(docSignature)
+  useEffect(() => {
+    if (lastSignatureRef.current === docSignature) return
+    lastSignatureRef.current = docSignature
+    if (!modalOpen || !eligibilityRow?.id) return
+    fetch(`/api/admin-applicant-detail?id=${encodeURIComponent(eligibilityRow.id)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success) {
+          setDetail(data.application)
+          setChecklist(data.checklist || null)
+        }
+      })
+      .catch(() => {})
+    onProfileSaved?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docSignature])
   useEffect(() => {
     if (!modalOpen || !eligibilityRow?.id) return
     if (attemptedIdRef.current === eligibilityRow.id) return

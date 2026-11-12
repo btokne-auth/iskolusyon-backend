@@ -47,4 +47,6 @@ export async function refreshEligibilityForUser(applicantUserId) {
   }
 }
 
-export const ELIGIBILITY_DOC_TYPES = ['voterid', 'parentid']
+// Nov 2026 (panel revisions S2, Lock 2): the staff-confirmed report card /
+// transcript also decides Eligible for Exam, so confirming it rechecks too.
+export const ELIGIBILITY_DOC_TYPES = ['voterid', 'parentid', 'form138']
