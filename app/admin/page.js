@@ -919,6 +919,7 @@ const CHECK_STATE = {
   met: { mark: '\u2713', text: 'Met', cls: 'ck-met' },
   not_met: { mark: '\u2715', text: 'Not met', cls: 'ck-no' },
   waiting: { mark: '\u2026', text: 'Waiting', cls: 'ck-wait' },
+  na: { mark: '\u2013', text: 'Not asked', cls: 'ck-wait' },
 }
 
 // Nov 2026 (panel revisions S2): every eligibility rule, its result and its source.

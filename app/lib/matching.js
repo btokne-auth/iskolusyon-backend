@@ -391,10 +391,17 @@ export function adminEligibilityChecklist(row, uploadedTypes) {
     source: r.voterPending ? `Uploaded (${voterWho}); waiting for staff to Confirm.` : r.voter === null ? 'Waiting for Personal Information.' : r.voter ? `Confirmed by staff (${voterWho}).` : 'Not uploaded.',
   })
   if (r.grades.applies || row.applying_as === 'First Year') {
+    // Applicants who submitted before this question existed (Nov 2026) were
+    // never asked it; their grades are covered by the staff-confirmed card.
+    const notAsked = !r.grades.applies && !!row.academic_submitted_at
     items.push({
       key: 'grades', label: 'No failing grade (First Year)', rule: 'No grade below 75 on the latest Senior High report card (Form 138), read at sign-up.',
-      state: r.grades.applies ? st(r.grades.ok) : 'waiting',
-      source: r.grades.applies ? `Applicant answered "${row.shs_failing_grade}"; the report card was read at sign-up.` : 'Waiting for Educational Background.',
+      state: r.grades.applies ? st(r.grades.ok) : notAsked ? 'na' : 'waiting',
+      source: r.grades.applies
+        ? `Applicant answered "${row.shs_failing_grade}"; the report card was read at sign-up.`
+        : notAsked
+          ? 'Applied before this sign-up check existed; covered by the staff-confirmed report card below.'
+          : 'Waiting for Educational Background.',
     })
   }
   if (r.transferee.applies) {
