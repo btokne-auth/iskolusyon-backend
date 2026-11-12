@@ -3,15 +3,18 @@
 A web-based scholarship management system for **City College of Calamba (CCC)**.
 Capstone project `2026IT005`.
 
-Iskolusyon moves CCC's scholarship application process online: applicants create an
-account, fill in their profile, and upload their documents; the system reads the
-documents (OCR), fingerprints them (SHA-256), checks eligibility against CCC's rules,
-and gives admins one place to review applicants, record results and send updates.
+Iskolusyon moves CCC's scholarship application process online. Applicants are screened
+against the CCC Scholar Guidelines at sign-up, before an account exists (Calamba residency
+from a Voter's ID, academic standing and, for First Year applicants, the report card). Those
+who pass get a temporary applicant account with a reference number, fill in their profile and
+upload their documents. The system reads each document (OCR) and checks it against rules,
+fingerprints it (SHA-256), and gives the Guidance Office one place to confirm documents,
+record exam results and send updates.
 
 Live site: [iskolusyon.dev](https://iskolusyon.dev)
 
-> **Still in development.** Some features are still being built, so this README will be
-> updated as the system changes.
+> **Status (Nov 12, 2026):** final defense held Oct 20–23, 2026. The panel's revisions
+> (S1–S8, M1–M5 on the Revision Compliance Form) are built and merged (PRs #51–#59).
 
 ---
 
@@ -19,14 +22,14 @@ Live site: [iskolusyon.dev](https://iskolusyon.dev)
 
 | Module | What it covers |
 | --- | --- |
-| User Account | Sign-up with email verification, login with a one-time code, profile management, password reset |
-| Scholarship Matching & Filtering | Residency and voter checks (the applicant's own Voter's ID, or a parent's/guardian's if not yet a registered voter), qualification evaluation, eligible program listing, conflict detection, document hash matching, an eligibility checklist shown to the applicant |
+| User Account | Eligibility check before sign-up (Voter's ID, academic standing, report card), temporary applicant account with a reference number (`REF-000046`), email verification, a required first sign-in with a one-time code, profile management, password reset |
+| Scholarship Matching & Filtering | Rule-based eligibility screening from the CCC Scholar Guidelines: Calamba residency from a Voter's ID (the applicant's own, or a parent's/guardian's), First Year grade rule (no grade below 75), transferee standing (GWA 2.25 or better, at least 26 units, no failing grade), program grade rules; eligible program listing, conflict detection, document hash matching, an eligibility checklist for the applicant and a rules checklist for staff |
 | Application Information & Process | Step-by-step application, document upload with text detection and upload steps, auto-fill from documents, draft saving, final Submit once the requirements are complete (sections lock after it) |
 | Status of Application & Verification | Document status tracking, re-upload requests, deficiency alerts, upload history inside each upload area; admins see the latest upload of each document first, with older ones folded underneath |
 | Notifications | Email and portal notifications (registration, login codes, submission, exam schedules, results, endorsements), appeals and rescheduling requests |
 | Guest | Scholarship information, announcements, About Us and contact details, FAQ |
-| Admin UI Dashboard | Admin accounts and roles (Super Admin, Admin, Office of the Registrar), applicant search, filters and sorting (including by application number), global activity log, document integrity check, system settings |
-| Applicant Information & Results | Applicant profiles, one-admin-at-a-time review, exam score entry, status updates, result notices, disqualification handling, end-of-cycle archive |
+| Admin UI Dashboard | Roles by function (System Admin, Guidance Head, Guidance Staff, Registrar), applicant search by name, application number or reference number, filters and sorting, status legend, global activity log, document integrity check, cycle settings |
+| Applicant Information & Results | Applicant profiles, one-admin-at-a-time review, staff Confirm for documents ("Confirm all that passed"), exam scores entered by hand or imported/exported as CSV, status updates, result notices, disqualification handling, end-of-cycle archive with a zip download and removal of non-accepted applicants' data |
 | Statistical Data & Reporting | Demographic charts (year level and department), applicant status analytics, allowance distribution (Office of the Registrar), CHED Form 3 PDF export in application-number order, which CCC sends to the LGU |
 
 ## How it's built
@@ -46,10 +49,39 @@ Live site: [iskolusyon.dev](https://iskolusyon.dev)
 2. The app checks the file again (type, size and image quality), stores it in Supabase
    Storage, computes its own SHA-256 hash and compares it with the browser's, and marks
    the document **Processing**.
-3. The app wakes the OCR worker, which reads the document, saves the detected text and
-   its confidence, and marks the document **Verified** or **Needs review**.
-4. For a Birth Certificate or Voter's ID, the fields it recognizes (name, birth date,
+3. The app wakes the OCR worker, which reads the document and saves the detected text.
+4. A rule check (`app/lib/documentContentCheck.js`) looks for the words expected on that
+   document type, the City of Calamba with no other city named (Voter's ID), the
+   applicant's last name, and any grade below 75 (report card). A document that meets
+   every check is **System check passed**; otherwise it is **Needs review**. The decision
+   is a rule, not an OCR confidence score.
+5. A document is **Verified by staff** only after the Guidance Office confirms it. An
+   applicant becomes Eligible for Exam only after the report card or transcript is confirmed.
+6. For a Birth Certificate or Voter's ID, the fields it recognizes (name, birth date,
    address, precinct and so on) fill in any empty inputs on the applicant's form.
+
+At sign-up the same check runs before any account exists. A file that fails (another city,
+a grade below 75, not a voter record) is deleted right away; only an anonymous count goes
+to the Activity Log.
+
+### Roles
+
+| Role | Can | Cannot |
+| --- | --- | --- |
+| System Admin | Admin accounts, Activity Log, system settings | Open applicant records |
+| Guidance Head | Open/close applications, release results, archive cycles, remove non-accepted data, review applicants | Manage admin accounts |
+| Guidance Staff | Review applicants, confirm or flag documents, record exam results | Open/close applications, release results, archive |
+| Registrar | Post allowance releases | Open applicant records |
+
+The server enforces these, not only the menu.
+
+### Data retention
+
+Applicant accounts are temporary. At the end of a cycle the Guidance Head archives it
+(optionally downloading a zip of the applicant and document lists), then can remove the
+data of applicants who were not accepted, including their files and accounts (typed
+`REMOVE <cycle>` plus the password). Passers and Qualified Probationary students are kept
+(`app/lib/dataRetention.js`).
 
 ## Cybersecurity principles
 
@@ -63,7 +95,7 @@ To mark an item done, change its ⬜ to ✅.
 
 - ✅ Email-verified registration (a code is sent to the applicant's email at sign-up)
 - ✅ Multi-factor login for applicants: password, then a one-time code by email (expires, limited attempts)
-- ✅ Multi-factor login for every console account (Super Admin, Admin, Registrar): password, then a 6-digit code by email (10-minute expiry, one use, 5 tries)
+- ✅ Multi-factor login for every console account (System Admin, Guidance Head, Guidance Staff, Registrar): password, then a 6-digit code by email (10-minute expiry, one use, 5 tries)
 - ✅ HTTPS/TLS for all traffic (served by Vercel over HTTPS)
 - ✅ Encryption at rest: contact numbers, parents' employment, Medical Status and the special classification answers (LGBTQI+, disability, solo parent, Indigenous Peoples, underprivileged sector) are encrypted by the app (AES-256-GCM) before saving, on top of Supabase's own disk encryption
 
@@ -82,7 +114,7 @@ To mark an item done, change its ⬜ to ✅.
 
 ### Least privilege
 
-- ✅ Separate roles: applicant, Admin, Super Admin, Office of the Registrar (the LGU view-only login was removed on Oct 15, 2026 at the client's request; CCC sends the CHED Form 3 file to the LGU itself)
+- ✅ Separate roles by function: applicant, System Admin, Guidance Head, Guidance Staff, Registrar (Nov 9, 2026; the System Admin cannot open applicant records). The LGU view-only login was removed on Oct 15, 2026 at the client's request; CCC sends the CHED Form 3 file to the LGU itself
 - ✅ The server refuses every action outside a role (not only hidden buttons)
 - ✅ Applicants can only see and change their own application
 - ✅ Submitted profile sections are locked; corrections go through the Guidance Office
@@ -91,7 +123,7 @@ To mark an item done, change its ⬜ to ✅.
 
 - ✅ Signed session cookies (httpOnly, secure in production, SameSite=Lax)
 - ✅ Sessions expire on the server (admins after 8 hours, applicants after 12 hours)
-- ✅ Sign-out after inactivity (admins 30 minutes, applicants 60 minutes), with a warning one minute before
+- ✅ Sign-out after inactivity (admins 30 minutes, applicants 60 minutes), with a warning two minutes before
 
 ### Cross-site request forgery (CSRF)
 
@@ -99,7 +131,7 @@ To mark an item done, change its ⬜ to ✅.
 
 ### Audit logging
 
-- ✅ Activity log of admin actions, sign-ins (including failed ones) and document processing, visible to Super Admins
+- ✅ Activity log of admin actions, sign-ins (including failed ones) and document processing, visible to the System Admin
 - ✅ Admin edits to applicant data are logged with the old and new values
 - ✅ Applicant actions are logged too: account created, sign-ins and failed sign-ins, lockouts, password resets, submissions and requests (Oct 12, 2026)
 
@@ -117,14 +149,15 @@ From the manuscript's Chapter 3 test plan. ✅ = done, ⬜ = not done yet. Most 
 tests are planned for one dedicated testing phase; results go into Chapter 4.
 
 
-**Progress (Oct 15, 2026):**
+**Progress (Nov 12, 2026):**
 
 | Testing area | Done |
 |---|---|
 | Security testing (OWASP Web Security Testing Guide) | 11 of 11 |
 | Compatibility testing | 3 of 5 |
-| Functional testing | 1 of 2 |
-| User acceptance testing | 0 of 1 |
+| Functional testing | 2 of 2 |
+| OCR accuracy testing | 1 of 1 |
+| User acceptance testing | 1 of 1 |
 
 ### Security testing (OWASP Web Security Testing Guide)
 
@@ -157,16 +190,31 @@ the LGU login removal).
 ### Functional testing
 
 - ✅ Each feature checked by hand on its Vercel Preview before merging (during development)
-- ⬜ Full run across the five functional areas: account management, document submission, qualification matching, notifications, admin dashboard
+- ✅ Scenario-based test cases on the deployed site (Nov 2026): Calamba and non-Calamba applicants, passing and failing grades, clear and unclear documents, complete and incomplete applications, First Year and transferee. Testing is done by hand in real browsers on the Vercel Preview and iskolusyon.dev; no emulator is used
+
+### OCR accuracy testing
+
+- ✅ 275 images (25 sample documents × 11 photo conditions), Nov 10, 2026: 89.5% agreement, **0 of 165** other-city or non-voter documents wrongly accepted, 29 of 110 Calamba documents flagged for review (all from side shadow, very blurry or very low resolution photos). Details in [docs/ocr-testing/accuracy-2026-11](docs/ocr-testing/accuracy-2026-11/README.md)
 
 ### User acceptance testing
 
-- ⬜ With applicant respondents and the Head Administrator (ISO/IEC 25010 and the four-point usability survey)
+- ✅ With applicant respondents and the Head Administrator (ISO/IEC 25010 and the four-point usability survey), on the flow before eligibility screening moved to sign-up. A repeat with the new flow is recommended
 
 ## Recent changes
 
 | PR | What changed |
 | --- | --- |
+| #59 | Panel revision polish: wording (no early "scholar", "Qualified as a Student (Probationary)"), status legend, role duties in the sidebar, stricter form checks, rules checklist and "what the system checked" for staff, Confirm all that passed, archive zip download, homepage "From applicant to scholar" |
+| #58 | Reference number (`REF-000046`) on sign-up, in the portal and in admin search |
+| #57 | Data retention: archived cycles, removal of non-accepted applicants' data |
+| #56 | Homepage: new six-step guide with eligibility first, FAQ updates |
+| #55 | Two-stage application: academic screening and report card check at sign-up, transferee rules, staff Confirm before Eligible for Exam, cycle settings for the Guidance Head |
+| #54 | Residency check requires the City of Calamba (OCR accuracy test), street and precinct read from sentence-style certificates, age from date of birth, Applicant Results and Statistics count like the Dashboard |
+| #53 | Admin roles by function: System Admin, Guidance Head, Guidance Staff, Registrar |
+| #51, #52 | Voter's ID checked before an account is created; Calamba residents-only notice on the homepage |
+| #50 | Final Submit waits until the required documents are verified |
+| #46–#49 | Input validation, stricter OCR auto-verify, profile photo check, birthdate rules, College Yes/No, the real reason a document needs review |
+| #44, #45 | Registrar interview changes (read confirmations, "Sex at birth"), Dashboard step counter |
 | #43 | From the client's Oct 15, 2026 interview: one Voter's ID requirement (the applicant's own, or a parent's/guardian's), the 2nd priority program can't repeat the 1st, sibling list moved under Number of Siblings and Proof of Income under Applicant's Employment, application-number order in CHED Form 3 and the Dashboard, "Not yet submitted" in Statistics, LGU login removed, latest upload shown first to admins |
 | #42 | Link preview image and description for iskolusyon.dev |
 | #41 | UI polish from the Suggestions Log (top bar, footer, code boxes, admin panels); removed the unused "Keep me signed in" option |
@@ -204,17 +252,17 @@ Vercel). Ask the developer for the values. Never commit this file. Losing
 Table changes are in `docs/migrations/`, one SQL file per change, named by date. Run them
 in order in Supabase's SQL editor.
 
-The first Super Admin account can be created with:
+The first System Admin account can be created with:
 
 ```bash
 node scripts/seed-admin-account.mjs "Full Name" admin@example.com "password"
 ```
 
-After that, Super Admins add other admins from the Admin Accounts page.
+After that, the System Admin adds the other console accounts from the Admin Accounts page.
 
 ## Credits
 
 | Name | Contribution |
 | --- | --- |
-| **Pauline Xavier Estira** | Full-stack development of the whole system: all 9 modules, system architecture, backend and database, OCR worker, security features, UI/UX redesign of the applicant portal and admin console, phone and tablet support, deployment and testing |
+| **Pauline Xavier Estira** | Full-stack development of the whole system: all 9 modules, the panel revisions, system architecture, backend and database, OCR worker, security features, UI/UX redesign of the applicant portal and admin console, phone and tablet support, deployment and testing |
 | **Ivy Shine Villarin** | Initial UI mockups (an HTML prototype used as an early design reference; the final interface was redesigned during development) |
