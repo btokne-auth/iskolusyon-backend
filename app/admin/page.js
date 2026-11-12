@@ -1,4 +1,7 @@
 'use client'
+import { STATUS_DEFINITIONS } from '@/app/lib/statusDefinitions'
+import { contentFindings } from '@/app/lib/documentContentCheck'
+import { examReasonLine } from '@/app/lib/matching'
 import { Suspense, useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import '../admin-theme.css'
@@ -537,6 +540,48 @@ function groupUploadsByType(docs) {
   return [...groups.values()]
 }
 
+// Nov 2026 (panel revisions S2): the system check sorts documents so staff
+// confirm the clean ones in one step and look closely only at flagged ones.
+function ConfirmPassedBar({ docs, onOverride, overriding }) {
+  const current = groupUploadsByType(docs).map((g) => g[0])
+  const passed = current.filter((d) => docState(d) === 'checked')
+  const flagged = current.filter((d) => docState(d) === 'flagged').length
+  if (!passed.length && !flagged) return null
+  const busy = overriding === '__all__'
+  return (
+    <div className="confirm-passed">
+      <div className="cp-text">
+        <b>{passed.length}</b> passed the system check and wait for your confirmation
+        {flagged > 0 && <> &middot; <b className="cp-flag">{flagged}</b> flagged: open and check {flagged === 1 ? 'it' : 'them'} one by one</>}
+      </div>
+      {passed.length > 0 && (
+        <button type="button" className="cm-btn cm-btn-primary" disabled={busy} onClick={() => onOverride(passed, 'verify')}>
+          {busy ? 'Confirming...' : `Confirm all that passed (${passed.length})`}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Nov 2026 (panel revisions S2): what the system checked on this document.
+function DocFindings({ doc }) {
+  if (doc.review_status === 'processing') return null
+  const findings = contentFindings({ documentType: doc.document_type, extractedText: doc.extracted_text, applicantName: doc.applicant_name })
+  if (!findings.length) return null
+  return (
+    <div className="space-y-1">
+      <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">What the system checked</span>
+      <ul className="doc-findings">
+        {findings.map((f) => (
+          <li key={f.label} className={f.ok ? 'ok' : 'no'}>
+            <span aria-hidden="true">{f.ok ? '\u2713' : '\u2715'}</span> {f.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
   const [previewing, setPreviewing] = useState(false)
   const image = isImageFile(doc.file_path)
@@ -606,6 +651,8 @@ function DocumentReviewCard({ doc, onOverride, overriding, integrity }) {
               <span className="font-bold">Flagged by content check:</span> {doc.content_issue}
             </p>
           )}
+
+          <DocFindings doc={doc} />
 
           <div className="space-y-1">
             <span className="text-[10px] text-ccc-muted font-bold uppercase tracking-widest block">
@@ -701,7 +748,7 @@ const APL_STATUS_PILL = {
 // eligibility check, as before. `bucket` is the stat card / tab it counts in.
 const APL_POST_EXAM = {
   passer: { label: 'Qualified as a Student', cls: 'apl-pill-green', bucket: 'qualified' },
-  qualified_probationary: { label: 'Qualified (Probationary)', cls: 'apl-pill-gold', bucket: 'qualified' },
+  qualified_probationary: { label: 'Qualified as a Student (Probationary)', cls: 'apl-pill-gold', bucket: 'qualified' },
   waitlisted_probationary: { label: 'Waitlisted (Probationary)', cls: 'apl-pill-gold', bucket: 'waitlisted' },
   disqualified: { label: 'Disqualified', cls: 'apl-pill-red', bucket: 'not_qualified' },
   forfeited: { label: 'Forfeited', cls: 'apl-pill-red', bucket: 'not_qualified' },
@@ -868,7 +915,42 @@ const STATUS_OPTIONS = [
 // buttons. `row` is one entry from GET /api/admin-eligibility (or undefined
 // if this applicant has no `applications` row yet — e.g. documents were
 // uploaded before any profile section was ever saved).
-function EligibilitySection({ row, onOverride, overriding }) {
+const CHECK_STATE = {
+  met: { mark: '\u2713', text: 'Met', cls: 'ck-met' },
+  not_met: { mark: '\u2715', text: 'Not met', cls: 'ck-no' },
+  waiting: { mark: '\u2026', text: 'Waiting', cls: 'ck-wait' },
+  na: { mark: '\u2013', text: 'Not asked', cls: 'ck-wait' },
+}
+
+// Nov 2026 (panel revisions S2): every eligibility rule, its result and its source.
+function RulesChecklist({ checklist }) {
+  if (!checklist?.items?.length) return null
+  return (
+    <div className="rules-check">
+      <div className="rules-check-title">Eligibility rules checked</div>
+      <ul>
+        {checklist.items.map((it) => {
+          const s = CHECK_STATE[it.state] || CHECK_STATE.waiting
+          return (
+            <li key={it.key} className={s.cls}>
+              <span className="ck-mark" aria-hidden="true">{s.mark}</span>
+              <span className="ck-body">
+                <span className="ck-head">
+                  <b>{it.label}</b>
+                  <span className="ck-state">{s.text}</span>
+                </span>
+                <span className="ck-rule">Rule: {it.rule}</span>
+                <span className="ck-source">{it.source}</span>
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+function EligibilitySection({ row, onOverride, overriding, checklist }) {
   if (!row) {
     return (
       <div className="rounded-xl border border-ccc-border bg-ccc-off px-4 py-3 text-xs text-ccc-muted">
@@ -917,6 +999,12 @@ function EligibilitySection({ row, onOverride, overriding }) {
           </button>
         ))}
       </div>
+      {examReasonLine(row) && (
+        <div className="mt-3 rounded-md border border-ccc-border bg-ccc-off px-3 py-2">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-ccc-navy mb-1">Exam result</div>
+          <p className="text-[13px] text-ccc-text leading-relaxed m-0">{examReasonLine(row)}</p>
+        </div>
+      )}
       {/* Nov 2026: bigger and boxed, so the reasons behind a status aren't overlooked. */}
       {reasons.length > 0 && (
         <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
@@ -928,6 +1016,7 @@ function EligibilitySection({ row, onOverride, overriding }) {
           </ul>
         </div>
       )}
+      <RulesChecklist checklist={checklist} />
     </div>
   )
 }
@@ -1414,6 +1503,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
   const { modalOpen, openModal, closeModal, blockedMsg, setBlockedMsg, opening } = useLockedModal(eligibilityRow?.id)
   const lockedByOther = !!lockInfo && !lockInfo.mine && !modalOpen
   const [detail, setDetail] = useState(null)
+  const [checklist, setChecklist] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
   // Oct 5 2026: skeletons in the General Information fields until the
@@ -1462,6 +1552,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
           throw new Error(data?.error || `Could not load applicant profile (HTTP ${res.status}).`)
         }
         setDetail(data.application)
+        setChecklist(data.checklist || null)
       })
       .catch((err) => {
         setDetailError(err?.message || 'Could not load applicant profile.')
@@ -1470,6 +1561,26 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
         setDetailLoading(false)
       })
   }
+  // Nov 2026: reload the rules checklist when a document is confirmed or
+  // flagged while the window is open (its status changes with it).
+  const docSignature = docs.map((d) => `${d.file_path}:${d.review_status}:${d.staff_confirmed_at || ''}`).join('|')
+  const lastSignatureRef = useRef(docSignature)
+  useEffect(() => {
+    if (lastSignatureRef.current === docSignature) return
+    lastSignatureRef.current = docSignature
+    if (!modalOpen || !eligibilityRow?.id) return
+    fetch(`/api/admin-applicant-detail?id=${encodeURIComponent(eligibilityRow.id)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success) {
+          setDetail(data.application)
+          setChecklist(data.checklist || null)
+        }
+      })
+      .catch(() => {})
+    onProfileSaved?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docSignature])
   useEffect(() => {
     if (!modalOpen || !eligibilityRow?.id) return
     if (attemptedIdRef.current === eligibilityRow.id) return
@@ -1743,7 +1854,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
               </div>
 
               <hr className="modal-divider" style={{ margin: '0 0 4px' }} />
-              <EligibilitySection row={eligibilityRow} onOverride={onEligibilityOverride} overriding={eligibilityOverriding} />
+              <EligibilitySection row={eligibilityRow} onOverride={onEligibilityOverride} overriding={eligibilityOverriding} checklist={checklist} />
 
               {/* Submitted Documents & Profile Data -- Ivy's mockup's 4
                   tabbed categories (CATEGORY_DEFS), remapped onto this app's
@@ -1754,6 +1865,7 @@ function ApplicantGroup({ name, email, docs, onOverride, overriding, eligibility
                   controls rather than a read-only copy of them. */}
               <div>
                 <div className="modal-section-label" id={`docCats-${eligibilityRow?.id}`}>Submitted Documents &amp; Profile Data</div>
+                <ConfirmPassedBar docs={docs} onOverride={onOverride} overriding={overriding} />
                 <div className="doc-cat-tabs">
                   {PROFILE_CATEGORIES.map((cat) => {
                     const visibleStacks = cat.stacks.filter((s) => !s.showIf || s.showIf(detail))
@@ -2441,6 +2553,7 @@ function DashboardPanel({
             </button>
           ))}
         </div>
+        <StatusLegend />
 
         <div className="reviewer-note">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -2549,7 +2662,7 @@ const SCHOLAR_STATUS_META = {
   pending_exam: { label: 'Eligible for Exam', className: 'badge-progress' },
   passer: { label: 'Qualified as a Student', className: 'badge-verified' },
   waitlisted_probationary: { label: 'Waitlisted (Probationary)', className: 'badge-orange' },
-  qualified_probationary: { label: 'Qualified (Probationary)', className: 'badge-orange' },
+  qualified_probationary: { label: 'Qualified as a Student (Probationary)', className: 'badge-orange' },
   disqualified: { label: 'Disqualified', className: 'badge-deficient' },
   forfeited: { label: 'Forfeited', className: 'badge-deficient' },
 }
@@ -2616,7 +2729,7 @@ function ScholarStatusBadge({ status }) {
 // one of them is read alone -- an admin deciding a scholar status wants the
 // score right there, not behind another click.
 const SCHOLAR_STATUS_OVERRIDE_LABELS = {
-  qualified_probationary: 'Qualified (Probationary)',
+  qualified_probationary: 'Qualified as a Student (Probationary)',
   disqualified: 'Disqualified',
   forfeited: 'Forfeited',
 }
@@ -3973,6 +4086,7 @@ function ResultsPanel() {
             </button>
           ))}
         </div>
+        <StatusLegend />
 
         <div className="filter-bar">
           <input
@@ -4079,7 +4193,7 @@ const STAT_ELIGIBILITY = [
 ]
 const STAT_SCHOLAR = [
   { key: 'passer', label: 'Qualified as a Student', color: '#1B6B3A' },
-  { key: 'qualified_probationary', label: 'Qualified (Probationary)', color: '#E07B39' },
+  { key: 'qualified_probationary', label: 'Qualified as a Student (Probationary)', color: '#E07B39' },
   { key: 'waitlisted_probationary', label: 'Waitlisted (Probationary)', color: '#C8A84B' },
   { key: 'disqualified', label: 'Disqualified', color: '#C0392B' },
   { key: 'forfeited', label: 'Forfeited', color: '#5A6B85' },
@@ -5880,6 +5994,23 @@ function CycleToggle({ title, description, on, onChange, children }) {
   )
 }
 
+// Nov 2026 (panel revisions S8): what each status means, under the tabs.
+function StatusLegend() {
+  return (
+    <details className="status-legend">
+      <summary>What do these statuses mean?</summary>
+      <dl>
+        {STATUS_DEFINITIONS.map((d) => (
+          <div key={d.label} className="status-legend-row">
+            <dt>{d.label}</dt>
+            <dd>{d.meaning}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  )
+}
+
 // Oct 1 2026 redesign (Pau's request): the log now updates by itself (every
 // 15 seconds, right after any admin action's pop-up, and when the tab comes
 // back into focus), with a Refresh button and an "Updated ..." line. The
@@ -6259,6 +6390,9 @@ function ArchiveCycleCard() {
                     </td>
                     <td className="r">
                       <button type="button" className="aa-act" onClick={() => openList(c.cycle)}>View list</button>
+                      <a className="aa-act ac-zip" href={`/api/archive-cycle?cycle=${encodeURIComponent(c.cycle)}&download=zip`} download>
+                        Download archive (zip)
+                      </a>
                       {c.removable > 0 ? (
                         <button
                           type="button"
@@ -7961,7 +8095,7 @@ function ChedForm3Dialog({ onClose }) {
                     <div className="cf-total"><span>Total rows</span><b>{rows.length}</b></div>
                   </div>
                   <span className="ra-hint">
-                    Everyone with a recorded pass or fail exam result, plus Qualified (Probationary) scholars.
+                    Everyone with a recorded pass or fail exam result, plus applicants Qualified as a Student (Probationary).
                     {data?.leftOut ? ` ${data.leftOut} applicant${data.leftOut === 1 ? '' : 's'} marked Absent or with no exam result yet ${data.leftOut === 1 ? 'is' : 'are'} left out.` : ''}
                   </span>
                 </div>
@@ -8326,6 +8460,34 @@ function AdminPageInner() {
   }
 
   const handleOverride = async (doc, action) => {
+    // Nov 2026 (panel revisions S2): "Confirm all that passed the system
+    // check" sends a list; each document is still confirmed (and logged) one
+    // by one, and flagged documents are never in the list.
+    if (Array.isArray(doc)) {
+      const list = doc.filter((d) => d.file_path && docState(d) === 'checked')
+      if (!list.length) return
+      setOverriding('__all__')
+      setOverrideError('')
+      let done = 0
+      try {
+        for (const d of list) {
+          const res = await fetch(`/api/documents/${encodeURIComponent(d.file_path)}/override`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'verify', note: 'confirmed with "Confirm all that passed the system check"' }),
+          })
+          if (res.ok) done += 1
+        }
+        await fetchDocs()
+        showAdminNotice(`${done} document${done === 1 ? '' : 's'} that passed the system check ${done === 1 ? 'was' : 'were'} confirmed.`)
+        if (done < list.length) setOverrideError(`${list.length - done} document(s) could not be confirmed. Try them one by one.`)
+      } catch (err) {
+        setOverrideError(isNetworkError(err) ? 'No connection right now. Try again once you\u2019re back online.' : err.message)
+      } finally {
+        setOverriding(null)
+      }
+      return
+    }
     if (!doc.file_path) return
     setOverriding(doc.file_path)
     setOverrideError('')

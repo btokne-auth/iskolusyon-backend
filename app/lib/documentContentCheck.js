@@ -169,3 +169,30 @@ export function isCollegeGradeRecord(extractedText) {
   const college = ['transcript of records', 'certificate of grades', 'units', 'weighted average', 'gwa', 'college', 'university', 'semester']
   return hasAny(text, college) && !hasAny(text, shs)
 }
+
+// Nov 2026 (panel revisions S2): the same checks as checkDocumentContent(),
+// listed one by one so staff (and the panel) can see what the system looked
+// for and found. The pass/flag decision is a rule, not a confidence score.
+// Returns [{ label, ok }] or [] for types with no content rule.
+export function contentFindings({ documentType, extractedText, applicantName }) {
+  const rule = RULES[documentType]
+  if (!rule || !extractedText) return []
+  const text = normalize(extractedText)
+  const out = [{ label: 'Enough readable text', ok: text.length >= 20 }]
+  out.push({ label: `Words expected on a ${rule.label}`, ok: hasAny(text, rule.mustHave) })
+  if (rule.mustNotHave) out.push({ label: 'Not a marriage or death certificate', ok: !hasAny(text, rule.mustNotHave) })
+  if (rule.needsCalamba) {
+    const other = OTHER_PLACES.find((p) => new RegExp(`\\b(city of|municipality of) ${p}\\b|\\b${p} (city|laguna)\\b`).test(text))
+    out.push({ label: 'Shows the City of Calamba', ok: /\b(city of calamba|calamba city|calamba laguna)\b/.test(text) })
+    out.push({ label: other ? `Names another city (${other.replace(/\b\w/g, (c) => c.toUpperCase())})` : 'No other city named', ok: !other })
+  }
+  if (rule.nameCheck) {
+    const last = lastNameOf(applicantName)
+    if (last.length >= 2) out.push({ label: `Applicant's last name (${last.toUpperCase()}) found`, ok: ` ${text} `.includes(` ${last} `) })
+  }
+  if (rule.failingGradeCheck) {
+    const low = failingGradesOn(extractedText)
+    out.push({ label: low.length ? `Grade below 75 found (${low.slice(0, 2).join(', ')})` : 'No grade below 75 found', ok: !low.length })
+  }
+  return out
+}

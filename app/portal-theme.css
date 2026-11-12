@@ -533,3 +533,10 @@
 .applicant-portal .ack-box .ack-error{font-size:12px;font-weight:600;color:var(--ccc-red,#C0392B);margin:0}
 .applicant-portal .ack-box .confirm-actions{justify-content:flex-end}
 .applicant-portal .pmsg-ack{margin-top:8px;font-size:11.5px;font-weight:600;color:#1B6B3A}
+
+/* Nov 2026 (panel revisions S8): status meanings on the applicant dashboard */
+.applicant-portal .status-legend-portal { margin-top: 16px; border-top: 1px solid #e5e9f0; padding-top: 12px; }
+.applicant-portal .status-legend-portal > summary { cursor: pointer; font-size: 13px; font-weight: 700; color: #0d2f6e; }
+.applicant-portal .status-legend-portal dl { margin: 10px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 22px; }
+.applicant-portal .status-legend-portal dt { font-size: 13px; font-weight: 700; color: #0d2f6e; }
+.applicant-portal .status-legend-portal dd { margin: 2px 0 0; font-size: 12.5px; line-height: 1.5; color: #5b6577; }

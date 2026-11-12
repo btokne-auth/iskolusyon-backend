@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/app/supabaseClient'
 import { ADMIN_COOKIE_NAME, verifyAdminCookieValue } from '@/app/lib/adminAuth'
 import { EDITABLE_FIELDS, PRIVATE_LOG_FIELDS, cleanValue } from '@/app/lib/profileEditRules'
-import { computeEligibility, documentTypeTokens } from '@/app/lib/matching'
+import { computeEligibility, documentTypeTokens, adminEligibilityChecklist } from '@/app/lib/matching'
 import { checkLock } from '@/app/lib/applicantLocks'
 import { serverError } from '@/app/lib/safeError'
 import { encryptApplicationFields, decryptApplicationFields, ENCRYPTED_FIELDS } from '@/app/lib/fieldCrypto'
@@ -41,7 +41,20 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Applicant not found.' }, { status: 404 })
     }
 
-    return NextResponse.json({ success: true, application: decryptApplicationFields(data) })
+    // Nov 2026 (panel revisions S2): the rules checklist for this applicant.
+    const types = new Set()
+    const addDocTypes = async (builder) => {
+      const { data: docs } = await builder
+      for (const d of docs || []) for (const t of documentTypeTokens(d)) types.add(t)
+    }
+    if (data.applicant_user_id) {
+      await addDocTypes(supabase.from('documents').select('document_type, needs_review, review_status, staff_confirmed_at').eq('applicant_user_id', data.applicant_user_id))
+    }
+    if (data.applicant_email) {
+      await addDocTypes(supabase.from('documents').select('document_type, needs_review, review_status, staff_confirmed_at').is('applicant_user_id', null).ilike('applicant_email', data.applicant_email))
+    }
+    const application = decryptApplicationFields(data)
+    return NextResponse.json({ success: true, application, checklist: adminEligibilityChecklist(application, types) })
   } catch (err) {
     return serverError(err, 'api/admin-applicant-detail')
   }

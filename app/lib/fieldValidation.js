@@ -199,6 +199,20 @@ function nameError(value, label, { required = false } = {}) {
   return null
 }
 
+// Nov 2026 (panel revisions S6): free-text answers like Honors / Awards may
+// have a few numbers ("Top 10", "1st place") but not mashed keys or long
+// runs of the same character or of digits.
+function looksLikeJunk(v) {
+  const s = str(v)
+  const compact = s.replace(/\s+/g, '')
+  if (!compact) return false
+  if (/(.)\1{3,}/.test(compact)) return true
+  if (/\d{5,}/.test(compact)) return true
+  const digits = (compact.match(/\d/g) || []).length
+  const letters = (compact.match(/[a-zà-öø-ÿ]/gi) || []).length
+  return letters < 3 || digits > letters
+}
+
 function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
@@ -329,8 +343,10 @@ export function validatePersonalInfo(pi, { signup = false } = {}) {
 }
 
 // ---------- Educational Background ----------
-export function validateAcademicInfo(ai) {
+export function validateAcademicInfo(ai, { dateOfBirth } = {}) {
   const a = ai && typeof ai === 'object' ? ai : {}
+  // Nov 2026 (panel revisions S6): years that make sense for this person.
+  const birthYear = parseDate(dateOfBirth)?.y || null
   const edu = a.edu && typeof a.edu === 'object' ? a.edu : {}
   const errors = []
   const levels = [
@@ -343,11 +359,15 @@ export function validateAcademicInfo(ai) {
     const lvl = edu[key] || {}
     push(errors, `${key}.school`, placeError(lvl.school, `${label} school name`))
     push(errors, `${key}.address`, placeError(lvl.address, `${label} school address`, { max: 200 }))
+    const honors = str(lvl.honors)
+    if (honors && (honors.length > 100 || looksLikeGibberish(honors) || looksLikeJunk(honors))) push(errors, `${key}.honors`, `Please check the ${label} honors / awards (a short, real entry, or N/A).`)
     const ye = yearError(lvl.year, `${label} completion year`)
     push(errors, `${key}.year`, ye)
     if (!ye && str(lvl.year)) {
       const y = Number(str(lvl.year))
       if (y < lastYear) push(errors, `${key}.year`, `The ${label} completion year should not be earlier than the level before it.`)
+      else if (birthYear && key === 'prim' && y < birthYear + 10) push(errors, `${key}.year`, `The elementary completion year looks too early for your date of birth (${birthYear}).`)
+      else if (birthYear && y < birthYear + 10) push(errors, `${key}.year`, `The ${label} completion year looks too early for your date of birth (${birthYear}).`)
       lastYear = Math.max(lastYear, y)
     }
   }
@@ -367,21 +387,28 @@ export function validateAcademicInfo(ai) {
     push(errors, 'transfereeGwa', 'GWA must be between 1.00 and 5.00 (e.g. 1.75).')
   }
   const units = str(a.transfereeUnitsPassed)
-  if (units && (!/^\d{1,3}$/.test(units) || Number(units) > 300)) {
-    push(errors, 'transfereeUnitsPassed', 'Units passed must be a whole number from 0 to 300.')
+  if (units && (!/^\d{1,3}$/.test(units) || Number(units) > 250)) {
+    push(errors, 'transfereeUnitsPassed', 'Units passed must be a whole number from 0 to 250.')
   }
   return errors
 }
 
 // ---------- Family & Financial Information ----------
-export function validateFamilyInfo(fi) {
+export function validateFamilyInfo(fi, { dateOfBirth } = {}) {
   const f = fi && typeof fi === 'object' ? fi : {}
   const errors = []
+  // Nov 2026 (panel revisions S6): a parent is older than the applicant.
+  const applicantBirth = parseDate(dateOfBirth)
   for (const [key, label] of [['mother', "mother's"], ['father', "father's"], ['guardian', "guardian's"]]) {
     push(errors, `${key}Name`, nameError(f[`${key}Name`], `your ${label} name`))
     push(errors, `${key}Contact`, mobileError(f[`${key}Contact`], `${label} contact number`))
     push(errors, `${key}Citizenship`, wordsError(f[`${key}Citizenship`], `${label} citizenship`, { max: 40 }))
-    push(errors, `${key}Dob`, birthdateError(f[`${key}Dob`], { minAge: 15, maxAge: 110, who: `your ${label}` }))
+    const dobProblem = birthdateError(f[`${key}Dob`], { minAge: 15, maxAge: 110, who: `your ${label}` })
+    push(errors, `${key}Dob`, dobProblem)
+    const parentBirth = parseDate(f[`${key}Dob`])
+    if (!dobProblem && key !== 'guardian' && parentBirth && applicantBirth && applicantBirth.y - parentBirth.y < 12) {
+      push(errors, `${key}Dob`, `Please check your ${label} date of birth. It should be at least 12 years before yours.`)
+    }
     push(errors, `${key}Education`, wordsError(f[`${key}Education`], `${label} educational attainment`, { max: 60 }))
     push(errors, `${key}Employment`, wordsError(f[`${key}Employment`], `${label} employment status`, { max: 60 }))
   }

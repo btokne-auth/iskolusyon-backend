@@ -194,6 +194,13 @@ const REGISTRAR_GROUPS = [
 // were removed (client interview, Oct 15).
 // Nov 2026 (panel revisions S8): roles by function, not by rank.
 const ROLE_TEXT = { super_admin: 'System Admin', guidance_head: 'Guidance Head', admin: 'Guidance Staff', registrar: 'Registrar' }
+// Nov 2026 (panel revisions S8): roles by function, said in one line.
+const ROLE_DUTY = {
+  super_admin: 'Manages admin accounts, the Activity Log and system settings. Applicant records are handled by the Guidance Office.',
+  guidance_head: 'Opens and closes applications, releases results and archives each cycle. Also reviews applicants.',
+  admin: 'Reviews applicants and confirms their documents. Opening applications and releasing results is done by the Guidance Head.',
+  registrar: 'Posts allowance releases for enrolled scholars.',
+}
 
 // System Admin: runs the system (accounts, logs). No applicant tabs; its
 // Dashboard shows counts only.
@@ -297,6 +304,7 @@ export default function AdminSidebar({
           <div className="sb-role">{roleText}</div>
         </div>
       </div>
+      {ROLE_DUTY[role] && <p className="sb-duty">{ROLE_DUTY[role]}</p>}
 
       {/* ---- Nav groups ---- */}
       <ul className="sidebar-menu">

@@ -37,9 +37,9 @@ export function buildResultDraft({ status, name, program }) {
   switch (status) {
     case 'passer':
       return {
-        subject: 'CCC Scholarship Application Result: Passed',
+        subject: 'CCC Application Result: Qualified as a Student',
         message: [
-          `Good news, ${who}. Based on your entrance examination result, you have PASSED for ${prog}.`,
+          `Good news, ${who}. Based on your entrance examination result, you are QUALIFIED AS A STUDENT for ${prog}.`,
           'What to do next:',
           '1. You will be endorsed for the medical examination at CCC Health Services.',
           '2. After that, fill out the pre-registration link and submit the requirements of the Office of the College Registrar within the given deadline. Unjustified delays may cause your slot to be given to the next qualified candidate on the waiting list.',
@@ -48,7 +48,7 @@ export function buildResultDraft({ status, name, program }) {
       }
     case 'waitlisted_probationary':
       return {
-        subject: 'CCC Scholarship Application Result: Waitlisted (Probationary)',
+        subject: 'CCC Application Result: Waitlisted (Probationary)',
         message: [
           `Hello ${who}. Thank you for taking the entrance examination. You are currently WAITLISTED (PROBATIONARY) for ${prog}.`,
           'This is not a rejection. Waitlisted applicants are ranked by entrance examination score, and you will be moved up if a slot becomes available. We will message you here if that happens. CCC may also consider you for another program based on your examination result.',
@@ -57,16 +57,16 @@ export function buildResultDraft({ status, name, program }) {
       }
     case 'qualified_probationary':
       return {
-        subject: 'CCC Scholarship Application Result: Qualified (Probationary)',
+        subject: 'CCC Application Result: Qualified as a Student (Probationary)',
         message: [
-          `Hello ${who}. You are QUALIFIED (PROBATIONARY) for ${prog}.`,
+          `Hello ${who}. You are QUALIFIED AS A STUDENT (PROBATIONARY) for ${prog}.`,
           'Please go to the CCC office to sign the probationary contract. The terms will be explained to you there.',
           `${WATCH_LINE} ${OFFICE_LINE}`,
         ].join('\n\n'),
       }
     case 'forfeited':
       return {
-        subject: 'CCC Scholarship Application Update: Forfeited',
+        subject: 'CCC Application Update: Forfeited',
         message: [
           `Hello ${who}. Our records show that you did not attend your scheduled entrance examination, so your application has been marked FORFEITED.`,
           'If you had a valid reason for being absent, please contact the CCC Guidance Office and bring your supporting documents.',
@@ -75,9 +75,9 @@ export function buildResultDraft({ status, name, program }) {
       }
     case 'disqualified':
       return {
-        subject: 'CCC Scholarship Application Update: Disqualified',
+        subject: 'CCC Application Update: Disqualified',
         message: [
-          `Hello ${who}. After review, you no longer qualify for the CCC scholarship program, so your application has been marked DISQUALIFIED.`,
+          `Hello ${who}. After review, you no longer qualify for admission to the City College of Calamba, so your application has been marked DISQUALIFIED.`,
           `If you have questions about this result, please contact the CCC Guidance Office. ${OFFICE_LINE}`,
         ].join('\n\n'),
       }

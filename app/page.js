@@ -139,10 +139,12 @@ function Hero({ paused, onHowTo }) {
         <div className="hero-copy">
           <span className="eyebrow rise" style={{ color: 'var(--green)', '--d': '.05s' }}>City College of Calamba</span>
           <h1><span className="rise" style={{ '--d': '.15s' }}>Scholarship</span> <span className="rise" style={{ '--d': '.3s' }}><span className="hl">Portal</span></span></h1>
-          <p className="hero-sub rise" style={{ '--d': '.45s' }}>Your all-in-one platform for applying to the City College of Calamba: application steps, guidelines, and real-time notifications. Applicants who qualify as students enroll as CCC scholars.</p>
+          {/* Nov 2026 (panel revisions S3): who can apply comes first, in the
+              top third of the page, then the buttons. */}
           <ResidencyNotice />
           <div className="hero-btns rise" style={{ '--d': '.6s' }}>
             <a href="/login?mode=signup" className="btn btn-navy shine">Apply Now {ICON.arrow}</a>
+            <a href="#before-you-apply" className="btn btn-light">Check if I&rsquo;m eligible</a>
             <a href="#how-to-apply" className="btn btn-light" onClick={(e) => { e.preventDefault(); onHowTo() }}>How to Apply</a>
           </div>
           <div className="stats rise" style={{ '--d': '.75s' }}>
@@ -170,6 +172,9 @@ function Hero({ paused, onHowTo }) {
           <span className="caption">Illustration of the portal with sample data.</span>
         </div>
       </div>
+      <div className="wrap terms-wrap">
+        <TermsStrip />
+      </div>
     </section>
   )
 }
@@ -194,6 +199,29 @@ function ResidencyNotice() {
       <ul className="resnote-facts" aria-label="Who can apply">
         {KEY_FACTS.map((f) => <li key={f}><Check size={13} width={2.8} />{f}</li>)}
       </ul>
+    </div>
+  )
+}
+
+// Nov 2026 (panel revisions M1): applicant -> student -> scholar, said once,
+// plainly, so visitors (and the panel) read the terms the same way.
+const TERMS = [
+  { term: 'Applicant', meaning: 'You, while applying through this portal.' },
+  { term: 'Student', meaning: 'Qualified after the entrance exam and document review.' },
+  { term: 'Scholar', meaning: 'Every enrolled CCC student. The scholarship comes with being accepted.' },
+]
+function TermsStrip() {
+  return (
+    <div className="terms rise" style={{ '--d': '.7s' }}>
+      <p className="terms-kick">From applicant to scholar</p>
+      <div className="terms-row">
+        {TERMS.map((t, i) => (
+          <div className="term" key={t.term}>
+            <span className="term-no">{i + 1}</span>
+            <span className="term-text"><b>{t.term}</b>{t.meaning}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

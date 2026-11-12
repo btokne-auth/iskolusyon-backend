@@ -138,7 +138,7 @@ export const STEP_GUIDES = [
         "label": null,
         "items": [
           "Results are announced on this website. Check your **Dashboard** and **Messages**.",
-          "Your result shows as **Passed**, **Qualified (Probationary)**, **Waitlisted**, **Not Qualified** or **Forfeited**.",
+          "Your result shows as **Qualified as a Student**, **Qualified as a Student (Probationary)**, **Waitlisted (Probationary)**, **Not Qualified** or **Forfeited**. Being qualified as a student means you can enroll; every enrolled CCC student is a scholar.",
           "If you are qualified as a student, take your **medical exam**. It is required before enrollment; **Messages** tells you when and where.",
           "After the medical exam, proceed with **official enrollment** and bring your **original documents**.",
           "Once enrolled, fill in **Health & Wellness** in the portal and follow your allowance in **Scholar’s Allowance**."
@@ -242,7 +242,7 @@ export const FAQ_DATA = [
           },
           {
             "q": "Who is eligible to apply?",
-            "a": "Applicants must be bonafide residents of Calamba and must have a voter’s registration (their own, or a parent’s or guardian’s). This is checked at the very start of sign-up: you upload the Voter’s ID or Voter’s Certification first, and an account is only created if it shows a Calamba address and you meet the academic requirements for how you are applying."
+            "a": "Applicants must be bonafide residents of Calamba and must have a voter’s registration (their own, or a parent’s or guardian’s). This is checked at the very start of sign-up: you upload the Voter’s ID or Voter’s Certification first, and an account is only created if it shows a Calamba address and you meet the academic requirements for how you are applying. Your birth certificate is not used to prove residency, because it shows the address at birth. A parent’s Voter’s ID registered in another city is not accepted."
           },
           {
             "q": "Are there specific grade requirements?",
