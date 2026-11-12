@@ -199,6 +199,20 @@ function nameError(value, label, { required = false } = {}) {
   return null
 }
 
+// Nov 2026 (panel revisions S6): free-text answers like Honors / Awards may
+// have a few numbers ("Top 10", "1st place") but not mashed keys or long
+// runs of the same character or of digits.
+function looksLikeJunk(v) {
+  const s = str(v)
+  const compact = s.replace(/\s+/g, '')
+  if (!compact) return false
+  if (/(.)\1{3,}/.test(compact)) return true
+  if (/\d{5,}/.test(compact)) return true
+  const digits = (compact.match(/\d/g) || []).length
+  const letters = (compact.match(/[a-zà-öø-ÿ]/gi) || []).length
+  return letters < 3 || digits > letters
+}
+
 function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
@@ -346,7 +360,7 @@ export function validateAcademicInfo(ai, { dateOfBirth } = {}) {
     push(errors, `${key}.school`, placeError(lvl.school, `${label} school name`))
     push(errors, `${key}.address`, placeError(lvl.address, `${label} school address`, { max: 200 }))
     const honors = str(lvl.honors)
-    if (honors && (honors.length > 100 || looksLikeGibberish(honors))) push(errors, `${key}.honors`, `Please check the ${label} honors / awards (a short, real entry, or N/A).`)
+    if (honors && (honors.length > 100 || looksLikeGibberish(honors) || looksLikeJunk(honors))) push(errors, `${key}.honors`, `Please check the ${label} honors / awards (a short, real entry, or N/A).`)
     const ye = yearError(lvl.year, `${label} completion year`)
     push(errors, `${key}.year`, ye)
     if (!ye && str(lvl.year)) {
